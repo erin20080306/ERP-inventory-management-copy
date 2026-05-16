@@ -16,6 +16,8 @@ model User {
   name         String
   passwordHash String
   isActive     Boolean   @default(true)
+  trialStart   DateTime  @default(now())
+  isPaid       Boolean   @default(false)
   lastLoginAt  DateTime?
   lastLoginIp  String?
   createdAt    DateTime  @default(now())

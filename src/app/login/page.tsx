@@ -7,14 +7,12 @@ import { Input, Label } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Loader2, Lock, User, Building2, ShieldCheck, BarChart3, Package, Sparkles } from "lucide-react";
-import { TrialGate } from "@/components/trial-gate";
+import Link from "next/link";
 
 export default function LoginPage() {
   return (
     <Suspense fallback={<div className="min-h-screen" />}>
-      <TrialGate>
-        <LoginInner />
-      </TrialGate>
+      <LoginInner />
     </Suspense>
   );
 }
@@ -156,6 +154,11 @@ function LoginInner() {
               </Button>
             </form>
 
+            <div className="mt-4 text-center">
+              <Link href="/register" className="text-sm text-slate-400 hover:text-white transition">
+                還沒有帳號？<span className="text-indigo-400 font-medium">立即註冊</span>
+              </Link>
+            </div>
           </div>
         </div>
       </div>
