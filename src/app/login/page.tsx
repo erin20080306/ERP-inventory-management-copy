@@ -37,6 +37,14 @@ function LoginInner() {
     toast.success("登入成功");
     // 標記首次登入，讓手機版選單自動展開
     try { sessionStorage.setItem("erp_just_logged_in", "1"); } catch {}
+    // 檢查是否為超級管理員，自動導向 /admin
+    try {
+      const sess = await fetch("/api/auth/session").then((r) => r.json());
+      if (sess?.user?.isSuperAdmin) {
+        window.location.href = "/admin";
+        return;
+      }
+    } catch {}
     // 整頁導航，避免 push+refresh 需要按兩次的問題
     window.location.href = callbackUrl;
   }
