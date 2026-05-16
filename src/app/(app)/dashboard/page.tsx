@@ -61,13 +61,14 @@ async function getStats(tenantId: string) {
       orderBy: { createdAt: "desc" },
       include: { customer: true },
     }),
-    prisma.salesOrderItem.groupBy({
-      by: ["productId"],
-      where: { salesOrder: { tenantId } } as any,
-      _sum: { subtotal: true, quantity: true },
-      orderBy: { _sum: { subtotal: "desc" } },
-      take: 5,
-    }),
+    prisma.$queryRawUnsafe(
+      `SELECT "productId", SUM(subtotal) as subtotal, SUM(quantity) as qty
+       FROM "SalesOrderItem" i
+       JOIN "SalesOrder" o ON o.id = i."salesOrderId"
+       WHERE o."tenantId" = $1
+       GROUP BY "productId" ORDER BY subtotal DESC LIMIT 5`,
+      tenantId
+    ) as any,
     prisma.salesOrder.groupBy({
       by: ["customerId"],
       _sum: { total: true },
@@ -137,8 +138,8 @@ async function getStats(tenantId: string) {
     recentSales,
     topProducts: topProducts.map((t: any) => ({
       name: productMap.find((p: any) => p.id === t.productId)?.name ?? "—",
-      subtotal: Number(t._sum.subtotal ?? 0),
-      qty: Number(t._sum.quantity ?? 0),
+      subtotal: Number(t.subtotal ?? t._sum?.subtotal ?? 0),
+      qty: Number(t.qty ?? t._sum?.quantity ?? 0),
     })),
     topCustomers: topCustomers.map((t: any) => ({
       name: customerMap.find((c: any) => c.id === t.customerId)?.companyName ?? "—",
