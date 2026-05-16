@@ -62,11 +62,11 @@ async function getStats(tenantId: string) {
       include: { customer: true },
     }),
     prisma.$queryRawUnsafe(
-      `SELECT "productId", SUM(subtotal) as subtotal, SUM(quantity) as qty
+      `SELECT i."productId", SUM(i.subtotal) as subtotal, SUM(i.quantity) as qty
        FROM "SalesOrderItem" i
-       JOIN "SalesOrder" o ON o.id = i."salesOrderId"
+       JOIN "SalesOrder" o ON o.id = i."orderId"
        WHERE o."tenantId" = $1
-       GROUP BY "productId" ORDER BY subtotal DESC LIMIT 5`,
+       GROUP BY i."productId" ORDER BY subtotal DESC LIMIT 5`,
       tenantId
     ) as any,
     prisma.salesOrder.groupBy({
