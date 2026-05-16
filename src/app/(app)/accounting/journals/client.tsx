@@ -242,9 +242,9 @@ function CreateJournalDialog({ open, onClose, onCreated, prefillDraft }: any) {
                       {accounts.map((a) => <option key={a.id} value={a.id}>{a.code} {a.name}</option>)}
                     </select>
                   </td>
-                  <td className="p-2"><Input type="number" step="0.01" value={l.debit} onChange={(e) => update(i, { debit: e.target.value, credit: 0 })} /></td>
-                  <td className="p-2"><Input type="number" step="0.01" value={l.credit} onChange={(e) => update(i, { credit: e.target.value, debit: 0 })} /></td>
-                  <td className="p-2"><Input value={l.memo ?? ""} onChange={(e) => update(i, { memo: e.target.value })} /></td>
+                  <td className="p-2"><Input inputMode="decimal" className="[appearance:textfield]" placeholder="0" value={l.debit || ""} onChange={(e) => { const v = e.target.value.replace(/[^0-9.]/g, ""); update(i, { debit: v, credit: 0 }); }} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); const next = document.querySelector<HTMLElement>(`[data-jr="${i + 1}-d"]`); if (next) next.focus(); else add(); setTimeout(() => document.querySelector<HTMLElement>(`[data-jr="${i + 1}-d"]`)?.focus(), 50); }}} data-jr={`${i}-d`} /></td>
+                  <td className="p-2"><Input inputMode="decimal" className="[appearance:textfield]" placeholder="0" value={l.credit || ""} onChange={(e) => { const v = e.target.value.replace(/[^0-9.]/g, ""); update(i, { credit: v, debit: 0 }); }} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); const next = document.querySelector<HTMLElement>(`[data-jr="${i + 1}-c"]`); if (next) next.focus(); else add(); setTimeout(() => document.querySelector<HTMLElement>(`[data-jr="${i + 1}-c"]`)?.focus(), 50); }}} data-jr={`${i}-c`} /></td>
+                  <td className="p-2"><Input value={l.memo ?? ""} onChange={(e) => update(i, { memo: e.target.value })} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); const next = document.querySelector<HTMLElement>(`[data-jr="${i + 1}-d"]`); if (next) next.focus(); else add(); setTimeout(() => document.querySelector<HTMLElement>(`[data-jr="${i + 1}-d"]`)?.focus(), 50); }}} /></td>
                   <td className="p-2"><Button variant="ghost" size="icon" onClick={() => remove(i)}><Trash2 className="h-4 w-4 text-red-600" /></Button></td>
                 </tr>
               ))}
