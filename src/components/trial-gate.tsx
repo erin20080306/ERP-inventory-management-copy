@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { ShieldCheck, CreditCard, Clock, CheckCircle2 } from "lucide-react";
 
 const PAYPAL_URL = "https://www.paypal.com/ncp/payment/THPBQKV5SY3WN";
@@ -9,6 +9,7 @@ type GateState = "loading" | "trial" | "expired" | "paid";
 export function TrialGate({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<GateState>("loading");
   const [remainMs, setRemainMs] = useState(0);
+  const expireAtRef = useRef<number>(0);
 
   const checkTrial = useCallback(async () => {
     try {
@@ -19,7 +20,9 @@ export function TrialGate({ children }: { children: React.ReactNode }) {
       } else if (data.status === "expired") {
         setState("expired");
       } else {
-        setRemainMs(data.remainMs ?? 0);
+        const remain = data.remainMs ?? 0;
+        expireAtRef.current = Date.now() + remain;
+        setRemainMs(remain);
         setState("trial");
       }
     } catch {
@@ -29,8 +32,23 @@ export function TrialGate({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     checkTrial();
-    const interval = setInterval(checkTrial, 60_000);
-    return () => clearInterval(interval);
+    // 每 5 分鐘向伺服器確認一次
+    const serverInterval = setInterval(checkTrial, 5 * 60_000);
+    // 每秒更新本地倒數顯示
+    const tickInterval = setInterval(() => {
+      if (expireAtRef.current > 0) {
+        const remaining = expireAtRef.current - Date.now();
+        if (remaining <= 0) {
+          setState("expired");
+        } else {
+          setRemainMs(remaining);
+        }
+      }
+    }, 1000);
+    return () => {
+      clearInterval(serverInterval);
+      clearInterval(tickInterval);
+    };
   }, [checkTrial]);
 
   if (state === "loading") {
@@ -53,9 +71,10 @@ export function TrialGate({ children }: { children: React.ReactNode }) {
   if (state === "trial") {
     const hours = Math.floor(remainMs / (1000 * 60 * 60));
     const mins = Math.floor((remainMs % (1000 * 60 * 60)) / (1000 * 60));
+    const secs = Math.floor((remainMs % (1000 * 60)) / 1000);
     return (
       <>
-        <TrialBanner hours={hours} mins={mins} />
+        <TrialBanner hours={hours} mins={mins} secs={secs} />
         {children}
       </>
     );
@@ -65,11 +84,11 @@ export function TrialGate({ children }: { children: React.ReactNode }) {
 }
 
 /* ─── 試用期倒數 banner ─── */
-function TrialBanner({ hours, mins }: { hours: number; mins: number }) {
+function TrialBanner({ hours, mins, secs }: { hours: number; mins: number; secs: number }) {
   return (
     <div className="sticky top-0 z-[999] bg-gradient-to-r from-amber-500 to-orange-500 text-white px-4 py-2 flex items-center justify-center gap-2 text-sm font-medium shadow-lg print:hidden">
       <Clock className="h-4 w-4 shrink-0" />
-      <span>試用期剩餘：{hours} 小時 {mins} 分鐘</span>
+      <span>試用期剩餘：{hours} 小時 {mins} 分 {secs} 秒</span>
       <a
         href={PAYPAL_URL}
         target="_blank"
