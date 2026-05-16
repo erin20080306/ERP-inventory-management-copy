@@ -6,7 +6,8 @@ import { StatusBadge } from "@/components/ui/badge";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { TrendingUp, TrendingDown, Package, AlertTriangle, ShoppingCart, Receipt, Coins, Wallet } from "lucide-react";
 import { SalesTrendChart } from "./trend-chart";
-import { requireTenantId } from "@/lib/api";
+import { requireTenantId, getSession } from "@/lib/api";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
@@ -167,6 +168,8 @@ function KPI({ icon: Icon, label, value, hint, accent }: any) {
 }
 
 export default async function DashboardPage() {
+  const session = await getSession();
+  if (session?.user?.isSuperAdmin) redirect("/admin");
   const tenantId = await requireTenantId();
   const s = await getStats(tenantId);
   return (

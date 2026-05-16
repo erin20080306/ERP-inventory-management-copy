@@ -6,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { formatDateTime } from "@/lib/utils";
-import { Building2, Users, Shield, Loader2, Activity, LogIn } from "lucide-react";
+import { Building2, Users, Shield, Loader2, Activity, LogIn, LogOut } from "lucide-react";
+import { signOut } from "next-auth/react";
 
 export default function AdminPage() {
   const { data: session, status } = useSession();
@@ -39,12 +40,21 @@ export default function AdminPage() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
-        <div className="flex items-center gap-3">
-          <Shield className="h-8 w-8 text-amber-400" />
-          <div>
-            <h1 className="text-2xl font-bold">超級管理員後台</h1>
-            <p className="text-sm text-slate-400">平台租戶與用戶總覽</p>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Shield className="h-8 w-8 text-amber-400" />
+            <div>
+              <h1 className="text-2xl font-bold">超級管理員後台</h1>
+              <p className="text-sm text-slate-400">平台租戶與用戶總覽</p>
+            </div>
           </div>
+          <button
+            onClick={() => signOut({ callbackUrl: "/login" })}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white text-sm font-medium transition"
+          >
+            <LogOut className="h-4 w-4" />
+            登出
+          </button>
         </div>
 
         {/* 統計卡片 */}

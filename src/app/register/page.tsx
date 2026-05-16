@@ -25,9 +25,11 @@ export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [roleName, setRoleName] = useState("一般查詢人員");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    setError("");
     setLoading(true);
     try {
       const res = await fetch("/api/register", {
@@ -37,12 +39,15 @@ export default function RegisterPage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        toast.error(data.error || "註冊失敗");
+        const msg = data.error || "註冊失敗";
+        setError(msg);
+        toast.error(msg);
         return;
       }
       toast.success("註冊成功！請登入");
       router.push("/login");
     } catch {
+      setError("註冊失敗，請稍後再試");
       toast.error("註冊失敗，請稍後再試");
     } finally {
       setLoading(false);
@@ -80,6 +85,11 @@ export default function RegisterPage() {
             <p className="text-sm text-slate-400 mt-1">註冊後可免費試用 2 天</p>
           </div>
 
+          {error && (
+            <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm text-center">
+              {error}
+            </div>
+          )}
           <form onSubmit={onSubmit} className="space-y-4">
             <div className="space-y-1.5">
               <Label htmlFor="name" className="text-slate-300 text-xs">姓名</Label>
