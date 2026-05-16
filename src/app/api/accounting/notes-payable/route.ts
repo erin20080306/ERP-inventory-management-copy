@@ -1,0 +1,59 @@
+import { NextRequest, NextResponse } from "next/server";
+import { apiHandler, requirePermission, audit, nextNumber } from "@/lib/api";
+import { prisma } from "@/lib/prisma";
+
+export const GET = apiHandler(async (req: NextRequest) => {
+  await requirePermission("notes.view");
+  const sp = req.nextUrl.searchParams;
+  const q = sp.get("q") ?? "";
+  const status = sp.get("status") ?? "";
+  const page = Number(sp.get("page") ?? 1);
+  const pageSize = Number(sp.get("pageSize") ?? 20);
+  const where: any = {};
+  if (q) {
+    where.OR = [
+      { noteNumber: { contains: q, mode: "insensitive" } },
+      { supplier: { companyName: { contains: q, mode: "insensitive" } } },
+      { payeeName: { contains: q, mode: "insensitive" } },
+    ];
+  }
+  if (status) where.status = status;
+  const [items, total] = await Promise.all([
+    prisma.notePayable.findMany({
+      where,
+      include: { supplier: true, payable: true, bankAccount: true },
+      orderBy: { dueDate: "asc" },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    }),
+    prisma.notePayable.count({ where }),
+  ]);
+  return NextResponse.json({ items, total });
+});
+
+export const POST = apiHandler(async (req: NextRequest) => {
+  const session = await requirePermission("notes.create");
+  const body = await req.json();
+  if (!body.supplierId) throw new Error("請選擇供應商");
+  if (!body.amount || Number(body.amount) <= 0) throw new Error("金額必須大於 0");
+  if (!body.dueDate) throw new Error("請選擇到期日");
+  const number = await nextNumber("NP");
+  const created = await prisma.notePayable.create({
+    data: {
+      number,
+      noteNumber: body.noteNumber || number,
+      noteType: body.noteType ?? "CHECK",
+      supplierId: body.supplierId,
+      bankAccountId: body.bankAccountId || null,
+      payeeName: body.payeeName,
+      amount: Number(body.amount),
+      issueDate: body.issueDate ? new Date(body.issueDate) : new Date(),
+      dueDate: new Date(body.dueDate),
+      status: "PENDING",
+      payableId: body.payableId || null,
+      remark: body.remark,
+    },
+  });
+  await audit({ userId: session.user.id, action: "create", module: "notes-payable", refId: created.id, detail: number });
+  return NextResponse.json(created);
+});

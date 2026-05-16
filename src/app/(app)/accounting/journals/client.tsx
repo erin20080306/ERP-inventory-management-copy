@@ -1,0 +1,295 @@
+"use client";
+import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input, Label, Textarea } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
+import { StatusBadge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/layout/page-shell";
+import { toast } from "sonner";
+import { Plus, Trash2, Loader2, Search, Eye, Download, Printer, FileDown } from "lucide-react";
+import { formatDate, formatMoney } from "@/lib/utils";
+import { downloadCSV, toCSV } from "@/lib/csv";
+
+export function JournalClient() {
+  const [rows, setRows] = useState<any[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [q, setQ] = useState("");
+  const [openNew, setOpenNew] = useState(false);
+  const [view, setView] = useState<any>(null);
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const [prefillDraft, setPrefillDraft] = useState<any>(null);
+
+  // 讀取從進銷存頁面轉傳票傳入的草稿
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const sp = new URLSearchParams(window.location.search);
+    if (sp.get("fromSource") === "1") {
+      const raw = sessionStorage.getItem("journal_draft");
+      if (raw) {
+        try {
+          setPrefillDraft(JSON.parse(raw));
+          setOpenNew(true);
+          sessionStorage.removeItem("journal_draft");
+          // 清掉 URL 參數
+          window.history.replaceState({}, "", "/accounting/journals");
+        } catch {}
+      }
+    }
+  }, []);
+  const pageSize = 20;
+
+  async function load() {
+    setLoading(true);
+    const res = await fetch(`/api/accounting/journals?q=${encodeURIComponent(q)}&page=${page}&pageSize=${pageSize}`);
+    const d = await res.json();
+    setRows(d.items);
+    setTotal(d.total);
+    setLoading(false);
+  }
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, q]);
+
+  async function act(id: string, action: string) {
+    try {
+      const res = await fetch(`/api/accounting/journals/${id}`, {
+        method: action === "delete" ? "DELETE" : "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: action === "delete" ? undefined : JSON.stringify({ action }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || "操作失敗");
+      toast.success("已處理");
+      load();
+      setView(null);
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+  }
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="relative">
+          <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+          <Input placeholder="搜尋傳票編號 / 摘要" className="pl-9 w-72" value={q} onChange={(e) => { setPage(1); setQ(e.target.value); }} />
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={async () => {
+              const res = await fetch(`/api/accounting/journals?q=${encodeURIComponent(q)}&pageSize=10000`);
+              const d = await res.json();
+              const flat: any[] = [];
+              d.items.forEach((j: any) => {
+                j.lines.forEach((l: any) => {
+                  flat.push({
+                    number: j.number, date: formatDate(j.entryDate), summary: j.summary, status: j.status,
+                    account: `${l.account.code} ${l.account.name}`, debit: l.debit, credit: l.credit, memo: l.memo ?? "",
+                  });
+                });
+              });
+              const csv = toCSV(flat, [
+                { key: "number", title: "傳票編號" },
+                { key: "date", title: "日期" },
+                { key: "summary", title: "摘要" },
+                { key: "account", title: "科目" },
+                { key: "debit", title: "借方" },
+                { key: "credit", title: "貸方" },
+                { key: "memo", title: "分錄摘要" },
+                { key: "status", title: "狀態" },
+              ]);
+              downloadCSV(`journals-${new Date().toISOString().slice(0, 10)}.csv`, csv);
+              toast.success("已匯出 CSV");
+            }}
+          ><Download className="h-4 w-4" />CSV</Button>
+          <Button variant="outline" onClick={async () => {
+            const res = await fetch(`/api/accounting/journals?q=${encodeURIComponent(q)}&pageSize=10000`);
+            const d = await res.json();
+            const flat: any[] = [];
+            d.items.forEach((j: any) => j.lines.forEach((l: any) => flat.push({
+              number: j.number, date: formatDate(j.entryDate), summary: j.summary, status: j.status,
+              account: `${l.account.code} ${l.account.name}`, debit: Number(l.debit), credit: Number(l.credit), memo: l.memo ?? "",
+            })));
+            const { downloadExcel } = await import("@/lib/excel");
+            downloadExcel("journals", "傳票管理", flat, [
+              { key: "number", title: "傳票編號" },
+              { key: "date", title: "日期" },
+              { key: "summary", title: "摘要" },
+              { key: "account", title: "科目" },
+              { key: "debit", title: "借方" },
+              { key: "credit", title: "貸方" },
+              { key: "memo", title: "分錄摘要" },
+              { key: "status", title: "狀態" },
+            ]);
+            toast.success("已匯出 Excel");
+          }}><FileDown className="h-4 w-4" />Excel</Button>
+          <Button variant="outline" disabled={pdfBusy} onClick={async () => {
+            setPdfBusy(true);
+            try { const { exportPageToPDF } = await import("@/lib/export-pdf"); await exportPageToPDF("傳票管理", "journals"); } finally { setPdfBusy(false); }
+          }}>
+            {pdfBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
+            PDF
+          </Button>
+          <Button onClick={() => setOpenNew(true)}><Plus className="h-4 w-4" />新增傳票</Button>
+        </div>
+      </div>
+      <Table>
+        <THead>
+          <TR>
+            <TH>編號</TH><TH>日期</TH><TH>摘要</TH><TH>借方</TH><TH>貸方</TH><TH>狀態</TH><TH className="w-20 text-right">操作</TH>
+          </TR>
+        </THead>
+        <TBody>
+          {loading && <TR><TD colSpan={7} className="text-center py-10"><Loader2 className="inline h-5 w-5 animate-spin" /></TD></TR>}
+          {!loading && rows.length === 0 && <TR><TD colSpan={7}><EmptyState /></TD></TR>}
+          {!loading && rows.map((r) => {
+            const debit = r.lines.reduce((s: number, l: any) => s + Number(l.debit), 0);
+            const credit = r.lines.reduce((s: number, l: any) => s + Number(l.credit), 0);
+            return (
+              <TR key={r.id}>
+                <TD className="font-mono text-xs">{r.number}</TD>
+                <TD>{formatDate(r.entryDate)}</TD>
+                <TD>{r.summary}</TD>
+                <TD>{formatMoney(debit)}</TD>
+                <TD>{formatMoney(credit)}</TD>
+                <TD><StatusBadge status={r.status} /></TD>
+                <TD className="text-right"><Button variant="ghost" size="icon" onClick={() => setView(r)}><Eye className="h-4 w-4" /></Button></TD>
+              </TR>
+            );
+          })}
+        </TBody>
+      </Table>
+      <div className="flex items-center justify-between text-sm text-muted-foreground">
+        <div>共 {total} 筆</div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>上一頁</Button>
+          <span>{page} / {totalPages}</span>
+          <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>下一頁</Button>
+        </div>
+      </div>
+      <CreateJournalDialog open={openNew} onClose={() => { setOpenNew(false); setPrefillDraft(null); }} onCreated={() => { setOpenNew(false); setPrefillDraft(null); load(); }} prefillDraft={prefillDraft} />
+      {view && <ViewJournalDialog entry={view} onClose={() => setView(null)} onAct={act} />}
+    </div>
+  );
+}
+
+function CreateJournalDialog({ open, onClose, onCreated, prefillDraft }: any) {
+  const [accounts, setAccounts] = useState<any[]>([]);
+  const [summary, setSummary] = useState("");
+  const [entryDate, setEntryDate] = useState(new Date().toISOString().slice(0, 10));
+  const [lines, setLines] = useState<any[]>([{ accountId: "", debit: 0, credit: 0, memo: "" }, { accountId: "", debit: 0, credit: 0, memo: "" }]);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    fetch("/api/accounting/accounts").then((r) => r.json()).then((d) => setAccounts(d.items ?? []));
+    if (prefillDraft) {
+      setSummary(prefillDraft.summary || "");
+      setEntryDate(prefillDraft.entryDate || new Date().toISOString().slice(0, 10));
+      setLines(prefillDraft.lines.map((l: any) => ({ accountId: l.accountId, debit: l.debit, credit: l.credit, memo: l.memo ?? "" })));
+    } else {
+      setSummary(""); setEntryDate(new Date().toISOString().slice(0, 10));
+      setLines([{ accountId: "", debit: 0, credit: 0, memo: "" }, { accountId: "", debit: 0, credit: 0, memo: "" }]);
+    }
+  }, [open, prefillDraft]);
+
+  const totalDebit = lines.reduce((s, l) => s + Number(l.debit || 0), 0);
+  const totalCredit = lines.reduce((s, l) => s + Number(l.credit || 0), 0);
+  const balanced = Math.abs(totalDebit - totalCredit) < 0.001 && totalDebit > 0;
+
+  function update(idx: number, patch: any) { const n = [...lines]; n[idx] = { ...n[idx], ...patch }; setLines(n); }
+  function add() { setLines([...lines, { accountId: "", debit: 0, credit: 0, memo: "" }]); }
+  function remove(idx: number) { setLines(lines.filter((_, i) => i !== idx)); }
+
+  async function save() {
+    if (!balanced) return toast.error("借貸必須平衡且金額不可為 0");
+    if (lines.some((l) => !l.accountId)) return toast.error("請選擇科目");
+    setSaving(true);
+    try {
+      const res = await fetch("/api/accounting/journals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ summary, entryDate, lines }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || "儲存失敗");
+      toast.success("已建立");
+      onCreated();
+    } catch (e: any) { toast.error(e.message); } finally { setSaving(false); }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-3xl">
+        <DialogHeader><DialogTitle>新增傳票</DialogTitle></DialogHeader>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1"><Label>傳票日期</Label><Input type="date" value={entryDate} onChange={(e) => setEntryDate(e.target.value)} /></div>
+          <div className="space-y-1 col-span-2"><Label>摘要</Label><Input value={summary} onChange={(e) => setSummary(e.target.value)} placeholder="例: 現銷商品" /></div>
+        </div>
+        <div className="border rounded-md overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50 text-xs text-muted-foreground"><tr><th className="p-2 text-left">科目</th><th className="p-2 w-32">借方</th><th className="p-2 w-32">貸方</th><th className="p-2 text-left">摘要</th><th className="p-2 w-10"></th></tr></thead>
+            <tbody>
+              {lines.map((l, i) => (
+                <tr key={i} className="border-t">
+                  <td className="p-2">
+                    <select className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm" value={l.accountId} onChange={(e) => update(i, { accountId: e.target.value })}>
+                      <option value="">選擇科目</option>
+                      {accounts.map((a) => <option key={a.id} value={a.id}>{a.code} {a.name}</option>)}
+                    </select>
+                  </td>
+                  <td className="p-2"><Input type="number" step="0.01" value={l.debit} onChange={(e) => update(i, { debit: e.target.value, credit: 0 })} /></td>
+                  <td className="p-2"><Input type="number" step="0.01" value={l.credit} onChange={(e) => update(i, { credit: e.target.value, debit: 0 })} /></td>
+                  <td className="p-2"><Input value={l.memo ?? ""} onChange={(e) => update(i, { memo: e.target.value })} /></td>
+                  <td className="p-2"><Button variant="ghost" size="icon" onClick={() => remove(i)}><Trash2 className="h-4 w-4 text-red-600" /></Button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="p-2"><Button variant="outline" size="sm" onClick={add}><Plus className="h-4 w-4" />新增分錄</Button></div>
+        </div>
+        <div className="grid grid-cols-3 gap-3 text-sm">
+          <div><div className="text-muted-foreground">借方合計</div><div className="font-medium">{formatMoney(totalDebit)}</div></div>
+          <div><div className="text-muted-foreground">貸方合計</div><div className="font-medium">{formatMoney(totalCredit)}</div></div>
+          <div><div className="text-muted-foreground">狀態</div><div className={balanced ? "text-emerald-600 font-medium" : "text-red-600 font-medium"}>{balanced ? "已平衡" : "未平衡"}</div></div>
+        </div>
+        <DialogFooter><Button variant="outline" onClick={onClose}>取消</Button><Button onClick={save} disabled={!balanced || saving}>{saving ? "儲存中..." : "儲存"}</Button></DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ViewJournalDialog({ entry, onClose, onAct }: any) {
+  const totalDebit = entry.lines.reduce((s: number, l: any) => s + Number(l.debit), 0);
+  const totalCredit = entry.lines.reduce((s: number, l: any) => s + Number(l.credit), 0);
+  return (
+    <Dialog open onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-3xl">
+        <DialogHeader><DialogTitle>傳票 {entry.number} <StatusBadge status={entry.status} /></DialogTitle></DialogHeader>
+        <div className="text-sm">日期：{formatDate(entry.entryDate)}　摘要：{entry.summary || "—"}</div>
+        <table className="w-full text-sm border rounded-md">
+          <thead className="bg-muted/50 text-xs text-muted-foreground"><tr><th className="p-2 text-left">科目</th><th className="p-2 text-right">借方</th><th className="p-2 text-right">貸方</th><th className="p-2 text-left">摘要</th></tr></thead>
+          <tbody>
+            {entry.lines.map((l: any) => (
+              <tr key={l.id} className="border-t"><td className="p-2">{l.account.code} {l.account.name}</td><td className="p-2 text-right">{Number(l.debit) > 0 ? formatMoney(l.debit) : "—"}</td><td className="p-2 text-right">{Number(l.credit) > 0 ? formatMoney(l.credit) : "—"}</td><td className="p-2">{l.memo ?? "—"}</td></tr>
+            ))}
+            <tr className="border-t font-medium bg-muted/30"><td className="p-2">合計</td><td className="p-2 text-right">{formatMoney(totalDebit)}</td><td className="p-2 text-right">{formatMoney(totalCredit)}</td><td></td></tr>
+          </tbody>
+        </table>
+        <DialogFooter className="gap-2 flex-wrap">
+          <Button variant="outline" onClick={() => window.open(`/print/journal/${entry.id}`, "_blank")}>
+            <Printer className="h-4 w-4" />列印
+          </Button>
+          {entry.status === "DRAFT" && <Button onClick={() => onAct(entry.id, "post")}>過帳</Button>}
+          {entry.status === "POSTED" && <Button variant="destructive" onClick={() => onAct(entry.id, "void")}>作廢</Button>}
+          {entry.status === "DRAFT" && <Button variant="destructive" onClick={() => onAct(entry.id, "delete")}>刪除</Button>}
+          <Button variant="ghost" onClick={onClose}>關閉</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

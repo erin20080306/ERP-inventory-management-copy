@@ -1,0 +1,116 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 210 40% 98%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 222 47% 16%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222 47% 11%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 217 91% 60%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 217 91% 60%;
+    --radius: 0.6rem;
+    --sidebar: 222 47% 11%;
+    --sidebar-foreground: 210 40% 96%;
+  }
+  .dark {
+    --background: 222 47% 6%;
+    --foreground: 210 40% 96%;
+    --card: 222 47% 9%;
+    --card-foreground: 210 40% 96%;
+    --popover: 222 47% 9%;
+    --popover-foreground: 210 40% 96%;
+    --primary: 210 40% 96%;
+    --primary-foreground: 222 47% 11%;
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 96%;
+    --muted: 217 33% 14%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 217 91% 60%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 62% 45%;
+    --destructive-foreground: 210 40% 96%;
+    --border: 217 33% 18%;
+    --input: 217 33% 18%;
+    --ring: 217 91% 60%;
+    --sidebar: 222 47% 4%;
+    --sidebar-foreground: 210 40% 90%;
+  }
+  * { @apply border-border; }
+  body { @apply bg-background text-foreground antialiased; }
+}
+
+/* Loading skeleton */
+.skeleton {
+  @apply animate-pulse rounded-md bg-muted;
+}
+
+/* ===== 列表列印 ===== */
+/* 公司抬頭：螢幕隱藏，列印時顯示 */
+.print-company-header { display: none; }
+
+@media print {
+  /* 顯示公司抬頭 */
+  .print-company-header {
+    display: block !important;
+    text-align: center;
+    margin-bottom: 8px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #333;
+  }
+  .print-company-header .text-lg { font-size: 18px !important; font-weight: 700 !important; }
+  .print-company-header .text-xs { font-size: 10px !important; color: #444 !important; }
+
+  /* 列印日期 */
+  .print-date { display: block !important; text-align: right; font-size: 10px; color: #666; margin-bottom: 4px; }
+
+  /* 隱藏側邊欄、header、按鈕列、分頁、dialog */
+  aside,
+  header,
+  nav,
+  .no-print,
+  [data-no-print],
+  button,
+  input,
+  select {
+    display: none !important;
+  }
+  /* table 內按鈕也隱藏 */
+  table button { display: none !important; }
+  /* 主區域全寬 */
+  body, html { background: #fff !important; color: #000 !important; }
+  .flex.min-h-screen > aside { display: none !important; }
+  .flex.min-h-screen > div { width: 100% !important; margin: 0 !important; }
+  main { padding: 0 !important; }
+  /* 表格樣式 */
+  table { width: 100% !important; border-collapse: collapse !important; font-size: 11px !important; }
+  th, td { border: 1px solid #ccc !important; padding: 4px 8px !important; text-align: left !important; }
+  th { background: #f3f4f6 !important; font-weight: 600 !important; }
+  /* 標題 */
+  h1 { font-size: 16px !important; margin-bottom: 4px !important; text-align: center !important; }
+  p.text-sm { font-size: 10px !important; text-align: center !important; margin-bottom: 8px !important; }
+  /* Card 邊框移除 */
+  [class*="card"] { border: none !important; box-shadow: none !important; padding: 0 !important; }
+  /* Badge 顯示為純文字 */
+  [class*="badge"] { border: none !important; background: none !important; color: #000 !important; padding: 0 !important; font-size: 11px !important; }
+  /* 分頁隱藏 */
+  .flex.items-center.justify-between.text-sm { display: none !important; }
+  /* 搜尋列隱藏 */
+  .flex.items-center.justify-between.gap-2 { display: none !important; }
+  /* 頁面設定 */
+  @page { margin: 15mm; size: A4 landscape; }
+}
