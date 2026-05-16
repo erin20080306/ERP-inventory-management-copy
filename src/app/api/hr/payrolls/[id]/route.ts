@@ -6,8 +6,8 @@ import { computePayroll } from "@/lib/payroll";
 export const GET = apiHandler(async (_req: NextRequest, { params }: { params: { id: string } }) => {
   await requirePermission("payroll.view");
   const tenantId = await requireTenantId();
-  const p = await prisma.payroll.findUnique({
-    where: { id: params.id, tenantId },
+  const p = await prisma.payroll.findFirst({
+    where: { id: params.id, period: { tenantId } },
     include: { employee: { include: { department: true } }, period: true, items: true },
   });
   if (!p) throw new Error("找不到薪資單");
@@ -28,8 +28,8 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: {
   const body = await req.json();
   const { action, ...patch } = body;
 
-  const payroll = await prisma.payroll.findUnique({
-    where: { id: params.id, tenantId },
+  const payroll = await prisma.payroll.findFirst({
+    where: { id: params.id, period: { tenantId } },
     include: { employee: true, items: true },
   });
   if (!payroll) throw new Error("找不到薪資單");
@@ -85,7 +85,7 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: {
     };
   }
   const updated = await prisma.payroll.update({
-    where: { id: params.id, tenantId },
+    where: { id: params.id },
     data,
     include: { items: true, employee: true, period: true },
   });
@@ -96,7 +96,9 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: {
 export const DELETE = apiHandler(async (_req: NextRequest, { params }: { params: { id: string } }) => {
   const session = await requirePermission("payroll.delete");
   const tenantId = await requireTenantId();
-  await prisma.payroll.delete({ where: { id: params.id, tenantId } });
+  const pr = await prisma.payroll.findFirst({ where: { id: params.id, period: { tenantId } } });
+  if (!pr) throw new Error("找不到薪資單");
+  await prisma.payroll.delete({ where: { id: params.id } });
   await audit({ userId: session.user.id, action: "delete", module: "payrolls", refId: params.id });
   return NextResponse.json({ ok: true });
 });

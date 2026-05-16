@@ -11,7 +11,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const page = Number(sp.get("page") ?? 1);
   const pageSize = Number(sp.get("pageSize") ?? 50);
   const tenantId = await requireTenantId();
-  const where: any = { tenantId };
+  const where: any = { period: { tenantId } };
   if (q) where.OR = [
     { number: { contains: q, mode: "insensitive" } },
     { employee: { name: { contains: q, mode: "insensitive" } } },
