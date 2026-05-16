@@ -43,10 +43,11 @@ export async function receivePurchaseOrder(orderId: string, warehouseId: string)
       const stock = await tx.inventoryStock.upsert({
         where: { productId_warehouseId: { productId: item.productId, warehouseId } },
         update: { quantity: { increment: item.quantity } },
-        create: { productId: item.productId, warehouseId, quantity: item.quantity },
+        create: { tenantId: order.tenantId, productId: item.productId, warehouseId, quantity: item.quantity },
       });
       await tx.inventoryTransaction.create({
         data: {
+          tenantId: order.tenantId,
           productId: item.productId,
           warehouseId,
           type: "PURCHASE_IN",
@@ -67,6 +68,7 @@ export async function receivePurchaseOrder(orderId: string, warehouseId: string)
 
     await tx.accountsPayable.create({
       data: {
+        tenantId: order.tenantId,
         supplierId: order.supplierId,
         purchaseOrderId: order.id,
         amount: order.total,
@@ -98,6 +100,7 @@ export async function shipSalesOrder(orderId: string, warehouseId: string) {
       });
       await tx.inventoryTransaction.create({
         data: {
+          tenantId: order.tenantId,
           productId: item.productId,
           warehouseId,
           type: "SALES_OUT",
@@ -118,6 +121,7 @@ export async function shipSalesOrder(orderId: string, warehouseId: string) {
 
     await tx.accountsReceivable.create({
       data: {
+        tenantId: order.tenantId,
         customerId: order.customerId,
         salesOrderId: order.id,
         amount: order.total,

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { apiHandler, requirePermission, audit } from "@/lib/api";
+import { apiHandler, requirePermission, requireTenantId, audit } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 
 const TYPE_MAP: Record<string, string> = {
@@ -51,6 +51,7 @@ function parseCSV(text: string): string[][] {
 
 export const POST = apiHandler(async (req: NextRequest) => {
   const session = await requirePermission("accounting.create");
+  const tenantId = await requireTenantId();
   const body = await req.json();
   const text: string = body.csv || "";
   if (!text.trim()) throw new Error("CSV 內容為空");
@@ -78,11 +79,11 @@ export const POST = apiHandler(async (req: NextRequest) => {
       continue;
     }
     const type = TYPE_MAP[typeRaw] || guessType(code);
-    const existed = await prisma.chartOfAccount.findUnique({ where: { code } });
+    const existed = await prisma.chartOfAccount.findUnique({ where: { tenantId_code: { tenantId, code } } });
     await prisma.chartOfAccount.upsert({
-      where: { code },
+      where: { tenantId_code: { tenantId, code } },
       update: { name, type: type as any },
-      create: { code, name, type: type as any },
+      create: { tenantId, code, name, type: type as any },
     });
     if (existed) updated++;
     else created++;

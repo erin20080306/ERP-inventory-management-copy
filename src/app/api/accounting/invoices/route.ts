@@ -1,22 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
-import { apiHandler, requirePermission, audit, nextNumber } from "@/lib/api";
+import { apiHandler, requirePermission, requireTenantId, audit, nextNumber } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 
 export const GET = apiHandler(async (req: NextRequest) => {
   await requirePermission("invoices.view");
+  const tenantId = await requireTenantId();
   const sp = req.nextUrl.searchParams;
   const q = sp.get("q") ?? "";
   const page = Number(sp.get("page") ?? 1);
   const pageSize = Number(sp.get("pageSize") ?? 20);
   const where: any = q
     ? {
+        tenantId,
         OR: [
           { number: { contains: q, mode: "insensitive" } },
           { customer: { companyName: { contains: q, mode: "insensitive" } } },
           { supplier: { companyName: { contains: q, mode: "insensitive" } } },
         ],
       }
-    : {};
+    : { tenantId };
   const [items, total] = await Promise.all([
     prisma.invoice.findMany({
       where,
@@ -32,6 +34,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
 
 export const POST = apiHandler(async (req: NextRequest) => {
   const session = await requirePermission("invoices.create");
+  const tenantId = await requireTenantId();
   const body = await req.json();
   const { type, customerId, supplierId, invoiceDate, number: inNumber, items, remark } = body as any;
 
@@ -56,10 +59,11 @@ export const POST = apiHandler(async (req: NextRequest) => {
     };
   });
   const totalAmount = +(amountExTax + taxAmount).toFixed(2);
-  const number = inNumber || (await nextNumber("INV"));
+  const number = inNumber || (await nextNumber("INV", tenantId));
 
   const created = await prisma.invoice.create({
     data: {
+      tenantId,
       number,
       type,
       invoiceDate: invoiceDate ? new Date(invoiceDate) : new Date(),

@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { apiHandler, requirePermission, audit } from "@/lib/api";
+import { apiHandler, requirePermission, requireTenantId, audit } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 
 export const GET = apiHandler(async (_req: NextRequest, { params }: { params: { id: string } }) => {
   await requirePermission("notes.view");
+  const tenantId = await requireTenantId();
   const n = await prisma.notePayable.findUnique({
-    where: { id: params.id },
+    where: { id: params.id, tenantId },
     include: { supplier: true, payable: true, bankAccount: true },
   });
   if (!n) throw new Error("找不到票據");
@@ -14,9 +15,10 @@ export const GET = apiHandler(async (_req: NextRequest, { params }: { params: { 
 
 export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: { id: string } }) => {
   const session = await requirePermission("notes.edit");
+  const tenantId = await requireTenantId();
   const body = await req.json();
   const { action, ...patch } = body;
-  const n = await prisma.notePayable.findUnique({ where: { id: params.id } });
+  const n = await prisma.notePayable.findUnique({ where: { id: params.id, tenantId } });
   if (!n) throw new Error("找不到票據");
 
   let data: any = {};
@@ -35,14 +37,15 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: {
       remark: patch.remark,
     };
   }
-  const updated = await prisma.notePayable.update({ where: { id: params.id }, data });
+  const updated = await prisma.notePayable.update({ where: { id: params.id, tenantId }, data });
   await audit({ userId: session.user.id, action: action ?? "update", module: "notes-payable", refId: params.id });
   return NextResponse.json(updated);
 });
 
 export const DELETE = apiHandler(async (_req: NextRequest, { params }: { params: { id: string } }) => {
   const session = await requirePermission("notes.delete");
-  await prisma.notePayable.delete({ where: { id: params.id } });
+  const tenantId = await requireTenantId();
+  await prisma.notePayable.delete({ where: { id: params.id, tenantId } });
   await audit({ userId: session.user.id, action: "delete", module: "notes-payable", refId: params.id });
   return NextResponse.json({ ok: true });
 });

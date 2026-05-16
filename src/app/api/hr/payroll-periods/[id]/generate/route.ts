@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { apiHandler, requirePermission, audit, nextNumber } from "@/lib/api";
+import { apiHandler, requirePermission, requireTenantId, audit, nextNumber } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { computePayroll } from "@/lib/payroll";
 
@@ -9,12 +9,13 @@ import { computePayroll } from "@/lib/payroll";
  */
 export const POST = apiHandler(async (_req: NextRequest, { params }: { params: { id: string } }) => {
   const session = await requirePermission("payroll.create");
-  const period = await prisma.payrollPeriod.findUnique({ where: { id: params.id } });
+  const tenantId = await requireTenantId();
+  const period = await prisma.payrollPeriod.findUnique({ where: { id: params.id, tenantId } });
   if (!period) throw new Error("找不到結算期間");
   if (period.status !== "DRAFT") throw new Error("僅 DRAFT 狀態可產生薪資");
 
   const employees = await prisma.employee.findMany({
-    where: { status: { in: ["ACTIVE", "PROBATION"] } },
+    where: { tenantId, status: { in: ["ACTIVE", "PROBATION"] } },
   });
 
   let created = 0;
@@ -39,7 +40,7 @@ export const POST = apiHandler(async (_req: NextRequest, { params }: { params: {
       voluntaryPensionRate: Number(emp.voluntaryPensionRate),
     });
 
-    const number = await nextNumber("PR");
+    const number = await nextNumber("PR", tenantId);
     await prisma.payroll.create({
       data: {
         number,

@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { apiHandler, requirePermission, audit, nextNumber } from "@/lib/api";
+import { apiHandler, requirePermission, requireTenantId, audit, nextNumber } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 
 export const GET = apiHandler(async (req: NextRequest) => {
   await requirePermission("journals.view");
+  const tenantId = await requireTenantId();
   const sp = req.nextUrl.searchParams;
   const q = sp.get("q") ?? "";
   const page = Number(sp.get("page") ?? 1);
   const pageSize = Number(sp.get("pageSize") ?? 20);
-  const where: any = q ? { OR: [{ number: { contains: q, mode: "insensitive" } }, { summary: { contains: q, mode: "insensitive" } }] } : {};
+  const where: any = q ? { tenantId, OR: [{ number: { contains: q, mode: "insensitive" } }, { summary: { contains: q, mode: "insensitive" } }] } : { tenantId };
   const [items, total] = await Promise.all([
     prisma.journalEntry.findMany({
       where,
@@ -24,6 +25,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
 
 export const POST = apiHandler(async (req: NextRequest) => {
   const session = await requirePermission("journals.create");
+  const tenantId = await requireTenantId();
   const body = await req.json();
   const { summary, entryDate, lines, attachment } = body as any;
   if (!lines?.length) throw new Error("請至少新增一筆分錄");
@@ -31,9 +33,10 @@ export const POST = apiHandler(async (req: NextRequest) => {
   const totalCredit = lines.reduce((s: number, l: any) => s + Number(l.credit ?? 0), 0);
   if (Math.abs(totalDebit - totalCredit) > 0.001) throw new Error(`借貸不平衡 (借 ${totalDebit} / 貸 ${totalCredit})`);
   if (totalDebit === 0) throw new Error("金額不可為 0");
-  const number = await nextNumber("JE");
+  const number = await nextNumber("JE", tenantId);
   const created = await prisma.journalEntry.create({
     data: {
+      tenantId,
       number,
       summary: summary ?? "",
       entryDate: entryDate ? new Date(entryDate) : new Date(),

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { apiHandler, requirePermission } from "@/lib/api";
+import { apiHandler, requirePermission, requireTenantId } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 
 export const GET = apiHandler(async (req: NextRequest) => {
@@ -10,7 +10,8 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const status = sp.get("status") ?? "";
   const page = Number(sp.get("page") ?? 1);
   const pageSize = Number(sp.get("pageSize") ?? 50);
-  const where: any = {};
+  const tenantId = await requireTenantId();
+  const where: any = { tenantId };
   if (q) where.OR = [
     { number: { contains: q, mode: "insensitive" } },
     { employee: { name: { contains: q, mode: "insensitive" } } },

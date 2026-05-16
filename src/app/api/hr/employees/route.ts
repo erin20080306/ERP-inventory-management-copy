@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { apiHandler, requirePermission, audit } from "@/lib/api";
+import { apiHandler, requirePermission, requireTenantId, audit } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 
 export const GET = apiHandler(async (req: NextRequest) => {
@@ -10,7 +10,8 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const departmentId = sp.get("departmentId") ?? "";
   const page = Number(sp.get("page") ?? 1);
   const pageSize = Number(sp.get("pageSize") ?? 20);
-  const where: any = {};
+  const tenantId = await requireTenantId();
+  const where: any = { tenantId };
   if (q) {
     where.OR = [
       { employeeNo: { contains: q, mode: "insensitive" } },
@@ -36,12 +37,14 @@ export const GET = apiHandler(async (req: NextRequest) => {
 
 export const POST = apiHandler(async (req: NextRequest) => {
   const session = await requirePermission("hr.create");
+  const tenantId = await requireTenantId();
   const body = await req.json();
   if (!body.employeeNo) throw new Error("請輸入員工編號");
   if (!body.name) throw new Error("請輸入姓名");
   if (!body.hireDate) throw new Error("請輸入到職日");
   const created = await prisma.employee.create({
     data: {
+      tenantId,
       employeeNo: body.employeeNo,
       name: body.name,
       englishName: body.englishName,

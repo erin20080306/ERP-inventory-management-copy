@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+import { seedTenantDefaults } from "@/lib/seed-tenant";
 
 export async function POST(req: NextRequest) {
   try {
-    const { username, password, name, email, roleName } = await req.json();
+    const { username, password, name, email, roleName, companyName } = await req.json();
 
     if (!username || !password || !name || !email) {
       return NextResponse.json({ error: "所有欄位皆為必填" }, { status: 400 });
@@ -27,9 +28,14 @@ export async function POST(req: NextRequest) {
 
     const passwordHash = await bcrypt.hash(password, 12);
 
-    // 建立使用者
+    // 建立租戶 + 使用者（一個交易）
+    const tenant = await prisma.tenant.create({
+      data: { name: companyName || "我的公司" },
+    });
+
     const user = await prisma.user.create({
       data: {
+        tenantId: tenant.id,
         username,
         name,
         email,
@@ -40,13 +46,16 @@ export async function POST(req: NextRequest) {
     });
 
     // 指定角色
-    const targetRole = roleName || "一般查詢人員";
+    const targetRole = roleName || "系統管理員";
     const role = await prisma.role.findUnique({ where: { name: targetRole } });
     if (role) {
       await prisma.userRole.create({
         data: { userId: user.id, roleId: role.id },
       });
     }
+
+    // 為新租戶建立預設資料（會計科目、編號規則等）
+    await seedTenantDefaults(tenant.id);
 
     return NextResponse.json({ success: true, username: user.username });
   } catch (err: any) {

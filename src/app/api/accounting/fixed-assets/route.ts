@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { apiHandler, requirePermission, audit } from "@/lib/api";
+import { apiHandler, requirePermission, requireTenantId, audit } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 
 export const GET = apiHandler(async (req: NextRequest) => {
@@ -9,7 +9,8 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const status = sp.get("status") ?? "";
   const page = Number(sp.get("page") ?? 1);
   const pageSize = Number(sp.get("pageSize") ?? 20);
-  const where: any = {};
+  const tenantId = await requireTenantId();
+  const where: any = { tenantId };
   if (q) {
     where.OR = [
       { code: { contains: q, mode: "insensitive" } },
@@ -27,6 +28,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
 
 export const POST = apiHandler(async (req: NextRequest) => {
   const session = await requirePermission("assets.create");
+  const tenantId = await requireTenantId();
   const body = await req.json();
   if (!body.code) throw new Error("請輸入資產編號");
   if (!body.name) throw new Error("請輸入資產名稱");
@@ -37,6 +39,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
 
   const created = await prisma.fixedAsset.create({
     data: {
+      tenantId,
       code: body.code,
       name: body.name,
       category: body.category,

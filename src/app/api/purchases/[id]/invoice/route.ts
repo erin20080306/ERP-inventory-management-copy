@@ -1,20 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
-import { apiHandler, requirePermission, audit, nextNumber } from "@/lib/api";
+import { apiHandler, requirePermission, requireTenantId, audit, nextNumber } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 
 export const POST = apiHandler(async (_req: NextRequest, { params }: { params: { id: string } }) => {
   const session = await requirePermission("invoices.create");
+  const tenantId = await requireTenantId();
   const order = await prisma.purchaseOrder.findUnique({
-    where: { id: params.id },
+    where: { id: params.id, tenantId },
     include: { supplier: true, items: { include: { product: true } } },
   });
   if (!order) throw new Error("找不到採購單");
   if (order.status === "CANCELLED" || order.status === "DRAFT") {
     throw new Error("草稿或已取消採購單無法開立發票");
   }
-  const number = await nextNumber("INV");
+  const number = await nextNumber("INV", tenantId);
   const invoice = await prisma.invoice.create({
     data: {
+      tenantId,
       number,
       type: "PURCHASE",
       invoiceDate: new Date(),

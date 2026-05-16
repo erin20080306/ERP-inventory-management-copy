@@ -1,19 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
-import { apiHandler, requirePermission, audit } from "@/lib/api";
+import { apiHandler, requirePermission, requireTenantId, audit } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 
 export const GET = apiHandler(async (_req: NextRequest, { params }: { params: { id: string } }) => {
   await requirePermission("assets.view");
-  const a = await prisma.fixedAsset.findUnique({ where: { id: params.id } });
+  const tenantId = await requireTenantId();
+  const a = await prisma.fixedAsset.findUnique({ where: { id: params.id, tenantId } });
   if (!a) throw new Error("找不到資產");
   return NextResponse.json(a);
 });
 
 export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: { id: string } }) => {
   const session = await requirePermission("assets.edit");
+  const tenantId = await requireTenantId();
   const body = await req.json();
   const { action, ...patch } = body;
-  const a = await prisma.fixedAsset.findUnique({ where: { id: params.id } });
+  const a = await prisma.fixedAsset.findUnique({ where: { id: params.id, tenantId } });
   if (!a) throw new Error("找不到資產");
 
   let data: any = {};
@@ -50,14 +52,15 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: {
       data.bookValue = Number(data.acquireCost) - Number(a.accumulatedDepreciation);
     }
   }
-  const updated = await prisma.fixedAsset.update({ where: { id: params.id }, data });
+  const updated = await prisma.fixedAsset.update({ where: { id: params.id, tenantId }, data });
   await audit({ userId: session.user.id, action: action ?? "update", module: "fixed-assets", refId: params.id });
   return NextResponse.json(updated);
 });
 
 export const DELETE = apiHandler(async (_req: NextRequest, { params }: { params: { id: string } }) => {
   const session = await requirePermission("assets.delete");
-  await prisma.fixedAsset.delete({ where: { id: params.id } });
+  const tenantId = await requireTenantId();
+  await prisma.fixedAsset.delete({ where: { id: params.id, tenantId } });
   await audit({ userId: session.user.id, action: "delete", module: "fixed-assets", refId: params.id });
   return NextResponse.json({ ok: true });
 });

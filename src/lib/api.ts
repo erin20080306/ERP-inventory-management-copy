@@ -21,6 +21,13 @@ export async function requirePermission(code: string) {
   return session;
 }
 
+export async function requireTenantId() {
+  const session = await requireAuth();
+  const tenantId = (session.user as any).tenantId;
+  if (!tenantId) throw new ApiError(401, "無租戶資訊");
+  return tenantId as string;
+}
+
 export class ApiError extends Error {
   status: number;
   constructor(status: number, message: string) {
@@ -59,13 +66,14 @@ export async function audit(opts: {
 }
 
 // 編號產生器
-export async function nextNumber(key: string) {
+export async function nextNumber(key: string, tenantId: string) {
   return await prisma.$transaction(async (tx: any) => {
-    const seq = await tx.numberSequence.upsert({
-      where: { key },
-      update: {},
-      create: { key, prefix: key, nextNo: 1 },
+    let seq = await tx.numberSequence.findUnique({
+      where: { tenantId_key: { tenantId, key } },
     });
+    if (!seq) {
+      seq = await tx.numberSequence.create({ data: { tenantId, key, prefix: key, nextNo: 1 } });
+    }
     const now = new Date();
     const yyyy = String(now.getFullYear());
     const yy = yyyy.slice(2);
@@ -84,7 +92,7 @@ export async function nextNumber(key: string) {
       .replace("{mm}", mm)
       .replace("{dd}", dd)
       .replace("{seq:0000}", seqStr);
-    await tx.numberSequence.update({ where: { key }, data: { nextNo: seq.nextNo + 1 } });
+    await tx.numberSequence.update({ where: { tenantId_key: { tenantId, key } }, data: { nextNo: seq.nextNo + 1 } });
     return number;
   });
 }

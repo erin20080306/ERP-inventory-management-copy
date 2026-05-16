@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { apiHandler, requirePermission, audit } from "@/lib/api";
+import { apiHandler, requirePermission, requireTenantId, audit } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 
 // 還原時的清空順序 (反向: 從子到父，避免外鍵衝突)
@@ -34,8 +34,12 @@ const TRUNCATE_ORDER = [
 
 const RESTORE_ORDER = [...TRUNCATE_ORDER].reverse();
 
+// 不含 tenantId 的系統表
+const SYSTEM_TABLES = new Set(["permission", "role", "rolePermission"]);
+
 export const POST = apiHandler(async (req: NextRequest) => {
   const session = await requirePermission("settings.manage");
+  const tenantId = await requireTenantId();
   const body = await req.json();
   if (!body.tables || typeof body.tables !== "object") throw new Error("備份檔格式錯誤");
 
@@ -47,7 +51,8 @@ export const POST = apiHandler(async (req: NextRequest) => {
       for (const t of TRUNCATE_ORDER) {
         try {
           // @ts-ignore
-          await (tx as any)[t].deleteMany();
+          const where = SYSTEM_TABLES.has(t) ? {} : { tenantId };
+          await (tx as any)[t].deleteMany({ where });
         } catch {}
       }
       for (const t of RESTORE_ORDER) {

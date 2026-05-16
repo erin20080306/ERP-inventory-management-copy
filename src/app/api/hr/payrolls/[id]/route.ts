@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { apiHandler, requirePermission, audit } from "@/lib/api";
+import { apiHandler, requirePermission, requireTenantId, audit } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { computePayroll } from "@/lib/payroll";
 
 export const GET = apiHandler(async (_req: NextRequest, { params }: { params: { id: string } }) => {
   await requirePermission("payroll.view");
+  const tenantId = await requireTenantId();
   const p = await prisma.payroll.findUnique({
-    where: { id: params.id },
+    where: { id: params.id, tenantId },
     include: { employee: { include: { department: true } }, period: true, items: true },
   });
   if (!p) throw new Error("找不到薪資單");
@@ -23,11 +24,12 @@ export const GET = apiHandler(async (_req: NextRequest, { params }: { params: { 
  */
 export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: { id: string } }) => {
   const session = await requirePermission("payroll.edit");
+  const tenantId = await requireTenantId();
   const body = await req.json();
   const { action, ...patch } = body;
 
   const payroll = await prisma.payroll.findUnique({
-    where: { id: params.id },
+    where: { id: params.id, tenantId },
     include: { employee: true, items: true },
   });
   if (!payroll) throw new Error("找不到薪資單");
@@ -83,7 +85,7 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: {
     };
   }
   const updated = await prisma.payroll.update({
-    where: { id: params.id },
+    where: { id: params.id, tenantId },
     data,
     include: { items: true, employee: true, period: true },
   });
@@ -93,7 +95,8 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: {
 
 export const DELETE = apiHandler(async (_req: NextRequest, { params }: { params: { id: string } }) => {
   const session = await requirePermission("payroll.delete");
-  await prisma.payroll.delete({ where: { id: params.id } });
+  const tenantId = await requireTenantId();
+  await prisma.payroll.delete({ where: { id: params.id, tenantId } });
   await audit({ userId: session.user.id, action: "delete", module: "payrolls", refId: params.id });
   return NextResponse.json({ ok: true });
 });

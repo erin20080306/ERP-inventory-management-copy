@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { apiHandler, requirePermission, audit } from "@/lib/api";
+import { apiHandler, requirePermission, requireTenantId, audit } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 
 export const GET = apiHandler(async (req: NextRequest) => {
   await requirePermission("users.view");
+  const tenantId = await requireTenantId();
   const sp = req.nextUrl.searchParams;
   const q = sp.get("q") ?? "";
   const page = Number(sp.get("page") ?? 1);
   const pageSize = Number(sp.get("pageSize") ?? 20);
-  const where: any = q ? { OR: [{ username: { contains: q } }, { name: { contains: q } }, { email: { contains: q } }] } : {};
+  const where: any = q ? { tenantId, OR: [{ username: { contains: q } }, { name: { contains: q } }, { email: { contains: q } }] } : { tenantId };
   const [items, total] = await Promise.all([
     prisma.user.findMany({
       where,
@@ -36,12 +37,13 @@ export const GET = apiHandler(async (req: NextRequest) => {
 
 export const POST = apiHandler(async (req: NextRequest) => {
   const session = await requirePermission("users.create");
+  const tenantId = await requireTenantId();
   const body = await req.json();
   const { username, name, email, password, roleIds, isActive } = body;
   if (!password || password.length < 6) throw new Error("密碼至少 6 碼");
   const hash = await bcrypt.hash(password, 12);
   const created = await prisma.user.create({
-    data: { username, name, email, passwordHash: hash, isActive: isActive ?? true },
+    data: { tenantId, username, name, email, passwordHash: hash, isActive: isActive ?? true },
   });
   if (roleIds?.length) {
     await prisma.userRole.createMany({ data: roleIds.map((rid: string) => ({ userId: created.id, roleId: rid })) });

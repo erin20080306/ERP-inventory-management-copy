@@ -1,17 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { apiHandler, requirePermission, audit, nextNumber } from "@/lib/api";
+import { apiHandler, requirePermission, requireTenantId, audit, nextNumber } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { calcTotals } from "@/lib/documents";
 
 export const GET = apiHandler(async (req: NextRequest) => {
   await requirePermission("purchases.view");
+  const tenantId = await requireTenantId();
   const sp = req.nextUrl.searchParams;
   const q = sp.get("q") ?? "";
   const page = Number(sp.get("page") ?? 1);
   const pageSize = Number(sp.get("pageSize") ?? 20);
   const where: any = q
-    ? { OR: [{ number: { contains: q, mode: "insensitive" } }, { supplier: { companyName: { contains: q, mode: "insensitive" } } }] }
-    : {};
+    ? { tenantId, OR: [{ number: { contains: q, mode: "insensitive" } }, { supplier: { companyName: { contains: q, mode: "insensitive" } } }] }
+    : { tenantId };
   const [items, total] = await Promise.all([
     prisma.purchaseOrder.findMany({
       where,
@@ -27,14 +28,16 @@ export const GET = apiHandler(async (req: NextRequest) => {
 
 export const POST = apiHandler(async (req: NextRequest) => {
   const session = await requirePermission("purchases.create");
+  const tenantId = await requireTenantId();
   const body = await req.json();
   const { supplierId, items, remark, status } = body as any;
   if (!supplierId) throw new Error("請選擇供應商");
   if (!items?.length) throw new Error("請至少新增一項商品");
   const totals = calcTotals(items);
-  const number = await nextNumber("PO");
+  const number = await nextNumber("PO", tenantId);
   const created = await prisma.purchaseOrder.create({
     data: {
+      tenantId,
       number,
       supplierId,
       remark,

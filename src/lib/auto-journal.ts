@@ -36,8 +36,8 @@ export const DEFAULT_ACCOUNT_CODES = {
 export type AccountCodeKey = keyof typeof DEFAULT_ACCOUNT_CODES;
 
 /** 取得科目 ID（依代碼） */
-async function getAccount(code: string) {
-  const a = await prisma.chartOfAccount.findUnique({ where: { code } });
+async function getAccount(tenantId: string, code: string) {
+  const a = await prisma.chartOfAccount.findUnique({ where: { tenantId_code: { tenantId, code } } });
   if (!a) throw new Error(`找不到會計科目 ${code}，請先建立`);
   return a;
 }
@@ -60,8 +60,8 @@ export type DraftEntry = {
 };
 
 /** 工具：建立分錄行 */
-async function line(code: string, debit: number, credit: number, memo?: string): Promise<DraftLine> {
-  const acc = await getAccount(code);
+async function line(tenantId: string, code: string, debit: number, credit: number, memo?: string): Promise<DraftLine> {
+  const acc = await getAccount(tenantId, code);
   return {
     accountId: acc.id,
     accountCode: acc.code,
@@ -86,10 +86,11 @@ export async function buildPurchaseReceiveDraft(purchaseOrderId: string): Promis
   const tax = Number(po.taxAmount);
   const total = Number(po.total);
 
+  const t = po.tenantId;
   const lines: DraftLine[] = [
-    await line(DEFAULT_ACCOUNT_CODES.INVENTORY, subtotal, 0, `進貨 ${po.number}`),
-    ...(tax > 0 ? [await line(DEFAULT_ACCOUNT_CODES.INPUT_TAX, tax, 0, "進項稅額 5%")] : []),
-    await line(DEFAULT_ACCOUNT_CODES.AP, 0, total, `${po.supplier.companyName}`),
+    await line(t, DEFAULT_ACCOUNT_CODES.INVENTORY, subtotal, 0, `進貨 ${po.number}`),
+    ...(tax > 0 ? [await line(t, DEFAULT_ACCOUNT_CODES.INPUT_TAX, tax, 0, "進項稅額 5%")] : []),
+    await line(t, DEFAULT_ACCOUNT_CODES.AP, 0, total, `${po.supplier.companyName}`),
   ];
 
   return {
@@ -118,16 +119,17 @@ export async function buildSalesInvoiceDraft(salesOrderId: string): Promise<Draf
   // 銷貨成本（依商品 costPrice 估算）
   const cogs = so.items.reduce((s: number, i: any) => s + Number(i.quantity) * Number(i.product.costPrice ?? 0), 0);
 
+  const t = so.tenantId;
   const lines: DraftLine[] = [
-    await line(DEFAULT_ACCOUNT_CODES.AR, total, 0, `${so.customer.companyName}`),
-    await line(DEFAULT_ACCOUNT_CODES.SALES_REVENUE, 0, subtotal, `銷售 ${so.number}`),
-    ...(tax > 0 ? [await line(DEFAULT_ACCOUNT_CODES.OUTPUT_TAX, 0, tax, "銷項稅額 5%")] : []),
+    await line(t, DEFAULT_ACCOUNT_CODES.AR, total, 0, `${so.customer.companyName}`),
+    await line(t, DEFAULT_ACCOUNT_CODES.SALES_REVENUE, 0, subtotal, `銷售 ${so.number}`),
+    ...(tax > 0 ? [await line(t, DEFAULT_ACCOUNT_CODES.OUTPUT_TAX, 0, tax, "銷項稅額 5%")] : []),
   ];
 
   if (cogs > 0) {
     lines.push(
-      await line(DEFAULT_ACCOUNT_CODES.COGS, cogs, 0, `銷貨成本 ${so.number}`),
-      await line(DEFAULT_ACCOUNT_CODES.INVENTORY, 0, cogs, "結轉存貨")
+      await line(t, DEFAULT_ACCOUNT_CODES.COGS, cogs, 0, `銷貨成本 ${so.number}`),
+      await line(t, DEFAULT_ACCOUNT_CODES.INVENTORY, 0, cogs, "結轉存貨")
     );
   }
 
@@ -154,10 +156,11 @@ export async function buildPurchaseReturnDraft(returnId: string): Promise<DraftE
   const subtotal = +(total / 1.05).toFixed(2);
   const tax = +(total - subtotal).toFixed(2);
 
+  const t = pr.tenantId;
   const lines: DraftLine[] = [
-    await line(DEFAULT_ACCOUNT_CODES.AP, total, 0, `沖回應付`),
-    await line(DEFAULT_ACCOUNT_CODES.PURCHASE_RETURN, 0, subtotal, `${pr.supplier.companyName} 退貨`),
-    ...(tax > 0 ? [await line(DEFAULT_ACCOUNT_CODES.INPUT_TAX, 0, tax, "進項稅額轉出")] : []),
+    await line(t, DEFAULT_ACCOUNT_CODES.AP, total, 0, `沖回應付`),
+    await line(t, DEFAULT_ACCOUNT_CODES.PURCHASE_RETURN, 0, subtotal, `${pr.supplier.companyName} 退貨`),
+    ...(tax > 0 ? [await line(t, DEFAULT_ACCOUNT_CODES.INPUT_TAX, 0, tax, "進項稅額轉出")] : []),
   ];
 
   return {
@@ -183,10 +186,11 @@ export async function buildSalesReturnDraft(returnId: string): Promise<DraftEntr
   const subtotal = +(total / 1.05).toFixed(2);
   const tax = +(total - subtotal).toFixed(2);
 
+  const t = sr.tenantId;
   const lines: DraftLine[] = [
-    await line(DEFAULT_ACCOUNT_CODES.SALES_RETURN, subtotal, 0, `${sr.customer.companyName} 退回`),
-    ...(tax > 0 ? [await line(DEFAULT_ACCOUNT_CODES.OUTPUT_TAX, tax, 0, "銷項稅額沖回")] : []),
-    await line(DEFAULT_ACCOUNT_CODES.AR, 0, total, "沖回應收"),
+    await line(t, DEFAULT_ACCOUNT_CODES.SALES_RETURN, subtotal, 0, `${sr.customer.companyName} 退回`),
+    ...(tax > 0 ? [await line(t, DEFAULT_ACCOUNT_CODES.OUTPUT_TAX, tax, 0, "銷項稅額沖回")] : []),
+    await line(t, DEFAULT_ACCOUNT_CODES.AR, 0, total, "沖回應收"),
   ];
 
   return {
@@ -215,9 +219,10 @@ export async function buildReceivePaymentDraft(receivePaymentId: string): Promis
     rp.method === "CHECK" ? DEFAULT_ACCOUNT_CODES.AR_NOTE :
     DEFAULT_ACCOUNT_CODES.BANK;
 
+  const t = rp.tenantId;
   const lines: DraftLine[] = [
-    await line(debitCode, amount, 0, `收款 ${rp.number}`),
-    await line(DEFAULT_ACCOUNT_CODES.AR, 0, amount, `${rp.customer.companyName}`),
+    await line(t, debitCode, amount, 0, `收款 ${rp.number}`),
+    await line(t, DEFAULT_ACCOUNT_CODES.AR, 0, amount, `${rp.customer.companyName}`),
   ];
 
   return {
@@ -245,9 +250,10 @@ export async function buildSupplierPaymentDraft(supplierPaymentId: string): Prom
     sp.method === "CHECK" ? DEFAULT_ACCOUNT_CODES.AP_NOTE :
     DEFAULT_ACCOUNT_CODES.BANK;
 
+  const t = (sp as any).tenantId;
   const lines: DraftLine[] = [
-    await line(DEFAULT_ACCOUNT_CODES.AP, amount, 0, `${sp.supplier.companyName}`),
-    await line(creditCode, 0, amount, `付款 ${sp.number}`),
+    await line(t, DEFAULT_ACCOUNT_CODES.AP, amount, 0, `${sp.supplier.companyName}`),
+    await line(t, creditCode, 0, amount, `付款 ${sp.number}`),
   ];
 
   return {
@@ -299,17 +305,18 @@ export async function buildPayrollPeriodDraft(periodId: string): Promise<DraftEn
   }
 
   // 使用既有科目: 6101 薪資費用、6104 勞健保費、6105 退休金、2104 應付薪資、2114 代扣勞健保、2113 代扣所得稅
+  const t = period.tenantId;
   const lines: DraftLine[] = [];
   // 借方
-  if (totalEarnings > 0) lines.push(await line("6101", totalEarnings, 0, "薪資費用"));
-  if (totalEmployerLI + totalEmployerNHI > 0) lines.push(await line("6104", totalEmployerLI + totalEmployerNHI, 0, "勞健保費(雇主)"));
-  if (totalEmployerPension > 0) lines.push(await line("6105", totalEmployerPension, 0, "退休金"));
+  if (totalEarnings > 0) lines.push(await line(t, "6101", totalEarnings, 0, "薪資費用"));
+  if (totalEmployerLI + totalEmployerNHI > 0) lines.push(await line(t, "6104", totalEmployerLI + totalEmployerNHI, 0, "勞健保費(雇主)"));
+  if (totalEmployerPension > 0) lines.push(await line(t, "6105", totalEmployerPension, 0, "退休金"));
   // 貸方
   const totalLINHI = totalDeductionLI + totalDeductionNHI + totalEmployerLI + totalEmployerNHI + totalEmployerPension;
-  if (totalLINHI > 0) lines.push(await line("2114", 0, totalLINHI, "代扣勞健保/勞退"));
-  if (totalDeductionTax > 0) lines.push(await line("2113", 0, totalDeductionTax, "代扣所得稅"));
-  if (totalDeductionOther > 0) lines.push(await line("2131", 0, totalDeductionOther, "其他應付款"));
-  if (totalNetPay > 0) lines.push(await line("2104", 0, totalNetPay, "應付薪資"));
+  if (totalLINHI > 0) lines.push(await line(t, "2114", 0, totalLINHI, "代扣勞健保/勞退"));
+  if (totalDeductionTax > 0) lines.push(await line(t, "2113", 0, totalDeductionTax, "代扣所得稅"));
+  if (totalDeductionOther > 0) lines.push(await line(t, "2131", 0, totalDeductionOther, "其他應付款"));
+  if (totalNetPay > 0) lines.push(await line(t, "2104", 0, totalNetPay, "應付薪資"));
 
   return {
     sourceType: "PAYROLL_PERIOD",
@@ -335,16 +342,17 @@ export async function buildInvoiceDraft(invoiceId: string): Promise<DraftEntry> 
   const total = Number(inv.totalAmount);
   const isSales = inv.type === "SALES";
 
+  const t = inv.tenantId;
   const lines: DraftLine[] = isSales
     ? [
-        await line(DEFAULT_ACCOUNT_CODES.AR, total, 0, `${inv.customer?.companyName ?? ""}`),
-        await line(DEFAULT_ACCOUNT_CODES.SALES_REVENUE, 0, exTax, `銷售 ${inv.number}`),
-        ...(tax > 0 ? [await line(DEFAULT_ACCOUNT_CODES.OUTPUT_TAX, 0, tax, "銷項稅額")] : []),
+        await line(t, DEFAULT_ACCOUNT_CODES.AR, total, 0, `${inv.customer?.companyName ?? ""}`),
+        await line(t, DEFAULT_ACCOUNT_CODES.SALES_REVENUE, 0, exTax, `銷售 ${inv.number}`),
+        ...(tax > 0 ? [await line(t, DEFAULT_ACCOUNT_CODES.OUTPUT_TAX, 0, tax, "銷項稅額")] : []),
       ]
     : [
-        await line(DEFAULT_ACCOUNT_CODES.PURCHASE, exTax, 0, `進貨 ${inv.number}`),
-        ...(tax > 0 ? [await line(DEFAULT_ACCOUNT_CODES.INPUT_TAX, tax, 0, "進項稅額")] : []),
-        await line(DEFAULT_ACCOUNT_CODES.AP, 0, total, `${inv.supplier?.companyName ?? ""}`),
+        await line(t, DEFAULT_ACCOUNT_CODES.PURCHASE, exTax, 0, `進貨 ${inv.number}`),
+        ...(tax > 0 ? [await line(t, DEFAULT_ACCOUNT_CODES.INPUT_TAX, tax, 0, "進項稅額")] : []),
+        await line(t, DEFAULT_ACCOUNT_CODES.AP, 0, total, `${inv.supplier?.companyName ?? ""}`),
       ];
 
   return {

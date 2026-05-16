@@ -33,6 +33,13 @@ async function main() {
     });
   }
 
+  console.log("→ 建立預設租戶 ...");
+  let tenant = await prisma.tenant.findFirst();
+  if (!tenant) {
+    tenant = await prisma.tenant.create({ data: { name: "示範公司" } });
+  }
+  const T = tenant.id;
+
   console.log("→ 建立預設管理員 admin ...");
   const adminUser = process.env.ADMIN_USERNAME || "admin";
   const adminPwd = process.env.ADMIN_PASSWORD || "000000";
@@ -42,7 +49,7 @@ async function main() {
   const admin = await prisma.user.upsert({
     where: { username: adminUser },
     update: { passwordHash: hash, name: "系統管理員", email: adminEmail, isActive: true },
-    create: { username: adminUser, name: "系統管理員", email: adminEmail, passwordHash: hash },
+    create: { tenantId: T, username: adminUser, name: "系統管理員", email: adminEmail, passwordHash: hash },
   });
   const superRole = await prisma.role.findUnique({ where: { name: "系統管理員" } });
   if (superRole) {
@@ -54,62 +61,53 @@ async function main() {
   }
 
   console.log("→ 公司基本資料 ...");
-  const existing = await prisma.companySetting.findFirst();
+  const existing = await prisma.companySetting.findFirst({ where: { tenantId: T } });
   if (!existing) {
     await prisma.companySetting.create({
-      data: { name: "示範公司股份有限公司", taxId: "12345678", currency: "TWD", phone: "02-0000-0000", email: "info@example.com" },
+      data: { tenantId: T, name: "示範公司股份有限公司", taxId: "12345678", currency: "TWD", phone: "02-0000-0000", email: "info@example.com" },
     });
   }
 
   console.log("→ 編號規則 ...");
   const seqs = ["PO", "SO", "QT", "JE", "RP", "SP", "SR", "PR", "ADJ", "TRF", "INV"];
   for (const k of seqs) {
-    await prisma.numberSequence.upsert({
-      where: { key: k },
-      update: {},
-      create: { key: k, prefix: k },
-    });
+    const ex = await prisma.numberSequence.findUnique({ where: { tenantId_key: { tenantId: T, key: k } } });
+    if (!ex) {
+      await prisma.numberSequence.create({ data: { tenantId: T, key: k, prefix: k } });
+    }
   }
 
   console.log("→ 稅率 ...");
-  const tax5 = await prisma.taxRate.upsert({
-    where: { code: "VAT5" },
-    update: {},
-    create: { code: "VAT5", name: "營業稅 5%", rate: 0.05, region: "TW" },
-  });
-  await prisma.taxRate.upsert({
-    where: { code: "ZERO" },
-    update: {},
-    create: { code: "ZERO", name: "零稅率", rate: 0, region: "TW" },
-  });
+  const tax5Ex = await prisma.taxRate.findUnique({ where: { tenantId_code: { tenantId: T, code: "VAT5" } } });
+  const tax5 = tax5Ex || await prisma.taxRate.create({ data: { tenantId: T, code: "VAT5", name: "營業稅 5%", rate: 0.05, region: "TW" } });
+  const zeroEx = await prisma.taxRate.findUnique({ where: { tenantId_code: { tenantId: T, code: "ZERO" } } });
+  if (!zeroEx) {
+    await prisma.taxRate.create({ data: { tenantId: T, code: "ZERO", name: "零稅率", rate: 0, region: "TW" } });
+  }
 
   console.log(`→ 標準會計科目 (${STANDARD_ACCOUNTS.length} 條) ...`);
   for (const a of STANDARD_ACCOUNTS) {
-    await prisma.chartOfAccount.upsert({
-      where: { code: a.code },
-      update: { name: a.name, type: a.type },
-      create: { code: a.code, name: a.name, type: a.type },
-    });
+    const aEx = await prisma.chartOfAccount.findUnique({ where: { tenantId_code: { tenantId: T, code: a.code } } });
+    if (!aEx) {
+      await prisma.chartOfAccount.create({ data: { tenantId: T, code: a.code, name: a.name, type: a.type } });
+    }
   }
 
   console.log("→ 倉庫 ...");
-  const wh = await prisma.warehouse.upsert({
-    where: { code: "WH-MAIN" },
-    update: {},
-    create: { code: "WH-MAIN", name: "主倉庫" },
-  });
+  let wh = await prisma.warehouse.findUnique({ where: { tenantId_code: { tenantId: T, code: "WH-MAIN" } } });
+  if (!wh) {
+    wh = await prisma.warehouse.create({ data: { tenantId: T, code: "WH-MAIN", name: "主倉庫" } });
+  }
 
   console.log("→ 商品分類 / 單位 ...");
-  const cat = await prisma.productCategory.upsert({
-    where: { code: "GEN" },
-    update: {},
-    create: { code: "GEN", name: "一般商品" },
-  });
-  const unit = await prisma.productUnit.upsert({
-    where: { code: "PCS" },
-    update: {},
-    create: { code: "PCS", name: "個" },
-  });
+  let cat = await prisma.productCategory.findUnique({ where: { tenantId_code: { tenantId: T, code: "GEN" } } });
+  if (!cat) {
+    cat = await prisma.productCategory.create({ data: { tenantId: T, code: "GEN", name: "一般商品" } });
+  }
+  let unit = await prisma.productUnit.findUnique({ where: { tenantId_code: { tenantId: T, code: "PCS" } } });
+  if (!unit) {
+    unit = await prisma.productUnit.create({ data: { tenantId: T, code: "PCS", name: "個" } });
+  }
 
   console.log("→ 範例商品 ...");
   const products = [
@@ -118,41 +116,35 @@ async function main() {
     { sku: "P003", name: "範例商品 C", costPrice: 1500, salePrice: 2200, safetyStock: 2 },
   ];
   for (const p of products) {
-    const prod = await prisma.product.upsert({
-      where: { sku: p.sku },
-      update: {},
-      create: { ...p, categoryId: cat.id, unitId: unit.id, taxRateId: tax5.id },
-    });
-    await prisma.inventoryStock.upsert({
-      where: { productId_warehouseId: { productId: prod.id, warehouseId: wh.id } },
-      update: {},
-      create: { productId: prod.id, warehouseId: wh.id, quantity: 50 },
-    });
+    let prod = await prisma.product.findUnique({ where: { tenantId_sku: { tenantId: T, sku: p.sku } } });
+    if (!prod) {
+      prod = await prisma.product.create({ data: { tenantId: T, ...p, categoryId: cat.id, unitId: unit.id, taxRateId: tax5.id } });
+    }
+    const stockEx = await prisma.inventoryStock.findUnique({ where: { productId_warehouseId: { productId: prod.id, warehouseId: wh.id } } });
+    if (!stockEx) {
+      await prisma.inventoryStock.create({ data: { tenantId: T, productId: prod.id, warehouseId: wh.id, quantity: 50 } });
+    }
   }
 
   console.log("→ 範例客戶 / 供應商 ...");
-  await prisma.customer.upsert({
-    where: { code: "C001" },
-    update: {},
-    create: { code: "C001", companyName: "範例客戶有限公司", taxId: "11111111", contactName: "陳先生", phone: "02-1111-1111", email: "c1@example.com" },
-  });
-  await prisma.supplier.upsert({
-    where: { code: "S001" },
-    update: {},
-    create: { code: "S001", companyName: "範例供應商有限公司", taxId: "22222222", contactName: "林小姐", phone: "02-2222-2222", email: "s1@example.com" },
-  });
+  const c1 = await prisma.customer.findUnique({ where: { tenantId_code: { tenantId: T, code: "C001" } } });
+  if (!c1) {
+    await prisma.customer.create({ data: { tenantId: T, code: "C001", companyName: "範例客戶有限公司", taxId: "11111111", contactName: "陳先生", phone: "02-1111-1111", email: "c1@example.com" } });
+  }
+  const s1 = await prisma.supplier.findUnique({ where: { tenantId_code: { tenantId: T, code: "S001" } } });
+  if (!s1) {
+    await prisma.supplier.create({ data: { tenantId: T, code: "S001", companyName: "範例供應商有限公司", taxId: "22222222", contactName: "林小姐", phone: "02-2222-2222", email: "s1@example.com" } });
+  }
 
   console.log("→ 現金 / 銀行帳戶 ...");
-  await prisma.cashAccount.upsert({
-    where: { code: "CASH-01" },
-    update: {},
-    create: { code: "CASH-01", name: "現金", balance: 0 },
-  });
-  await prisma.bankAccount.upsert({
-    where: { code: "BANK-01" },
-    update: {},
-    create: { code: "BANK-01", name: "公司銀行帳戶", bankName: "台灣銀行", accountNumber: "000-000-000000" },
-  });
+  const ca = await prisma.cashAccount.findUnique({ where: { tenantId_code: { tenantId: T, code: "CASH-01" } } });
+  if (!ca) {
+    await prisma.cashAccount.create({ data: { tenantId: T, code: "CASH-01", name: "現金", balance: 0 } });
+  }
+  const ba = await prisma.bankAccount.findUnique({ where: { tenantId_code: { tenantId: T, code: "BANK-01" } } });
+  if (!ba) {
+    await prisma.bankAccount.create({ data: { tenantId: T, code: "BANK-01", name: "公司銀行帳戶", bankName: "台灣銀行", accountNumber: "000-000-000000" } });
+  }
 
   console.log("✅ Seed 完成。請使用 admin / 000000 登入。");
 }

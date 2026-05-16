@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { apiHandler, requirePermission, audit } from "@/lib/api";
+import { apiHandler, requirePermission, requireTenantId, audit } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 
 export const GET = apiHandler(async (req: NextRequest) => {
   await requirePermission("payroll.view");
+  const tenantId = await requireTenantId();
   const sp = req.nextUrl.searchParams;
   const year = sp.get("year");
-  const where: any = year ? { year: Number(year) } : {};
+  const where: any = year ? { tenantId, year: Number(year) } : { tenantId };
   const items = await prisma.payrollPeriod.findMany({
     where,
     orderBy: [{ year: "desc" }, { month: "desc" }],
@@ -17,6 +18,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
 
 export const POST = apiHandler(async (req: NextRequest) => {
   const session = await requirePermission("payroll.create");
+  const tenantId = await requireTenantId();
   const body = await req.json();
   const year = Number(body.year);
   const month = Number(body.month);
@@ -28,6 +30,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
 
   const created = await prisma.payrollPeriod.create({
     data: {
+      tenantId,
       year,
       month,
       periodStart,

@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { apiHandler, requirePermission, audit } from "@/lib/api";
+import { apiHandler, requirePermission, requireTenantId, audit } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 
 export const GET = apiHandler(async (_req: NextRequest, { params }: { params: { id: string } }) => {
   await requirePermission("hr.view");
+  const tenantId = await requireTenantId();
   const e = await prisma.employee.findUnique({
-    where: { id: params.id },
+    where: { id: params.id, tenantId },
     include: { department: true, payrolls: { take: 12, orderBy: { createdAt: "desc" }, include: { period: true } } },
   });
   if (!e) throw new Error("找不到員工");
@@ -14,6 +15,7 @@ export const GET = apiHandler(async (_req: NextRequest, { params }: { params: { 
 
 export const PUT = apiHandler(async (req: NextRequest, { params }: { params: { id: string } }) => {
   const session = await requirePermission("hr.edit");
+  const tenantId = await requireTenantId();
   const body = await req.json();
   const data: any = {};
   const fields = [
@@ -28,14 +30,15 @@ export const PUT = apiHandler(async (req: NextRequest, { params }: { params: { i
   if (body.resignDate !== undefined) data.resignDate = body.resignDate ? new Date(body.resignDate) : null;
   const numFields = ["baseSalary", "mealAllowance", "transportAllowance", "positionAllowance", "insuredSalary", "laborPensionRate", "voluntaryPensionRate", "dependents"];
   for (const f of numFields) if (body[f] !== undefined) data[f] = Number(body[f]);
-  const updated = await prisma.employee.update({ where: { id: params.id }, data });
+  const updated = await prisma.employee.update({ where: { id: params.id, tenantId }, data });
   await audit({ userId: session.user.id, action: "update", module: "employees", refId: params.id });
   return NextResponse.json(updated);
 });
 
 export const DELETE = apiHandler(async (_req: NextRequest, { params }: { params: { id: string } }) => {
   const session = await requirePermission("hr.delete");
-  await prisma.employee.delete({ where: { id: params.id } });
+  const tenantId = await requireTenantId();
+  await prisma.employee.delete({ where: { id: params.id, tenantId } });
   await audit({ userId: session.user.id, action: "delete", module: "employees", refId: params.id });
   return NextResponse.json({ ok: true });
 });

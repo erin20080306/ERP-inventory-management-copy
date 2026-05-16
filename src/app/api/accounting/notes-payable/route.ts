@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { apiHandler, requirePermission, audit, nextNumber } from "@/lib/api";
+import { apiHandler, requirePermission, requireTenantId, audit, nextNumber } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 
 export const GET = apiHandler(async (req: NextRequest) => {
@@ -9,7 +9,8 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const status = sp.get("status") ?? "";
   const page = Number(sp.get("page") ?? 1);
   const pageSize = Number(sp.get("pageSize") ?? 20);
-  const where: any = {};
+  const tenantId = await requireTenantId();
+  const where: any = { tenantId };
   if (q) {
     where.OR = [
       { noteNumber: { contains: q, mode: "insensitive" } },
@@ -33,13 +34,15 @@ export const GET = apiHandler(async (req: NextRequest) => {
 
 export const POST = apiHandler(async (req: NextRequest) => {
   const session = await requirePermission("notes.create");
+  const tenantId = await requireTenantId();
   const body = await req.json();
   if (!body.supplierId) throw new Error("請選擇供應商");
   if (!body.amount || Number(body.amount) <= 0) throw new Error("金額必須大於 0");
   if (!body.dueDate) throw new Error("請選擇到期日");
-  const number = await nextNumber("NP");
+  const number = await nextNumber("NP", tenantId);
   const created = await prisma.notePayable.create({
     data: {
+      tenantId,
       number,
       noteNumber: body.noteNumber || number,
       noteType: body.noteType ?? "CHECK",
