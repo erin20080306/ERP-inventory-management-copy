@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { formatDateTime } from "@/lib/utils";
-import { Building2, Users, Shield, Loader2 } from "lucide-react";
+import { Building2, Users, Shield, Loader2, Activity, LogIn } from "lucide-react";
 
 export default function AdminPage() {
   const { data: session, status } = useSession();
@@ -48,7 +48,7 @@ export default function AdminPage() {
         </div>
 
         {/* 統計卡片 */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card className="bg-slate-900 border-slate-800">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm text-slate-400 flex items-center gap-2">
@@ -79,6 +79,19 @@ export default function AdminPage() {
               <div className="text-3xl font-bold text-amber-400">
                 {data.users.filter((u: any) => u.isPaid).length}
               </div>
+            </CardContent>
+          </Card>
+          <Card className="bg-slate-900 border-slate-800">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm text-slate-400 flex items-center gap-2">
+                <Activity className="h-4 w-4" /> 實際使用者
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-cyan-400">
+                {data.users.filter((u: any) => u.loginCount > 1 || u.actionCount > 0).length}
+              </div>
+              <div className="text-xs text-slate-500 mt-1">登入超過1次或有操作紀錄</div>
             </CardContent>
           </Card>
         </div>
@@ -127,9 +140,10 @@ export default function AdminPage() {
                     <TH>Email</TH>
                     <TH>所屬公司</TH>
                     <TH>付款狀態</TH>
-                    <TH>試用開始</TH>
+                    <TH>登入次數</TH>
+                    <TH>操作次數</TH>
                     <TH>上次登入</TH>
-                    <TH>狀態</TH>
+                    <TH>使用狀況</TH>
                   </TR>
                 </THead>
                 <TBody>
@@ -138,7 +152,7 @@ export default function AdminPage() {
                       <TD className="font-mono text-xs">{u.username}</TD>
                       <TD>{u.name}</TD>
                       <TD className="text-sm">{u.email}</TD>
-                      <TD className="text-sm">{u.tenant?.name ?? <span className="text-amber-400">超級管理員</span>}</TD>
+                      <TD className="text-sm">{u.tenantName ?? <span className="text-amber-400">超級管理員</span>}</TD>
                       <TD>
                         {u.isSuperAdmin ? (
                           <Badge variant="warning">管理員</Badge>
@@ -148,9 +162,50 @@ export default function AdminPage() {
                           <Badge variant="danger">試用中</Badge>
                         )}
                       </TD>
-                      <TD className="text-sm text-slate-400">{u.trialStart ? formatDateTime(u.trialStart) : "—"}</TD>
+                      <TD className="text-center font-mono">{u.loginCount}</TD>
+                      <TD className="text-center font-mono">{u.actionCount}</TD>
                       <TD className="text-sm text-slate-400">{u.lastLoginAt ? formatDateTime(u.lastLoginAt) : "—"}</TD>
-                      <TD>{u.isActive ? <Badge variant="success">啟用</Badge> : <Badge variant="danger">停用</Badge>}</TD>
+                      <TD>
+                        {u.actionCount > 0 ? (
+                          <Badge variant="success">有使用</Badge>
+                        ) : u.loginCount > 1 ? (
+                          <Badge variant="info">僅登入</Badge>
+                        ) : (
+                          <Badge variant="danger">未使用</Badge>
+                        )}
+                      </TD>
+                    </TR>
+                  ))}
+                </TBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+        {/* 最近登入紀錄 */}
+        <Card className="bg-slate-900 border-slate-800">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <LogIn className="h-5 w-5" /> 最近登入紀錄
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <Table>
+                <THead>
+                  <TR>
+                    <TH>帳號</TH>
+                    <TH>結果</TH>
+                    <TH>IP</TH>
+                    <TH>時間</TH>
+                  </TR>
+                </THead>
+                <TBody>
+                  {(data.recentLogins ?? []).map((l: any, i: number) => (
+                    <TR key={i}>
+                      <TD className="font-mono text-xs">{l.username}</TD>
+                      <TD>{l.success ? <Badge variant="success">成功</Badge> : <Badge variant="danger">失敗</Badge>}</TD>
+                      <TD className="text-xs text-slate-400 font-mono">{l.ip || "—"}</TD>
+                      <TD className="text-sm text-slate-400">{formatDateTime(l.createdAt)}</TD>
                     </TR>
                   ))}
                 </TBody>
