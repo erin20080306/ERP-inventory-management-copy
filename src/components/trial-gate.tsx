@@ -125,6 +125,7 @@ function Paywall() {
             </div>
             <h2 className="text-2xl font-bold text-white">🎉 你已獲得永久使用權</h2>
             <p className="text-slate-400">正在為您載入系統…</p>
+            <p className="text-sm text-slate-500">有後續問題請聯繫：<a href="mailto:erin20080306@gmail.com" className="text-indigo-400 hover:underline">erin20080306@gmail.com</a></p>
           </div>
         ) : (
           <div className="rounded-2xl bg-white/5 backdrop-blur-2xl border border-white/10 shadow-2xl p-8 space-y-6">
@@ -163,6 +164,9 @@ function Paywall() {
             <p className="text-xs text-slate-500 text-center">
               付款完成後點擊上方按鈕即可永久使用本系統
             </p>
+            <p className="text-xs text-slate-500 text-center">
+              有後續問題請聯繫：<a href="mailto:erin20080306@gmail.com" className="text-indigo-400 hover:underline">erin20080306@gmail.com</a>
+            </p>
           </div>
         )}
       </div>
@@ -181,9 +185,12 @@ function PaidBadge() {
   if (!show) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 z-[999] animate-in slide-in-from-bottom fade-in bg-emerald-500 text-white px-4 py-2 rounded-full shadow-lg flex items-center gap-2 text-sm font-medium print:hidden">
-      <CheckCircle2 className="h-4 w-4" />
-      你已獲得永久使用權
+    <div className="fixed bottom-4 right-4 z-[999] animate-in slide-in-from-bottom fade-in bg-emerald-500 text-white px-4 py-2.5 rounded-xl shadow-lg flex flex-col items-center gap-1 text-sm font-medium print:hidden">
+      <div className="flex items-center gap-2">
+        <CheckCircle2 className="h-4 w-4" />
+        你已獲得永久使用權
+      </div>
+      <span className="text-xs text-emerald-100">有後續問題請聯繫：erin20080306@gmail.com</span>
     </div>
   );
 }

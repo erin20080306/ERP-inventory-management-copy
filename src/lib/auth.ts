@@ -13,6 +13,7 @@ declare module "next-auth" {
       email: string;
       roles: string[];
       permissions: string[];
+      isSuperAdmin?: boolean;
     };
   }
 }
@@ -23,6 +24,7 @@ declare module "next-auth/jwt" {
     username: string;
     roles: string[];
     permissions: string[];
+    isSuperAdmin?: boolean;
   }
 }
 
@@ -80,6 +82,8 @@ export const authOptions: NextAuthOptions = {
           if (ur.role.name === "系統管理員") isSuper = true;
           for (const rp of ur.role.permissions as any[]) permsSet.add(rp.permission.code);
         }
+        // 超級管理員（平台管理員）擁有所有權限
+        if ((user as any).isSuperAdmin) isSuper = true;
         const permissions = isSuper ? ["*"] : Array.from(permsSet);
 
         // fire-and-forget：登入成功後續寫不阻塞 token 簽發
@@ -90,12 +94,13 @@ export const authOptions: NextAuthOptions = {
 
         return {
           id: user.id,
-          tenantId: user.tenantId,
+          tenantId: user.tenantId ?? "",
           name: user.name,
           email: user.email,
           username: user.username,
           roles,
           permissions,
+          isSuperAdmin: (user as any).isSuperAdmin,
         } as any;
       },
     }),
@@ -109,6 +114,7 @@ export const authOptions: NextAuthOptions = {
         token.username = u.username;
         token.roles = u.roles;
         token.permissions = u.permissions;
+        token.isSuperAdmin = u.isSuperAdmin;
       }
       return token;
     },
@@ -121,6 +127,7 @@ export const authOptions: NextAuthOptions = {
         email: session.user?.email ?? "",
         roles: token.roles ?? [],
         permissions: token.permissions ?? [],
+        isSuperAdmin: token.isSuperAdmin,
       };
       return session;
     },

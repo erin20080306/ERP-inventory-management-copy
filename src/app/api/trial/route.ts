@@ -11,6 +11,11 @@ export async function GET() {
     return NextResponse.json({ status: "no_session" });
   }
 
+  // 超級管理員跳過試用檢查
+  if (session.user.isSuperAdmin) {
+    return NextResponse.json({ status: "paid" });
+  }
+
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
     select: { trialStart: true, isPaid: true },

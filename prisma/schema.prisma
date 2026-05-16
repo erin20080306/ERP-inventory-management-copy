@@ -53,12 +53,13 @@ model Tenant {
 // ─────────────────────────── 使用者 / 權限 (RBAC) ───────────────────────────
 model User {
   id           String    @id @default(cuid())
-  tenantId     String
+  tenantId     String?
   username     String    @unique
   email        String    @unique
   name         String
   passwordHash String
   isActive     Boolean   @default(true)
+  isSuperAdmin Boolean   @default(false)
   trialStart   DateTime  @default(now())
   isPaid       Boolean   @default(false)
   lastLoginAt  DateTime?
@@ -66,7 +67,7 @@ model User {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  tenant         Tenant     @relation(fields: [tenantId], references: [id])
+  tenant         Tenant?    @relation(fields: [tenantId], references: [id])
   userRoles      UserRole[]
   auditLogs      AuditLog[]
   loginLogs      LoginLog[]

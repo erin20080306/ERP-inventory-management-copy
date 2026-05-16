@@ -19,5 +19,6 @@ export const config = {
     "/settings/:path*",
     "/audit/:path*",
     "/print/:path*",
+    "/admin/:path*",
   ],
 };
