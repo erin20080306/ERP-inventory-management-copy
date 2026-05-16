@@ -7,14 +7,17 @@ import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { formatMoney, formatNumber } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Printer, FileText, Scale, BookOpen } from "lucide-react";
+import { requireTenantId } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
 export default async function Page() {
   const g = await requirePermissionOrForbidden("reports.view");
   if (g.forbidden) return g.element;
+  const tenantId = await requireTenantId();
 
   const accounts = await prisma.chartOfAccount.findMany({
+    where: { tenantId },
     include: { lines: { where: { entry: { status: "POSTED" } } } },
     orderBy: { code: "asc" },
   });

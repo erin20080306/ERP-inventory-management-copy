@@ -5,15 +5,17 @@ import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { formatMoney } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PrintListButton, PDFExportButton } from "@/components/print-list-button";
+import { requireTenantId } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
 export default async function Page() {
   const g = await requirePermissionOrForbidden("cash.view");
   if (g.forbidden) return g.element;
+  const tenantId = await requireTenantId();
   const [cash, bank] = await Promise.all([
-    prisma.cashAccount.findMany({ orderBy: { code: "asc" } }),
-    prisma.bankAccount.findMany({ orderBy: { code: "asc" } }),
+    prisma.cashAccount.findMany({ where: { tenantId }, orderBy: { code: "asc" } }),
+    prisma.bankAccount.findMany({ where: { tenantId }, orderBy: { code: "asc" } }),
   ]);
   return (
     <PageShell title="現金銀行" description="現金帳戶與銀行帳戶、轉帳與對帳" actions={<><PDFExportButton title="現金銀行" filename="cash-bank" /><PrintListButton /></>}>

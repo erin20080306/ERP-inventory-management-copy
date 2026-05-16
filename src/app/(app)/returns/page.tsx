@@ -7,15 +7,17 @@ import { formatDate, formatMoney } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PrintListButton, PDFExportButton } from "@/components/print-list-button";
 import { ConvertToJournalButton } from "@/components/convert-to-journal-button";
+import { requireTenantId } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
 export default async function Page() {
   const g = await requirePermissionOrForbidden("returns.view");
   if (g.forbidden) return g.element;
+  const tenantId = await requireTenantId();
   const [sales, purchases] = await Promise.all([
-    prisma.salesReturn.findMany({ include: { customer: true }, orderBy: { createdAt: "desc" }, take: 100 }),
-    prisma.purchaseReturn.findMany({ include: { supplier: true }, orderBy: { createdAt: "desc" }, take: 100 }),
+    prisma.salesReturn.findMany({ where: { tenantId }, include: { customer: true }, orderBy: { createdAt: "desc" }, take: 100 }),
+    prisma.purchaseReturn.findMany({ where: { tenantId }, include: { supplier: true }, orderBy: { createdAt: "desc" }, take: 100 }),
   ]);
   return (
     <PageShell title="退貨管理" description="銷售退貨 / 採購退貨，自動調整庫存與帳款" actions={<><PDFExportButton title="退貨管理" filename="returns" /><PrintListButton /></>}>

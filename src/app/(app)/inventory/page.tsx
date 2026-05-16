@@ -7,19 +7,23 @@ import { formatNumber, formatMoney, formatDateTime } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ExportButton } from "@/components/export-button";
 import { PrintListButton, PDFExportButton } from "@/components/print-list-button";
+import { requireTenantId } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
 export default async function Page() {
   const g = await requirePermissionOrForbidden("inventory.view");
   if (g.forbidden) return g.element;
+  const tenantId = await requireTenantId();
 
   const [stocks, recentTxns] = await Promise.all([
     prisma.inventoryStock.findMany({
+      where: { tenantId },
       include: { product: true, warehouse: true },
       orderBy: [{ warehouse: { code: "asc" } }, { product: { sku: "asc" } }],
     }),
     prisma.inventoryTransaction.findMany({
+      where: { tenantId },
       take: 30,
       orderBy: { createdAt: "desc" },
       include: { product: true, warehouse: true },

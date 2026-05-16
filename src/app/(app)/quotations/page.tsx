@@ -6,13 +6,16 @@ import { StatusBadge } from "@/components/ui/badge";
 import { formatDate, formatMoney } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { PrintListButton, PDFExportButton } from "@/components/print-list-button";
+import { requireTenantId } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
 export default async function Page() {
   const g = await requirePermissionOrForbidden("quotations.view");
   if (g.forbidden) return g.element;
+  const tenantId = await requireTenantId();
   const items = await prisma.quotation.findMany({
+    where: { tenantId },
     include: { customer: true, items: true },
     orderBy: { createdAt: "desc" },
     take: 100,

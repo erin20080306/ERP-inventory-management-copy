@@ -4,15 +4,26 @@ import { prisma } from "@/lib/prisma";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { formatDateTime } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { requireTenantId } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
 export default async function Page() {
   const g = await requirePermissionOrForbidden("audit.view");
   if (g.forbidden) return g.element;
+  const tenantId = await requireTenantId();
   const [logs, logins] = await Promise.all([
-    prisma.auditLog.findMany({ take: 200, orderBy: { createdAt: "desc" }, include: { user: true } }),
-    prisma.loginLog.findMany({ take: 100, orderBy: { createdAt: "desc" } }),
+    prisma.auditLog.findMany({
+      take: 200,
+      orderBy: { createdAt: "desc" },
+      where: { user: { tenantId } },
+      include: { user: true },
+    }),
+    prisma.loginLog.findMany({
+      take: 100,
+      orderBy: { createdAt: "desc" },
+      where: { user: { tenantId } },
+    }),
   ]);
   return (
     <PageShell title="稽核紀錄" description="追蹤系統操作與登入紀錄，確保資訊安全">
