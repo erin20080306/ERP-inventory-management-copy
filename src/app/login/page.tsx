@@ -7,11 +7,14 @@ import { Input, Label } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Loader2, Lock, User, Building2, ShieldCheck, BarChart3, Package, Sparkles } from "lucide-react";
+import { TrialGate } from "@/components/trial-gate";
 
 export default function LoginPage() {
   return (
     <Suspense fallback={<div className="min-h-screen" />}>
-      <LoginInner />
+      <TrialGate>
+        <LoginInner />
+      </TrialGate>
     </Suspense>
   );
 }
