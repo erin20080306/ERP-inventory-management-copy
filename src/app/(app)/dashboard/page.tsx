@@ -6,10 +6,11 @@ import { StatusBadge } from "@/components/ui/badge";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { TrendingUp, TrendingDown, Package, AlertTriangle, ShoppingCart, Receipt, Coins, Wallet } from "lucide-react";
 import { SalesTrendChart } from "./trend-chart";
+import { requireTenantId } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
-async function getStats() {
+async function getStats(tenantId: string) {
   const today = new Date();
   const startToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
   const startMonth = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -30,35 +31,38 @@ async function getStats() {
   ] = await Promise.all([
     prisma.salesOrder.aggregate({
       _sum: { total: true },
-      where: { orderDate: { gte: startToday }, status: { not: "CANCELLED" } },
+      where: { tenantId, orderDate: { gte: startToday }, status: { not: "CANCELLED" } },
     }),
     prisma.salesOrder.aggregate({
       _sum: { total: true },
-      where: { orderDate: { gte: startMonth }, status: { not: "CANCELLED" } },
+      where: { tenantId, orderDate: { gte: startMonth }, status: { not: "CANCELLED" } },
     }),
     prisma.purchaseOrder.aggregate({
       _sum: { total: true },
-      where: { orderDate: { gte: startMonth }, status: { not: "CANCELLED" } },
+      where: { tenantId, orderDate: { gte: startMonth }, status: { not: "CANCELLED" } },
     }),
-    prisma.accountsReceivable.aggregate({ _sum: { amount: true, paidAmount: true }, where: { status: { not: "PAID" } } }),
-    prisma.accountsPayable.aggregate({ _sum: { amount: true, paidAmount: true }, where: { status: { not: "PAID" } } }),
+    prisma.accountsReceivable.aggregate({ _sum: { amount: true, paidAmount: true }, where: { tenantId, status: { not: "PAID" } } }),
+    prisma.accountsPayable.aggregate({ _sum: { amount: true, paidAmount: true }, where: { tenantId, status: { not: "PAID" } } }),
     (prisma.$queryRawUnsafe as any)(
-      `SELECT COALESCE(SUM(s.quantity * p."costPrice"),0) as total FROM "InventoryStock" s JOIN "Product" p ON p.id = s."productId"`
+      `SELECT COALESCE(SUM(s.quantity * p."costPrice"),0) as total FROM "InventoryStock" s JOIN "Product" p ON p.id = s."productId" WHERE s."tenantId" = $1`,
+      tenantId
     ) as Promise<{ total: any }[]>,
     prisma.product.findMany({
-      where: { isActive: true },
+      where: { tenantId, isActive: true },
       include: { stocks: true },
       take: 100,
     }),
-    prisma.salesOrder.count({ where: { status: { in: ["DRAFT", "CONFIRMED"] } } }),
-    prisma.purchaseOrder.count({ where: { status: { in: ["SUBMITTED", "APPROVED", "RECEIVED"] } } }),
+    prisma.salesOrder.count({ where: { tenantId, status: { in: ["DRAFT", "CONFIRMED"] } } }),
+    prisma.purchaseOrder.count({ where: { tenantId, status: { in: ["SUBMITTED", "APPROVED", "RECEIVED"] } } }),
     prisma.salesOrder.findMany({
+      where: { tenantId },
       take: 8,
       orderBy: { createdAt: "desc" },
       include: { customer: true },
     }),
     prisma.salesOrderItem.groupBy({
       by: ["productId"],
+      where: { salesOrder: { tenantId } } as any,
       _sum: { subtotal: true, quantity: true },
       orderBy: { _sum: { subtotal: "desc" } },
       take: 5,
@@ -66,7 +70,7 @@ async function getStats() {
     prisma.salesOrder.groupBy({
       by: ["customerId"],
       _sum: { total: true },
-      where: { status: { not: "CANCELLED" } },
+      where: { tenantId, status: { not: "CANCELLED" } },
       orderBy: { _sum: { total: "desc" } },
       take: 5,
     }),
@@ -93,15 +97,15 @@ async function getStats() {
   start14.setHours(0, 0, 0, 0);
   const dailySales = (await (prisma.$queryRawUnsafe as any)(
     `SELECT to_char("orderDate"::date, 'YYYY-MM-DD') as d, COALESCE(SUM(total),0) as total
-     FROM "SalesOrder" WHERE "orderDate" >= $1 AND status <> 'CANCELLED'
+     FROM "SalesOrder" WHERE "tenantId" = $1 AND "orderDate" >= $2 AND status <> 'CANCELLED'
      GROUP BY 1 ORDER BY 1`,
-    start14
+    tenantId, start14
   )) as { d: string; total: any }[];
   const dailyPurchase = (await (prisma.$queryRawUnsafe as any)(
     `SELECT to_char("orderDate"::date, 'YYYY-MM-DD') as d, COALESCE(SUM(total),0) as total
-     FROM "PurchaseOrder" WHERE "orderDate" >= $1 AND status <> 'CANCELLED'
+     FROM "PurchaseOrder" WHERE "tenantId" = $1 AND "orderDate" >= $2 AND status <> 'CANCELLED'
      GROUP BY 1 ORDER BY 1`,
-    start14
+    tenantId, start14
   )) as { d: string; total: any }[];
 
   const trendMap: Record<string, { date: string; sales: number; purchase: number }> = {};
@@ -163,7 +167,8 @@ function KPI({ icon: Icon, label, value, hint, accent }: any) {
 }
 
 export default async function DashboardPage() {
-  const s = await getStats();
+  const tenantId = await requireTenantId();
+  const s = await getStats(tenantId);
   return (
     <PageShell title="儀表板" description="營運總覽與即時數據">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
