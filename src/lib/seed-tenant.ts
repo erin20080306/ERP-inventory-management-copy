@@ -189,27 +189,33 @@ export async function seedTenantDefaults(tenantId: string) {
   // 標準會計科目表（台灣商業會計法）
   const existingAccounts = await prisma.chartOfAccount.count({ where: { tenantId } });
   if (existingAccounts === 0) {
-    // 先建立所有科目（不含 parentId）
-    const idMap: Record<string, string> = {};
-    for (const acct of CHART_OF_ACCOUNTS) {
-      const created = await prisma.chartOfAccount.create({
-        data: {
-          tenantId,
-          code: acct.code,
-          name: acct.name,
-          type: acct.type as any,
-        },
-      });
-      idMap[acct.code] = created.id;
-    }
-    // 更新 parentId 關聯
-    for (const acct of CHART_OF_ACCOUNTS) {
-      if (acct.parent && idMap[acct.parent]) {
-        await prisma.chartOfAccount.update({
-          where: { id: idMap[acct.code] },
-          data: { parentId: idMap[acct.parent] },
-        });
-      }
+    // 批量建立所有科目
+    await prisma.chartOfAccount.createMany({
+      data: CHART_OF_ACCOUNTS.map((a) => ({
+        tenantId,
+        code: a.code,
+        name: a.name,
+        type: a.type as any,
+      })),
+      skipDuplicates: true,
+    });
+    // 查回所有科目取得 id
+    const all = await prisma.chartOfAccount.findMany({
+      where: { tenantId },
+      select: { id: true, code: true },
+    });
+    const idMap = Object.fromEntries(all.map((a) => [a.code, a.id]));
+    // 批量更新 parentId（用 transaction 一次送出）
+    const updates = CHART_OF_ACCOUNTS
+      .filter((a) => a.parent && idMap[a.parent])
+      .map((a) =>
+        prisma.chartOfAccount.update({
+          where: { id: idMap[a.code] },
+          data: { parentId: idMap[a.parent!] },
+        })
+      );
+    if (updates.length > 0) {
+      await prisma.$transaction(updates);
     }
   }
 }
