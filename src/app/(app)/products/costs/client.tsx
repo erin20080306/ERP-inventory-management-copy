@@ -1,12 +1,13 @@
 "use client";
 import { useEffect, useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Input, Label } from "@/components/ui/input";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { EmptyState } from "@/components/layout/page-shell";
 import { toast } from "sonner";
-import { Search, Loader2, Save, FileSpreadsheet, Upload, RotateCcw } from "lucide-react";
+import { Search, Loader2, Save, FileSpreadsheet, Upload, RotateCcw, Printer, FileDown, Trash2, Plus } from "lucide-react";
 import { formatMoney } from "@/lib/utils";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 type Product = {
   id: string;
@@ -26,6 +27,9 @@ export function CostManagementClient() {
   const [searchInput, setSearchInput] = useState("");
   const [loading, setLoading] = useState(true);
   const [savingAll, setSavingAll] = useState(false);
+  const [showAdd, setShowAdd] = useState(false);
+  const [newForm, setNewForm] = useState({ sku: "", name: "", spec: "", costPrice: 0, salePrice: 0 });
+  const [addSaving, setAddSaving] = useState(false);
   const pageSize = 30;
 
   // debounce 搜尋
@@ -126,6 +130,26 @@ export function CostManagementClient() {
     toast.success("已匯出 Excel");
   }
 
+  const [pdfBusy, setPdfBusy] = useState(false);
+
+  async function exportPDF() {
+    setPdfBusy(true);
+    try {
+      const { exportPageToPDF } = await import("@/lib/export-pdf");
+      await exportPageToPDF("成本管理", "product-costs");
+    } finally { setPdfBusy(false); }
+  }
+
+  async function deleteProduct(id: string, sku: string) {
+    if (!confirm(`確定刪除商品 ${sku}？`)) return;
+    try {
+      const res = await fetch(`/api/products/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error((await res.json()).error || "刪除失敗");
+      toast.success(`已刪除 ${sku}`);
+      load();
+    } catch (e: any) { toast.error(e.message); }
+  }
+
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   return (
@@ -136,6 +160,12 @@ export function CostManagementClient() {
           <Input placeholder="搜尋 SKU / 商品名稱" className="pl-9 w-72" value={searchInput} onChange={(e) => setSearchInput(e.target.value)} />
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          <Button variant="outline" onClick={exportPDF} disabled={pdfBusy}>
+            {pdfBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}PDF
+          </Button>
+          <Button variant="outline" onClick={() => window.print()}>
+            <Printer className="h-4 w-4" />列印
+          </Button>
           <Button variant="outline" onClick={exportExcel}><FileSpreadsheet className="h-4 w-4" />匯出 Excel</Button>
           <input id="import-costs" type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={importCosts} />
           <Button variant="outline" onClick={() => document.getElementById("import-costs")?.click()}>
@@ -150,8 +180,58 @@ export function CostManagementClient() {
               </Button>
             </>
           )}
+          <Button onClick={() => setShowAdd(true)}><Plus className="h-4 w-4" />新增</Button>
         </div>
       </div>
+
+      {showAdd && (
+        <Dialog open onOpenChange={(v) => !v && setShowAdd(false)}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>新增商品</DialogTitle></DialogHeader>
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <Label>SKU *</Label>
+                <Input value={newForm.sku} onChange={(e) => setNewForm({ ...newForm, sku: e.target.value })} placeholder="例: P006" />
+              </div>
+              <div className="space-y-1">
+                <Label>商品名稱 *</Label>
+                <Input value={newForm.name} onChange={(e) => setNewForm({ ...newForm, name: e.target.value })} placeholder="例: 範例商品 F" />
+              </div>
+              <div className="space-y-1">
+                <Label>規格</Label>
+                <Input value={newForm.spec} onChange={(e) => setNewForm({ ...newForm, spec: e.target.value })} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label>成本</Label>
+                  <Input type="number" step="0.01" value={newForm.costPrice || ""} onChange={(e) => setNewForm({ ...newForm, costPrice: Number(e.target.value) })} />
+                </div>
+                <div className="space-y-1">
+                  <Label>售價</Label>
+                  <Input type="number" step="0.01" value={newForm.salePrice || ""} onChange={(e) => setNewForm({ ...newForm, salePrice: Number(e.target.value) })} />
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowAdd(false)}>取消</Button>
+              <Button disabled={addSaving || !newForm.sku || !newForm.name} onClick={async () => {
+                setAddSaving(true);
+                try {
+                  const res = await fetch("/api/products", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(newForm) });
+                  if (!res.ok) throw new Error((await res.json()).error || "新增失敗");
+                  toast.success("已新增商品");
+                  setShowAdd(false);
+                  setNewForm({ sku: "", name: "", spec: "", costPrice: 0, salePrice: 0 });
+                  load();
+                } catch (e: any) { toast.error(e.message); }
+                finally { setAddSaving(false); }
+              }}>
+                {addSaving ? "儲存中..." : "儲存"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       <Table>
         <THead>
@@ -195,12 +275,15 @@ export function CostManagementClient() {
                   />
                 </TD>
                 <TD className="text-right text-xs">{margin === "—" ? "—" : `${margin}%`}</TD>
-                <TD className="text-right">
+                <TD className="text-right flex items-center justify-end gap-1">
                   {dirty && (
                     <Button size="sm" variant="outline" onClick={() => saveOne(r.id)}>
                       <Save className="h-4 w-4" />
                     </Button>
                   )}
+                  <Button size="sm" variant="ghost" className="text-red-500 hover:text-red-700" onClick={() => deleteProduct(r.id, r.sku)}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </TD>
               </TR>
             );
