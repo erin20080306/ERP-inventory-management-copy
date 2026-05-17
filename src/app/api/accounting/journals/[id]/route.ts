@@ -17,7 +17,6 @@ export const PUT = apiHandler(async (req: NextRequest, { params }: { params: { i
   const tenantId = await requireTenantId();
   const existing = await prisma.journalEntry.findUnique({ where: { id: params.id, tenantId } });
   if (!existing) throw new Error("找不到傳票");
-  if (existing.status !== "DRAFT") throw new Error("僅草稿狀態可修改");
   const { summary, entryDate, lines } = await req.json();
   if (!lines?.length) throw new Error("請至少新增一筆分錄");
   const totalDebit = lines.reduce((s: number, l: any) => s + Number(l.debit || 0), 0);
@@ -62,8 +61,6 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: {
 export const DELETE = apiHandler(async (_req: NextRequest, { params }: { params: { id: string } }) => {
   const session = await requirePermission("journals.delete");
   const tenantId = await requireTenantId();
-  const j = await prisma.journalEntry.findUnique({ where: { id: params.id, tenantId } });
-  if (j?.status === "POSTED") throw new Error("已過帳傳票不可刪除");
   await prisma.journalEntry.delete({ where: { id: params.id, tenantId } });
   await audit({ userId: session.user.id, action: "delete", module: "journals", refId: params.id });
   return NextResponse.json({ ok: true });

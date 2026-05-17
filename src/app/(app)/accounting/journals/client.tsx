@@ -161,8 +161,8 @@ export function JournalClient() {
                 <TD><StatusBadge status={r.status} /></TD>
                 <TD className="text-right flex items-center justify-end gap-0">
                   <Button variant="ghost" size="icon" onClick={() => setView(r)} title="查看"><Eye className="h-4 w-4" /></Button>
-                  {r.status === "DRAFT" && <Button variant="ghost" size="icon" onClick={() => setEditId(r.id)} title="修改"><Pencil className="h-4 w-4" /></Button>}
-                  {(r.status === "DRAFT" || r.status === "VOID") && <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-700" title="刪除" onClick={() => { if (confirm(`確定刪除 ${r.number}？`)) act(r.id, "delete"); }}><Trash2 className="h-4 w-4" /></Button>}
+                  <Button variant="ghost" size="icon" onClick={() => setEditId(r.id)} title="修改"><Pencil className="h-4 w-4" /></Button>
+                  <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-700" title="刪除" onClick={() => { if (confirm(`確定刪除 ${r.number}？注意：已過帳傳票刪除可能會影響財務報表`)) act(r.id, "delete"); }}><Trash2 className="h-4 w-4" /></Button>
                 </TD>
               </TR>
             );
