@@ -154,68 +154,64 @@ const CHART_OF_ACCOUNTS: { code: string; name: string; type: string; parent?: st
 
 /**
  * 為新租戶建立預設資料：編號規則、稅率、公司設定、倉庫、標準會計科目。
+ * 使用單一 transaction 減少網路延遲。
  */
 export async function seedTenantDefaults(tenantId: string) {
-  // 編號規則
-  const seqs = ["PO", "SO", "QT", "JE", "RP", "SP", "SR", "PR", "ADJ", "TRF", "INV", "DN"];
-  await prisma.numberSequence.createMany({
-    data: seqs.map((k) => ({ tenantId, key: k, prefix: k })),
-    skipDuplicates: true,
-  });
-
-  // 預設稅率
-  await prisma.taxRate.createMany({
-    data: [
-      { tenantId, code: "VAT5", name: "營業稅 5%", rate: 0.05, region: "TW" },
-      { tenantId, code: "ZERO", name: "零稅率", rate: 0, region: "TW" },
-    ],
-    skipDuplicates: true,
-  });
-
-  // 預設倉庫
-  await prisma.warehouse.createMany({
-    data: [{ tenantId, code: "WH01", name: "主倉庫" }],
-    skipDuplicates: true,
-  });
-
-  // 預設公司設定
-  const existing = await prisma.companySetting.findFirst({ where: { tenantId } });
-  if (!existing) {
-    await prisma.companySetting.create({
-      data: { tenantId, name: "我的公司", currency: "TWD" },
-    });
-  }
-
-  // 標準會計科目表（台灣商業會計法）
-  const existingAccounts = await prisma.chartOfAccount.count({ where: { tenantId } });
-  if (existingAccounts === 0) {
-    // 批量建立所有科目
-    await prisma.chartOfAccount.createMany({
-      data: CHART_OF_ACCOUNTS.map((a) => ({
-        tenantId,
-        code: a.code,
-        name: a.name,
-        type: a.type as any,
-      })),
+  await prisma.$transaction(async (tx: any) => {
+    // 1. 編號規則 + 稅率 + 倉庫 + 公司設定 — 全部在同一 transaction
+    const seqs = ["PO", "SO", "QT", "JE", "RP", "SP", "SR", "PR", "ADJ", "TRF", "INV", "DN"];
+    await tx.numberSequence.createMany({
+      data: seqs.map((k: string) => ({ tenantId, key: k, prefix: k })),
       skipDuplicates: true,
     });
-    // 查回所有科目取得 id
-    const all = await prisma.chartOfAccount.findMany({
-      where: { tenantId },
-      select: { id: true, code: true },
+
+    await tx.taxRate.createMany({
+      data: [
+        { tenantId, code: "VAT5", name: "營業稅 5%", rate: 0.05, region: "TW" },
+        { tenantId, code: "ZERO", name: "零稅率", rate: 0, region: "TW" },
+      ],
+      skipDuplicates: true,
     });
-    const idMap = Object.fromEntries(all.map((a) => [a.code, a.id]));
-    // 批量更新 parentId（用 transaction 一次送出）
-    const updates = CHART_OF_ACCOUNTS
-      .filter((a) => a.parent && idMap[a.parent])
-      .map((a) =>
-        prisma.chartOfAccount.update({
-          where: { id: idMap[a.code] },
-          data: { parentId: idMap[a.parent!] },
-        })
-      );
-    if (updates.length > 0) {
-      await prisma.$transaction(updates);
+
+    await tx.warehouse.createMany({
+      data: [{ tenantId, code: "WH01", name: "主倉庫" }],
+      skipDuplicates: true,
+    });
+
+    const existing = await tx.companySetting.findFirst({ where: { tenantId } });
+    if (!existing) {
+      await tx.companySetting.create({
+        data: { tenantId, name: "我的公司", currency: "TWD" },
+      });
     }
-  }
+
+    // 2. 標準會計科目表
+    const existingAccounts = await tx.chartOfAccount.count({ where: { tenantId } });
+    if (existingAccounts === 0) {
+      await tx.chartOfAccount.createMany({
+        data: CHART_OF_ACCOUNTS.map((a) => ({
+          tenantId,
+          code: a.code,
+          name: a.name,
+          type: a.type as any,
+        })),
+        skipDuplicates: true,
+      });
+      // 查回科目 id，用 raw SQL 一次更新所有 parentId
+      const all: { id: string; code: string }[] = await tx.chartOfAccount.findMany({
+        where: { tenantId },
+        select: { id: true, code: true },
+      });
+      const idMap = Object.fromEntries(all.map((a) => [a.code, a.id]));
+      const withParent = CHART_OF_ACCOUNTS.filter((a) => a.parent && idMap[a.parent] && idMap[a.code]);
+      if (withParent.length > 0) {
+        // 用 CASE WHEN 一條 SQL 更新全部 parentId
+        const cases = withParent.map((a) => `WHEN id = '${idMap[a.code]}' THEN '${idMap[a.parent!]}'`).join(" ");
+        const ids = withParent.map((a) => `'${idMap[a.code]}'`).join(",");
+        await tx.$executeRawUnsafe(
+          `UPDATE "ChartOfAccount" SET "parentId" = CASE ${cases} END WHERE id IN (${ids})`
+        );
+      }
+    }
+  }, { timeout: 30000 });
 }
