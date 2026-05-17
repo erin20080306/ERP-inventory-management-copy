@@ -54,8 +54,10 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 為新租戶建立預設資料（會計科目、編號規則等）
-    await seedTenantDefaults(tenant.id);
+    // 為新租戶建立預設資料（背景執行，不阻塞註冊回應）
+    seedTenantDefaults(tenant.id).catch((err) =>
+      console.error(`[seed] tenant ${tenant.id} failed:`, err)
+    );
 
     return NextResponse.json({ success: true, username: user.username });
   } catch (err: any) {
