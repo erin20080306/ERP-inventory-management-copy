@@ -7,7 +7,7 @@ import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { StatusBadge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/layout/page-shell";
 import { toast } from "sonner";
-import { Loader2, Search, CreditCard, Download, Printer, FileDown, ListChecks } from "lucide-react";
+import { Loader2, Search, CreditCard, Download, Printer, FileDown, ListChecks, Trash2 } from "lucide-react";
 import { formatDate, formatMoney } from "@/lib/utils";
 import { downloadCSV, toCSV } from "@/lib/csv";
 import { ConvertToJournalButton } from "@/components/convert-to-journal-button";
@@ -165,11 +165,22 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
                 <TD>{formatMoney(r.paidAmount)}</TD>
                 <TD className={balance > 0 ? "text-red-600 font-medium" : ""}>{formatMoney(balance)}</TD>
                 <TD><StatusBadge status={r.status} /></TD>
-                <TD className="text-right">
+                <TD className="text-right flex items-center justify-end gap-1">
                   {balance > 0 && (
                     <Button size="sm" variant="outline" onClick={() => setPay(r)}>
                       <CreditCard className="h-4 w-4" />
                       {kind === "ar" ? "收款" : "付款"}
+                    </Button>
+                  )}
+                  {Number(r.paidAmount) === 0 && (
+                    <Button size="sm" variant="ghost" className="text-red-500 hover:text-red-700" onClick={async () => {
+                      if (!confirm("確定刪除此筆帳款？")) return;
+                      const res = await fetch(`${endpoint}/${r.id}`, { method: "DELETE" });
+                      if (!res.ok) { const e = await res.json(); toast.error(e.error || "刪除失敗"); return; }
+                      toast.success("已刪除");
+                      load(); loadSummary();
+                    }}>
+                      <Trash2 className="h-4 w-4" />
                     </Button>
                   )}
                 </TD>

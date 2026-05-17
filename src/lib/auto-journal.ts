@@ -214,10 +214,10 @@ export async function buildReceivePaymentDraft(receivePaymentId: string): Promis
   if (!rp) throw new Error("找不到收款單");
 
   const amount = Number(rp.amount);
-  // method: CASH / BANK / CHECK / OTHER
+  // method: CASH / BANK / CHECK / CHEQUE / OTHER
   const debitCode =
     rp.method === "CASH" ? DEFAULT_ACCOUNT_CODES.CASH :
-    rp.method === "CHECK" ? DEFAULT_ACCOUNT_CODES.AR_NOTE :
+    (rp.method === "CHECK" || rp.method === "CHEQUE") ? DEFAULT_ACCOUNT_CODES.AR_NOTE :
     DEFAULT_ACCOUNT_CODES.BANK;
 
   const t = rp.tenantId;
@@ -248,7 +248,7 @@ export async function buildSupplierPaymentDraft(supplierPaymentId: string): Prom
   const amount = Number(sp.amount);
   const creditCode =
     sp.method === "CASH" ? DEFAULT_ACCOUNT_CODES.CASH :
-    sp.method === "CHECK" ? DEFAULT_ACCOUNT_CODES.AP_NOTE :
+    (sp.method === "CHECK" || sp.method === "CHEQUE") ? DEFAULT_ACCOUNT_CODES.AP_NOTE :
     DEFAULT_ACCOUNT_CODES.BANK;
 
   const t = (sp as any).tenantId;

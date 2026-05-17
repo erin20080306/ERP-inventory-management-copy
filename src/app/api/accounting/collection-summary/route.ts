@@ -21,7 +21,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
     let total = 0;
     for (const p of payments) {
       const amt = Number(p.amount);
-      const key = p.method in summary ? p.method : "OTHER";
+      const key = p.method === "CHEQUE" ? "CHECK" : (p.method in summary ? p.method : "OTHER");
       summary[key] += amt;
       total += amt;
     }
@@ -54,7 +54,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
     let total = 0;
     for (const p of payments) {
       const amt = Number(p.amount);
-      const key = p.method in summary ? p.method : "OTHER";
+      const key = p.method === "CHEQUE" ? "CHECK" : (p.method in summary ? p.method : "OTHER");
       summary[key] += amt;
       total += amt;
     }
