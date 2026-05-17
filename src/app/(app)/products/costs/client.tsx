@@ -258,20 +258,18 @@ export function CostManagementClient() {
                 <TD className="text-muted-foreground text-xs">{r.spec ?? "—"}</TD>
                 <TD>
                   <Input
-                    type="number"
-                    step="0.01"
+                    inputMode="decimal"
                     value={cost}
-                    onChange={(e) => update(r.id, "costPrice", Number(e.target.value))}
-                    className="h-8"
+                    onChange={(e) => update(r.id, "costPrice", Number(e.target.value.replace(/[^0-9.]/g, "")))}
+                    className="h-8 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                   />
                 </TD>
                 <TD>
                   <Input
-                    type="number"
-                    step="0.01"
+                    inputMode="decimal"
                     value={sale}
-                    onChange={(e) => update(r.id, "salePrice", Number(e.target.value))}
-                    className="h-8"
+                    onChange={(e) => update(r.id, "salePrice", Number(e.target.value.replace(/[^0-9.]/g, "")))}
+                    className="h-8 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                   />
                 </TD>
                 <TD className="text-right text-xs">{margin === "—" ? "—" : `${margin}%`}</TD>

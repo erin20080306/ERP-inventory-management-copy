@@ -2,11 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { apiHandler, requirePermission, requireTenantId, audit } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 
+const ALLOWED_FIELDS = ["sku", "barcode", "name", "spec", "description", "imageUrl", "categoryId", "unitId", "costPrice", "salePrice", "safetyStock", "taxRateId", "isActive", "remark"];
+
 export const PUT = apiHandler(async (req: NextRequest, { params }: { params: { id: string } }) => {
   const session = await requirePermission("products.edit");
   const tenantId = await requireTenantId();
   const body = await req.json();
-  const u = await prisma.product.update({ where: { id: params.id, tenantId }, data: body });
+  const data: any = {};
+  for (const key of ALLOWED_FIELDS) {
+    if (key in body) data[key] = body[key];
+  }
+  const u = await prisma.product.update({ where: { id: params.id, tenantId }, data });
   await audit({ userId: session.user.id, action: "update", module: "products", refId: params.id });
   return NextResponse.json(u);
 });
