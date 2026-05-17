@@ -64,9 +64,14 @@ export const authOptions: NextAuthOptions = {
           throw new Error("登入失敗次數過多，請 15 分鐘後再試");
         }
 
-        if (!user || !user.isActive) {
+        if (!user) {
           prisma.loginLog.create({ data: { username, success: false, ip } }).catch(() => {});
           return null;
+        }
+
+        if (!user.isActive) {
+          prisma.loginLog.create({ data: { username, success: false, ip } }).catch(() => {});
+          throw new Error("帳號已被鎖定，請聯繫管理員或完成付款後解鎖");
         }
 
         const ok = await bcrypt.compare(credentials.password, user.passwordHash);
@@ -84,6 +89,10 @@ export const authOptions: NextAuthOptions = {
         }
         // 超級管理員（平台管理員）擁有所有權限
         if ((user as any).isSuperAdmin) isSuper = true;
+        // 租戶用戶沒有角色時，給予所有模組查看權限
+        if (!isSuper && permsSet.size === 0 && user.tenantId) {
+          permsSet.add("*");
+        }
         const permissions = isSuper ? ["*"] : Array.from(permsSet);
 
         // fire-and-forget：登入成功後續寫不阻塞 token 簽發

@@ -63,9 +63,11 @@ model User {
   isActive     Boolean   @default(true)
   isSuperAdmin Boolean   @default(false)
   trialStart   DateTime  @default(now())
-  isPaid       Boolean   @default(false)
-  lastLoginAt  DateTime?
-  lastLoginIp  String?
+  isPaid          Boolean   @default(false)
+  paymentType     String?   // "ONCE" = 永久, "MONTHLY" = 月付
+  subscriptionEnd DateTime? // 月付到期日
+  lastLoginAt     DateTime?
+  lastLoginIp     String?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 

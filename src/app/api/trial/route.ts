@@ -18,17 +18,40 @@ export async function GET() {
 
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { trialStart: true, isPaid: true },
+    select: { trialStart: true, isPaid: true, paymentType: true, subscriptionEnd: true, tenantId: true },
   });
 
   if (!user) {
     return NextResponse.json({ status: "no_session" });
   }
 
-  if (user.isPaid) {
-    return NextResponse.json({ status: "paid" });
+  // 永久授權
+  if (user.isPaid && user.paymentType === "ONCE") {
+    return NextResponse.json({ status: "paid", paymentType: "ONCE" });
   }
 
+  // 月付訂閱
+  if (user.isPaid && user.paymentType === "MONTHLY") {
+    const subEnd = user.subscriptionEnd ? user.subscriptionEnd.getTime() : 0;
+    const now = Date.now();
+    if (now < subEnd) {
+      return NextResponse.json({ status: "paid", paymentType: "MONTHLY", subscriptionRemainMs: subEnd - now });
+    }
+    // 到期立即鎖定該租戶所有帳號
+    if (user.tenantId) {
+      await prisma.user.updateMany({ where: { tenantId: user.tenantId }, data: { isActive: false } });
+    } else {
+      await prisma.user.update({ where: { id: session.user.id }, data: { isActive: false } });
+    }
+    return NextResponse.json({ status: "locked" });
+  }
+
+  // 舊版已付款（兼容）
+  if (user.isPaid) {
+    return NextResponse.json({ status: "paid", paymentType: "ONCE" });
+  }
+
+  // 試用期
   const startTs = user.trialStart.getTime();
   const expireTs = startTs + TRIAL_DAYS * 24 * 60 * 60 * 1000;
   const now = Date.now();

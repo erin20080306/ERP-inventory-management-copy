@@ -45,9 +45,12 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // 指定角色
+    // 指定角色（找不到指定角色則 fallback 為系統管理員）
     const targetRole = roleName || "系統管理員";
-    const role = await prisma.role.findUnique({ where: { name: targetRole } });
+    let role = await prisma.role.findUnique({ where: { name: targetRole } });
+    if (!role) {
+      role = await prisma.role.findUnique({ where: { name: "系統管理員" } });
+    }
     if (role) {
       await prisma.userRole.create({
         data: { userId: user.id, roleId: role.id },
