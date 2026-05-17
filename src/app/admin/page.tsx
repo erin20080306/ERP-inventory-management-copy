@@ -48,13 +48,29 @@ export default function AdminPage() {
               <p className="text-sm text-slate-400">平台租戶與用戶總覽</p>
             </div>
           </div>
-          <button
-            onClick={() => signOut({ callbackUrl: "/login" })}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white text-sm font-medium transition"
-          >
-            <LogOut className="h-4 w-4" />
-            登出
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => router.push("/login")}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-medium transition"
+            >
+              <LogIn className="h-4 w-4" />
+              登入介面
+            </button>
+            <button
+              onClick={() => router.push("/dashboard")}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition"
+            >
+              <LogIn className="h-4 w-4" />
+              進入前台
+            </button>
+            <button
+              onClick={() => signOut({ callbackUrl: "/login" })}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white text-sm font-medium transition"
+            >
+              <LogOut className="h-4 w-4" />
+              登出
+            </button>
+          </div>
         </div>
 
         {/* 統計卡片 */}
@@ -154,6 +170,7 @@ export default function AdminPage() {
                     <TH>操作次數</TH>
                     <TH>上次登入</TH>
                     <TH>使用狀況</TH>
+                    <TH>操作</TH>
                   </TR>
                 </THead>
                 <TBody>
@@ -182,6 +199,35 @@ export default function AdminPage() {
                           <Badge variant="info">僅登入</Badge>
                         ) : (
                           <Badge variant="danger">未使用</Badge>
+                        )}
+                      </TD>
+                      <TD>
+                        {!u.isSuperAdmin && (
+                          <button
+                            onClick={async () => {
+                              const action = u.isPaid ? "revoke" : "grant";
+                              const msg = u.isPaid ? "確定取消永久使用權限？" : "確定授予永久使用權限？";
+                              if (!confirm(msg)) return;
+                              const res = await fetch("/api/admin/set-paid", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ userId: u.id, isPaid: !u.isPaid }),
+                              });
+                              if (res.ok) {
+                                setData((prev: any) => ({
+                                  ...prev,
+                                  users: prev.users.map((x: any) => x.id === u.id ? { ...x, isPaid: !u.isPaid } : x),
+                                }));
+                              }
+                            }}
+                            className={`px-3 py-1 rounded text-xs font-medium transition ${
+                              u.isPaid
+                                ? "bg-red-900/50 text-red-300 hover:bg-red-800"
+                                : "bg-emerald-900/50 text-emerald-300 hover:bg-emerald-800"
+                            }`}
+                          >
+                            {u.isPaid ? "取消永久" : "設為永久使用"}
+                          </button>
                         )}
                       </TD>
                     </TR>
