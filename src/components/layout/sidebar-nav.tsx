@@ -83,11 +83,21 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const { data } = useSession();
   const perms = data?.user?.permissions ?? [];
+  const userRoles = (data?.user as any)?.roles ?? [];
 
   return (
     <nav className="flex-1 overflow-y-auto py-4">
       {sections.map((s) => {
-        const visible = s.items.filter((i) => !i.perm || hasPermission(perms, i.perm));
+        const visible = s.items.filter((i) => {
+          if (!i.perm) return true;
+          if (!hasPermission(perms, i.perm)) return false;
+          // 角色權限只允許老闆和系統管理員查看
+          if (i.href === "/roles") {
+            const allowedRoles = ["老闆 / 經營者", "系統管理員"];
+            return userRoles.some((r: any) => allowedRoles.includes(r.name));
+          }
+          return true;
+        });
         if (visible.length === 0) return null;
         return (
           <div key={s.label} className="mb-4">
