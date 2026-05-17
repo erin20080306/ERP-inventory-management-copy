@@ -66,15 +66,19 @@ export async function receivePurchaseOrder(orderId: string, warehouseId: string)
       data: { status: "RECEIVED", receivedAt: new Date(), warehouseId },
     });
 
-    await tx.accountsPayable.create({
-      data: {
-        tenantId: order.tenantId,
-        supplierId: order.supplierId,
-        purchaseOrderId: order.id,
-        amount: order.total,
-        status: "OPEN",
-      },
-    });
+    // 只在尚未建立應付時才建立（可能已在核准時建立）
+    const existingAP = await tx.accountsPayable.findFirst({ where: { purchaseOrderId: order.id, tenantId: order.tenantId } });
+    if (!existingAP) {
+      await tx.accountsPayable.create({
+        data: {
+          tenantId: order.tenantId,
+          supplierId: order.supplierId,
+          purchaseOrderId: order.id,
+          amount: order.total,
+          status: "OPEN",
+        },
+      });
+    }
     return true;
   });
 }
@@ -119,15 +123,19 @@ export async function shipSalesOrder(orderId: string, warehouseId: string) {
       data: { status: "SHIPPED", shippedAt: new Date(), warehouseId },
     });
 
-    await tx.accountsReceivable.create({
-      data: {
-        tenantId: order.tenantId,
-        customerId: order.customerId,
-        salesOrderId: order.id,
-        amount: order.total,
-        status: "OPEN",
-      },
-    });
+    // 只在尚未建立應收時才建立（可能已在確認時建立）
+    const existingAR = await tx.accountsReceivable.findFirst({ where: { salesOrderId: order.id, tenantId: order.tenantId } });
+    if (!existingAR) {
+      await tx.accountsReceivable.create({
+        data: {
+          tenantId: order.tenantId,
+          customerId: order.customerId,
+          salesOrderId: order.id,
+          amount: order.total,
+          status: "OPEN",
+        },
+      });
+    }
     return true;
   });
 }

@@ -15,12 +15,18 @@ export type AccountWithBalance = {
 /**
  * 計算所有會計科目在指定期間的試算結餘。
  * @param asOf 結算日期 (預設今日)
+ * @param tenantId 租戶ID (必須提供以確保資料隔離)
  */
-export async function computeTrialBalance(asOf?: Date): Promise<AccountWithBalance[]> {
+export async function computeTrialBalance(asOf?: Date, tenantId?: string): Promise<AccountWithBalance[]> {
   const where: any = { entry: { status: "POSTED" } };
   if (asOf) where.entry = { ...where.entry, entryDate: { lte: asOf } };
+  if (tenantId) where.entry = { ...where.entry, tenantId };
+
+  const accountWhere: any = {};
+  if (tenantId) accountWhere.tenantId = tenantId;
 
   const accounts = await prisma.chartOfAccount.findMany({
+    where: accountWhere,
     include: { lines: { where } },
     orderBy: { code: "asc" },
   });

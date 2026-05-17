@@ -20,7 +20,22 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: {
   const { action, warehouseId } = body;
 
   if (action === "submit" || action === "confirm") {
+    const order = await prisma.salesOrder.findUnique({ where: { id: params.id, tenantId } });
+    if (!order) throw new Error("找不到銷售單");
     await prisma.salesOrder.update({ where: { id: params.id, tenantId }, data: { status: "CONFIRMED" } });
+    // 確認時自動建立應收帳款
+    const existingAR = await prisma.accountsReceivable.findFirst({ where: { salesOrderId: order.id, tenantId } });
+    if (!existingAR) {
+      await prisma.accountsReceivable.create({
+        data: {
+          tenantId,
+          customerId: order.customerId,
+          salesOrderId: order.id,
+          amount: order.total,
+          status: "OPEN",
+        },
+      });
+    }
   } else if (action === "ship") {
     if (!warehouseId) throw new Error("請選擇出貨倉庫");
     await shipSalesOrder(params.id, warehouseId);

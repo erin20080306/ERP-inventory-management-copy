@@ -45,9 +45,9 @@ export default async function Page() {
 
   // 銷售 / 採購 / 毛利
   const [salesTotal, purchaseTotal, stocks] = await Promise.all([
-    prisma.salesOrder.aggregate({ _sum: { total: true }, where: { status: { not: "CANCELLED" } } }),
-    prisma.purchaseOrder.aggregate({ _sum: { total: true }, where: { status: { not: "CANCELLED" } } }),
-    prisma.inventoryStock.findMany({ include: { product: true } }),
+    prisma.salesOrder.aggregate({ _sum: { total: true }, where: { tenantId, status: { not: "CANCELLED" } } }),
+    prisma.purchaseOrder.aggregate({ _sum: { total: true }, where: { tenantId, status: { not: "CANCELLED" } } }),
+    prisma.inventoryStock.findMany({ where: { tenantId }, include: { product: true } }),
   ]);
   const inventoryValue = stocks.reduce((s: number, x: any) => s + Number(x.quantity) * Number(x.product.costPrice), 0);
 

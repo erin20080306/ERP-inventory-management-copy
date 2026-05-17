@@ -23,7 +23,22 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: {
     await prisma.purchaseOrder.update({ where: { id: params.id, tenantId }, data: { status: "SUBMITTED" } });
   } else if (action === "approve") {
     await requirePermission("purchases.approve");
+    const order = await prisma.purchaseOrder.findUnique({ where: { id: params.id, tenantId } });
+    if (!order) throw new Error("找不到採購單");
     await prisma.purchaseOrder.update({ where: { id: params.id, tenantId }, data: { status: "APPROVED" } });
+    // 核准時自動建立應付帳款
+    const existingAP = await prisma.accountsPayable.findFirst({ where: { purchaseOrderId: order.id, tenantId } });
+    if (!existingAP) {
+      await prisma.accountsPayable.create({
+        data: {
+          tenantId,
+          supplierId: order.supplierId,
+          purchaseOrderId: order.id,
+          amount: order.total,
+          status: "OPEN",
+        },
+      });
+    }
   } else if (action === "receive") {
     if (!warehouseId) throw new Error("請選擇入庫倉庫");
     await receivePurchaseOrder(params.id, warehouseId);

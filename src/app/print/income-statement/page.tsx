@@ -3,6 +3,7 @@ import { AutoPrint } from "../auto-print";
 import { CompanyHeader } from "../CompanyHeader";
 import { computeTrialBalance, periodLabel } from "@/lib/report-calc";
 import { formatMoney } from "@/lib/utils";
+import { requireTenantId } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
@@ -17,8 +18,9 @@ export default async function IncomeStatementPrint({
     : new Date(today.getFullYear(), 0, 1);
   const end = searchParams.to ? new Date(searchParams.to) : today;
 
+  const tenantId = await requireTenantId();
   // 完整期間使用 trialBalance 截止 end
-  const trial = await computeTrialBalance(end);
+  const trial = await computeTrialBalance(end, tenantId);
 
   const revenues = trial.filter((a) => a.type === "REVENUE");
   const costs = trial.filter((a) => a.type === "COST");

@@ -3,6 +3,7 @@ import { AutoPrint } from "../auto-print";
 import { CompanyHeader } from "../CompanyHeader";
 import { computeTrialBalance, asOfLabel } from "@/lib/report-calc";
 import { formatMoney } from "@/lib/utils";
+import { requireTenantId } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
@@ -11,8 +12,9 @@ export default async function TrialBalancePrint({
 }: {
   searchParams: { date?: string };
 }) {
+  const tenantId = await requireTenantId();
   const asOf = searchParams.date ? new Date(searchParams.date) : new Date();
-  const trial = await computeTrialBalance(asOf);
+  const trial = await computeTrialBalance(asOf, tenantId);
 
   const sumOpening = trial.reduce((s, a) => s + a.openingBalance, 0);
   const sumDebit = trial.reduce((s, a) => s + a.totalDebit, 0);

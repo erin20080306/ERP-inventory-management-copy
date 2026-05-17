@@ -3,6 +3,7 @@ import { AutoPrint } from "../auto-print";
 import { CompanyHeader } from "../CompanyHeader";
 import { computeTrialBalance, asOfLabel } from "@/lib/report-calc";
 import { formatMoney } from "@/lib/utils";
+import { requireTenantId } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
@@ -11,8 +12,9 @@ export default async function BalanceSheetPrint({
 }: {
   searchParams: { date?: string };
 }) {
+  const tenantId = await requireTenantId();
   const asOf = searchParams.date ? new Date(searchParams.date) : new Date();
-  const trial = await computeTrialBalance(asOf);
+  const trial = await computeTrialBalance(asOf, tenantId);
 
   // 損益用於計算保留盈餘
   const revenue = trial.filter((a) => a.type === "REVENUE").reduce((s, a) => s + a.balance, 0);
