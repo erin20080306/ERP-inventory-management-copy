@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input, Label } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Download, Upload, Database, AlertTriangle } from "lucide-react";
+import { Download, Upload, Database, AlertTriangle, Loader2 } from "lucide-react";
 
 export function SettingsClient() {
   const [form, setForm] = useState<any>({ name: "", currency: "TWD" });
@@ -90,7 +90,17 @@ function BackupCard() {
     }
   }
 
+  const busy = backing || restoring;
+
   return (
+    <>
+      {busy && (
+        <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm">
+          <Loader2 className="h-12 w-12 animate-spin text-white mb-4" />
+          <div className="text-white text-xl font-semibold">{backing ? "備份作業中，請稍候..." : "還原作業中，請勿關閉頁面..."}</div>
+          <div className="text-white/70 text-sm mt-2">{backing ? "正在匯出資料庫" : "正在清空並重建資料庫，可能需要數十秒"}</div>
+        </div>
+      )}
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2"><Database className="h-5 w-5" />系統備份與還原</CardTitle>
@@ -98,10 +108,10 @@ function BackupCard() {
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
-          <Button onClick={doBackup} disabled={backing}>
+          <Button onClick={doBackup} disabled={busy}>
             <Download className="h-4 w-4" />{backing ? "備份中..." : "立即備份下載"}
           </Button>
-          <Button variant="outline" onClick={() => fileRef.current?.click()} disabled={restoring}>
+          <Button variant="outline" onClick={() => fileRef.current?.click()} disabled={busy}>
             <Upload className="h-4 w-4" />{restoring ? "還原中..." : "從備份檔還原"}
           </Button>
           <input ref={fileRef} type="file" accept=".json,application/json" hidden onChange={onPickRestore} />
@@ -120,5 +130,6 @@ function BackupCard() {
         </div>
       </CardContent>
     </Card>
+    </>
   );
 }
