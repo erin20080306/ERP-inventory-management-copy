@@ -60,23 +60,21 @@ export const POST = apiHandler(async (req: NextRequest) => {
     },
     include: { items: true, supplier: true },
   });
-  await audit({ userId: session.user.id, action: "create", module: "purchases", refId: created.id, detail: number });
-
-  // 如果建立時是 SUBMITTED / APPROVED，自動建立應付帳款 + 傳票
+  const tasks: Promise<any>[] = [
+    audit({ userId: session.user.id, action: "create", module: "purchases", refId: created.id, detail: number }),
+  ];
   const s = status ?? "DRAFT";
   if (s === "SUBMITTED" || s === "APPROVED") {
-    await prisma.accountsPayable.create({
-      data: {
-        tenantId,
-        supplierId,
-        purchaseOrderId: created.id,
-        amount: totals.total,
-        status: "OPEN",
-      },
-    });
-    const draft = await buildAPCreatedDraft(created.id);
-    await autoCreateJournal(tenantId, draft, session.user.id);
+    tasks.push(
+      prisma.accountsPayable.create({
+        data: { tenantId, supplierId, purchaseOrderId: created.id, amount: totals.total, status: "OPEN" },
+      }).then(async () => {
+        const draft = await buildAPCreatedDraft(created.id);
+        await autoCreateJournal(tenantId, draft, session.user.id);
+      })
+    );
   }
+  await Promise.all(tasks);
 
   return NextResponse.json(created);
 });

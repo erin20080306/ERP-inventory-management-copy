@@ -37,10 +37,25 @@ export const DEFAULT_ACCOUNT_CODES = {
 export type AccountCodeKey = keyof typeof DEFAULT_ACCOUNT_CODES;
 
 /** 取得科目 ID（依代碼） */
+const _accountCache = new Map<string, any>();
 async function getAccount(tenantId: string, code: string) {
+  const key = `${tenantId}:${code}`;
+  const cached = _accountCache.get(key);
+  if (cached) return cached;
   const a = await prisma.chartOfAccount.findUnique({ where: { tenantId_code: { tenantId, code } } });
   if (!a) throw new Error(`找不到會計科目 ${code}，請先建立`);
+  _accountCache.set(key, a);
   return a;
+}
+
+/** 批次預載科目到快取 */
+async function preloadAccounts(tenantId: string, codes: string[]) {
+  const missing = codes.filter(c => !_accountCache.has(`${tenantId}:${c}`));
+  if (missing.length === 0) return;
+  const accounts = await prisma.chartOfAccount.findMany({
+    where: { tenantId, code: { in: missing } },
+  });
+  for (const a of accounts) _accountCache.set(`${tenantId}:${a.code}`, a);
 }
 
 export type DraftLine = {
@@ -88,6 +103,7 @@ export async function buildPurchaseReceiveDraft(purchaseOrderId: string): Promis
   const total = Number(po.total);
 
   const t = po.tenantId;
+  await preloadAccounts(t, [DEFAULT_ACCOUNT_CODES.INVENTORY, DEFAULT_ACCOUNT_CODES.INPUT_TAX, DEFAULT_ACCOUNT_CODES.AP]);
   const lines: DraftLine[] = [
     await line(t, DEFAULT_ACCOUNT_CODES.INVENTORY, subtotal, 0, `進貨 ${po.number}`),
     ...(tax > 0 ? [await line(t, DEFAULT_ACCOUNT_CODES.INPUT_TAX, tax, 0, "進項稅額 5%")] : []),
@@ -221,6 +237,7 @@ export async function buildReceivePaymentDraft(receivePaymentId: string): Promis
     DEFAULT_ACCOUNT_CODES.BANK;
 
   const t = rp.tenantId;
+  await preloadAccounts(t, [debitCode, DEFAULT_ACCOUNT_CODES.AR]);
   const lines: DraftLine[] = [
     await line(t, debitCode, amount, 0, `收款 ${rp.number}`),
     await line(t, DEFAULT_ACCOUNT_CODES.AR, 0, amount, `${rp.customer.companyName}`),
@@ -252,6 +269,7 @@ export async function buildSupplierPaymentDraft(supplierPaymentId: string): Prom
     DEFAULT_ACCOUNT_CODES.BANK;
 
   const t = (sp as any).tenantId;
+  await preloadAccounts(t, [DEFAULT_ACCOUNT_CODES.AP, creditCode]);
   const lines: DraftLine[] = [
     await line(t, DEFAULT_ACCOUNT_CODES.AP, amount, 0, `${sp.supplier.companyName}`),
     await line(t, creditCode, 0, amount, `付款 ${sp.number}`),
@@ -381,6 +399,8 @@ export async function buildARCreatedDraft(salesOrderId: string): Promise<DraftEn
   const cogs = so.items.reduce((s: number, i: any) => s + Number(i.quantity) * Number(i.product.costPrice ?? 0), 0);
 
   const t = so.tenantId;
+  const codes = [DEFAULT_ACCOUNT_CODES.AR, DEFAULT_ACCOUNT_CODES.SALES_REVENUE, DEFAULT_ACCOUNT_CODES.OUTPUT_TAX, DEFAULT_ACCOUNT_CODES.COGS, DEFAULT_ACCOUNT_CODES.INVENTORY];
+  await preloadAccounts(t, codes);
   const lines: DraftLine[] = [
     await line(t, DEFAULT_ACCOUNT_CODES.AR, total, 0, `${so.customer.companyName}`),
     await line(t, DEFAULT_ACCOUNT_CODES.SALES_REVENUE, 0, subtotal, `銷售 ${so.number}`),
@@ -418,6 +438,7 @@ export async function buildAPCreatedDraft(purchaseOrderId: string): Promise<Draf
   const total = Number(po.total);
 
   const t = po.tenantId;
+  await preloadAccounts(t, [DEFAULT_ACCOUNT_CODES.INVENTORY, DEFAULT_ACCOUNT_CODES.INPUT_TAX, DEFAULT_ACCOUNT_CODES.AP]);
   const lines: DraftLine[] = [
     await line(t, DEFAULT_ACCOUNT_CODES.INVENTORY, subtotal, 0, `進貨 ${po.number}`),
     ...(tax > 0 ? [await line(t, DEFAULT_ACCOUNT_CODES.INPUT_TAX, tax, 0, "進項稅額 5%")] : []),
