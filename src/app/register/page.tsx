@@ -9,12 +9,6 @@ import Link from "next/link";
 
 const ROLES = [
   { name: "系統管理員", desc: "擁有所有權限" },
-  { name: "老闆 / 經營者", desc: "查看所有報表與資料" },
-  { name: "會計人員", desc: "傳票、AR/AP、損益" },
-  { name: "採購人員", desc: "採購單、供應商管理" },
-  { name: "銷售人員", desc: "銷售單、客戶管理" },
-  { name: "倉管人員", desc: "庫存、進出貨管理" },
-  { name: "一般查詢人員", desc: "僅能查詢資料" },
 ];
 
 export default function RegisterPage() {
@@ -23,7 +17,7 @@ export default function RegisterPage() {
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [roleName, setRoleName] = useState("一般查詢人員");
+  const [roleName, setRoleName] = useState("系統管理員");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
