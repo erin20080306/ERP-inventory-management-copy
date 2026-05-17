@@ -42,39 +42,47 @@ export const POST = apiHandler(async (req: NextRequest) => {
   if (!body.employeeNo) throw new Error("請輸入員工編號");
   if (!body.name) throw new Error("請輸入姓名");
   if (!body.hireDate) throw new Error("請輸入到職日");
-  const created = await prisma.employee.create({
-    data: {
-      tenantId,
-      employeeNo: body.employeeNo,
-      name: body.name,
-      englishName: body.englishName,
-      idNumber: body.idNumber || null,
-      gender: body.gender || null,
-      birthDate: body.birthDate ? new Date(body.birthDate) : null,
-      phone: body.phone,
-      email: body.email,
-      address: body.address,
-      emergencyContact: body.emergencyContact,
-      emergencyPhone: body.emergencyPhone,
-      departmentId: body.departmentId || null,
-      position: body.position,
-      hireDate: new Date(body.hireDate),
-      resignDate: body.resignDate ? new Date(body.resignDate) : null,
-      status: body.status || "ACTIVE",
-      baseSalary: Number(body.baseSalary ?? 0),
-      mealAllowance: Number(body.mealAllowance ?? 2400),
-      transportAllowance: Number(body.transportAllowance ?? 0),
-      positionAllowance: Number(body.positionAllowance ?? 0),
-      insuredSalary: Number(body.insuredSalary ?? body.baseSalary ?? 0),
-      laborPensionRate: Number(body.laborPensionRate ?? 0.06),
-      voluntaryPensionRate: Number(body.voluntaryPensionRate ?? 0),
-      dependents: Number(body.dependents ?? 0),
-      bankName: body.bankName,
-      bankAccountNo: body.bankAccountNo,
-      taxId: body.taxId,
-      remark: body.remark,
-    },
-  });
+  const empData = {
+    employeeNo: body.employeeNo,
+    name: body.name,
+    englishName: body.englishName,
+    idNumber: body.idNumber || null,
+    gender: body.gender || null,
+    birthDate: body.birthDate ? new Date(body.birthDate) : null,
+    phone: body.phone,
+    email: body.email,
+    address: body.address,
+    emergencyContact: body.emergencyContact,
+    emergencyPhone: body.emergencyPhone,
+    departmentId: body.departmentId || null,
+    position: body.position,
+    hireDate: new Date(body.hireDate),
+    resignDate: body.resignDate ? new Date(body.resignDate) : null,
+    status: body.status || "ACTIVE",
+    baseSalary: Number(body.baseSalary ?? 0),
+    mealAllowance: Number(body.mealAllowance ?? 2400),
+    transportAllowance: Number(body.transportAllowance ?? 0),
+    positionAllowance: Number(body.positionAllowance ?? 0),
+    insuredSalary: Number(body.insuredSalary ?? body.baseSalary ?? 0),
+    laborPensionRate: Number(body.laborPensionRate ?? 0.06),
+    voluntaryPensionRate: Number(body.voluntaryPensionRate ?? 0),
+    dependents: Number(body.dependents ?? 0),
+    bankName: body.bankName,
+    bankAccountNo: body.bankAccountNo,
+    taxId: body.taxId,
+    remark: body.remark,
+  };
+  const upsert = req.nextUrl.searchParams.get("upsert") === "1";
+  if (upsert) {
+    const result = await prisma.employee.upsert({
+      where: { tenantId_employeeNo: { tenantId, employeeNo: body.employeeNo } },
+      update: empData,
+      create: { ...empData, tenantId },
+    });
+    await audit({ userId: session.user.id, action: "upsert", module: "employees", refId: result.id });
+    return NextResponse.json(result);
+  }
+  const created = await prisma.employee.create({ data: { ...empData, tenantId } });
   await audit({ userId: session.user.id, action: "create", module: "employees", refId: created.id });
   return NextResponse.json(created);
 });

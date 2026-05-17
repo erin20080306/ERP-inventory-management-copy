@@ -23,6 +23,16 @@ export const POST = apiHandler(async (req: NextRequest) => {
   const session = await requirePermission("suppliers.create");
   const tenantId = await requireTenantId();
   const body = await req.json();
+  const upsert = req.nextUrl.searchParams.get("upsert") === "1";
+  if (upsert && body.code) {
+    const result = await prisma.supplier.upsert({
+      where: { tenantId_code: { tenantId, code: body.code } },
+      update: { ...body },
+      create: { ...body, tenantId },
+    });
+    await audit({ userId: session.user.id, action: "upsert", module: "suppliers", refId: result.id });
+    return NextResponse.json(result);
+  }
   const created = await prisma.supplier.create({ data: { ...body, tenantId } });
   await audit({ userId: session.user.id, action: "create", module: "suppliers", refId: created.id });
   return NextResponse.json(created);

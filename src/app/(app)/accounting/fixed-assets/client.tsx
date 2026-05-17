@@ -75,7 +75,7 @@ export function FixedAssetsClient() {
           serialNumber: r["序號"] ?? undefined,
         };
         try {
-          const res = await fetch("/api/accounting/fixed-assets", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+          const res = await fetch("/api/accounting/fixed-assets?upsert=1", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
           if (!res.ok) errors.push(`第 ${i + 2} 列：${(await res.json()).error || "失敗"}`);
           else success++;
         } catch (err: any) { errors.push(`第 ${i + 2} 列：${err.message}`); }

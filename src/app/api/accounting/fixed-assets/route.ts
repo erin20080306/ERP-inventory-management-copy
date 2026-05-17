@@ -37,27 +37,35 @@ export const POST = apiHandler(async (req: NextRequest) => {
   const cost = Number(body.acquireCost);
   const residual = Number(body.residualValue ?? 0);
 
+  const assetData = {
+    code: body.code,
+    name: body.name,
+    category: body.category,
+    accountCode: body.accountCode,
+    acquireDate: body.acquireDate ? new Date(body.acquireDate) : new Date(),
+    acquireCost: cost,
+    residualValue: residual,
+    usefulLifeMonths: Number(body.usefulLifeMonths ?? 60),
+    method: body.method ?? "STRAIGHT_LINE",
+    location: body.location,
+    serialNumber: body.serialNumber,
+    supplierId: body.supplierId || null,
+    status: body.status ?? "IN_USE",
+    remark: body.remark,
+    sourceJournalId: body.sourceJournalId || null,
+  };
+  const upsert = req.nextUrl.searchParams.get("upsert") === "1";
+  if (upsert) {
+    const result = await prisma.fixedAsset.upsert({
+      where: { tenantId_code: { tenantId, code: body.code } },
+      update: assetData,
+      create: { ...assetData, tenantId, accumulatedDepreciation: 0, bookValue: cost },
+    });
+    await audit({ userId: session.user.id, action: "upsert", module: "fixed-assets", refId: result.id });
+    return NextResponse.json(result);
+  }
   const created = await prisma.fixedAsset.create({
-    data: {
-      tenantId,
-      code: body.code,
-      name: body.name,
-      category: body.category,
-      accountCode: body.accountCode,
-      acquireDate: body.acquireDate ? new Date(body.acquireDate) : new Date(),
-      acquireCost: cost,
-      residualValue: residual,
-      usefulLifeMonths: Number(body.usefulLifeMonths ?? 60),
-      method: body.method ?? "STRAIGHT_LINE",
-      accumulatedDepreciation: 0,
-      bookValue: cost,
-      location: body.location,
-      serialNumber: body.serialNumber,
-      supplierId: body.supplierId || null,
-      status: body.status ?? "IN_USE",
-      remark: body.remark,
-      sourceJournalId: body.sourceJournalId || null,
-    },
+    data: { ...assetData, tenantId, accumulatedDepreciation: 0, bookValue: cost },
   });
   await audit({ userId: session.user.id, action: "create", module: "fixed-assets", refId: created.id });
   return NextResponse.json(created);

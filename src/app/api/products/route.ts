@@ -50,6 +50,16 @@ export const POST = apiHandler(async (req: NextRequest) => {
   const session = await requirePermission("products.create");
   const tenantId = await requireTenantId();
   const body = ProductInput.parse(await req.json());
+  const upsert = req.nextUrl.searchParams.get("upsert") === "1";
+  if (upsert) {
+    const result = await prisma.product.upsert({
+      where: { tenantId_sku: { tenantId, sku: body.sku } },
+      update: { ...body } as any,
+      create: { ...body, tenantId } as any,
+    });
+    await audit({ userId: session.user.id, action: "upsert", module: "products", refId: result.id, detail: result.sku });
+    return NextResponse.json(result);
+  }
   const created = await prisma.product.create({ data: { ...body, tenantId } as any });
   await audit({ userId: session.user.id, action: "create", module: "products", refId: created.id, detail: created.sku });
   return NextResponse.json(created);

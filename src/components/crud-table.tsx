@@ -37,7 +37,8 @@ function ImportBtn({
         const payload = importMap(rows[i]);
         if (!payload) continue;
         try {
-          const r = await fetch(endpoint, {
+          const sep = endpoint.includes("?") ? "&" : "?";
+          const r = await fetch(`${endpoint}${sep}upsert=1`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),

@@ -15,6 +15,16 @@ export const POST = apiHandler(async (req: NextRequest) => {
   const session = await requirePermission("accounting.create");
   const tenantId = await requireTenantId();
   const body = await req.json();
+  const upsert = req.nextUrl.searchParams.get("upsert") === "1";
+  if (upsert && body.code) {
+    const result = await prisma.chartOfAccount.upsert({
+      where: { tenantId_code: { tenantId, code: body.code } },
+      update: { name: body.name, type: body.type, openingBalance: body.openingBalance },
+      create: { ...body, tenantId },
+    });
+    await audit({ userId: session.user.id, action: "upsert", module: "accounting", refId: result.id });
+    return NextResponse.json(result);
+  }
   const created = await prisma.chartOfAccount.create({ data: { ...body, tenantId } });
   await audit({ userId: session.user.id, action: "create", module: "accounting", refId: created.id });
   return NextResponse.json(created);
