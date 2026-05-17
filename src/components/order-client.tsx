@@ -7,7 +7,7 @@ import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { StatusBadge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/layout/page-shell";
 import { toast } from "sonner";
-import { Plus, Loader2, Trash2, Eye, Search, Download, Printer, FileDown } from "lucide-react";
+import { Plus, Loader2, Trash2, Eye, Search, Download, Printer, FileDown, Pencil } from "lucide-react";
 import { formatDate, formatMoney } from "@/lib/utils";
 import { downloadCSV, toCSV } from "@/lib/csv";
 import { ConvertToJournalButton } from "@/components/convert-to-journal-button";
@@ -48,6 +48,7 @@ export function OrderClient({ kind }: { kind: Kind }) {
   const [q, setQ] = useState("");
   const [openNew, setOpenNew] = useState(false);
   const [openView, setOpenView] = useState<string | null>(null);
+  const [openEdit, setOpenEdit] = useState<string | null>(null);
   const pageSize = 20;
 
   async function load() {
@@ -163,10 +164,26 @@ export function OrderClient({ kind }: { kind: Kind }) {
                 <TD>
                   <StatusBadge status={r.status} />
                 </TD>
-                <TD className="text-right">
-                  <Button variant="ghost" size="icon" onClick={() => setOpenView(r.id)}>
+                <TD className="text-right flex items-center justify-end gap-0">
+                  <Button variant="ghost" size="icon" onClick={() => setOpenView(r.id)} title="查看">
                     <Eye className="h-4 w-4" />
                   </Button>
+                  {(r.status === "DRAFT" || r.status === "CONFIRMED" || r.status === "SUBMITTED") && (
+                    <Button variant="ghost" size="icon" onClick={() => setOpenEdit(r.id)} title="修改">
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                  )}
+                  {(r.status === "DRAFT" || r.status === "CONFIRMED" || r.status === "SUBMITTED" || r.status === "CANCELLED") && (
+                    <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-700" title="刪除" onClick={async () => {
+                      if (!confirm(`確定刪除 ${r.number}？`)) return;
+                      const res = await fetch(`${endpoint}/${r.id}`, { method: "DELETE" });
+                      if (!res.ok) { const e = await res.json(); toast.error(e.error || "刪除失敗"); return; }
+                      toast.success("已刪除");
+                      load();
+                    }}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
                 </TD>
               </TR>
             ))}
@@ -195,6 +212,9 @@ export function OrderClient({ kind }: { kind: Kind }) {
       />
       {openView && (
         <ViewOrderDialog kind={kind} id={openView} onClose={() => setOpenView(null)} onChanged={load} />
+      )}
+      {openEdit && (
+        <EditOrderDialog kind={kind} id={openEdit} onClose={() => setOpenEdit(null)} onSaved={() => { setOpenEdit(null); load(); }} />
       )}
     </div>
   );
@@ -497,7 +517,192 @@ function ViewOrderDialog({ kind, id, onClose, onChanged }: any) {
           {data.status !== "CANCELLED" && data.status !== "RECEIVED" && data.status !== "SHIPPED" && data.status !== "PAID" && (
             <Button variant="destructive" onClick={() => act("cancel")}>取消</Button>
           )}
+          {(data.status === "DRAFT" || data.status === "CONFIRMED" || data.status === "SUBMITTED" || data.status === "CANCELLED") && (
+            <Button variant="ghost" className="text-red-500 hover:text-red-700" onClick={async () => {
+              if (!confirm(`確定刪除 ${data.number}？`)) return;
+              const res = await fetch(`${endpoint}/${id}`, { method: "DELETE" });
+              if (!res.ok) { const e = await res.json(); toast.error(e.error || "刪除失敗"); return; }
+              toast.success("已刪除");
+              onChanged();
+              onClose();
+            }}>
+              <Trash2 className="h-4 w-4" /> 刪除
+            </Button>
+          )}
           <Button variant="ghost" onClick={onClose}>關閉</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EditOrderDialog({ kind, id, onClose, onSaved }: { kind: Kind; id: string; onClose: () => void; onSaved: () => void }) {
+  const endpoint = kind === "purchase" ? "/api/purchases" : "/api/sales";
+  const partyLabel = kind === "purchase" ? "供應商" : "客戶";
+  const [parties, setParties] = useState<any[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
+  const [partyId, setPartyId] = useState("");
+  const [items, setItems] = useState<any[]>([]);
+  const [remark, setRemark] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    const partyEp = kind === "purchase" ? "/api/suppliers" : "/api/customers";
+    Promise.all([
+      fetch(`${partyEp}?pageSize=1000`).then(r => r.json()),
+      fetch("/api/products?pageSize=1000").then(r => r.json()),
+      fetch(`${endpoint}/${id}`).then(r => r.json()),
+    ]).then(([pData, prData, order]) => {
+      setParties(pData.items ?? []);
+      setProducts(prData.items ?? []);
+      if (order) {
+        setPartyId(kind === "purchase" ? order.supplierId : order.customerId);
+        setRemark(order.remark || "");
+        setItems((order.items || []).map((i: any) => ({
+          productId: i.productId,
+          quantity: Number(i.quantity),
+          unitPrice: Number(i.unitPrice),
+          discount: Number(i.discount ?? 0),
+          taxRate: Number(i.taxRate ?? 0),
+        })));
+      }
+      setLoaded(true);
+    });
+  }, [id, kind, endpoint]);
+
+  function addItem() {
+    setItems([...items, { productId: "", quantity: 1, unitPrice: 0, discount: 0, taxRate: 0.05 }]);
+  }
+  function updateItem(idx: number, patch: any) {
+    const next = [...items];
+    next[idx] = { ...next[idx], ...patch };
+    if (patch.productId) {
+      const p = products.find((x) => x.id === patch.productId);
+      if (p) next[idx].unitPrice = Number(kind === "purchase" ? p.costPrice : p.salePrice);
+    }
+    setItems(next);
+  }
+  function removeItem(idx: number) {
+    setItems(items.filter((_, i) => i !== idx));
+  }
+
+  const subtotal = items.reduce((s, i) => s + Number(i.quantity) * Number(i.unitPrice), 0);
+  const discount = items.reduce((s, i) => s + Number(i.discount ?? 0), 0);
+  const taxAmount = items.reduce((s, i) => {
+    const line = Number(i.quantity) * Number(i.unitPrice) - Number(i.discount ?? 0);
+    return s + line * Number(i.taxRate ?? 0);
+  }, 0);
+  const total = subtotal - discount + taxAmount;
+
+  async function save() {
+    if (!partyId) return toast.error(`請選擇${partyLabel}`);
+    if (items.length === 0) return toast.error("請至少新增一項商品");
+    if (items.some((i) => !i.productId)) return toast.error("請選擇商品");
+    setSaving(true);
+    try {
+      const res = await fetch(`${endpoint}/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          kind === "purchase"
+            ? { supplierId: partyId, items, remark }
+            : { customerId: partyId, items, remark }
+        ),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || "儲存失敗");
+      toast.success("已更新");
+      onSaved();
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!loaded) return null;
+
+  return (
+    <Dialog open onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-4xl">
+        <DialogHeader>
+          <DialogTitle>修改{kind === "purchase" ? "採購單" : "銷售單"}</DialogTitle>
+        </DialogHeader>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1 col-span-2">
+            <Label>{partyLabel} *</Label>
+            <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={partyId} onChange={(e) => setPartyId(e.target.value)}>
+              <option value="">請選擇</option>
+              {parties.map((p) => (
+                <option key={p.id} value={p.id}>{p.code} - {p.companyName}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="border rounded-md overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50 text-xs text-muted-foreground">
+              <tr>
+                <th className="p-2 text-left">商品</th>
+                <th className="p-2 w-20">數量</th>
+                <th className="p-2 w-28">單價</th>
+                <th className="p-2 w-24">折扣</th>
+                <th className="p-2 w-20">稅率</th>
+                <th className="p-2 w-28 text-right">小計</th>
+                <th className="p-2 w-10"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((it, idx) => {
+                const line = Number(it.quantity) * Number(it.unitPrice) - Number(it.discount ?? 0);
+                return (
+                  <tr key={idx} className="border-t">
+                    <td className="p-2">
+                      <select className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm" value={it.productId} onChange={(e) => updateItem(idx, { productId: e.target.value })}>
+                        <option value="">選擇商品</option>
+                        {products.map((p) => (
+                          <option key={p.id} value={p.id}>{p.sku} - {p.name}</option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="p-2"><Input type="number" value={it.quantity} onChange={(e) => updateItem(idx, { quantity: Number(e.target.value) })} /></td>
+                    <td className="p-2"><Input type="number" step="0.01" value={it.unitPrice} onChange={(e) => updateItem(idx, { unitPrice: Number(e.target.value) })} /></td>
+                    <td className="p-2"><Input type="number" step="0.01" value={it.discount ?? 0} onChange={(e) => updateItem(idx, { discount: Number(e.target.value) })} /></td>
+                    <td className="p-2"><Input type="number" step="0.01" value={it.taxRate ?? 0} onChange={(e) => updateItem(idx, { taxRate: Number(e.target.value) })} /></td>
+                    <td className="p-2 text-right">{formatMoney(line)}</td>
+                    <td className="p-2">
+                      <Button variant="ghost" size="icon" onClick={() => removeItem(idx)}>
+                        <Trash2 className="h-4 w-4 text-red-600" />
+                      </Button>
+                    </td>
+                  </tr>
+                );
+              })}
+              {items.length === 0 && (
+                <tr><td colSpan={7} className="p-6 text-center text-muted-foreground text-sm">尚未新增商品</td></tr>
+              )}
+            </tbody>
+          </table>
+          <div className="p-2">
+            <Button variant="outline" size="sm" onClick={addItem}>
+              <Plus className="h-4 w-4" /> 新增明細
+            </Button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-4 gap-3 text-sm">
+          <div><div className="text-muted-foreground">小計</div><div className="font-medium">{formatMoney(subtotal)}</div></div>
+          <div><div className="text-muted-foreground">折扣</div><div className="font-medium">{formatMoney(discount)}</div></div>
+          <div><div className="text-muted-foreground">稅額</div><div className="font-medium">{formatMoney(taxAmount)}</div></div>
+          <div><div className="text-muted-foreground">總計</div><div className="font-bold text-lg">{formatMoney(total)}</div></div>
+        </div>
+
+        <Textarea placeholder="備註" value={remark} onChange={(e) => setRemark(e.target.value)} />
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>取消</Button>
+          <Button onClick={save} disabled={saving}>{saving ? "儲存中..." : "儲存修改"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

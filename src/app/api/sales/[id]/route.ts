@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiHandler, requirePermission, requireTenantId, audit } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
-import { shipSalesOrder } from "@/lib/documents";
+import { shipSalesOrder, calcTotals } from "@/lib/documents";
 import { buildARCreatedDraft, autoCreateJournal } from "@/lib/auto-journal";
 
 export const GET = apiHandler(async (_req: NextRequest, { params }: { params: { id: string } }) => {
@@ -51,11 +51,61 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: {
   return NextResponse.json({ ok: true });
 });
 
+export const PUT = apiHandler(async (req: NextRequest, { params }: { params: { id: string } }) => {
+  const session = await requirePermission("sales.edit");
+  const tenantId = await requireTenantId();
+  const existing = await prisma.salesOrder.findUnique({ where: { id: params.id, tenantId } });
+  if (!existing) throw new Error("找不到銷售單");
+  if (existing.status === "SHIPPED" || existing.status === "PAID") {
+    throw new Error("已出貨/已付款狀態無法修改");
+  }
+  const body = await req.json();
+  const { customerId, items, remark } = body as any;
+  if (!customerId) throw new Error("請選擇客戶");
+  if (!items?.length) throw new Error("請至少新增一項商品");
+  const totals = calcTotals(items);
+  // 先刪除舊的 items
+  await prisma.salesOrderItem.deleteMany({ where: { orderId: params.id } });
+  const updated = await prisma.salesOrder.update({
+    where: { id: params.id, tenantId },
+    data: {
+      customerId,
+      remark,
+      subtotal: totals.subtotal,
+      discount: totals.discount,
+      taxAmount: totals.taxAmount,
+      total: totals.total,
+      items: {
+        create: totals.computed.map((i: any) => ({
+          productId: i.productId,
+          quantity: i.quantity,
+          unitPrice: i.unitPrice,
+          discount: i.discount ?? 0,
+          taxRate: i.taxRate ?? 0,
+          subtotal: i.subtotal,
+        })),
+      },
+    },
+    include: { items: true, customer: true },
+  });
+  // 更新關聯的 AR 金額
+  const ar = await prisma.accountsReceivable.findFirst({ where: { salesOrderId: params.id, tenantId } });
+  if (ar && Number(ar.paidAmount) === 0) {
+    await prisma.accountsReceivable.update({ where: { id: ar.id }, data: { amount: totals.total } });
+  }
+  await audit({ userId: session.user.id, action: "edit", module: "sales", refId: params.id });
+  return NextResponse.json(updated);
+});
+
 export const DELETE = apiHandler(async (_req: NextRequest, { params }: { params: { id: string } }) => {
   const session = await requirePermission("sales.delete");
   const tenantId = await requireTenantId();
   const o = await prisma.salesOrder.findUnique({ where: { id: params.id, tenantId } });
-  if (o?.status !== "DRAFT" && o?.status !== "CANCELLED") throw new Error("僅草稿或已取消狀態可刪除");
+  if (!o) throw new Error("找不到銷售單");
+  const canDelete = ["DRAFT", "CANCELLED", "CONFIRMED", "SUBMITTED"].includes(o.status);
+  if (!canDelete) throw new Error("已出貨/已付款狀態無法刪除");
+  // 刪除關聯的 AR
+  await prisma.accountsReceivable.deleteMany({ where: { salesOrderId: params.id, tenantId } });
   await prisma.salesOrder.delete({ where: { id: params.id, tenantId } });
   await audit({ userId: session.user.id, action: "delete", module: "sales", refId: params.id });
   return NextResponse.json({ ok: true });

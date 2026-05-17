@@ -212,11 +212,24 @@ function PayDialog({ row, kind, onClose, onDone }: any) {
   const [remark, setRemark] = useState("");
   const [saving, setSaving] = useState(false);
   const [savedPayment, setSavedPayment] = useState<{ paymentId: string; discountId?: string } | null>(null);
+  const [notes, setNotes] = useState<any[]>([]);
+  const [banks, setBanks] = useState<any[]>([]);
+  const [selectedNoteId, setSelectedNoteId] = useState("");
+  const [selectedBankId, setSelectedBankId] = useState("");
   const endpoint = kind === "ar" ? "/api/accounting/receivables" : "/api/accounting/payables";
   const totalWriteOff = Number(amount) + Number(discount);
+
+  useEffect(() => {
+    const noteEp = kind === "ar" ? "/api/accounting/notes-receivable" : "/api/accounting/notes-payable";
+    fetch(`${noteEp}?status=PENDING&pageSize=1000`).then(r => r.json()).then(d => setNotes(d.items ?? [])).catch(() => {});
+    fetch("/api/banking/accounts?pageSize=1000").then(r => r.json()).then(d => setBanks(d.items ?? [])).catch(() => {});
+  }, [kind]);
+
   async function save() {
     if (Number(amount) <= 0 && Number(discount) <= 0) return toast.error("收款金額或折讓金額至少填一項");
     if (totalWriteOff > balance) return toast.error("收款 + 折讓不可大於未結款項");
+    if (method === "CHEQUE" && !selectedNoteId) return toast.error("請選擇票據");
+    if (method === "BANK" && !selectedBankId) return toast.error("請選擇銀行帳戶");
     setSaving(true);
     try {
       const res = await fetch(endpoint, {
@@ -229,6 +242,8 @@ function PayDialog({ row, kind, onClose, onDone }: any) {
           discountNote,
           method,
           remark,
+          ...(method === "CHEQUE" ? { noteId: selectedNoteId } : {}),
+          ...(method === "BANK" ? { bankAccountId: selectedBankId } : {}),
         }),
       });
       if (!res.ok) throw new Error((await res.json()).error || "操作失敗");
@@ -250,12 +265,44 @@ function PayDialog({ row, kind, onClose, onDone }: any) {
           <div className="space-y-1"><Label>{kind === "ar" ? "收款金額" : "付款金額"}</Label><Input inputMode="decimal" className="[appearance:textfield]" value={amount || ""} onChange={(e) => setAmount(Number(e.target.value.replace(/[^0-9.]/g, "")))} placeholder="0" /></div>
           <div className="space-y-1">
             <Label>方式</Label>
-            <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={method} onChange={(e) => setMethod(e.target.value)}>
+            <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={method} onChange={(e) => { setMethod(e.target.value); setSelectedNoteId(""); setSelectedBankId(""); }}>
               <option value="CASH">現金</option>
-              <option value="BANK">銀行轉帳</option>
-              <option value="CHEQUE">支票</option>
+              <option value="BANK">銀行存款</option>
+              <option value="CHEQUE">支票/票據</option>
             </select>
           </div>
+          {method === "CHEQUE" && (
+            <div className="space-y-1">
+              <Label>選擇票據</Label>
+              <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={selectedNoteId} onChange={(e) => {
+                setSelectedNoteId(e.target.value);
+                const note = notes.find(n => n.id === e.target.value);
+                if (note) setAmount(Math.min(Number(note.amount), balance));
+              }}>
+                <option value="">-- 請選擇票據 --</option>
+                {notes.map((n) => (
+                  <option key={n.id} value={n.id}>
+                    {n.noteNumber} — {n.customer?.companyName || n.supplier?.companyName || ""} — {formatMoney(n.amount)} — 到期 {formatDate(n.dueDate)}
+                  </option>
+                ))}
+              </select>
+              {notes.length === 0 && <div className="text-xs text-amber-600">目前無未兌現票據，請先至票據管理新增</div>}
+            </div>
+          )}
+          {method === "BANK" && (
+            <div className="space-y-1">
+              <Label>選擇銀行帳戶</Label>
+              <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={selectedBankId} onChange={(e) => setSelectedBankId(e.target.value)}>
+                <option value="">-- 請選擇銀行帳戶 --</option>
+                {banks.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.bankName || b.name} — {b.accountNumber || b.code} — 餘額 {formatMoney(b.balance)}
+                  </option>
+                ))}
+              </select>
+              {banks.length === 0 && <div className="text-xs text-amber-600">目前無銀行帳戶，請先至銀行管理新增</div>}
+            </div>
+          )}
           <hr className="border-dashed" />
           <div className="space-y-1"><Label>折讓金額（差額部分）</Label><Input inputMode="decimal" className="[appearance:textfield]" value={discount || ""} onChange={(e) => setDiscount(Number(e.target.value.replace(/[^0-9.]/g, "")))} placeholder="0" /></div>
           <div className="space-y-1"><Label>折讓原因</Label><Input value={discountNote} onChange={(e) => setDiscountNote(e.target.value)} placeholder="例: 數量短少 / 品質折讓" /></div>
@@ -309,6 +356,16 @@ function BatchPayDialog({ kind, onClose, onDone }: { kind: "ar" | "ap"; onClose:
   const [remark, setRemark] = useState("");
   const [saving, setSaving] = useState(false);
   const [results, setResults] = useState<any[] | null>(null);
+  const [batchNotes, setBatchNotes] = useState<any[]>([]);
+  const [batchBanks, setBatchBanks] = useState<any[]>([]);
+  const [batchSelectedNoteId, setBatchSelectedNoteId] = useState("");
+  const [batchSelectedBankId, setBatchSelectedBankId] = useState("");
+
+  useEffect(() => {
+    const noteEp = kind === "ar" ? "/api/accounting/notes-receivable" : "/api/accounting/notes-payable";
+    fetch(`${noteEp}?status=PENDING&pageSize=1000`).then(r => r.json()).then(d => setBatchNotes(d.items ?? [])).catch(() => {});
+    fetch("/api/banking/accounts?pageSize=1000").then(r => r.json()).then(d => setBatchBanks(d.items ?? [])).catch(() => {});
+  }, [kind]);
 
   // 載入有未結帳款的客戶/供應商
   const [allUnpaid, setAllUnpaid] = useState<any[]>([]);
@@ -461,10 +518,10 @@ function BatchPayDialog({ kind, onClose, onDone }: { kind: "ar" | "ap"; onClose:
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label>付款方式</Label>
-                <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={method} onChange={(e) => setMethod(e.target.value)}>
+                <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={method} onChange={(e) => { setMethod(e.target.value); setBatchSelectedNoteId(""); setBatchSelectedBankId(""); }}>
                   <option value="CASH">現金</option>
-                  <option value="BANK">銀行轉帳</option>
-                  <option value="CHEQUE">支票</option>
+                  <option value="BANK">銀行存款</option>
+                  <option value="CHEQUE">支票/票據</option>
                 </select>
               </div>
               <div className="space-y-1">
@@ -472,6 +529,34 @@ function BatchPayDialog({ kind, onClose, onDone }: { kind: "ar" | "ap"; onClose:
                 <Input value={remark} onChange={(e) => setRemark(e.target.value)} />
               </div>
             </div>
+            {method === "CHEQUE" && (
+              <div className="space-y-1">
+                <Label>選擇票據</Label>
+                <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={batchSelectedNoteId} onChange={(e) => setBatchSelectedNoteId(e.target.value)}>
+                  <option value="">-- 請選擇票據 --</option>
+                  {batchNotes.map((n) => (
+                    <option key={n.id} value={n.id}>
+                      {n.noteNumber} — {n.customer?.companyName || n.supplier?.companyName || ""} — {formatMoney(n.amount)} — 到期 {formatDate(n.dueDate)}
+                    </option>
+                  ))}
+                </select>
+                {batchNotes.length === 0 && <div className="text-xs text-amber-600">目前無未兌現票據</div>}
+              </div>
+            )}
+            {method === "BANK" && (
+              <div className="space-y-1">
+                <Label>選擇銀行帳戶</Label>
+                <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={batchSelectedBankId} onChange={(e) => setBatchSelectedBankId(e.target.value)}>
+                  <option value="">-- 請選擇銀行帳戶 --</option>
+                  {batchBanks.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.bankName || b.name} — {b.accountNumber || b.code} — 餘額 {formatMoney(b.balance)}
+                    </option>
+                  ))}
+                </select>
+                {batchBanks.length === 0 && <div className="text-xs text-amber-600">目前無銀行帳戶</div>}
+              </div>
+            )}
 
             {/* Step 2: 勾選帳單 */}
             {partyId && (

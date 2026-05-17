@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiHandler, requirePermission, requireTenantId, audit } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
-import { receivePurchaseOrder } from "@/lib/documents";
+import { receivePurchaseOrder, calcTotals } from "@/lib/documents";
 import { buildAPCreatedDraft, autoCreateJournal } from "@/lib/auto-journal";
 
 export const GET = apiHandler(async (_req: NextRequest, { params }: { params: { id: string } }) => {
@@ -54,13 +54,58 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: {
   return NextResponse.json({ ok: true });
 });
 
+export const PUT = apiHandler(async (req: NextRequest, { params }: { params: { id: string } }) => {
+  const session = await requirePermission("purchases.edit");
+  const tenantId = await requireTenantId();
+  const existing = await prisma.purchaseOrder.findUnique({ where: { id: params.id, tenantId } });
+  if (!existing) throw new Error("找不到採購單");
+  if (["RECEIVED", "PAID"].includes(existing.status)) {
+    throw new Error("已入庫/已付款狀態無法修改");
+  }
+  const body = await req.json();
+  const { supplierId, items, remark } = body as any;
+  if (!supplierId) throw new Error("請選擇供應商");
+  if (!items?.length) throw new Error("請至少新增一項商品");
+  const totals = calcTotals(items);
+  await prisma.purchaseOrderItem.deleteMany({ where: { orderId: params.id } });
+  const updated = await prisma.purchaseOrder.update({
+    where: { id: params.id, tenantId },
+    data: {
+      supplierId,
+      remark,
+      subtotal: totals.subtotal,
+      discount: totals.discount,
+      taxAmount: totals.taxAmount,
+      total: totals.total,
+      items: {
+        create: totals.computed.map((i: any) => ({
+          productId: i.productId,
+          quantity: i.quantity,
+          unitPrice: i.unitPrice,
+          discount: i.discount ?? 0,
+          taxRate: i.taxRate ?? 0,
+          subtotal: i.subtotal,
+        })),
+      },
+    },
+    include: { items: true, supplier: true },
+  });
+  const ap = await prisma.accountsPayable.findFirst({ where: { purchaseOrderId: params.id, tenantId } });
+  if (ap && Number(ap.paidAmount) === 0) {
+    await prisma.accountsPayable.update({ where: { id: ap.id }, data: { amount: totals.total } });
+  }
+  await audit({ userId: session.user.id, action: "edit", module: "purchases", refId: params.id });
+  return NextResponse.json(updated);
+});
+
 export const DELETE = apiHandler(async (_req: NextRequest, { params }: { params: { id: string } }) => {
   const session = await requirePermission("purchases.delete");
   const tenantId = await requireTenantId();
   const order = await prisma.purchaseOrder.findUnique({ where: { id: params.id, tenantId } });
-  if (order?.status !== "DRAFT" && order?.status !== "CANCELLED") {
-    throw new Error("僅草稿或已取消狀態可刪除");
-  }
+  if (!order) throw new Error("找不到採購單");
+  const canDelete = ["DRAFT", "CANCELLED", "SUBMITTED", "APPROVED"].includes(order.status);
+  if (!canDelete) throw new Error("已入庫/已付款狀態無法刪除");
+  await prisma.accountsPayable.deleteMany({ where: { purchaseOrderId: params.id, tenantId } });
   await prisma.purchaseOrder.delete({ where: { id: params.id, tenantId } });
   await audit({ userId: session.user.id, action: "delete", module: "purchases", refId: params.id });
   return NextResponse.json({ ok: true });
