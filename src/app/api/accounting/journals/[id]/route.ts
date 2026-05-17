@@ -2,6 +2,48 @@ import { NextRequest, NextResponse } from "next/server";
 import { apiHandler, requirePermission, requireTenantId, audit } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 
+export const GET = apiHandler(async (_req: NextRequest, { params }: { params: { id: string } }) => {
+  await requirePermission("journals.view");
+  const tenantId = await requireTenantId();
+  const entry = await prisma.journalEntry.findUnique({
+    where: { id: params.id, tenantId },
+    include: { lines: { include: { account: true } } },
+  });
+  return NextResponse.json(entry);
+});
+
+export const PUT = apiHandler(async (req: NextRequest, { params }: { params: { id: string } }) => {
+  const session = await requirePermission("journals.edit");
+  const tenantId = await requireTenantId();
+  const existing = await prisma.journalEntry.findUnique({ where: { id: params.id, tenantId } });
+  if (!existing) throw new Error("找不到傳票");
+  if (existing.status !== "DRAFT") throw new Error("僅草稿狀態可修改");
+  const { summary, entryDate, lines } = await req.json();
+  if (!lines?.length) throw new Error("請至少新增一筆分錄");
+  const totalDebit = lines.reduce((s: number, l: any) => s + Number(l.debit || 0), 0);
+  const totalCredit = lines.reduce((s: number, l: any) => s + Number(l.credit || 0), 0);
+  if (Math.abs(totalDebit - totalCredit) > 0.001 || totalDebit === 0) throw new Error("借貸必須平衡且金額不可為 0");
+  await prisma.journalEntryLine.deleteMany({ where: { entryId: params.id } });
+  const updated = await prisma.journalEntry.update({
+    where: { id: params.id, tenantId },
+    data: {
+      summary,
+      entryDate: new Date(entryDate),
+      lines: {
+        create: lines.map((l: any) => ({
+          accountId: l.accountId,
+          debit: Number(l.debit || 0),
+          credit: Number(l.credit || 0),
+          memo: l.memo || "",
+        })),
+      },
+    },
+    include: { lines: { include: { account: true } } },
+  });
+  await audit({ userId: session.user.id, action: "edit", module: "journals", refId: params.id });
+  return NextResponse.json(updated);
+});
+
 export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: { id: string } }) => {
   const session = await requirePermission("journals.edit");
   const tenantId = await requireTenantId();

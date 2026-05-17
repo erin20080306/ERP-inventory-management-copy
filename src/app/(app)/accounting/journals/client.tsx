@@ -7,7 +7,7 @@ import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { StatusBadge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/layout/page-shell";
 import { toast } from "sonner";
-import { Plus, Trash2, Loader2, Search, Eye, Download, Printer, FileDown } from "lucide-react";
+import { Plus, Trash2, Loader2, Search, Eye, Download, Printer, FileDown, Pencil } from "lucide-react";
 import { formatDate, formatMoney } from "@/lib/utils";
 import { downloadCSV, toCSV } from "@/lib/csv";
 
@@ -19,6 +19,7 @@ export function JournalClient() {
   const [q, setQ] = useState("");
   const [openNew, setOpenNew] = useState(false);
   const [view, setView] = useState<any>(null);
+  const [editId, setEditId] = useState<string | null>(null);
   const [pdfBusy, setPdfBusy] = useState(false);
   const [prefillDraft, setPrefillDraft] = useState<any>(null);
 
@@ -158,7 +159,11 @@ export function JournalClient() {
                 <TD>{formatMoney(debit)}</TD>
                 <TD>{formatMoney(credit)}</TD>
                 <TD><StatusBadge status={r.status} /></TD>
-                <TD className="text-right"><Button variant="ghost" size="icon" onClick={() => setView(r)}><Eye className="h-4 w-4" /></Button></TD>
+                <TD className="text-right flex items-center justify-end gap-0">
+                  <Button variant="ghost" size="icon" onClick={() => setView(r)} title="查看"><Eye className="h-4 w-4" /></Button>
+                  {r.status === "DRAFT" && <Button variant="ghost" size="icon" onClick={() => setEditId(r.id)} title="修改"><Pencil className="h-4 w-4" /></Button>}
+                  {(r.status === "DRAFT" || r.status === "VOID") && <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-700" title="刪除" onClick={() => { if (confirm(`確定刪除 ${r.number}？`)) act(r.id, "delete"); }}><Trash2 className="h-4 w-4" /></Button>}
+                </TD>
               </TR>
             );
           })}
@@ -173,7 +178,8 @@ export function JournalClient() {
         </div>
       </div>
       <CreateJournalDialog open={openNew} onClose={() => { setOpenNew(false); setPrefillDraft(null); }} onCreated={() => { setOpenNew(false); setPrefillDraft(null); load(); }} prefillDraft={prefillDraft} />
-      {view && <ViewJournalDialog entry={view} onClose={() => setView(null)} onAct={act} />}
+      {view && <ViewJournalDialog entry={view} onClose={() => setView(null)} onAct={act} onEdit={(id: string) => { setView(null); setEditId(id); }} />}
+      {editId && <EditJournalDialog id={editId} onClose={() => setEditId(null)} onSaved={() => { setEditId(null); load(); }} />}
     </div>
   );
 }
@@ -263,7 +269,7 @@ function CreateJournalDialog({ open, onClose, onCreated, prefillDraft }: any) {
   );
 }
 
-function ViewJournalDialog({ entry, onClose, onAct }: any) {
+function ViewJournalDialog({ entry, onClose, onAct, onEdit }: any) {
   const totalDebit = entry.lines.reduce((s: number, l: any) => s + Number(l.debit), 0);
   const totalCredit = entry.lines.reduce((s: number, l: any) => s + Number(l.credit), 0);
   return (
@@ -284,11 +290,107 @@ function ViewJournalDialog({ entry, onClose, onAct }: any) {
           <Button variant="outline" onClick={() => window.open(`/print/journal/${entry.id}`, "_blank")}>
             <Printer className="h-4 w-4" />列印
           </Button>
+          {entry.status === "DRAFT" && <Button variant="outline" onClick={() => onEdit(entry.id)}><Pencil className="h-4 w-4" />修改</Button>}
           {entry.status === "DRAFT" && <Button onClick={() => onAct(entry.id, "post")}>過帳</Button>}
           {entry.status === "POSTED" && <Button variant="destructive" onClick={() => onAct(entry.id, "void")}>作廢</Button>}
           {entry.status === "DRAFT" && <Button variant="destructive" onClick={() => onAct(entry.id, "delete")}>刪除</Button>}
           <Button variant="ghost" onClick={onClose}>關閉</Button>
         </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EditJournalDialog({ id, onClose, onSaved }: { id: string; onClose: () => void; onSaved: () => void }) {
+  const [accounts, setAccounts] = useState<any[]>([]);
+  const [summary, setSummary] = useState("");
+  const [entryDate, setEntryDate] = useState("");
+  const [lines, setLines] = useState<any[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    Promise.all([
+      fetch("/api/accounting/accounts").then(r => r.json()),
+      fetch(`/api/accounting/journals/${id}`).then(r => r.json()),
+    ]).then(([aData, entry]) => {
+      setAccounts(aData.items ?? []);
+      if (entry) {
+        setSummary(entry.summary || "");
+        setEntryDate(entry.entryDate ? new Date(entry.entryDate).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10));
+        setLines((entry.lines || []).map((l: any) => ({
+          accountId: l.accountId,
+          debit: Number(l.debit),
+          credit: Number(l.credit),
+          memo: l.memo ?? "",
+        })));
+      }
+      setLoaded(true);
+    });
+  }, [id]);
+
+  const totalDebit = lines.reduce((s, l) => s + Number(l.debit || 0), 0);
+  const totalCredit = lines.reduce((s, l) => s + Number(l.credit || 0), 0);
+  const balanced = Math.abs(totalDebit - totalCredit) < 0.001 && totalDebit > 0;
+
+  function update(idx: number, patch: any) { const n = [...lines]; n[idx] = { ...n[idx], ...patch }; setLines(n); }
+  function add() { setLines([...lines, { accountId: "", debit: 0, credit: 0, memo: "" }]); }
+  function remove(idx: number) { setLines(lines.filter((_, i) => i !== idx)); }
+
+  async function save() {
+    if (!balanced) return toast.error("借貸必須平衡且金額不可為 0");
+    if (lines.some((l) => !l.accountId)) return toast.error("請選擇科目");
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/accounting/journals/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ summary, entryDate, lines }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || "儲存失敗");
+      toast.success("已更新");
+      onSaved();
+    } catch (e: any) { toast.error(e.message); } finally { setSaving(false); }
+  }
+
+  if (!loaded) return null;
+
+  return (
+    <Dialog open onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-3xl">
+        <DialogHeader><DialogTitle>修改傳票</DialogTitle></DialogHeader>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1"><Label>傳票日期</Label><Input type="date" value={entryDate} onChange={(e) => setEntryDate(e.target.value)} /></div>
+          <div className="space-y-1 col-span-2"><Label>摘要</Label><Input value={summary} onChange={(e) => setSummary(e.target.value)} placeholder="例: 現銷商品" /></div>
+        </div>
+        <div className="border rounded-md overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50 text-xs text-muted-foreground"><tr><th className="p-2 text-left">科目</th><th className="p-2 w-32">借方</th><th className="p-2 w-32">貸方</th><th className="p-2 text-left">摘要</th><th className="p-2 w-10"></th></tr></thead>
+            <tbody>
+              {lines.map((l, i) => (
+                <tr key={i} className="border-t">
+                  <td className="p-2">
+                    <select className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm" value={l.accountId} onChange={(e) => update(i, { accountId: e.target.value })}>
+                      <option value="">選擇科目</option>
+                      {accounts.map((a) => <option key={a.id} value={a.id}>{a.code} {a.name}</option>)}
+                    </select>
+                  </td>
+                  <td className="p-2"><Input inputMode="decimal" className="[appearance:textfield]" placeholder="0" value={l.debit || ""} onChange={(e) => { const v = e.target.value.replace(/[^0-9.]/g, ""); update(i, { debit: v, credit: 0 }); }} /></td>
+                  <td className="p-2"><Input inputMode="decimal" className="[appearance:textfield]" placeholder="0" value={l.credit || ""} onChange={(e) => { const v = e.target.value.replace(/[^0-9.]/g, ""); update(i, { credit: v, debit: 0 }); }} /></td>
+                  <td className="p-2"><Input value={l.memo ?? ""} onChange={(e) => update(i, { memo: e.target.value })} /></td>
+                  <td className="p-2"><Button variant="ghost" size="icon" onClick={() => remove(i)}><Trash2 className="h-4 w-4 text-red-600" /></Button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="p-2"><Button variant="outline" size="sm" onClick={add}><Plus className="h-4 w-4" />新增分錄</Button></div>
+        </div>
+        <div className="grid grid-cols-3 gap-3 text-sm">
+          <div><div className="text-muted-foreground">借方合計</div><div className="font-medium">{formatMoney(totalDebit)}</div></div>
+          <div><div className="text-muted-foreground">貸方合計</div><div className="font-medium">{formatMoney(totalCredit)}</div></div>
+          <div><div className="text-muted-foreground">狀態</div><div className={balanced ? "text-emerald-600 font-medium" : "text-red-600 font-medium"}>{balanced ? "已平衡" : "未平衡"}</div></div>
+        </div>
+        <DialogFooter><Button variant="outline" onClick={onClose}>取消</Button><Button onClick={save} disabled={!balanced || saving}>{saving ? "儲存中..." : "儲存修改"}</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   );
