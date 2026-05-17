@@ -150,14 +150,17 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
 function PayDialog({ row, kind, onClose, onDone }: any) {
   const balance = Number(row.amount) - Number(row.paidAmount);
   const [amount, setAmount] = useState(balance);
+  const [discount, setDiscount] = useState(0);
+  const [discountNote, setDiscountNote] = useState("");
   const [method, setMethod] = useState("CASH");
   const [remark, setRemark] = useState("");
   const [saving, setSaving] = useState(false);
-  const [savedPayment, setSavedPayment] = useState<{ paymentId: string } | null>(null);
+  const [savedPayment, setSavedPayment] = useState<{ paymentId: string; discountId?: string } | null>(null);
   const endpoint = kind === "ar" ? "/api/accounting/receivables" : "/api/accounting/payables";
+  const totalWriteOff = Number(amount) + Number(discount);
   async function save() {
-    if (Number(amount) <= 0) return toast.error("金額必須大於 0");
-    if (Number(amount) > balance) return toast.error("金額不可大於未結款項");
+    if (Number(amount) <= 0 && Number(discount) <= 0) return toast.error("收款金額或折讓金額至少填一項");
+    if (totalWriteOff > balance) return toast.error("收款 + 折讓不可大於未結款項");
     setSaving(true);
     try {
       const res = await fetch(endpoint, {
@@ -165,7 +168,9 @@ function PayDialog({ row, kind, onClose, onDone }: any) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           [kind === "ar" ? "receivableId" : "payableId"]: row.id,
-          amount,
+          amount: Number(amount),
+          discount: Number(discount),
+          discountNote,
           method,
           remark,
         }),
@@ -173,8 +178,8 @@ function PayDialog({ row, kind, onClose, onDone }: any) {
       if (!res.ok) throw new Error((await res.json()).error || "操作失敗");
       const result = await res.json();
       toast.success("已處理");
-      if (result.paymentId) {
-        setSavedPayment({ paymentId: result.paymentId });
+      if (result.paymentId || result.discountId) {
+        setSavedPayment({ paymentId: result.paymentId, discountId: result.discountId });
       } else {
         onDone();
       }
@@ -183,10 +188,10 @@ function PayDialog({ row, kind, onClose, onDone }: any) {
   return (
     <Dialog open onOpenChange={(v) => !v && onClose()}>
       <DialogContent>
-        <DialogHeader><DialogTitle>{kind === "ar" ? "收款" : "付款"}</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{kind === "ar" ? "沖應收帳款" : "沖應付帳款"}</DialogTitle></DialogHeader>
         <div className="space-y-3">
-          <div className="text-sm">未結金額：<span className="font-bold">{formatMoney(balance)}</span></div>
-          <div className="space-y-1"><Label>金額</Label><Input type="number" step="0.01" value={amount} onChange={(e) => setAmount(Number(e.target.value))} /></div>
+          <div className="text-sm">未結金額：<span className="font-bold text-red-600">{formatMoney(balance)}</span></div>
+          <div className="space-y-1"><Label>{kind === "ar" ? "收款金額" : "付款金額"}</Label><Input inputMode="decimal" className="[appearance:textfield]" value={amount || ""} onChange={(e) => setAmount(Number(e.target.value.replace(/[^0-9.]/g, "")))} placeholder="0" /></div>
           <div className="space-y-1">
             <Label>方式</Label>
             <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={method} onChange={(e) => setMethod(e.target.value)}>
@@ -195,22 +200,32 @@ function PayDialog({ row, kind, onClose, onDone }: any) {
               <option value="CHEQUE">支票</option>
             </select>
           </div>
+          <hr className="border-dashed" />
+          <div className="space-y-1"><Label>折讓金額（差額部分）</Label><Input inputMode="decimal" className="[appearance:textfield]" value={discount || ""} onChange={(e) => setDiscount(Number(e.target.value.replace(/[^0-9.]/g, "")))} placeholder="0" /></div>
+          <div className="space-y-1"><Label>折讓原因</Label><Input value={discountNote} onChange={(e) => setDiscountNote(e.target.value)} placeholder="例: 數量短少 / 品質折讓" /></div>
+          <hr className="border-dashed" />
           <div className="space-y-1"><Label>備註</Label><Input value={remark} onChange={(e) => setRemark(e.target.value)} /></div>
+          <div className="text-sm text-muted-foreground">沖帳合計：{formatMoney(totalWriteOff)}（收款 {formatMoney(amount)} + 折讓 {formatMoney(discount)}）</div>
         </div>
         <DialogFooter>
           {savedPayment ? (
-            <>
-              <Button variant="ghost" onClick={onDone}>完成</Button>
+            <div className="flex items-center gap-2 flex-wrap w-full justify-end">
+              {savedPayment.discountId && (
+                <Button variant="outline" size="sm" onClick={() => window.open(`/print/discount/${savedPayment.discountId}`, "_blank")}>
+                  列印折讓單
+                </Button>
+              )}
               <ConvertToJournalButton
                 sourceType={kind === "ar" ? "RECEIVE_PAYMENT" : "SUPPLIER_PAYMENT"}
                 sourceId={savedPayment.paymentId}
                 label="轉傳票"
               />
-            </>
+              <Button variant="ghost" onClick={onDone}>完成</Button>
+            </div>
           ) : (
             <>
               <Button variant="outline" onClick={onClose}>取消</Button>
-              <Button onClick={save} disabled={saving}>{saving ? "處理中..." : "確認"}</Button>
+              <Button onClick={save} disabled={saving}>{saving ? "處理中..." : "確認沖帳"}</Button>
             </>
           )}
         </DialogFooter>

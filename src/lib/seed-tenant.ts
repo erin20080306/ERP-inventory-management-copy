@@ -157,7 +157,7 @@ const CHART_OF_ACCOUNTS: { code: string; name: string; type: string; parent?: st
  */
 export async function seedTenantDefaults(tenantId: string) {
   // 編號規則
-  const seqs = ["PO", "SO", "QT", "JE", "RP", "SP", "SR", "PR", "ADJ", "TRF", "INV"];
+  const seqs = ["PO", "SO", "QT", "JE", "RP", "SP", "SR", "PR", "ADJ", "TRF", "INV", "DN"];
   await prisma.numberSequence.createMany({
     data: seqs.map((k) => ({ tenantId, key: k, prefix: k })),
     skipDuplicates: true,

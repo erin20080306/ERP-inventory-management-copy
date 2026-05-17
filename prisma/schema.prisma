@@ -48,6 +48,8 @@ model Tenant {
   employees          Employee[]
   payrollPeriods     PayrollPeriod[]
   fixedAssets        FixedAsset[]
+  discountNotes      DiscountNote[]
+  invoiceTracks      InvoiceTrack[]
 }
 
 // ─────────────────────────── 使用者 / 權限 (RBAC) ───────────────────────────
@@ -207,6 +209,7 @@ model Customer {
   salesReturns    SalesReturn[]
   invoices        Invoice[]
   notes           NoteReceivable[]
+  discountNotes   DiscountNote[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -235,6 +238,7 @@ model Supplier {
   purchaseReturns  PurchaseReturn[]
   invoices         Invoice[]
   notes            NotePayable[]
+  discountNotes    DiscountNote[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -728,6 +732,28 @@ model SupplierPayment {
   @@index([tenantId])
 }
 
+// ─────────────────────────── 折讓單 ───────────────────────────
+model DiscountNote {
+  id            String   @id @default(cuid())
+  tenantId      String
+  number        String
+  type          String   // SALES / PURCHASE
+  customerId    String?
+  supplierId    String?
+  receivableId  String?
+  payableId     String?
+  amount        Decimal  @db.Decimal(18, 2)
+  reason        String?
+  relNumber     String?  // 原銷售/採購單號
+  createdAt     DateTime @default(now())
+  tenant        Tenant   @relation(fields: [tenantId], references: [id])
+  customer      Customer? @relation(fields: [customerId], references: [id])
+  supplier      Supplier? @relation(fields: [supplierId], references: [id])
+
+  @@unique([tenantId, number])
+  @@index([tenantId])
+}
+
 // ─────────────────────────── 現金 / 銀行 ───────────────────────────
 model CashAccount {
   id        String            @id @default(cuid())
@@ -834,6 +860,25 @@ model InvoiceItem {
   taxRate     Decimal @default(0) @db.Decimal(6, 4)
   subtotal    Decimal @db.Decimal(18, 2)
   invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+}
+
+// ─────────────────────────── 發票字軌管理 ───────────────────────────
+model InvoiceTrack {
+  id          String   @id @default(cuid())
+  tenantId    String
+  year        Int      // 民國年，例 114
+  period      Int      // 期別 1~6（1-2月=1, 3-4月=2, ...）
+  trackCode   String   // 字軌，例 "AB"
+  startNumber Int      // 起始號，例 1
+  endNumber   Int      // 結束號，例 50
+  currentNum  Int      @default(0) // 目前已用到的號碼
+  type        String   @default("SALES") // SALES / PURCHASE
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, year, period, trackCode, type])
+  @@index([tenantId])
 }
 
 model TaxRate {

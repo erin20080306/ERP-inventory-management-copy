@@ -110,6 +110,7 @@ export function InvoiceClient() {
           <Button variant="outline" onClick={() => window.print()}><Printer className="h-4 w-4" />列印</Button>
           <Button variant="outline" onClick={exportExcel}><FileDown className="h-4 w-4" />Excel</Button>
           <Button variant="outline" onClick={exportCSV}><Download className="h-4 w-4" />CSV</Button>
+          <Button variant="outline" onClick={() => window.location.href = "/accounting/invoices/tracks"}><FileText className="h-4 w-4" />字軌管理</Button>
           <Button variant="outline" onClick={() => window.location.href = "/accounting/invoices/scan"}><ScanLine className="h-4 w-4" />掃描發票</Button>
           <Button variant="outline" onClick={() => setOpenFromSO(true)}><FileText className="h-4 w-4" />由銷售單開立</Button>
           <Button variant="outline" onClick={() => setOpenFromPO(true)}><FileText className="h-4 w-4" />由採購單開立</Button>

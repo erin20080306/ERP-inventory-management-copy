@@ -59,7 +59,25 @@ export const POST = apiHandler(async (req: NextRequest) => {
     };
   });
   const totalAmount = +(amountExTax + taxAmount).toFixed(2);
-  const number = inNumber || (await nextNumber("INV", tenantId));
+
+  // 嘗試從字軌取號
+  let number = inNumber;
+  if (!number) {
+    const now = new Date();
+    const rocYear = now.getFullYear() - 1911;
+    const currentPeriod = Math.ceil((now.getMonth() + 1) / 2);
+    const track = await prisma.invoiceTrack.findFirst({
+      where: { tenantId, type, year: rocYear, period: currentPeriod, isActive: true },
+      orderBy: { trackCode: "asc" },
+    });
+    if (track && track.currentNum < track.endNumber) {
+      const nextNum = track.currentNum < track.startNumber ? track.startNumber : track.currentNum + 1;
+      number = `${track.trackCode}${String(nextNum).padStart(8, "0")}`;
+      await prisma.invoiceTrack.update({ where: { id: track.id }, data: { currentNum: nextNum } });
+    } else {
+      number = await nextNumber("INV", tenantId);
+    }
+  }
 
   const created = await prisma.invoice.create({
     data: {

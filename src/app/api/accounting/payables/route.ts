@@ -23,24 +23,51 @@ export const GET = apiHandler(async (req: NextRequest) => {
   return NextResponse.json({ items, total });
 });
 
+// 付款（含折讓）
 export const POST = apiHandler(async (req: NextRequest) => {
   const session = await requirePermission("payables.edit");
   const tenantId = await requireTenantId();
   const body = await req.json();
-  const { payableId, amount, method, remark } = body;
-  const ap = await prisma.accountsPayable.findUnique({ where: { id: payableId } });
+  const { payableId, amount, discount, discountNote, method, remark } = body;
+  const ap = await prisma.accountsPayable.findUnique({
+    where: { id: payableId },
+    include: { purchaseOrder: true },
+  });
   if (!ap || ap.tenantId !== tenantId) throw new Error("找不到應付帳款");
+  const totalWriteOff = Number(amount || 0) + Number(discount || 0);
+  const balance = Number(ap.amount) - Number(ap.paidAmount);
+  if (totalWriteOff > balance) throw new Error("沖帳金額不可大於未結款項");
+
   const number = await nextNumber("SP", tenantId);
   let paymentId: string | null = null;
+  let discountId: string | null = null;
+
   await prisma.$transaction(async (tx: any) => {
-    const created = await tx.supplierPayment.create({
-      data: { tenantId, number, supplierId: ap.supplierId, payableId: ap.id, amount: Number(amount), method, remark },
-    });
-    paymentId = created.id;
-    const newPaid = Number(ap.paidAmount) + Number(amount);
+    // 建立付款紀錄
+    if (Number(amount) > 0) {
+      const created = await tx.supplierPayment.create({
+        data: { tenantId, number, supplierId: ap.supplierId, payableId: ap.id, amount: Number(amount), method, remark },
+      });
+      paymentId = created.id;
+    }
+    // 建立折讓單
+    if (Number(discount) > 0) {
+      const dnNumber = await nextNumber("DN", tenantId);
+      const dn = await tx.discountNote.create({
+        data: {
+          tenantId, number: dnNumber, type: "PURCHASE",
+          supplierId: ap.supplierId, payableId: ap.id,
+          amount: Number(discount), reason: discountNote || null,
+          relNumber: ap.purchaseOrder?.number || null,
+        },
+      });
+      discountId = dn.id;
+    }
+    // 更新應付帳款
+    const newPaid = Number(ap.paidAmount) + totalWriteOff;
     const status = newPaid >= Number(ap.amount) ? "PAID" : "PARTIAL";
     await tx.accountsPayable.update({ where: { id: ap.id }, data: { paidAmount: newPaid, status } });
   });
   await audit({ userId: session.user.id, action: "pay", module: "payables", refId: payableId, detail: number });
-  return NextResponse.json({ ok: true, paymentId, number });
+  return NextResponse.json({ ok: true, paymentId, discountId, number });
 });

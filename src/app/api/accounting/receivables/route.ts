@@ -23,30 +23,51 @@ export const GET = apiHandler(async (req: NextRequest) => {
   return NextResponse.json({ items, total });
 });
 
-// 收款
+// 收款（含折讓）
 export const POST = apiHandler(async (req: NextRequest) => {
   const session = await requirePermission("receivables.edit");
   const tenantId = await requireTenantId();
   const body = await req.json();
-  const { receivableId, amount, method, remark } = body;
-  const ar = await prisma.accountsReceivable.findUnique({ where: { id: receivableId } });
+  const { receivableId, amount, discount, discountNote, method, remark } = body;
+  const ar = await prisma.accountsReceivable.findUnique({
+    where: { id: receivableId },
+    include: { salesOrder: true },
+  });
   if (!ar || ar.tenantId !== tenantId) throw new Error("找不到應收帳款");
+  const totalWriteOff = Number(amount || 0) + Number(discount || 0);
+  const balance = Number(ar.amount) - Number(ar.paidAmount);
+  if (totalWriteOff > balance) throw new Error("沖帳金額不可大於未結款項");
+
   const number = await nextNumber("RP", tenantId);
   let paymentId: string | null = null;
+  let discountId: string | null = null;
+
   await prisma.$transaction(async (tx: any) => {
-    const created = await tx.receivePayment.create({
-      data: {
-        tenantId,
-        number,
-        customerId: ar.customerId,
-        receivableId: ar.id,
-        amount: Number(amount),
-        method,
-        remark,
-      },
-    });
-    paymentId = created.id;
-    const newPaid = Number(ar.paidAmount) + Number(amount);
+    // 建立收款紀錄
+    if (Number(amount) > 0) {
+      const created = await tx.receivePayment.create({
+        data: {
+          tenantId, number, customerId: ar.customerId, receivableId: ar.id,
+          amount: Number(amount), method, remark,
+        },
+      });
+      paymentId = created.id;
+    }
+    // 建立折讓單
+    if (Number(discount) > 0) {
+      const dnNumber = await nextNumber("DN", tenantId);
+      const dn = await tx.discountNote.create({
+        data: {
+          tenantId, number: dnNumber, type: "SALES",
+          customerId: ar.customerId, receivableId: ar.id,
+          amount: Number(discount), reason: discountNote || null,
+          relNumber: ar.salesOrder?.number || null,
+        },
+      });
+      discountId = dn.id;
+    }
+    // 更新應收帳款
+    const newPaid = Number(ar.paidAmount) + totalWriteOff;
     const status = newPaid >= Number(ar.amount) ? "PAID" : "PARTIAL";
     await tx.accountsReceivable.update({
       where: { id: ar.id },
@@ -57,5 +78,5 @@ export const POST = apiHandler(async (req: NextRequest) => {
     }
   });
   await audit({ userId: session.user.id, action: "receive", module: "receivables", refId: receivableId, detail: number });
-  return NextResponse.json({ ok: true, paymentId, number });
+  return NextResponse.json({ ok: true, paymentId, discountId, number });
 });
