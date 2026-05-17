@@ -60,12 +60,7 @@ export function TrialGate({ children }: { children: React.ReactNode }) {
   }
 
   if (state === "paid") {
-    return (
-      <>
-        <PaidBadge />
-        {children}
-      </>
-    );
+    return <>{children}</>;
   }
 
   if (state === "trial") {
