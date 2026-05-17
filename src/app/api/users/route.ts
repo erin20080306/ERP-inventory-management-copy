@@ -42,8 +42,15 @@ export const POST = apiHandler(async (req: NextRequest) => {
   const { username, name, email, password, roleIds, isActive } = body;
   if (!password || password.length < 6) throw new Error("密碼至少 6 碼");
   const hash = await bcrypt.hash(password, 12);
+  // Get tenant's original trialStart from the first user (registration account)
+  const firstUser = await prisma.user.findFirst({
+    where: { tenantId },
+    orderBy: { createdAt: "asc" },
+    select: { trialStart: true },
+  });
+  const trialStart = firstUser?.trialStart || new Date();
   const created = await prisma.user.create({
-    data: { tenantId, username, name, email, passwordHash: hash, isActive: isActive ?? true },
+    data: { tenantId, username, name, email, passwordHash: hash, isActive: isActive ?? true, trialStart },
   });
   if (roleIds?.length) {
     await prisma.userRole.createMany({ data: roleIds.map((rid: string) => ({ userId: created.id, roleId: rid })) });
