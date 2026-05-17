@@ -16,7 +16,7 @@ export function calcTotals(items: DocItem[]) {
     const line = i.quantity * i.unitPrice;
     const ldisc = Number(i.discount ?? 0);
     const taxable = line - ldisc;
-    const tax = taxable * Number(i.taxRate ?? 0);
+    const tax = +(taxable * Number(i.taxRate ?? 0)).toFixed(2);
     subtotal += line;
     discount += ldisc;
     taxAmount += tax;
