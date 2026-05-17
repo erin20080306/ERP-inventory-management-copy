@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiHandler, requirePermission, requireTenantId, audit, nextNumber } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
+import { buildSupplierPaymentDraft, buildDiscountNoteDraft, autoCreateJournal } from "@/lib/auto-journal";
 
 export const GET = apiHandler(async (req: NextRequest) => {
   await requirePermission("payables.view");
@@ -74,5 +75,16 @@ export const POST = apiHandler(async (req: NextRequest) => {
     await tx.accountsPayable.update({ where: { id: ap.id }, data: { paidAmount: newPaid, status } });
   });
   await audit({ userId: session.user.id, action: "pay", module: "payables", refId: payableId, detail: number });
+
+  // 自動建立傳票
+  if (paymentId) {
+    const draft = await buildSupplierPaymentDraft(paymentId);
+    await autoCreateJournal(tenantId, draft, session.user.id);
+  }
+  if (discountId) {
+    const draft = await buildDiscountNoteDraft(discountId);
+    await autoCreateJournal(tenantId, draft, session.user.id);
+  }
+
   return NextResponse.json({ ok: true, paymentId, discountId, number });
 });

@@ -12,6 +12,7 @@
  *   5101 銷貨成本       5201 進貨        5301 進貨退出     5302 進貨折讓
  */
 import { prisma } from "./prisma";
+import { nextNumber } from "./api";
 
 // ─────────── 預設科目對應 ───────────
 export const DEFAULT_ACCOUNT_CODES = {
@@ -362,4 +363,150 @@ export async function buildInvoiceDraft(invoiceId: string): Promise<DraftEntry> 
     entryDate: inv.invoiceDate.toISOString().slice(0, 10),
     lines,
   };
+}
+
+/* ============================================================ */
+/*               應收帳款建立                                       */
+/* ============================================================ */
+export async function buildARCreatedDraft(salesOrderId: string): Promise<DraftEntry> {
+  const so = await prisma.salesOrder.findUnique({
+    where: { id: salesOrderId },
+    include: { customer: true, items: { include: { product: true } } },
+  });
+  if (!so) throw new Error("找不到銷售單");
+
+  const subtotal = Number(so.subtotal) - Number(so.discount);
+  const tax = Number(so.taxAmount);
+  const total = Number(so.total);
+  const cogs = so.items.reduce((s: number, i: any) => s + Number(i.quantity) * Number(i.product.costPrice ?? 0), 0);
+
+  const t = so.tenantId;
+  const lines: DraftLine[] = [
+    await line(t, DEFAULT_ACCOUNT_CODES.AR, total, 0, `${so.customer.companyName}`),
+    await line(t, DEFAULT_ACCOUNT_CODES.SALES_REVENUE, 0, subtotal, `銷售 ${so.number}`),
+    ...(tax > 0 ? [await line(t, DEFAULT_ACCOUNT_CODES.OUTPUT_TAX, 0, tax, "銷項稅額 5%")] : []),
+  ];
+
+  if (cogs > 0) {
+    lines.push(
+      await line(t, DEFAULT_ACCOUNT_CODES.COGS, cogs, 0, `銷貨成本 ${so.number}`),
+      await line(t, DEFAULT_ACCOUNT_CODES.INVENTORY, 0, cogs, "結轉存貨"),
+    );
+  }
+
+  return {
+    sourceType: "SALES_CONFIRM",
+    sourceId: so.id,
+    summary: `銷售確認 ${so.number} ${so.customer.companyName}`,
+    entryDate: new Date().toISOString().slice(0, 10),
+    lines,
+  };
+}
+
+/* ============================================================ */
+/*               應付帳款建立                                       */
+/* ============================================================ */
+export async function buildAPCreatedDraft(purchaseOrderId: string): Promise<DraftEntry> {
+  const po = await prisma.purchaseOrder.findUnique({
+    where: { id: purchaseOrderId },
+    include: { supplier: true },
+  });
+  if (!po) throw new Error("找不到採購單");
+
+  const subtotal = Number(po.subtotal) - Number(po.discount);
+  const tax = Number(po.taxAmount);
+  const total = Number(po.total);
+
+  const t = po.tenantId;
+  const lines: DraftLine[] = [
+    await line(t, DEFAULT_ACCOUNT_CODES.INVENTORY, subtotal, 0, `進貨 ${po.number}`),
+    ...(tax > 0 ? [await line(t, DEFAULT_ACCOUNT_CODES.INPUT_TAX, tax, 0, "進項稅額 5%")] : []),
+    await line(t, DEFAULT_ACCOUNT_CODES.AP, 0, total, `${po.supplier.companyName}`),
+  ];
+
+  return {
+    sourceType: "PURCHASE_APPROVE",
+    sourceId: po.id,
+    summary: `採購核准 ${po.number} ${po.supplier.companyName}`,
+    entryDate: new Date().toISOString().slice(0, 10),
+    lines,
+  };
+}
+
+/* ============================================================ */
+/*               折讓單傳票                                         */
+/* ============================================================ */
+export async function buildDiscountNoteDraft(discountNoteId: string): Promise<DraftEntry> {
+  const dn = await prisma.discountNote.findUnique({
+    where: { id: discountNoteId },
+    include: { customer: true, supplier: true },
+  });
+  if (!dn) throw new Error("找不到折讓單");
+
+  const amount = Number(dn.amount);
+  const t = dn.tenantId;
+  const isSales = dn.type === "SALES";
+
+  const lines: DraftLine[] = isSales
+    ? [
+        await line(t, DEFAULT_ACCOUNT_CODES.SALES_DISCOUNT, amount, 0, `銷貨折讓 ${dn.number}`),
+        await line(t, DEFAULT_ACCOUNT_CODES.AR, 0, amount, `${dn.customer?.companyName ?? ""}`),
+      ]
+    : [
+        await line(t, DEFAULT_ACCOUNT_CODES.AP, amount, 0, `${dn.supplier?.companyName ?? ""}`),
+        await line(t, DEFAULT_ACCOUNT_CODES.PURCHASE_DISCOUNT, 0, amount, `進貨折讓 ${dn.number}`),
+      ];
+
+  return {
+    sourceType: "DISCOUNT_NOTE",
+    sourceId: dn.id,
+    summary: `${isSales ? "銷貨" : "進貨"}折讓 ${dn.number}`,
+    entryDate: dn.createdAt.toISOString().slice(0, 10),
+    lines,
+  };
+}
+
+/* ============================================================ */
+/*   自動建立傳票（寫入 DB，POSTED 狀態）                            */
+/* ============================================================ */
+export async function autoCreateJournal(
+  tenantId: string,
+  draft: DraftEntry,
+  createdById?: string,
+) {
+  try {
+    const totalDebit = draft.lines.reduce((s, l) => s + l.debit, 0);
+    const totalCredit = draft.lines.reduce((s, l) => s + l.credit, 0);
+    if (Math.abs(totalDebit - totalCredit) > 0.001) {
+      console.warn(`[autoCreateJournal] 借貸不平衡，跳過: ${draft.summary} (D=${totalDebit}, C=${totalCredit})`);
+      return null;
+    }
+    if (totalDebit === 0) return null;
+
+    const number = await nextNumber("JE", tenantId);
+    const entry = await prisma.journalEntry.create({
+      data: {
+        tenantId,
+        number,
+        summary: draft.summary,
+        entryDate: draft.entryDate ? new Date(draft.entryDate) : new Date(),
+        status: "POSTED",
+        createdById: createdById || null,
+        lines: {
+          create: draft.lines.map((l) => ({
+            accountId: l.accountId,
+            debit: l.debit,
+            credit: l.credit,
+            memo: l.memo,
+          })),
+        },
+      },
+      include: { lines: true },
+    });
+    console.log(`[autoCreateJournal] 已建立傳票 ${number}: ${draft.summary}`);
+    return entry;
+  } catch (err: any) {
+    console.error(`[autoCreateJournal] 建立失敗: ${err.message}`, draft.summary);
+    return null;
+  }
 }

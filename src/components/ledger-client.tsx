@@ -23,6 +23,7 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
   const [pay, setPay] = useState<any>(null);
   const [batchOpen, setBatchOpen] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [summary, setSummary] = useState<any>(null);
   const pageSize = 20;
 
   async function load() {
@@ -33,15 +34,53 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
     setTotal(d.total);
     setLoading(false);
   }
+  async function loadSummary() {
+    const res = await fetch(`/api/accounting/collection-summary?type=${kind}`);
+    if (res.ok) setSummary(await res.json());
+  }
   useEffect(() => {
     load();
+    loadSummary();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, q]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
+  const fmtNum = (n: number) => formatMoney(n);
+  const actionLabel = kind === "ar" ? "收" : "付";
+
   return (
     <div className="space-y-4">
+      {/* ─── 收付款方式統計 ─── */}
+      {summary && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div className="rounded-lg border bg-card p-3 shadow-sm">
+            <div className="text-xs text-muted-foreground">現金{actionLabel}款</div>
+            <div className="text-lg font-bold mt-1">{fmtNum(summary.cash)}</div>
+          </div>
+          <div className="rounded-lg border bg-card p-3 shadow-sm">
+            <div className="text-xs text-muted-foreground">票據{actionLabel}款</div>
+            <div className="text-lg font-bold mt-1">{fmtNum(summary.check)}</div>
+          </div>
+          <div className="rounded-lg border bg-card p-3 shadow-sm">
+            <div className="text-xs text-muted-foreground">銀行{actionLabel}款</div>
+            <div className="text-lg font-bold mt-1">{fmtNum(summary.bank)}</div>
+          </div>
+          <div className="rounded-lg border bg-card p-3 shadow-sm">
+            <div className="text-xs text-muted-foreground">其他</div>
+            <div className="text-lg font-bold mt-1">{fmtNum(summary.other)}</div>
+          </div>
+          <div className="rounded-lg border bg-card p-3 shadow-sm">
+            <div className="text-xs text-muted-foreground">折讓</div>
+            <div className="text-lg font-bold mt-1">{fmtNum(summary.discountTotal)}</div>
+          </div>
+          <div className="rounded-lg border bg-primary/10 p-3 shadow-sm">
+            <div className="text-xs text-primary font-medium">{actionLabel}款合計</div>
+            <div className="text-lg font-bold mt-1 text-primary">{fmtNum(summary.grandTotal)}</div>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="relative">
           <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
@@ -147,8 +186,8 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
           <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>下一頁</Button>
         </div>
       </div>
-      {pay && <PayDialog row={pay} kind={kind} onClose={() => setPay(null)} onDone={() => { setPay(null); load(); }} />}
-      {batchOpen && <BatchPayDialog kind={kind} onClose={() => setBatchOpen(false)} onDone={() => { setBatchOpen(false); load(); }} />}
+      {pay && <PayDialog row={pay} kind={kind} onClose={() => setPay(null)} onDone={() => { setPay(null); load(); loadSummary(); }} />}
+      {batchOpen && <BatchPayDialog kind={kind} onClose={() => setBatchOpen(false)} onDone={() => { setBatchOpen(false); load(); loadSummary(); }} />}
     </div>
   );
 }

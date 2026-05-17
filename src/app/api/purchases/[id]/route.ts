@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { apiHandler, requirePermission, requireTenantId, audit } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { receivePurchaseOrder } from "@/lib/documents";
+import { buildAPCreatedDraft, autoCreateJournal } from "@/lib/auto-journal";
 
 export const GET = apiHandler(async (_req: NextRequest, { params }: { params: { id: string } }) => {
   await requirePermission("purchases.view");
@@ -38,6 +39,9 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: {
           status: "OPEN",
         },
       });
+      // 自動建立傳票：借 存貨(進貨) / 貸 應付帳款
+      const draft = await buildAPCreatedDraft(order.id);
+      await autoCreateJournal(tenantId, draft, session.user.id);
     }
   } else if (action === "receive") {
     if (!warehouseId) throw new Error("請選擇入庫倉庫");
