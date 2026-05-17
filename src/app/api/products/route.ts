@@ -18,6 +18,7 @@ const ProductInput = z.object({
   taxRateId: z.string().optional().nullable(),
   isActive: z.boolean().default(true),
   remark: z.string().optional().nullable(),
+  stockQty: z.coerce.number().optional(),
 });
 
 export const GET = apiHandler(async (req: NextRequest) => {
@@ -52,11 +53,23 @@ export const POST = apiHandler(async (req: NextRequest) => {
   const body = ProductInput.parse(await req.json());
   const upsert = req.nextUrl.searchParams.get("upsert") === "1";
   if (upsert) {
+    const { stockQty, ...productData } = body;
     const result = await prisma.product.upsert({
       where: { tenantId_sku: { tenantId, sku: body.sku } },
-      update: { ...body } as any,
-      create: { ...body, tenantId } as any,
+      update: { ...productData } as any,
+      create: { ...productData, tenantId } as any,
     });
+    // 庫存數量處理：導入時写入預設倉庫
+    if (stockQty != null && stockQty >= 0) {
+      const defaultWh = await prisma.warehouse.findFirst({ where: { tenantId }, orderBy: { createdAt: "asc" } });
+      if (defaultWh) {
+        await prisma.inventoryStock.upsert({
+          where: { productId_warehouseId: { productId: result.id, warehouseId: defaultWh.id } },
+          update: { quantity: stockQty },
+          create: { tenantId, productId: result.id, warehouseId: defaultWh.id, quantity: stockQty },
+        });
+      }
+    }
     await audit({ userId: session.user.id, action: "upsert", module: "products", refId: result.id, detail: result.sku });
     return NextResponse.json(result);
   }
