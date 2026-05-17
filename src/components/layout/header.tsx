@@ -1,8 +1,9 @@
 "use client";
 import { useSession, signOut } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
-import { Moon, Sun, LogOut, UserCircle2 } from "lucide-react";
+import { Moon, Sun, LogOut, UserCircle2, Shield } from "lucide-react";
 import { useEffect, useState } from "react";
 import { MobileSidebar } from "./mobile-sidebar";
 
@@ -30,6 +31,12 @@ export function Header() {
           </span>
         </div>
       </div>
+      {(data?.user as any)?.isSuperAdmin && (
+        <Button variant="outline" size="sm" onClick={() => window.location.href = "/admin"}>
+          <Shield className="h-4 w-4" />
+          後台
+        </Button>
+      )}
       <Button variant="outline" size="sm" onClick={() => signOut({ callbackUrl: "/login" })}>
         <LogOut className="h-4 w-4" />
         登出

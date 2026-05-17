@@ -170,8 +170,11 @@ function KPI({ icon: Icon, label, value, hint, accent }: any) {
 
 export default async function DashboardPage() {
   const session = await getSession();
-  if (session?.user?.isSuperAdmin) redirect("/admin");
-  const tenantId = await requireTenantId();
+  const tenantId = (session?.user as any)?.tenantId;
+  if (!tenantId) {
+    if (session?.user?.isSuperAdmin) redirect("/admin");
+    redirect("/login");
+  }
   const s = await getStats(tenantId);
   return (
     <PageShell title="儀表板" description="營運總覽與即時數據">

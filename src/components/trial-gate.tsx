@@ -104,12 +104,28 @@ function TrialBanner({ hours, mins, secs }: { hours: number; mins: number; secs:
 
 /* ─── 試用到期 paywall ─── */
 function Paywall() {
-  const [confirming, setConfirming] = useState(false);
+  const [checking, setChecking] = useState(false);
 
-  async function handleConfirmPaid() {
-    setConfirming(true);
-    await fetch("/api/trial/activate", { method: "POST" });
-    setTimeout(() => window.location.reload(), 1500);
+  // 付款後自動輪詢確認
+  async function handleCheckPayment() {
+    setChecking(true);
+    // 每 5 秒檢查一次，最多 60 次（5 分鐘）
+    let attempts = 0;
+    const interval = setInterval(async () => {
+      attempts++;
+      try {
+        const res = await fetch("/api/trial");
+        const data = await res.json();
+        if (data.status === "paid") {
+          clearInterval(interval);
+          window.location.reload();
+        }
+      } catch {}
+      if (attempts >= 60) {
+        clearInterval(interval);
+        setChecking(false);
+      }
+    }, 5000);
   }
 
   return (
@@ -118,14 +134,17 @@ function Paywall() {
       <div className="absolute -bottom-40 -right-40 w-[500px] h-[500px] bg-purple-500/15 rounded-full blur-3xl animate-pulse" style={{ animationDelay: "1s" }} />
 
       <div className="relative max-w-md w-full">
-        {confirming ? (
+        {checking ? (
           <div className="text-center space-y-6 animate-in fade-in">
-            <div className="mx-auto h-20 w-20 rounded-full bg-emerald-500/20 flex items-center justify-center">
-              <CheckCircle2 className="h-10 w-10 text-emerald-400" />
+            <div className="mx-auto h-20 w-20 rounded-full bg-indigo-500/20 flex items-center justify-center">
+              <Clock className="h-10 w-10 text-indigo-400 animate-spin" style={{ animationDuration: "3s" }} />
             </div>
-            <h2 className="text-2xl font-bold text-white">🎉 你已獲得永久使用權</h2>
-            <p className="text-slate-400">正在為您載入系統…</p>
-            <p className="text-sm text-slate-500">有後續問題請聯繫：<a href="mailto:erin20080306@gmail.com" className="text-indigo-400 hover:underline">erin20080306@gmail.com</a></p>
+            <h2 className="text-2xl font-bold text-white">等待付款確認中…</h2>
+            <p className="text-slate-400 text-sm">PayPal 付款完成後系統會自動偵測並啟用<br />請勿關閉此頁面</p>
+            <p className="text-xs text-slate-500">通常 1～2 分鐘內完成，若超過 5 分鐘請聯繫管理員</p>
+            <p className="text-xs text-slate-500">
+              <a href="mailto:erin20080306@gmail.com" className="text-indigo-400 hover:underline">erin20080306@gmail.com</a>
+            </p>
           </div>
         ) : (
           <div className="rounded-2xl bg-white/5 backdrop-blur-2xl border border-white/10 shadow-2xl p-8 space-y-6">
@@ -148,6 +167,7 @@ function Paywall() {
               href={PAYPAL_URL}
               target="_blank"
               rel="noopener noreferrer"
+              onClick={() => setTimeout(handleCheckPayment, 2000)}
               className="flex items-center justify-center gap-2 w-full h-12 bg-[#0070ba] hover:bg-[#005ea6] text-white font-semibold rounded-xl transition shadow-lg shadow-blue-500/30"
             >
               <CreditCard className="h-5 w-5" />
@@ -155,14 +175,14 @@ function Paywall() {
             </a>
 
             <button
-              onClick={handleConfirmPaid}
+              onClick={handleCheckPayment}
               className="w-full h-10 text-sm text-slate-400 hover:text-white border border-white/10 hover:border-white/30 rounded-xl transition"
             >
-              我已完成付款，點此啟用
+              我已完成付款，等待系統確認
             </button>
 
             <p className="text-xs text-slate-500 text-center">
-              付款完成後點擊上方按鈕即可永久使用本系統
+              付款完成後系統會透過 PayPal 自動驗證，無需手動操作
             </p>
             <p className="text-xs text-slate-500 text-center">
               有後續問題請聯繫：<a href="mailto:erin20080306@gmail.com" className="text-indigo-400 hover:underline">erin20080306@gmail.com</a>
