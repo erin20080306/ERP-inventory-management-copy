@@ -140,8 +140,11 @@ export function InvoiceClient() {
               <TD className="text-right">
                 <div className="flex items-center justify-end gap-1">
                   {i.status !== "VOID" && <ConvertToJournalButton sourceType="INVOICE" sourceId={i.id} size="sm" />}
-                  <Button variant="ghost" size="icon" onClick={() => window.open(`/print/invoice/${i.id}`, "_blank")}>
+                  <Button variant="ghost" size="icon" title="一般列印" onClick={() => window.open(`/print/invoice/${i.id}`, "_blank")}>
                     <Printer className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="icon" title="台灣電子發票格式" onClick={() => window.open(`/print/invoice-tw/${i.id}`, "_blank")}>
+                    <FileText className="h-4 w-4 text-blue-600" />
                   </Button>
                   {i.status !== "VOID" && (
                     <Button variant="ghost" size="icon" onClick={() => voidInvoice(i.id)}>
