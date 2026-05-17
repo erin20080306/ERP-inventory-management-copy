@@ -37,6 +37,7 @@ const sections: NavSection[] = [
       { title: "傳票管理", href: "/accounting/journals", icon: BookMarked, perm: "journals.view" },
       { title: "應收帳款", href: "/accounting/receivables", icon: Coins, perm: "receivables.view" },
       { title: "應付帳款", href: "/accounting/payables", icon: Wallet, perm: "payables.view" },
+      { title: "已沖帳記錄", href: "/accounting/payments", icon: Receipt, perm: "receivables.view" },
       { title: "應收票據", href: "/accounting/notes-receivable", icon: ScrollText, perm: "notes.view" },
       { title: "應付票據", href: "/accounting/notes-payable", icon: ScrollText, perm: "notes.view" },
       { title: "現金銀行", href: "/accounting/cash", icon: Wallet, perm: "cash.view" },

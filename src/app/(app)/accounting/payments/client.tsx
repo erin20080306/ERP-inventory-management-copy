@@ -1,0 +1,159 @@
+"use client";
+import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/layout/page-shell";
+import { toast } from "sonner";
+import { Loader2, Search, Download, Printer, FileDown } from "lucide-react";
+import { formatDate, formatMoney } from "@/lib/utils";
+import { downloadCSV, toCSV } from "@/lib/csv";
+
+export function PaymentHistoryClient() {
+  const [rows, setRows] = useState<any[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [q, setQ] = useState("");
+  const [kind, setKind] = useState("all");
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const pageSize = 20;
+
+  async function load() {
+    setLoading(true);
+    const res = await fetch(`/api/accounting/payments?kind=${kind}&q=${encodeURIComponent(q)}&page=${page}&pageSize=${pageSize}`);
+    const d = await res.json();
+    setRows(d.items ?? []);
+    setTotal(d.total ?? 0);
+    setLoading(false);
+  }
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, q, kind]);
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+  const methodLabel = (m: string) => {
+    if (m === "CASH") return "現金";
+    if (m === "BANK") return "銀行轉帳";
+    if (m === "CHEQUE") return "支票";
+    return m;
+  };
+
+  const typeBadge = (type: string) => {
+    if (type === "收款") return <Badge variant="success">{type}</Badge>;
+    if (type === "付款") return <Badge variant="info">{type}</Badge>;
+    return <Badge variant="warning">{type}</Badge>;
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+            <Input placeholder="搜尋客戶/供應商" className="pl-9 w-64" value={q} onChange={(e) => { setPage(1); setQ(e.target.value); }} />
+          </div>
+          <select className="h-10 rounded-md border border-input bg-background px-3 text-sm" value={kind} onChange={(e) => { setPage(1); setKind(e.target.value); }}>
+            <option value="all">全部</option>
+            <option value="ar">收款（銷售）</option>
+            <option value="ap">付款（採購）</option>
+          </select>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={async () => {
+            const res = await fetch(`/api/accounting/payments?kind=${kind}&q=${encodeURIComponent(q)}&pageSize=10000`);
+            const d = await res.json();
+            const { downloadExcel } = await import("@/lib/excel");
+            downloadExcel("payments", "沖帳記錄", d.items, [
+              { key: "type", title: "類型" },
+              { key: "number", title: "單號" },
+              { key: "party", title: "對象" },
+              { key: "relNumber", title: "關聯單號" },
+              { key: "amount", title: "金額", get: (r: any) => Number(r.amount) },
+              { key: "method", title: "方式", get: (r: any) => methodLabel(r.method) },
+              { key: "date", title: "日期", get: (r: any) => formatDate(r.date) },
+              { key: "remark", title: "備註" },
+            ]);
+            toast.success("已匯出 Excel");
+          }}>
+            <FileDown className="h-4 w-4" />
+            Excel
+          </Button>
+          <Button variant="outline" disabled={pdfBusy} onClick={async () => {
+            setPdfBusy(true);
+            try { const { exportPageToPDF } = await import("@/lib/export-pdf"); await exportPageToPDF("沖帳記錄", "payments"); } finally { setPdfBusy(false); }
+          }}>
+            {pdfBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
+            PDF
+          </Button>
+          <Button variant="outline" onClick={() => window.print()}>
+            <Printer className="h-4 w-4" />
+            列印
+          </Button>
+          <Button variant="outline" onClick={async () => {
+            const res = await fetch(`/api/accounting/payments?kind=${kind}&q=${encodeURIComponent(q)}&pageSize=10000`);
+            const d = await res.json();
+            const csv = toCSV(d.items, [
+              { key: "type", title: "類型" },
+              { key: "number", title: "單號" },
+              { key: "party", title: "對象" },
+              { key: "relNumber", title: "關聯單號" },
+              { key: "amount", title: "金額" },
+              { key: "method", title: "方式", get: (r: any) => methodLabel(r.method) },
+              { key: "date", title: "日期", get: (r: any) => formatDate(r.date) },
+              { key: "remark", title: "備註" },
+            ]);
+            downloadCSV(`payments-${new Date().toISOString().slice(0, 10)}.csv`, csv);
+            toast.success("已匯出 CSV");
+          }}>
+            <Download className="h-4 w-4" />
+            CSV
+          </Button>
+        </div>
+      </div>
+
+      <Table>
+        <THead>
+          <TR>
+            <TH>類型</TH>
+            <TH>單號</TH>
+            <TH>對象</TH>
+            <TH>關聯單號</TH>
+            <TH>金額</TH>
+            <TH>方式</TH>
+            <TH>日期</TH>
+            <TH>備註</TH>
+          </TR>
+        </THead>
+        <TBody>
+          {loading && <TR><TD colSpan={8} className="text-center py-10"><Loader2 className="inline h-5 w-5 animate-spin" /></TD></TR>}
+          {!loading && rows.length === 0 && <TR><TD colSpan={8}><EmptyState /></TD></TR>}
+          {!loading && rows.map((r) => (
+            <TR key={r.id}>
+              <TD>{typeBadge(r.type)}</TD>
+              <TD className="font-mono text-xs">{r.number}</TD>
+              <TD>{r.party}</TD>
+              <TD className="font-mono text-xs">{r.relNumber}</TD>
+              <TD className="font-medium">{formatMoney(r.amount)}</TD>
+              <TD>{methodLabel(r.method)}</TD>
+              <TD>{formatDate(r.date)}</TD>
+              <TD className="text-muted-foreground text-xs max-w-[150px] truncate">{r.remark ?? ""}</TD>
+            </TR>
+          ))}
+        </TBody>
+      </Table>
+
+      <div className="flex items-center justify-between text-sm text-muted-foreground">
+        <div>共 {total} 筆</div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>上一頁</Button>
+          <span>{page} / {totalPages}</span>
+          <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>下一頁</Button>
+        </div>
+      </div>
+    </div>
+  );
+}

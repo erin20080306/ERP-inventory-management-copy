@@ -243,7 +243,6 @@ function PayDialog({ row, kind, onClose, onDone }: any) {
 // ─── 批次沖帳（先輸入實收/實付金額 → 選帳單 → 差額=折讓）───
 function BatchPayDialog({ kind, onClose, onDone }: { kind: "ar" | "ap"; onClose: () => void; onDone: () => void }) {
   const endpoint = kind === "ar" ? "/api/accounting/receivables" : "/api/accounting/payables";
-  const partyEndpoint = kind === "ar" ? "/api/customers" : "/api/suppliers";
   const partyLabel = kind === "ar" ? "客戶" : "供應商";
   const partyIdKey = kind === "ar" ? "customerId" : "supplierId";
   const payLabel = kind === "ar" ? "實收金額" : "實付金額";
@@ -261,25 +260,39 @@ function BatchPayDialog({ kind, onClose, onDone }: { kind: "ar" | "ap"; onClose:
   const [saving, setSaving] = useState(false);
   const [results, setResults] = useState<any[] | null>(null);
 
+  // 載入有未結帳款的客戶/供應商
+  const [allUnpaid, setAllUnpaid] = useState<any[]>([]);
   useEffect(() => {
-    fetch(`${partyEndpoint}?pageSize=1000`).then((r) => r.json()).then((d) => setParties(d.items ?? []));
-  }, [partyEndpoint]);
+    async function loadParties() {
+      const [r1, r2] = await Promise.all([
+        fetch(`${endpoint}?status=PENDING&pageSize=1000`).then((r) => r.json()),
+        fetch(`${endpoint}?status=PARTIAL&pageSize=1000`).then((r) => r.json()),
+      ]);
+      const all = [...(r1.items ?? []), ...(r2.items ?? [])];
+      setAllUnpaid(all);
+      // 提取有未結帳款的不重複廠商/客戶
+      const partyMap = new Map<string, any>();
+      all.forEach((item: any) => {
+        const p = kind === "ar" ? item.customer : item.supplier;
+        if (p && !partyMap.has(p.id)) {
+          const balance = all.filter((x: any) => (kind === "ar" ? x.customerId : x.supplierId) === p.id)
+            .reduce((s: number, x: any) => s + Number(x.amount) - Number(x.paidAmount), 0);
+          partyMap.set(p.id, { ...p, balance });
+        }
+      });
+      setParties(Array.from(partyMap.values()).sort((a, b) => b.balance - a.balance));
+    }
+    loadParties();
+  }, [endpoint, kind]);
 
   useEffect(() => {
     if (!partyId) { setItems([]); return; }
-    setLoadingItems(true);
     setSelected(new Set());
     setTotalPay(0);
-    fetch(`${endpoint}?${partyIdKey}=${partyId}&status=PENDING&pageSize=1000`)
-      .then((r) => r.json())
-      .then((d) => {
-        return fetch(`${endpoint}?${partyIdKey}=${partyId}&status=PARTIAL&pageSize=1000`).then((r) => r.json()).then((d2) => {
-          const all = [...(d.items ?? []), ...(d2.items ?? [])];
-          setItems(all);
-        });
-      })
-      .finally(() => setLoadingItems(false));
-  }, [partyId, endpoint, partyIdKey]);
+    // 從已載入的資料過濾
+    const filtered = allUnpaid.filter((i: any) => (kind === "ar" ? i.customerId : i.supplierId) === partyId);
+    setItems(filtered);
+  }, [partyId, allUnpaid, kind]);
 
   const selectedItems = items.filter((i) => selected.has(i.id));
   const totalBalance = selectedItems.reduce((s, i) => s + Number(i.amount) - Number(i.paidAmount), 0);
@@ -386,8 +399,8 @@ function BatchPayDialog({ kind, onClose, onDone }: { kind: "ar" | "ap"; onClose:
               <div className="space-y-1">
                 <Label>選擇{partyLabel}</Label>
                 <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={partyId} onChange={(e) => setPartyId(e.target.value)}>
-                  <option value="">-- 請選擇 --</option>
-                  {parties.map((p) => <option key={p.id} value={p.id}>{p.companyName}</option>)}
+                  <option value="">-- 請選擇（僅顯示有未結帳款者）--</option>
+                  {parties.map((p) => <option key={p.id} value={p.id}>{p.companyName}（未結 ${Number(p.balance).toLocaleString()}）</option>)}
                 </select>
               </div>
               <div className="space-y-1">
