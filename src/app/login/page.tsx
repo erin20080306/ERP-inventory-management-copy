@@ -103,12 +103,12 @@ function LoginInner() {
               <div className="text-slate-500">eein20080306@gmail.com</div>
               <div className="text-slate-500">Line ID: erin2008</div>
               <a 
-                href="https://erin20080306.wixsite.com/designed-by-erin/book-online" 
+                href="https://erin20080306.wixsite.com/designed-by-erin" 
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="text-indigo-400 hover:text-indigo-300 transition"
               >
-                網站：https://erin20080306.wixsite.com/designed-by-erin/book-online
+                網站：https://erin20080306.wixsite.com/designed-by-erin
               </a>
             </div>
           </div>
