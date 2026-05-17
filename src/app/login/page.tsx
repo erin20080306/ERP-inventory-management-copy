@@ -91,11 +91,26 @@ function LoginInner() {
             <Feature icon={<Package className="h-5 w-5" />} title="完整進銷存管理" desc="商品 / 採購 / 銷售 / 庫存即時掌握" />
             <Feature icon={<BarChart3 className="h-5 w-5" />} title="專業會計系統" desc="傳票 / AR / AP / 損益 / 試算 / 資產負債" />
             <Feature icon={<ShieldCheck className="h-5 w-5" />} title="企業級安全" desc="RBAC 角色權限 + 操作稽核紀錄" />
-            <Feature icon={<Sparkles className="h-5 w-5" />} title="一鍵雲端部署" desc="GitHub + Vercel + PostgreSQL" />
+            <Feature icon={<Sparkles className="h-5 w-5" />} title="客製化ERP系統操作" desc="蝦皮訂單管理 / 餐飲 / 商家 / 一般公司行號" />
           </div>
 
-          <div className="pt-4 border-t border-white/10 text-xs text-slate-500">
-            © {new Date().getFullYear()} Professional ERP System · 安全 · 高效 · 易用
+          <div className="pt-4 border-t border-white/10 text-xs text-slate-500 space-y-3">
+            <div>
+              © {new Date().getFullYear()} Professional ERP System · 安全 · 高效 · 易用
+            </div>
+            <div className="space-y-1">
+              <div className="font-medium text-slate-400">服務人員：艾琳設計</div>
+              <div className="text-slate-500">eein20080306@gmail.com</div>
+              <div className="text-slate-500">Line ID: erin2008</div>
+              <a 
+                href="https://erin20080306.wixsite.com/designed-by-erin/book-online" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-indigo-400 hover:text-indigo-300 transition"
+              >
+                網站：https://erin20080306.wixsite.com/designed-by-erin/book-online
+              </a>
+            </div>
           </div>
         </div>
 
