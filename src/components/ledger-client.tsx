@@ -372,7 +372,7 @@ function BatchPayDialog({ kind, onClose, onDone }: { kind: "ar" | "ap"; onClose:
   useEffect(() => {
     async function loadParties() {
       const [r1, r2] = await Promise.all([
-        fetch(`${endpoint}?status=PENDING&pageSize=1000`).then((r) => r.json()),
+        fetch(`${endpoint}?status=OPEN&pageSize=1000`).then((r) => r.json()),
         fetch(`${endpoint}?status=PARTIAL&pageSize=1000`).then((r) => r.json()),
       ]);
       const all = [...(r1.items ?? []), ...(r2.items ?? [])];
