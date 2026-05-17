@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { apiHandler, requirePermission, requireTenantId, audit, nextNumber } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { calcTotals } from "@/lib/documents";
+import { buildAPCreatedDraft, autoCreateJournal } from "@/lib/auto-journal";
 
 export const GET = apiHandler(async (req: NextRequest) => {
   await requirePermission("purchases.view");
@@ -60,5 +61,22 @@ export const POST = apiHandler(async (req: NextRequest) => {
     include: { items: true, supplier: true },
   });
   await audit({ userId: session.user.id, action: "create", module: "purchases", refId: created.id, detail: number });
+
+  // 如果建立時是 SUBMITTED / APPROVED，自動建立應付帳款 + 傳票
+  const s = status ?? "DRAFT";
+  if (s === "SUBMITTED" || s === "APPROVED") {
+    await prisma.accountsPayable.create({
+      data: {
+        tenantId,
+        supplierId,
+        purchaseOrderId: created.id,
+        amount: totals.total,
+        status: "OPEN",
+      },
+    });
+    const draft = await buildAPCreatedDraft(created.id);
+    await autoCreateJournal(tenantId, draft, session.user.id);
+  }
+
   return NextResponse.json(created);
 });
