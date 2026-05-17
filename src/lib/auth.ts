@@ -89,10 +89,7 @@ export const authOptions: NextAuthOptions = {
         }
         // 超級管理員（平台管理員）擁有所有權限
         if ((user as any).isSuperAdmin) isSuper = true;
-        // 租戶用戶沒有角色時，給予所有模組查看權限
-        if (!isSuper && permsSet.size === 0 && user.tenantId) {
-          permsSet.add("*");
-        }
+        // 系統管理員角色或超級管理員擁有所有權限
         const permissions = isSuper ? ["*"] : Array.from(permsSet);
 
         // fire-and-forget：登入成功後續寫不阻塞 token 簽發
