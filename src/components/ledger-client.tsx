@@ -7,7 +7,7 @@ import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { StatusBadge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/layout/page-shell";
 import { toast } from "sonner";
-import { Loader2, Search, CreditCard, Download, Printer, FileDown } from "lucide-react";
+import { Loader2, Search, CreditCard, Download, Printer, FileDown, ListChecks } from "lucide-react";
 import { formatDate, formatMoney } from "@/lib/utils";
 import { downloadCSV, toCSV } from "@/lib/csv";
 import { ConvertToJournalButton } from "@/components/convert-to-journal-button";
@@ -21,6 +21,7 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
   const [page, setPage] = useState(1);
   const [q, setQ] = useState("");
   const [pay, setPay] = useState<any>(null);
+  const [batchOpen, setBatchOpen] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
   const pageSize = 20;
 
@@ -47,6 +48,10 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
           <Input placeholder={`搜尋${partyLabel}`} className="pl-9 w-72" value={q} onChange={(e) => { setPage(1); setQ(e.target.value); }} />
         </div>
         <div className="flex items-center gap-2">
+        <Button onClick={() => setBatchOpen(true)}>
+          <ListChecks className="h-4 w-4" />
+          批次沖帳
+        </Button>
         <Button variant="outline" onClick={async () => {
           const res = await fetch(`${endpoint}?q=${encodeURIComponent(q)}&pageSize=10000`);
           const d = await res.json();
@@ -143,6 +148,7 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
         </div>
       </div>
       {pay && <PayDialog row={pay} kind={kind} onClose={() => setPay(null)} onDone={() => { setPay(null); load(); }} />}
+      {batchOpen && <BatchPayDialog kind={kind} onClose={() => setBatchOpen(false)} onDone={() => { setBatchOpen(false); load(); }} />}
     </div>
   );
 }
@@ -229,6 +235,267 @@ function PayDialog({ row, kind, onClose, onDone }: any) {
             </>
           )}
         </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── 批次沖帳（先輸入實收/實付金額 → 選帳單 → 差額=折讓）───
+function BatchPayDialog({ kind, onClose, onDone }: { kind: "ar" | "ap"; onClose: () => void; onDone: () => void }) {
+  const endpoint = kind === "ar" ? "/api/accounting/receivables" : "/api/accounting/payables";
+  const partyEndpoint = kind === "ar" ? "/api/customers" : "/api/suppliers";
+  const partyLabel = kind === "ar" ? "客戶" : "供應商";
+  const partyIdKey = kind === "ar" ? "customerId" : "supplierId";
+  const payLabel = kind === "ar" ? "實收金額" : "實付金額";
+
+  const [parties, setParties] = useState<any[]>([]);
+  const [partyId, setPartyId] = useState("");
+  const [items, setItems] = useState<any[]>([]);
+  const [loadingItems, setLoadingItems] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [totalPay, setTotalPay] = useState<number>(0);
+  const [method, setMethod] = useState("CASH");
+  const [discountAsWriteOff, setDiscountAsWriteOff] = useState(false);
+  const [discountReason, setDiscountReason] = useState("");
+  const [remark, setRemark] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [results, setResults] = useState<any[] | null>(null);
+
+  useEffect(() => {
+    fetch(`${partyEndpoint}?pageSize=1000`).then((r) => r.json()).then((d) => setParties(d.items ?? []));
+  }, [partyEndpoint]);
+
+  useEffect(() => {
+    if (!partyId) { setItems([]); return; }
+    setLoadingItems(true);
+    setSelected(new Set());
+    setTotalPay(0);
+    fetch(`${endpoint}?${partyIdKey}=${partyId}&status=PENDING&pageSize=1000`)
+      .then((r) => r.json())
+      .then((d) => {
+        return fetch(`${endpoint}?${partyIdKey}=${partyId}&status=PARTIAL&pageSize=1000`).then((r) => r.json()).then((d2) => {
+          const all = [...(d.items ?? []), ...(d2.items ?? [])];
+          setItems(all);
+        });
+      })
+      .finally(() => setLoadingItems(false));
+  }, [partyId, endpoint, partyIdKey]);
+
+  const selectedItems = items.filter((i) => selected.has(i.id));
+  const totalBalance = selectedItems.reduce((s, i) => s + Number(i.amount) - Number(i.paidAmount), 0);
+  const difference = totalBalance - totalPay;
+  const hasDiff = difference > 0.001;
+
+  function toggleSelect(id: string) {
+    const next = new Set(selected);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    setSelected(next);
+  }
+  function toggleAll() {
+    if (selected.size === items.length) setSelected(new Set());
+    else setSelected(new Set(items.map((i) => i.id)));
+  }
+
+  async function save() {
+    if (selectedItems.length === 0) return toast.error("請至少勾選一筆帳單");
+    if (totalPay < 0) return toast.error("金額不可為負");
+    if (totalPay > totalBalance) return toast.error(`${payLabel}不可大於未結總額`);
+    if (hasDiff && !discountAsWriteOff) return toast.error("有差額未處理，請勾選「差額以折讓沖銷」或調整金額");
+    setSaving(true);
+    const batchResults: any[] = [];
+    try {
+      let remainPay = totalPay;
+      let remainDiscount = discountAsWriteOff ? difference : 0;
+      for (let idx = 0; idx < selectedItems.length; idx++) {
+        const item = selectedItems[idx];
+        const itemBalance = Number(item.amount) - Number(item.paidAmount);
+        const isLast = idx === selectedItems.length - 1;
+        // 按比例分配收款
+        let itemPay: number;
+        let itemDiscount: number;
+        if (isLast) {
+          itemPay = Math.round(remainPay * 100) / 100;
+          itemDiscount = Math.round(remainDiscount * 100) / 100;
+        } else {
+          const ratio = totalBalance > 0 ? itemBalance / totalBalance : 0;
+          itemPay = Math.round(totalPay * ratio * 100) / 100;
+          itemDiscount = discountAsWriteOff ? Math.round(difference * ratio * 100) / 100 : 0;
+        }
+        remainPay -= itemPay;
+        remainDiscount -= itemDiscount;
+
+        const res = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            [kind === "ar" ? "receivableId" : "payableId"]: item.id,
+            amount: itemPay,
+            discount: itemDiscount > 0 ? itemDiscount : 0,
+            discountNote: itemDiscount > 0 ? (discountReason || "批次沖帳差額折讓") : "",
+            method,
+            remark,
+          }),
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          batchResults.push({ id: item.id, ok: false, error: err.error });
+        } else {
+          const data = await res.json();
+          batchResults.push({ id: item.id, ok: true, ...data });
+        }
+      }
+      setResults(batchResults);
+      const okCount = batchResults.filter((r) => r.ok).length;
+      const failCount = batchResults.filter((r) => !r.ok).length;
+      if (failCount === 0) toast.success(`已完成 ${okCount} 筆沖帳`);
+      else toast.error(`成功 ${okCount} 筆，失敗 ${failCount} 筆`);
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader><DialogTitle>批次沖帳 — {kind === "ar" ? "應收帳款" : "應付帳款"}</DialogTitle></DialogHeader>
+
+        {results ? (
+          <div className="space-y-3">
+            <div className="text-sm font-medium">沖帳結果</div>
+            <div className="space-y-1 text-sm">
+              {results.map((r, i) => {
+                const item = items.find((it) => it.id === r.id);
+                const rel = kind === "ar" ? item?.salesOrder : item?.purchaseOrder;
+                return (
+                  <div key={i} className={`flex items-center gap-2 ${r.ok ? "text-emerald-700" : "text-red-600"}`}>
+                    <span>{r.ok ? "✓" : "✗"}</span>
+                    <span className="font-mono">{rel?.number ?? "—"}</span>
+                    <span>{r.ok ? `單號 ${r.number}` : r.error}</span>
+                  </div>
+                );
+              })}
+            </div>
+            <DialogFooter><Button onClick={onDone}>完成</Button></DialogFooter>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {/* Step 1: 選廠商/客戶 + 輸入實收金額 */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>選擇{partyLabel}</Label>
+                <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={partyId} onChange={(e) => setPartyId(e.target.value)}>
+                  <option value="">-- 請選擇 --</option>
+                  {parties.map((p) => <option key={p.id} value={p.id}>{p.companyName}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <Label>{payLabel}</Label>
+                <Input inputMode="decimal" className="[appearance:textfield] text-lg font-bold" value={totalPay || ""} onChange={(e) => setTotalPay(Number(e.target.value.replace(/[^0-9.]/g, "")))} placeholder="例: 30000" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>付款方式</Label>
+                <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={method} onChange={(e) => setMethod(e.target.value)}>
+                  <option value="CASH">現金</option>
+                  <option value="BANK">銀行轉帳</option>
+                  <option value="CHEQUE">支票</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <Label>備註</Label>
+                <Input value={remark} onChange={(e) => setRemark(e.target.value)} />
+              </div>
+            </div>
+
+            {/* Step 2: 勾選帳單 */}
+            {partyId && (
+              <>
+                <div className="text-sm font-medium border-t pt-3">勾選要沖銷的帳單</div>
+                {loadingItems ? (
+                  <div className="text-center py-6"><Loader2 className="inline h-5 w-5 animate-spin" /></div>
+                ) : items.length === 0 ? (
+                  <div className="text-center py-6 text-muted-foreground text-sm">此{partyLabel}沒有未結帳單</div>
+                ) : (
+                  <div className="border rounded-md overflow-hidden max-h-[280px] overflow-y-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-muted/50 text-xs text-muted-foreground sticky top-0">
+                        <tr>
+                          <th className="p-2 w-8"><input type="checkbox" checked={selected.size === items.length && items.length > 0} onChange={toggleAll} /></th>
+                          <th className="p-2 text-left">關聯單號</th>
+                          <th className="p-2 text-left">日期</th>
+                          <th className="p-2 text-right">金額</th>
+                          <th className="p-2 text-right">已{kind === "ar" ? "收" : "付"}</th>
+                          <th className="p-2 text-right">未結</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {items.map((i) => {
+                          const rel = kind === "ar" ? i.salesOrder : i.purchaseOrder;
+                          const bal = Number(i.amount) - Number(i.paidAmount);
+                          return (
+                            <tr key={i.id} className={`border-t cursor-pointer hover:bg-muted/30 ${selected.has(i.id) ? "bg-blue-50" : ""}`} onClick={() => toggleSelect(i.id)}>
+                              <td className="p-2"><input type="checkbox" checked={selected.has(i.id)} onChange={() => toggleSelect(i.id)} /></td>
+                              <td className="p-2 font-mono text-xs">{rel?.number ?? "—"}</td>
+                              <td className="p-2">{formatDate(i.createdAt)}</td>
+                              <td className="p-2 text-right">{formatMoney(i.amount)}</td>
+                              <td className="p-2 text-right">{formatMoney(i.paidAmount)}</td>
+                              <td className="p-2 text-right text-red-600 font-medium">{formatMoney(bal)}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {/* Step 3: 計算結果 */}
+                {selectedItems.length > 0 && (
+                  <div className="space-y-3">
+                    <div className="text-sm bg-muted/50 rounded-md p-3 space-y-1">
+                      <div className="flex justify-between"><span>已勾選 {selectedItems.length} 筆，未結總額</span><span className="font-bold">{formatMoney(totalBalance)}</span></div>
+                      <div className="flex justify-between"><span>{payLabel}</span><span className="font-bold">{formatMoney(totalPay)}</span></div>
+                      {hasDiff && (
+                        <div className="flex justify-between text-amber-600 font-medium border-t pt-1 mt-1">
+                          <span>差額</span><span>{formatMoney(difference)}</span>
+                        </div>
+                      )}
+                      {!hasDiff && totalPay > 0 && (
+                        <div className="flex justify-between text-emerald-600 font-medium border-t pt-1 mt-1">
+                          <span>狀態</span><span>金額剛好</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {hasDiff && (
+                      <div className="space-y-2 border border-amber-200 bg-amber-50 rounded-md p-3">
+                        <label className="flex items-center gap-2 text-sm cursor-pointer">
+                          <input type="checkbox" checked={discountAsWriteOff} onChange={(e) => setDiscountAsWriteOff(e.target.checked)} />
+                          <span>差額 <span className="font-bold">{formatMoney(difference)}</span> 以<span className="font-bold text-amber-700">折讓</span>沖銷</span>
+                        </label>
+                        {discountAsWriteOff && (
+                          <div className="space-y-1">
+                            <Label>折讓原因</Label>
+                            <Input value={discountReason} onChange={(e) => setDiscountReason(e.target.value)} placeholder="例: 尾數差異 / 品質折讓 / 數量短少" />
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+
+            <DialogFooter>
+              <Button variant="outline" onClick={onClose}>取消</Button>
+              <Button onClick={save} disabled={saving || selectedItems.length === 0 || totalPay <= 0}>
+                {saving ? "處理中..." : `確認沖帳 (${selectedItems.length} 筆)`}
+              </Button>
+            </DialogFooter>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

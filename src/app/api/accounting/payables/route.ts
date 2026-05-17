@@ -7,9 +7,14 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const tenantId = await requireTenantId();
   const sp = req.nextUrl.searchParams;
   const q = sp.get("q") ?? "";
+  const supplierId = sp.get("supplierId") ?? "";
+  const statusFilter = sp.get("status") ?? "";
   const page = Number(sp.get("page") ?? 1);
   const pageSize = Number(sp.get("pageSize") ?? 20);
-  const where: any = q ? { tenantId, supplier: { companyName: { contains: q, mode: "insensitive" } } } : { tenantId };
+  const where: any = { tenantId };
+  if (q) where.supplier = { companyName: { contains: q, mode: "insensitive" } };
+  if (supplierId) where.supplierId = supplierId;
+  if (statusFilter) where.status = statusFilter;
   const [items, total] = await Promise.all([
     prisma.accountsPayable.findMany({
       where,
