@@ -11,22 +11,22 @@ export type DocItem = {
 export function calcTotals(items: DocItem[]) {
   let subtotal = 0;
   let discount = 0;
-  let taxAmount = 0;
   const computed = items.map((i) => {
     const line = i.quantity * i.unitPrice;
     const ldisc = Number(i.discount ?? 0);
     const taxable = line - ldisc;
-    const tax = +(taxable * Number(i.taxRate ?? 0)).toFixed(2);
     subtotal += line;
     discount += ldisc;
-    taxAmount += tax;
     return { ...i, subtotal: +(taxable).toFixed(2) };
   });
+  const taxableTotal = subtotal - discount;
+  const taxAmount = Math.round(taxableTotal * 0.05);
+  const total = +(subtotal - discount + taxAmount).toFixed(2);
   return {
     subtotal: +subtotal.toFixed(2),
     discount: +discount.toFixed(2),
-    taxAmount: +taxAmount.toFixed(2),
-    total: +(subtotal - discount + taxAmount).toFixed(2),
+    taxAmount,
+    total,
     computed,
   };
 }

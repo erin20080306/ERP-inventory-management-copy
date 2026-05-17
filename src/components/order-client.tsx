@@ -257,11 +257,8 @@ function CreateOrderDialog({ kind, open, onClose, onCreated }: any) {
 
   const subtotal = items.reduce((s, i) => s + Number(i.quantity) * Number(i.unitPrice), 0);
   const discount = items.reduce((s, i) => s + Number(i.discount ?? 0), 0);
-  const taxAmount = items.reduce((s, i) => {
-    const line = Number(i.quantity) * Number(i.unitPrice) - Number(i.discount ?? 0);
-    const tax = +(line * Number(i.taxRate ?? 0)).toFixed(2);
-    return s + tax;
-  }, 0);
+  const taxableTotal = subtotal - discount;
+  const taxAmount = Math.round(taxableTotal * 0.05);
   const total = subtotal - discount + taxAmount;
 
   async function save() {
@@ -590,11 +587,8 @@ function EditOrderDialog({ kind, id, onClose, onSaved }: { kind: Kind; id: strin
 
   const subtotal = items.reduce((s, i) => s + Number(i.quantity) * Number(i.unitPrice), 0);
   const discount = items.reduce((s, i) => s + Number(i.discount ?? 0), 0);
-  const taxAmount = items.reduce((s, i) => {
-    const line = Number(i.quantity) * Number(i.unitPrice) - Number(i.discount ?? 0);
-    const tax = +(line * Number(i.taxRate ?? 0)).toFixed(2);
-    return s + tax;
-  }, 0);
+  const taxableTotal = subtotal - discount;
+  const taxAmount = Math.round(taxableTotal * 0.05);
   const total = subtotal - discount + taxAmount;
 
   async function save() {
