@@ -260,10 +260,10 @@ function InfoPage({ onClose }: { onClose: () => void }) {
       if (data.ok) {
         setSent(true);
       } else {
-        alert("送出失敗，請稍後再試或直接聯繫 erin20080306@gmail.com");
+        alert(`送出失敗：${data.error || "未知錯誤"}\n${JSON.stringify(data.detail || "")}\n\n請直接聯繫 erin20080306@gmail.com`);
       }
-    } catch {
-      alert("送出失敗，請稍後再試或直接聯繫 erin20080306@gmail.com");
+    } catch (err: any) {
+      alert(`送出失敗：${err.message || "網路錯誤"}\n\n請直接聯繫 erin20080306@gmail.com`);
     }
     setSending(false);
   }
