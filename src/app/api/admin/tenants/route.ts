@@ -60,6 +60,8 @@ export const GET = apiHandler(async (_req: NextRequest) => {
       isActive: u.isActive,
       isSuperAdmin: (u as any).isSuperAdmin,
       isPaid: u.isPaid,
+      paymentType: u.paymentType,
+      subscriptionEnd: u.subscriptionEnd,
       trialStart: u.trialStart,
       lastLoginAt: u.lastLoginAt,
       createdAt: u.createdAt,

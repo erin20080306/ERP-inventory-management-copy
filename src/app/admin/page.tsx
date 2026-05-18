@@ -9,6 +9,29 @@ import { formatDateTime } from "@/lib/utils";
 import { Building2, Users, Shield, Loader2, Activity, LogIn, LogOut } from "lucide-react";
 import { signOut } from "next-auth/react";
 
+const TRIAL_DAYS = 2;
+
+function getTenantStatus(user: any) {
+  if (!user) return <Badge variant="danger">無用戶</Badge>;
+  if (user.isSuperAdmin) return <Badge variant="warning">管理員</Badge>;
+  if (user.isPaid && user.paymentType === "ONCE") return <Badge variant="success">一次付款（永久）</Badge>;
+  if (user.isPaid && user.paymentType === "MONTHLY") {
+    const subEnd = user.subscriptionEnd ? new Date(user.subscriptionEnd).getTime() : 0;
+    if (Date.now() < subEnd) {
+      const days = Math.ceil((subEnd - Date.now()) / (1000 * 60 * 60 * 24));
+      return <Badge variant="info">月租付款中（剩 {days} 天）</Badge>;
+    }
+    return <Badge variant="danger">月租到期未付款</Badge>;
+  }
+  if (user.isPaid) return <Badge variant="success">已付款</Badge>;
+  // Trial check
+  const trialStart = new Date(user.trialStart).getTime();
+  const expireTs = trialStart + TRIAL_DAYS * 24 * 60 * 60 * 1000;
+  if (Date.now() >= expireTs) return <Badge variant="danger">試用已到期</Badge>;
+  const remainHours = Math.ceil((expireTs - Date.now()) / (1000 * 60 * 60));
+  return <Badge variant="warning">試用中（剩 {remainHours} 小時）</Badge>;
+}
+
 export default function AdminPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -133,19 +156,26 @@ export default function AdminPage() {
                 <TR>
                   <TH>公司名稱</TH>
                   <TH>用戶數</TH>
+                  <TH>訂閱狀態</TH>
                   <TH>建立時間</TH>
                   <TH>ID</TH>
                 </TR>
               </THead>
               <TBody>
-                {data.tenants.map((t: any) => (
-                  <TR key={t.id}>
-                    <TD className="font-medium">{t.name}</TD>
-                    <TD><Badge variant="info">{t.userCount} 人</Badge></TD>
-                    <TD className="text-sm text-slate-400">{formatDateTime(t.createdAt)}</TD>
-                    <TD className="text-xs font-mono text-slate-500">{t.id}</TD>
-                  </TR>
-                ))}
+                {data.tenants.map((t: any) => {
+                  const tenantUsers = data.users.filter((u: any) => u.tenantId === t.id);
+                  const firstUser = tenantUsers.length > 0 ? tenantUsers[tenantUsers.length - 1] : null;
+                  const status = getTenantStatus(firstUser);
+                  return (
+                    <TR key={t.id}>
+                      <TD className="font-medium">{t.name}</TD>
+                      <TD><Badge variant="info">{t.userCount} 人</Badge></TD>
+                      <TD>{status}</TD>
+                      <TD className="text-sm text-slate-400">{formatDateTime(t.createdAt)}</TD>
+                      <TD className="text-xs font-mono text-slate-500">{t.id}</TD>
+                    </TR>
+                  );
+                })}
               </TBody>
             </Table>
           </CardContent>
