@@ -131,10 +131,6 @@ function SubscriptionBanner({ remainMs }: { remainMs: number }) {
 function Paywall() {
   const [checking, setChecking] = useState(false);
   const [showInfoPage, setShowInfoPage] = useState(false);
-  const [showFreeUse, setShowFreeUse] = useState(false);
-  const [freePassword, setFreePassword] = useState("");
-  const [freeError, setFreeError] = useState("");
-  const [freeLoading, setFreeLoading] = useState(false);
 
   async function handleCheckPayment() {
     setChecking(true);
@@ -148,27 +144,6 @@ function Paywall() {
       } catch {}
       if (attempts >= 60) { clearInterval(interval); setChecking(false); }
     }, 5000);
-  }
-
-  async function handleFreeUse() {
-    setFreeError("");
-    setFreeLoading(true);
-    try {
-      const res = await fetch("/api/trial/free-use", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: freePassword }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        window.location.reload();
-      } else {
-        setFreeError(data.error || "密碼錯誤");
-      }
-    } catch {
-      setFreeError("系統錯誤，請稍後再試");
-    }
-    setFreeLoading(false);
   }
 
   if (showInfoPage) {
@@ -234,33 +209,6 @@ function Paywall() {
               我已完成付款，等待系統確認
             </button>
 
-            {/* 不用付款使用（需密碼） */}
-            <div className="border-t border-white/10 pt-4 space-y-3">
-              {!showFreeUse ? (
-                <button onClick={() => setShowFreeUse(true)} className="w-full h-10 text-sm text-amber-400 hover:text-amber-300 border border-amber-500/30 hover:border-amber-500/50 rounded-xl transition">
-                  不用付款使用（需輸入超級管理員密碼）
-                </button>
-              ) : (
-                <div className="space-y-2">
-                  <input
-                    type="password"
-                    placeholder="請輸入超級管理員密碼"
-                    value={freePassword}
-                    onChange={(e) => setFreePassword(e.target.value)}
-                    className="w-full h-10 px-4 bg-white/5 border border-white/20 rounded-xl text-white placeholder:text-slate-500 text-sm focus:outline-none focus:border-amber-400"
-                  />
-                  {freeError && <p className="text-xs text-red-400">{freeError}</p>}
-                  <button
-                    onClick={handleFreeUse}
-                    disabled={freeLoading || !freePassword}
-                    className="w-full h-10 text-sm bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white font-medium rounded-xl transition"
-                  >
-                    {freeLoading ? "驗證中..." : "確認啟用"}
-                  </button>
-                </div>
-              )}
-            </div>
-
             {/* 了解更多 / 諮詢 */}
             <button onClick={() => setShowInfoPage(true)} className="w-full h-10 text-sm text-indigo-400 hover:text-indigo-300 border border-indigo-500/30 hover:border-indigo-500/50 rounded-xl transition">
               了解更多服務內容 / 填寫諮詢表單
@@ -303,10 +251,20 @@ function InfoPage({ onClose }: { onClose: () => void }) {
     e.preventDefault();
     setSending(true);
     try {
-      await fetch("https://formspree.io/f/xzzzkwkl", {
+      await fetch("https://formsubmit.co/ajax/erin20080306@gmail.com", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        headers: { "Content-Type": "application/json", "Accept": "application/json" },
+        body: JSON.stringify({
+          _subject: "ERP系統諮詢表單",
+          姓名: form.name,
+          Email: form.email,
+          "Line ID": form.lineId,
+          使用平台: form.platform,
+          資料格式: form.dataFormat,
+          需求: form.problem,
+          方案: form.plan,
+          備註: form.notes,
+        }),
       });
       setSent(true);
     } catch {}
