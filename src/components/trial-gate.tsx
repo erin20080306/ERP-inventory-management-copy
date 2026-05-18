@@ -130,7 +130,7 @@ function SubscriptionBanner({ remainMs }: { remainMs: number }) {
 /* ─── 試用到期 paywall ─── */
 function Paywall() {
   const [checking, setChecking] = useState(false);
-  const [showInfoPage, setShowInfoPage] = useState(false);
+  const [showInfoPage, setShowInfoPage] = useState(true);
 
   async function handleCheckPayment() {
     setChecking(true);
@@ -247,28 +247,22 @@ function InfoPage({ onClose }: { onClose: () => void }) {
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
 
-  async function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setSending(true);
-    try {
-      await fetch("https://formsubmit.co/ajax/erin20080306@gmail.com", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Accept": "application/json" },
-        body: JSON.stringify({
-          _subject: "ERP系統諮詢表單",
-          姓名: form.name,
-          Email: form.email,
-          "Line ID": form.lineId,
-          使用平台: form.platform,
-          資料格式: form.dataFormat,
-          需求: form.problem,
-          方案: form.plan,
-          備註: form.notes,
-        }),
-      });
-      setSent(true);
-    } catch {}
-    setSending(false);
+    const body = [
+      `姓名：${form.name}`,
+      `Email：${form.email}`,
+      `Line ID：${form.lineId}`,
+      `使用平台：${form.platform}`,
+      `資料格式：${form.dataFormat}`,
+      `需求：${form.problem}`,
+      `方案：${form.plan}`,
+      `備註：${form.notes}`,
+    ].join("\n");
+    const subject = encodeURIComponent("ERP系統諮詢表單");
+    const mailBody = encodeURIComponent(body);
+    window.open(`mailto:erin20080306@gmail.com?subject=${subject}&body=${mailBody}`, "_blank");
+    setSent(true);
   }
 
   return (
