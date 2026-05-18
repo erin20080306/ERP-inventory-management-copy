@@ -21,13 +21,19 @@ export async function GET() {
     select: { trialStart: true, isPaid: true, paymentType: true, subscriptionEnd: true, tenantId: true },
   });
 
+  // 獲取租戶使用者數量
+  let userCount = 0;
+  if (user?.tenantId) {
+    userCount = await prisma.user.count({ where: { tenantId: user.tenantId, isActive: true } });
+  }
+
   if (!user) {
     return NextResponse.json({ status: "no_session" });
   }
 
   // 永久授權
   if (user.isPaid && user.paymentType === "ONCE") {
-    return NextResponse.json({ status: "paid", paymentType: "ONCE" });
+    return NextResponse.json({ status: "paid", paymentType: "ONCE", userCount });
   }
 
   // 月付訂閱
@@ -35,7 +41,7 @@ export async function GET() {
     const subEnd = user.subscriptionEnd ? user.subscriptionEnd.getTime() : 0;
     const now = Date.now();
     if (now < subEnd) {
-      return NextResponse.json({ status: "paid", paymentType: "MONTHLY", subscriptionRemainMs: subEnd - now });
+      return NextResponse.json({ status: "paid", paymentType: "MONTHLY", subscriptionRemainMs: subEnd - now, userCount });
     }
     // 到期立即鎖定該租戶所有帳號
     if (user.tenantId) {
@@ -48,7 +54,7 @@ export async function GET() {
 
   // 舊版已付款（兼容）
   if (user.isPaid) {
-    return NextResponse.json({ status: "paid", paymentType: "ONCE" });
+    return NextResponse.json({ status: "paid", paymentType: "ONCE", userCount });
   }
 
   // 試用期
@@ -60,5 +66,5 @@ export async function GET() {
     return NextResponse.json({ status: "expired" });
   }
 
-  return NextResponse.json({ status: "trial", remainMs: expireTs - now });
+  return NextResponse.json({ status: "trial", remainMs: expireTs - now, userCount });
 }

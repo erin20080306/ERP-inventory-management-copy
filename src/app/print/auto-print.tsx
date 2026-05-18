@@ -66,11 +66,8 @@ export function AutoPrint() {
         🖨️ 列印
       </button>
       <button
-        onClick={() => {
-          alert("即將開啟列印視窗，請在「目的地」選擇「另存為 PDF」即可下載 PDF 檔");
-          window.print();
-        }}
-        title="另存為 PDF 檔"
+        onClick={() => window.print()}
+        title="在列印對話框選「另存為 PDF」即可下載"
         style={{
           padding: "8px 14px",
           background: "#10b981",

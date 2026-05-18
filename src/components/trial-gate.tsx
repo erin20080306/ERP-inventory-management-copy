@@ -13,6 +13,7 @@ export function TrialGate({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<GateState>("loading");
   const [remainMs, setRemainMs] = useState(0);
   const [subRemainMs, setSubRemainMs] = useState(0);
+  const [userCount, setUserCount] = useState<number>(0);
   const expireAtRef = useRef<number>(0);
   const subEndRef = useRef<number>(0);
 
@@ -26,6 +27,7 @@ export function TrialGate({ children }: { children: React.ReactNode }) {
           subEndRef.current = Date.now() + data.subscriptionRemainMs;
           setSubRemainMs(data.subscriptionRemainMs);
         }
+        if (typeof data.userCount === "number") setUserCount(data.userCount);
       } else if (data.status === "locked") {
         setState("locked");
       } else if (data.status === "expired") {
@@ -35,6 +37,7 @@ export function TrialGate({ children }: { children: React.ReactNode }) {
         expireAtRef.current = Date.now() + remain;
         setRemainMs(remain);
         setState("trial");
+        if (typeof data.userCount === "number") setUserCount(data.userCount);
       }
     } catch {
       setState("trial");
@@ -84,7 +87,7 @@ export function TrialGate({ children }: { children: React.ReactNode }) {
     const secs = Math.floor((remainMs % (1000 * 60)) / 1000);
     return (
       <>
-        <TrialBanner hours={hours} mins={mins} secs={secs} />
+        <TrialBanner hours={hours} mins={mins} secs={secs} userCount={userCount} />
         {children}
       </>
     );
@@ -94,7 +97,7 @@ export function TrialGate({ children }: { children: React.ReactNode }) {
 }
 
 /* ─── 試用期倒數 banner ─── */
-function TrialBanner({ hours, mins, secs }: { hours: number; mins: number; secs: number }) {
+function TrialBanner({ hours, mins, secs, userCount }: { hours: number; mins: number; secs: number; userCount: number }) {
   return (
     <div className="sticky top-0 z-[999] bg-gradient-to-r from-amber-500 to-orange-500 text-white px-4 py-2 flex items-center justify-center gap-2 text-sm font-medium shadow-lg print:hidden">
       <Clock className="h-4 w-4 shrink-0" />
@@ -108,6 +111,11 @@ function TrialBanner({ hours, mins, secs }: { hours: number; mins: number; secs:
       <a href={PAYPAL_MODIFY_URL} target="_blank" rel="noopener noreferrer" className="ml-2 inline-flex items-center gap-1 bg-white text-emerald-600 px-3 py-1 rounded-full text-xs font-bold hover:bg-emerald-50 transition">
         <Wrench className="h-3 w-3" />一次修改
       </a>
+      {userCount > 0 && (
+        <span className="ml-3 text-xs bg-white/20 px-2 py-1 rounded-full">
+          📊 目前租用人數：{userCount}
+        </span>
+      )}
     </div>
   );
 }
