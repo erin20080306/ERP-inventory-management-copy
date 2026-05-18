@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { toast } from "sonner";
 import { Loader2, Lock, User, Building2, ShieldCheck, BarChart3, Package, Sparkles } from "lucide-react";
 import Link from "next/link";
+import { PWAInstall } from "@/components/pwa-install";
 
 export default function LoginPage() {
   return (
@@ -181,6 +182,10 @@ function LoginInner() {
               <Link href="/register" className="text-sm text-slate-400 hover:text-white transition">
                 還沒有帳號？<span className="text-indigo-400 font-medium">立即註冊</span>
               </Link>
+            </div>
+
+            <div className="mt-4 flex justify-center">
+              <PWAInstall />
             </div>
           </div>
         </div>
