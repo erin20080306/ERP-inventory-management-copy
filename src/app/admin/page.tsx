@@ -203,31 +203,79 @@ export default function AdminPage() {
                       </TD>
                       <TD>
                         {!u.isSuperAdmin && (
-                          <button
-                            onClick={async () => {
-                              const action = u.isPaid ? "revoke" : "grant";
-                              const msg = u.isPaid ? "確定取消永久使用權限？" : "確定授予永久使用權限？";
-                              if (!confirm(msg)) return;
-                              const res = await fetch("/api/admin/set-paid", {
-                                method: "POST",
-                                headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({ userId: u.id, isPaid: !u.isPaid }),
-                              });
-                              if (res.ok) {
-                                setData((prev: any) => ({
-                                  ...prev,
-                                  users: prev.users.map((x: any) => x.id === u.id ? { ...x, isPaid: !u.isPaid } : x),
-                                }));
-                              }
-                            }}
-                            className={`px-3 py-1 rounded text-xs font-medium transition ${
-                              u.isPaid
-                                ? "bg-red-900/50 text-red-300 hover:bg-red-800"
-                                : "bg-emerald-900/50 text-emerald-300 hover:bg-emerald-800"
-                            }`}
-                          >
-                            {u.isPaid ? "取消永久" : "設為永久使用"}
-                          </button>
+                          <div className="flex flex-wrap gap-1">
+                            <button
+                              onClick={async () => {
+                                const msg = u.isPaid ? "確定取消永久使用權限？" : "確定授予永久使用權限？";
+                                if (!confirm(msg)) return;
+                                const res = await fetch("/api/admin/set-paid", {
+                                  method: "POST",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({ userId: u.id, isPaid: !u.isPaid }),
+                                });
+                                if (res.ok) {
+                                  setData((prev: any) => ({
+                                    ...prev,
+                                    users: prev.users.map((x: any) => x.id === u.id ? { ...x, isPaid: !u.isPaid } : x),
+                                  }));
+                                }
+                              }}
+                              className={`px-3 py-1 rounded text-xs font-medium transition ${
+                                u.isPaid
+                                  ? "bg-red-900/50 text-red-300 hover:bg-red-800"
+                                  : "bg-emerald-900/50 text-emerald-300 hover:bg-emerald-800"
+                              }`}
+                            >
+                              {u.isPaid ? "取消永久" : "設為永久使用"}
+                            </button>
+                            {!u.isPaid && (
+                              <button
+                                onClick={async () => {
+                                  const pw = prompt("請輸入超級管理員密碼以啟用不用付款使用：");
+                                  if (!pw) return;
+                                  const res = await fetch("/api/trial/free-use", {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({ password: pw, userId: u.id }),
+                                  });
+                                  if (res.ok) {
+                                    setData((prev: any) => ({
+                                      ...prev,
+                                      users: prev.users.map((x: any) => x.id === u.id ? { ...x, isPaid: true } : x),
+                                    }));
+                                    alert("已啟用");
+                                  } else {
+                                    const d = await res.json();
+                                    alert(d.error || "密碼錯誤");
+                                  }
+                                }}
+                                className="px-3 py-1 rounded text-xs font-medium bg-amber-900/50 text-amber-300 hover:bg-amber-800 transition"
+                              >
+                                不用付款使用
+                              </button>
+                            )}
+                            {u.isPaid && (
+                              <button
+                                onClick={async () => {
+                                  if (!confirm("確定解除永久使用並退回試用？（試用期仍從註冊日期計算）")) return;
+                                  const res = await fetch("/api/admin/revoke-to-trial", {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({ userId: u.id }),
+                                  });
+                                  if (res.ok) {
+                                    setData((prev: any) => ({
+                                      ...prev,
+                                      users: prev.users.map((x: any) => x.id === u.id ? { ...x, isPaid: false } : x),
+                                    }));
+                                  }
+                                }}
+                                className="px-3 py-1 rounded text-xs font-medium bg-orange-900/50 text-orange-300 hover:bg-orange-800 transition"
+                              >
+                                解除退回試用
+                              </button>
+                            )}
+                          </div>
                         )}
                       </TD>
                     </TR>

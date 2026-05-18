@@ -11,14 +11,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "未登入" }, { status: 401 });
   }
 
-  const { password } = await req.json();
+  const { password, userId } = await req.json();
   if (password !== SUPER_ADMIN_PASSWORD) {
     return NextResponse.json({ error: "密碼錯誤" }, { status: 403 });
   }
 
-  // Get user's tenantId to update all users in the same tenant
+  // If userId is provided (from admin backend), use that user; otherwise use current user
+  const targetUserId = userId || session.user.id;
+
   const user = await prisma.user.findUnique({
-    where: { id: session.user.id },
+    where: { id: targetUserId },
     select: { tenantId: true },
   });
 
@@ -34,7 +36,7 @@ export async function POST(req: NextRequest) {
     });
   } else {
     await prisma.user.update({
-      where: { id: session.user.id },
+      where: { id: targetUserId },
       data: { isPaid: true, paymentType: "ONCE", isActive: true },
     });
   }
