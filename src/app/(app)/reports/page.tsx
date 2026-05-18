@@ -62,7 +62,7 @@ export default async function Page() {
           <CardDescription>一鍵列印符合一般公認會計原則 (GAAP) 格式之資產負債表、損益表與試算表</CardDescription>
         </CardHeader>
         <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <Link href="/print/balance-sheet" target="_blank">
+          <Link href="/print/balance-sheet">
             <Button variant="outline" className="w-full justify-start h-auto py-3">
               <Scale className="h-5 w-5" />
               <div className="text-left ml-1">
@@ -71,7 +71,7 @@ export default async function Page() {
               </div>
             </Button>
           </Link>
-          <Link href="/print/income-statement" target="_blank">
+          <Link href="/print/income-statement">
             <Button variant="outline" className="w-full justify-start h-auto py-3">
               <FileText className="h-5 w-5" />
               <div className="text-left ml-1">
@@ -80,7 +80,7 @@ export default async function Page() {
               </div>
             </Button>
           </Link>
-          <Link href="/print/trial-balance" target="_blank">
+          <Link href="/print/trial-balance">
             <Button variant="outline" className="w-full justify-start h-auto py-3">
               <BookOpen className="h-5 w-5" />
               <div className="text-left ml-1">
