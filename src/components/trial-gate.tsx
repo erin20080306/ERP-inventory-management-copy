@@ -247,22 +247,49 @@ function InfoPage({ onClose }: { onClose: () => void }) {
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const body = [
-      `姓名：${form.name}`,
-      `Email：${form.email}`,
-      `Line ID：${form.lineId}`,
-      `使用平台：${form.platform}`,
-      `資料格式：${form.dataFormat}`,
-      `需求：${form.problem}`,
-      `方案：${form.plan}`,
-      `備註：${form.notes}`,
-    ].join("\n");
-    const subject = encodeURIComponent("ERP系統諮詢表單");
-    const mailBody = encodeURIComponent(body);
-    window.open(`mailto:erin20080306@gmail.com?subject=${subject}&body=${mailBody}`, "_blank");
-    setSent(true);
+    setSending(true);
+    try {
+      const res = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setSent(true);
+      } else {
+        // Fallback to mailto
+        const body = [
+          `姓名：${form.name}`,
+          `Email：${form.email}`,
+          `Line ID：${form.lineId}`,
+          `使用平台：${form.platform}`,
+          `資料格式：${form.dataFormat}`,
+          `需求：${form.problem}`,
+          `方案：${form.plan}`,
+          `備註：${form.notes}`,
+        ].join("\n");
+        window.open(`mailto:erin20080306@gmail.com?subject=${encodeURIComponent("ERP系統諮詢表單")}&body=${encodeURIComponent(body)}`, "_blank");
+        setSent(true);
+      }
+    } catch {
+      // Fallback to mailto on error
+      const body = [
+        `姓名：${form.name}`,
+        `Email：${form.email}`,
+        `Line ID：${form.lineId}`,
+        `使用平台：${form.platform}`,
+        `資料格式：${form.dataFormat}`,
+        `需求：${form.problem}`,
+        `方案：${form.plan}`,
+        `備註：${form.notes}`,
+      ].join("\n");
+      window.open(`mailto:erin20080306@gmail.com?subject=${encodeURIComponent("ERP系統諮詢表單")}&body=${encodeURIComponent(body)}`, "_blank");
+      setSent(true);
+    }
+    setSending(false);
   }
 
   return (
