@@ -1270,3 +1270,4 @@ model FixedAsset {
   @@index([category])
   @@index([status])
 }
+

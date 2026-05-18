@@ -4,7 +4,6 @@ export async function POST(req: NextRequest) {
   try {
     const data = await req.json();
 
-    // Send via FormSubmit.co from server side (no CORS issues)
     const res = await fetch("https://formsubmit.co/ajax/erin20080306@gmail.com", {
       method: "POST",
       headers: {
@@ -12,8 +11,9 @@ export async function POST(req: NextRequest) {
         "Accept": "application/json",
       },
       body: JSON.stringify({
-        _subject: "ERP系統諮詢表單",
+        _subject: `ERP諮詢 - ${data.name || "未填姓名"} (${data.plan || "未選方案"})`,
         _template: "table",
+        _captcha: "false",
         姓名: data.name || "",
         Email: data.email || "",
         "Line ID": data.lineId || "",
@@ -31,29 +31,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
-    // Fallback: try alternative endpoint
-    const res2 = await fetch("https://formsubmit.co/ajax/erin20080306@gmail.com", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        "Accept": "application/json",
-      },
-      body: new URLSearchParams({
-        _subject: "ERP系統諮詢表單",
-        name: data.name || "",
-        email: data.email || "",
-        lineId: data.lineId || "",
-        platform: data.platform || "",
-        dataFormat: data.dataFormat || "",
-        problem: data.problem || "",
-        plan: data.plan || "",
-        notes: data.notes || "",
-      }).toString(),
-    });
-
-    const result2 = await res2.json();
-    return NextResponse.json({ ok: result2.success || false, detail: result2 });
+    return NextResponse.json({ ok: false, error: "FormSubmit error", detail: result }, { status: 500 });
   } catch (error: any) {
+    console.error("Contact form error:", error);
     return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   }
 }

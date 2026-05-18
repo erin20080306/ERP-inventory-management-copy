@@ -260,34 +260,10 @@ function InfoPage({ onClose }: { onClose: () => void }) {
       if (data.ok) {
         setSent(true);
       } else {
-        // Fallback to mailto
-        const body = [
-          `姓名：${form.name}`,
-          `Email：${form.email}`,
-          `Line ID：${form.lineId}`,
-          `使用平台：${form.platform}`,
-          `資料格式：${form.dataFormat}`,
-          `需求：${form.problem}`,
-          `方案：${form.plan}`,
-          `備註：${form.notes}`,
-        ].join("\n");
-        window.open(`mailto:erin20080306@gmail.com?subject=${encodeURIComponent("ERP系統諮詢表單")}&body=${encodeURIComponent(body)}`, "_blank");
-        setSent(true);
+        alert("送出失敗，請稍後再試或直接聯繫 erin20080306@gmail.com");
       }
     } catch {
-      // Fallback to mailto on error
-      const body = [
-        `姓名：${form.name}`,
-        `Email：${form.email}`,
-        `Line ID：${form.lineId}`,
-        `使用平台：${form.platform}`,
-        `資料格式：${form.dataFormat}`,
-        `需求：${form.problem}`,
-        `方案：${form.plan}`,
-        `備註：${form.notes}`,
-      ].join("\n");
-      window.open(`mailto:erin20080306@gmail.com?subject=${encodeURIComponent("ERP系統諮詢表單")}&body=${encodeURIComponent(body)}`, "_blank");
-      setSent(true);
+      alert("送出失敗，請稍後再試或直接聯繫 erin20080306@gmail.com");
     }
     setSending(false);
   }
