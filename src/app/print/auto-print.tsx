@@ -50,6 +50,7 @@ export function AutoPrint() {
       </button>
       <button
         onClick={() => window.print()}
+        title="送至實體印表機列印"
         style={{
           padding: "8px 14px",
           background: "#4f46e5",
@@ -62,7 +63,27 @@ export function AutoPrint() {
           boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
         }}
       >
-        🖨️ 列印 / PDF
+        🖨️ 列印
+      </button>
+      <button
+        onClick={() => {
+          alert("即將開啟列印視窗，請在「目的地」選擇「另存為 PDF」即可下載 PDF 檔");
+          window.print();
+        }}
+        title="另存為 PDF 檔"
+        style={{
+          padding: "8px 14px",
+          background: "#10b981",
+          color: "white",
+          border: "none",
+          borderRadius: 8,
+          fontSize: 14,
+          fontWeight: 600,
+          cursor: "pointer",
+          boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+        }}
+      >
+        📄 下載 PDF
       </button>
     </div>
   );
