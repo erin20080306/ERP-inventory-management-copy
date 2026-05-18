@@ -251,19 +251,32 @@ function InfoPage({ onClose }: { onClose: () => void }) {
     e.preventDefault();
     setSending(true);
     try {
-      const res = await fetch("/api/contact", {
+      const formData = new FormData();
+      formData.append("_subject", `ERP諮詢 - ${form.name || "未填姓名"}`);
+      formData.append("_template", "table");
+      formData.append("_captcha", "false");
+      formData.append("姓名", form.name);
+      formData.append("Email", form.email);
+      formData.append("Line ID", form.lineId);
+      formData.append("使用平台", form.platform);
+      formData.append("資料格式", form.dataFormat);
+      formData.append("需求", form.problem);
+      formData.append("方案", form.plan);
+      formData.append("備註", form.notes);
+
+      const res = await fetch("https://formsubmit.co/ajax/erin20080306@gmail.com", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        headers: { "Accept": "application/json" },
+        body: formData,
       });
       const data = await res.json();
-      if (data.ok) {
+      if (data.success === "true" || data.success === true) {
         setSent(true);
       } else {
-        alert(`送出失敗：${data.error || "未知錯誤"}\n${JSON.stringify(data.detail || "")}\n\n請直接聯繫 erin20080306@gmail.com`);
+        alert(`送出失敗，請直接聯繫 erin20080306@gmail.com`);
       }
-    } catch (err: any) {
-      alert(`送出失敗：${err.message || "網路錯誤"}\n\n請直接聯繫 erin20080306@gmail.com`);
+    } catch {
+      alert(`送出失敗，請直接聯繫 erin20080306@gmail.com`);
     }
     setSending(false);
   }
