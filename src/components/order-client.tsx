@@ -278,7 +278,12 @@ function CreateOrderDialog({ kind, open, onClose, onCreated }: any) {
         ),
       });
       if (!res.ok) throw new Error((await res.json()).error || "儲存失敗");
-      toast.success("已建立");
+      const data = await res.json();
+      if (data.autoCreated) {
+        toast.success(kind === "purchase" ? "已自動建立應付帳款與傳票" : "已自動建立應收帳款與傳票");
+      } else {
+        toast.success("已建立");
+      }
       onCreated();
     } catch (e: any) {
       toast.error(e.message);
@@ -427,7 +432,12 @@ function ViewOrderDialog({ kind, id, onClose, onChanged }: any) {
         body: JSON.stringify({ action, warehouseId }),
       });
       if (!res.ok) throw new Error((await res.json()).error || "操作失敗");
-      toast.success("已處理");
+      const data = await res.json();
+      if (data.message) {
+        toast.success(data.message);
+      } else {
+        toast.success("已處理");
+      }
       onChanged();
       onClose();
     } catch (e: any) {

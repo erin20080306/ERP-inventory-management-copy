@@ -39,6 +39,7 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: {
       // 自動建立傳票：借 應收帳款 / 貸 銷貨收入
       const draft = await buildARCreatedDraft(order.id);
       await autoCreateJournal(tenantId, draft, session.user.id);
+      return NextResponse.json({ ok: true, message: "已自動建立應收帳款與傳票" });
     }
   } else if (action === "ship") {
     if (!warehouseId) throw new Error("請選擇出貨倉庫");

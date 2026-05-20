@@ -75,27 +75,27 @@ function LoginInner() {
 
       <div className="relative w-full max-w-5xl grid md:grid-cols-2 gap-8 items-center">
         {/* 左側品牌與特色 */}
-        <div className="hidden md:block text-white space-y-8">
+        <div className="text-white space-y-6 md:space-y-8 order-2 md:order-1">
           <div className="flex items-center gap-3">
-            <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-emerald-500 flex items-center justify-center shadow-lg shadow-indigo-500/40">
-              <Building2 className="h-7 w-7 text-white" />
+            <div className="h-12 w-12 md:h-14 md:w-14 rounded-xl md:rounded-2xl bg-gradient-to-br from-indigo-500 to-emerald-500 flex items-center justify-center shadow-lg shadow-indigo-500/40">
+              <Building2 className="h-6 w-6 md:h-7 md:w-7 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold tracking-wide bg-gradient-to-r from-white to-slate-300 bg-clip-text text-transparent">
+              <h1 className="text-xl md:text-2xl font-bold tracking-wide bg-gradient-to-r from-white to-slate-300 bg-clip-text text-transparent">
                 專業 ERP 管理系統
               </h1>
-              <p className="text-sm text-slate-400 mt-0.5">Enterprise Resource Planning</p>
+              <p className="text-xs md:text-sm text-slate-400 mt-0.5">Enterprise Resource Planning</p>
             </div>
           </div>
 
-          <div className="space-y-4">
-            <Feature icon={<Package className="h-5 w-5" />} title="完整進銷存管理" desc="商品 / 採購 / 銷售 / 庫存即時掌握" />
-            <Feature icon={<BarChart3 className="h-5 w-5" />} title="專業會計系統" desc="傳票 / AR / AP / 損益 / 試算 / 資產負債" />
-            <Feature icon={<ShieldCheck className="h-5 w-5" />} title="企業級安全" desc="RBAC 角色權限 + 操作稽核紀錄" />
-            <Feature icon={<Sparkles className="h-5 w-5" />} title="客製化ERP系統操作" desc="蝦皮訂單管理 / 餐飲 / 商家 / 一般公司行號" />
+          <div className="space-y-3 md:space-y-4">
+            <Feature icon={<Package className="h-4 w-4 md:h-5 md:w-5" />} title="完整進銷存管理" desc="商品 / 採購 / 銷售 / 庫存即時掌握" />
+            <Feature icon={<BarChart3 className="h-4 w-4 md:h-5 md:w-5" />} title="專業會計系統" desc="傳票 / AR / AP / 損益 / 試算 / 資產負債" />
+            <Feature icon={<ShieldCheck className="h-4 w-4 md:h-5 md:w-5" />} title="企業級安全" desc="RBAC 角色權限 + 操作稽核紀錄" />
+            <Feature icon={<Sparkles className="h-4 w-4 md:h-5 md:w-5" />} title="客製化ERP系統操作" desc="蝦皮訂單管理 / 餐飲 / 商家 / 一般公司行號" />
           </div>
 
-          <div className="pt-4 border-t border-white/10 text-xs text-slate-500 space-y-3">
+          <div className="pt-3 md:pt-4 border-t border-white/10 text-xs text-slate-500 space-y-2 md:space-y-3">
             <div>
               © {new Date().getFullYear()} Professional ERP System · 安全 · 高效 · 易用
             </div>
@@ -103,9 +103,9 @@ function LoginInner() {
               <div className="font-medium text-slate-400">服務人員：艾琳設計</div>
               <div className="text-slate-500">eein20080306@gmail.com</div>
               <div className="text-slate-500">Line ID: erin2008</div>
-              <a 
-                href="https://erin20080306.wixsite.com/designed-by-erin" 
-                target="_blank" 
+              <a
+                href="https://erin20080306.wixsite.com/designed-by-erin"
+                target="_blank"
                 rel="noopener noreferrer"
                 className="text-indigo-400 hover:text-indigo-300 transition"
               >
@@ -116,17 +116,7 @@ function LoginInner() {
         </div>
 
         {/* 右側登入卡 */}
-        <div className="w-full max-w-md mx-auto md:ml-auto">
-          {/* 手機版品牌 */}
-          <div className="md:hidden mb-6 flex items-center justify-center gap-3 text-white">
-            <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-indigo-500 to-emerald-500 flex items-center justify-center">
-              <Building2 className="h-6 w-6" />
-            </div>
-            <div>
-              <h1 className="text-lg font-bold">專業 ERP 系統</h1>
-              <p className="text-xs text-slate-400">進銷存 / 會計 / 報表</p>
-            </div>
-          </div>
+        <div className="w-full max-w-md mx-auto md:ml-auto order-1 md:order-2">
 
           <div className="rounded-2xl bg-white/5 backdrop-blur-2xl border border-white/10 shadow-2xl p-8">
             <div className="mb-6">

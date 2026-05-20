@@ -64,7 +64,9 @@ export const POST = apiHandler(async (req: NextRequest) => {
     audit({ userId: session.user.id, action: "create", module: "purchases", refId: created.id, detail: number }),
   ];
   const s = status ?? "DRAFT";
+  let autoCreated = false;
   if (s === "SUBMITTED" || s === "APPROVED") {
+    autoCreated = true;
     tasks.push(
       prisma.accountsPayable.create({
         data: { tenantId, supplierId, purchaseOrderId: created.id, amount: totals.total, status: "OPEN" },
@@ -76,5 +78,5 @@ export const POST = apiHandler(async (req: NextRequest) => {
   }
   await Promise.all(tasks);
 
-  return NextResponse.json(created);
+  return NextResponse.json({ ...created, autoCreated });
 });

@@ -63,7 +63,7 @@ export default function AdminPage() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <Shield className="h-8 w-8 text-amber-400" />
             <div>
@@ -71,7 +71,7 @@ export default function AdminPage() {
               <p className="text-sm text-slate-400">平台租戶與用戶總覽</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <button
               onClick={() => router.push("/login")}
               className="flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-medium transition"
@@ -97,7 +97,7 @@ export default function AdminPage() {
         </div>
 
         {/* 統計卡片 */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Card className="bg-slate-900 border-slate-800">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm text-slate-400 flex items-center gap-2">
@@ -187,7 +187,8 @@ export default function AdminPage() {
             <CardTitle className="text-lg">所有用戶</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
+            {/* 桌面版表格 */}
+            <div className="hidden md:block overflow-x-auto">
               <Table>
                 <THead>
                   <TR>
@@ -232,86 +233,50 @@ export default function AdminPage() {
                         )}
                       </TD>
                       <TD>
-                        {!u.isSuperAdmin && (
-                          <div className="flex flex-wrap gap-1">
-                            <button
-                              onClick={async () => {
-                                const msg = u.isPaid ? "確定取消永久使用權限？" : "確定授予永久使用權限？";
-                                if (!confirm(msg)) return;
-                                const res = await fetch("/api/admin/set-paid", {
-                                  method: "POST",
-                                  headers: { "Content-Type": "application/json" },
-                                  body: JSON.stringify({ userId: u.id, isPaid: !u.isPaid }),
-                                });
-                                if (res.ok) {
-                                  setData((prev: any) => ({
-                                    ...prev,
-                                    users: prev.users.map((x: any) => x.id === u.id ? { ...x, isPaid: !u.isPaid } : x),
-                                  }));
-                                }
-                              }}
-                              className={`px-3 py-1 rounded text-xs font-medium transition ${
-                                u.isPaid
-                                  ? "bg-red-900/50 text-red-300 hover:bg-red-800"
-                                  : "bg-emerald-900/50 text-emerald-300 hover:bg-emerald-800"
-                              }`}
-                            >
-                              {u.isPaid ? "取消永久" : "設為永久使用"}
-                            </button>
-                            {!u.isPaid && (
-                              <button
-                                onClick={async () => {
-                                  const pw = prompt("請輸入超級管理員密碼以啟用不用付款使用：");
-                                  if (!pw) return;
-                                  const res = await fetch("/api/trial/free-use", {
-                                    method: "POST",
-                                    headers: { "Content-Type": "application/json" },
-                                    body: JSON.stringify({ password: pw, userId: u.id }),
-                                  });
-                                  if (res.ok) {
-                                    setData((prev: any) => ({
-                                      ...prev,
-                                      users: prev.users.map((x: any) => x.id === u.id ? { ...x, isPaid: true } : x),
-                                    }));
-                                    alert("已啟用");
-                                  } else {
-                                    const d = await res.json();
-                                    alert(d.error || "密碼錯誤");
-                                  }
-                                }}
-                                className="px-3 py-1 rounded text-xs font-medium bg-amber-900/50 text-amber-300 hover:bg-amber-800 transition"
-                              >
-                                不用付款使用
-                              </button>
-                            )}
-                            {u.isPaid && (
-                              <button
-                                onClick={async () => {
-                                  if (!confirm("確定解除永久使用並退回試用？（試用期仍從註冊日期計算）")) return;
-                                  const res = await fetch("/api/admin/revoke-to-trial", {
-                                    method: "POST",
-                                    headers: { "Content-Type": "application/json" },
-                                    body: JSON.stringify({ userId: u.id }),
-                                  });
-                                  if (res.ok) {
-                                    setData((prev: any) => ({
-                                      ...prev,
-                                      users: prev.users.map((x: any) => x.id === u.id ? { ...x, isPaid: false } : x),
-                                    }));
-                                  }
-                                }}
-                                className="px-3 py-1 rounded text-xs font-medium bg-orange-900/50 text-orange-300 hover:bg-orange-800 transition"
-                              >
-                                解除退回試用
-                              </button>
-                            )}
-                          </div>
-                        )}
+                        <UserActions u={u} setData={setData} />
                       </TD>
                     </TR>
                   ))}
                 </TBody>
               </Table>
+            </div>
+            {/* 手機版卡片 */}
+            <div className="md:hidden space-y-3">
+              {data.users.map((u: any) => (
+                <div key={u.id} className="rounded-xl bg-slate-800/60 border border-slate-700 p-4 space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <div className="font-medium text-white">{u.name || u.username}</div>
+                      <div className="text-xs text-slate-400 font-mono">{u.username}</div>
+                    </div>
+                    {u.isSuperAdmin ? (
+                      <Badge variant="warning">管理員</Badge>
+                    ) : u.isPaid ? (
+                      <Badge variant="success">已付款</Badge>
+                    ) : (
+                      <Badge variant="danger">試用中</Badge>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div><span className="text-slate-500">公司：</span>{u.tenantName ?? <span className="text-amber-400">超級管理員</span>}</div>
+                    <div><span className="text-slate-500">Email：</span>{u.email || "—"}</div>
+                    <div><span className="text-slate-500">登入次數：</span><span className="font-mono">{u.loginCount}</span></div>
+                    <div><span className="text-slate-500">操作次數：</span><span className="font-mono">{u.actionCount}</span></div>
+                    <div className="col-span-2"><span className="text-slate-500">上次登入：</span>{u.lastLoginAt ? formatDateTime(u.lastLoginAt) : "—"}</div>
+                    <div>
+                      <span className="text-slate-500">使用狀況：</span>
+                      {u.actionCount > 0 ? (
+                        <Badge variant="success">有使用</Badge>
+                      ) : u.loginCount > 1 ? (
+                        <Badge variant="info">僅登入</Badge>
+                      ) : (
+                        <Badge variant="danger">未使用</Badge>
+                      )}
+                    </div>
+                  </div>
+                  <UserActions u={u} setData={setData} />
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>
@@ -349,5 +314,85 @@ export default function AdminPage() {
         </Card>
       </div>
     </div>
+  );
+}
+
+function UserActions({ u, setData }: { u: any; setData: any }) {
+  return (
+    !u.isSuperAdmin && (
+      <div className="flex flex-wrap gap-1">
+        <button
+          onClick={async () => {
+            const msg = u.isPaid ? "確定取消永久使用權限？" : "確定授予永久使用權限？";
+            if (!confirm(msg)) return;
+            const res = await fetch("/api/admin/set-paid", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ userId: u.id, isPaid: !u.isPaid }),
+            });
+            if (res.ok) {
+              setData((prev: any) => ({
+                ...prev,
+                users: prev.users.map((x: any) => x.id === u.id ? { ...x, isPaid: !u.isPaid } : x),
+              }));
+            }
+          }}
+          className={`px-3 py-1 rounded text-xs font-medium transition ${
+            u.isPaid
+              ? "bg-red-900/50 text-red-300 hover:bg-red-800"
+              : "bg-emerald-900/50 text-emerald-300 hover:bg-emerald-800"
+          }`}
+        >
+          {u.isPaid ? "取消永久" : "設為永久使用"}
+        </button>
+        {!u.isPaid && (
+          <button
+            onClick={async () => {
+              const pw = prompt("請輸入超級管理員密碼以啟用不用付款使用：");
+              if (!pw) return;
+              const res = await fetch("/api/trial/free-use", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ password: pw, userId: u.id }),
+              });
+              if (res.ok) {
+                setData((prev: any) => ({
+                  ...prev,
+                  users: prev.users.map((x: any) => x.id === u.id ? { ...x, isPaid: true } : x),
+                }));
+                alert("已啟用");
+              } else {
+                const d = await res.json();
+                alert(d.error || "密碼錯誤");
+              }
+            }}
+            className="px-3 py-1 rounded text-xs font-medium bg-amber-900/50 text-amber-300 hover:bg-amber-800 transition"
+          >
+            不用付款使用
+          </button>
+        )}
+        {u.isPaid && (
+          <button
+            onClick={async () => {
+              if (!confirm("確定解除永久使用並退回試用？（試用期仍從註冊日期計算）")) return;
+              const res = await fetch("/api/admin/revoke-to-trial", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ userId: u.id }),
+              });
+              if (res.ok) {
+                setData((prev: any) => ({
+                  ...prev,
+                  users: prev.users.map((x: any) => x.id === u.id ? { ...x, isPaid: false } : x),
+                }));
+              }
+            }}
+            className="px-3 py-1 rounded text-xs font-medium bg-orange-900/50 text-orange-300 hover:bg-orange-800 transition"
+          >
+            解除退回試用
+          </button>
+        )}
+      </div>
+    )
   );
 }
