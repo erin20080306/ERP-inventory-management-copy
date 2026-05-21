@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { formatDateTime } from "@/lib/utils";
-import { Building2, Users, Shield, Loader2, Activity, LogIn, LogOut } from "lucide-react";
+import { Building2, Users, Shield, Loader2, Activity, LogIn, LogOut, Trash2 } from "lucide-react";
 import { signOut } from "next-auth/react";
 
 const TRIAL_DAYS = 2;
@@ -72,6 +72,26 @@ export default function AdminPage() {
             </div>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={async () => {
+                if (!confirm("確定刪除所有未登入過的租戶？此操作無法復原。")) return;
+                const res = await fetch("/api/admin/tenants", { method: "DELETE" });
+                const d = await res.json();
+                if (res.ok) {
+                  alert(`已刪除 ${d.deletedCount} 個租戶`);
+                  fetch("/api/admin/tenants")
+                    .then((r) => r.json())
+                    .then(setData)
+                    .finally(() => setLoading(false));
+                } else {
+                  alert("刪除失敗");
+                }
+              }}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white text-sm font-medium transition"
+            >
+              <Trash2 className="h-4 w-4" />
+              刪除未登入租戶
+            </button>
             <button
               onClick={() => router.push("/login")}
               className="flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-medium transition"
@@ -197,9 +217,10 @@ export default function AdminPage() {
                     <TH>Email</TH>
                     <TH>所屬公司</TH>
                     <TH>付款狀態</TH>
-                    <TH>登入次數</TH>
-                    <TH>操作次數</TH>
-                    <TH>上次登入</TH>
+                    <TH className="text-indigo-300">登入次數</TH>
+                    <TH className="text-emerald-300">操作次數</TH>
+                    <TH className="text-amber-300">上次登入</TH>
+                    <TH className="text-cyan-300">註冊IP</TH>
                     <TH>使用狀況</TH>
                     <TH>操作</TH>
                   </TR>
@@ -220,9 +241,10 @@ export default function AdminPage() {
                           <Badge variant="danger">試用中</Badge>
                         )}
                       </TD>
-                      <TD className="text-center font-mono">{u.loginCount}</TD>
-                      <TD className="text-center font-mono">{u.actionCount}</TD>
-                      <TD className="text-sm text-slate-400">{u.lastLoginAt ? formatDateTime(u.lastLoginAt) : "—"}</TD>
+                      <TD className="text-center font-mono text-indigo-300">{u.loginCount}</TD>
+                      <TD className="text-center font-mono text-emerald-300">{u.actionCount}</TD>
+                      <TD className="text-sm text-amber-300">{u.lastLoginAt ? formatDateTime(u.lastLoginAt) : "—"}</TD>
+                      <TD className="text-sm text-cyan-300 font-mono">{u.registrationIp || "—"}</TD>
                       <TD>
                         {u.actionCount > 0 ? (
                           <Badge variant="success">有使用</Badge>
@@ -260,9 +282,10 @@ export default function AdminPage() {
                   <div className="grid grid-cols-2 gap-2 text-xs">
                     <div><span className="text-slate-500">公司：</span>{u.tenantName ?? <span className="text-amber-400">超級管理員</span>}</div>
                     <div><span className="text-slate-500">Email：</span>{u.email || "—"}</div>
-                    <div><span className="text-slate-500">登入次數：</span><span className="font-mono">{u.loginCount}</span></div>
-                    <div><span className="text-slate-500">操作次數：</span><span className="font-mono">{u.actionCount}</span></div>
-                    <div className="col-span-2"><span className="text-slate-500">上次登入：</span>{u.lastLoginAt ? formatDateTime(u.lastLoginAt) : "—"}</div>
+                    <div><span className="text-slate-500">登入次數：</span><span className="font-mono text-indigo-300">{u.loginCount}</span></div>
+                    <div><span className="text-slate-500">操作次數：</span><span className="font-mono text-emerald-300">{u.actionCount}</span></div>
+                    <div className="col-span-2"><span className="text-slate-500">上次登入：</span><span className="text-amber-300">{u.lastLoginAt ? formatDateTime(u.lastLoginAt) : "—"}</span></div>
+                    <div className="col-span-2"><span className="text-slate-500">註冊IP：</span><span className="text-cyan-300 font-mono">{u.registrationIp || "—"}</span></div>
                     <div>
                       <span className="text-slate-500">使用狀況：</span>
                       {u.actionCount > 0 ? (

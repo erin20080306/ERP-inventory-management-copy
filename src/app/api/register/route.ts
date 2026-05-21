@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { seedTenantDefaults } from "@/lib/seed-tenant";
+import { validateObjectForSQLInjection } from "@/lib/sql-validation";
 
 export async function POST(req: NextRequest) {
   try {
@@ -15,6 +16,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "密碼至少 4 個字元" }, { status: 400 });
     }
 
+    // SQL 注入檢測
+    const sqlValidation = validateObjectForSQLInjection({ username, name, email, companyName });
+    if (!sqlValidation.isValid) {
+      console.warn("SQL injection attempt detected:", sqlValidation.detectedFields);
+      return NextResponse.json({ error: "輸入包含非法字符" }, { status: 400 });
+    }
+
     // 檢查帳號是否已存在
     const existing = await prisma.user.findFirst({
       where: { OR: [{ username }, { email }] },
@@ -24,6 +32,20 @@ export async function POST(req: NextRequest) {
         { error: existing.username === username ? "此帳號已被使用" : "此 Email 已被使用" },
         { status: 409 }
       );
+    }
+
+    // 防止同 IP 重複註冊（防止幽靈帳戶）
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0] || req.headers.get('x-real-ip') || 'unknown';
+    if (ip !== 'unknown') {
+      const existingIpUser = await prisma.user.findFirst({
+        where: { lastLoginIp: ip },
+      });
+      if (existingIpUser) {
+        return NextResponse.json(
+          { error: "此 IP 位址已註冊過帳戶，無法重複註冊" },
+          { status: 409 }
+        );
+      }
     }
 
     const passwordHash = await bcrypt.hash(password, 12);
@@ -42,6 +64,8 @@ export async function POST(req: NextRequest) {
         passwordHash,
         trialStart: new Date(),
         isPaid: false,
+        registrationIp: ip,
+        lastLoginIp: ip,
       },
     });
 

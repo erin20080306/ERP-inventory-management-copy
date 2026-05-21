@@ -64,6 +64,8 @@ export const GET = apiHandler(async (_req: NextRequest) => {
       subscriptionEnd: u.subscriptionEnd,
       trialStart: u.trialStart,
       lastLoginAt: u.lastLoginAt,
+      lastLoginIp: u.lastLoginIp,
+      registrationIp: (u as any).registrationIp,
       createdAt: u.createdAt,
       tenantId: u.tenantId,
       tenantName: u.tenant?.name ?? null,
@@ -74,4 +76,38 @@ export const GET = apiHandler(async (_req: NextRequest) => {
     totalTenants: tenants.length,
     totalUsers: users.length,
   });
+});
+
+export const DELETE = apiHandler(async (_req: NextRequest) => {
+  const session = await requireAuth();
+  if (!session.user.isSuperAdmin) throw new ApiError(403, "僅限超級管理員");
+
+  // 計算登入次數
+  const loginStats = await prisma.loginLog.groupBy({
+    by: ["userId"],
+    where: { success: true },
+    _count: true,
+  });
+  const loginMap = Object.fromEntries(loginStats.map((l) => [l.userId, l._count]));
+
+  // 找出所有租戶
+  const tenants = await prisma.tenant.findMany({
+    include: { users: true },
+  });
+
+  let deletedCount = 0;
+  for (const tenant of tenants) {
+    // 檢查該租戶的所有用戶是否都沒有登入過
+    const hasLoggedInUsers = tenant.users.some((u) => (u as any).isSuperAdmin === false && (loginMap[u.id] || 0) > 0);
+
+    // 如果租戶有非超級管理員用戶且都沒登入過，則刪除
+    if (!hasLoggedInUsers && tenant.users.length > 0) {
+      await prisma.tenant.delete({
+        where: { id: tenant.id },
+      });
+      deletedCount++;
+    }
+  }
+
+  return NextResponse.json({ deletedCount });
 });

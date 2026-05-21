@@ -268,6 +268,7 @@ function CreateOrderDialog({ kind, open, onClose, onCreated }: any) {
     setSaving(true);
     try {
       const endpoint = kind === "purchase" ? "/api/purchases" : "/api/sales";
+      const loadingToastId = toast.loading("建立中，同時建立傳票與應收應付...", { duration: 0 });
       const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -277,6 +278,7 @@ function CreateOrderDialog({ kind, open, onClose, onCreated }: any) {
             : { customerId: partyId, items, remark, status: "CONFIRMED" }
         ),
       });
+      toast.dismiss(loadingToastId);
       if (!res.ok) throw new Error((await res.json()).error || "儲存失敗");
       const data = await res.json();
       if (data.autoCreated) {
