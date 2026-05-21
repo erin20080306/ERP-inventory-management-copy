@@ -296,12 +296,12 @@ function CreateOrderDialog({ kind, open, onClose, onCreated }: any) {
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-4xl">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>新增{kind === "purchase" ? "採購單" : "銷售單"}</DialogTitle>
         </DialogHeader>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1 col-span-2">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="space-y-1 col-span-1 md:col-span-2">
             <Label>{kind === "purchase" ? "供應商" : "客戶"} *</Label>
             <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={partyId} onChange={(e) => setPartyId(e.target.value)}>
               <option value="">請選擇</option>
@@ -315,63 +315,65 @@ function CreateOrderDialog({ kind, open, onClose, onCreated }: any) {
         </div>
 
         <div className="border rounded-md overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/50 text-xs text-muted-foreground">
-              <tr>
-                <th className="p-2 text-left">商品</th>
-                <th className="p-2 w-20">數量</th>
-                <th className="p-2 w-28">單價</th>
-                <th className="p-2 w-24">折扣</th>
-                <th className="p-2 w-20">稅率</th>
-                <th className="p-2 w-28 text-right">小計</th>
-                <th className="p-2 w-10"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((it, idx) => {
-                const line = Number(it.quantity) * Number(it.unitPrice) - Number(it.discount ?? 0);
-                return (
-                  <tr key={idx} className="border-t">
-                    <td className="p-2">
-                      <select className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm" value={it.productId} onChange={(e) => updateItem(idx, { productId: e.target.value })}>
-                        <option value="">選擇商品</option>
-                        {products.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.sku} - {p.name}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="p-2">
-                      <Input type="number" value={it.quantity} onChange={(e) => updateItem(idx, { quantity: Number(e.target.value) })} />
-                    </td>
-                    <td className="p-2">
-                      <Input type="number" step="0.01" value={it.unitPrice} onChange={(e) => updateItem(idx, { unitPrice: Number(e.target.value) })} />
-                    </td>
-                    <td className="p-2">
-                      <Input type="number" step="0.01" value={it.discount ?? 0} onChange={(e) => updateItem(idx, { discount: Number(e.target.value) })} />
-                    </td>
-                    <td className="p-2">
-                      <Input type="number" step="0.01" value={it.taxRate ?? 0} onChange={(e) => updateItem(idx, { taxRate: Number(e.target.value) })} />
-                    </td>
-                    <td className="p-2 text-right">{formatMoney(line)}</td>
-                    <td className="p-2">
-                      <Button variant="ghost" size="icon" onClick={() => removeItem(idx)}>
-                        <Trash2 className="h-4 w-4 text-red-600" />
-                      </Button>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[600px]">
+              <thead className="bg-muted/50 text-xs text-muted-foreground">
+                <tr>
+                  <th className="p-2 text-left whitespace-nowrap">商品</th>
+                  <th className="p-2 w-20 whitespace-nowrap">數量</th>
+                  <th className="p-2 w-28 whitespace-nowrap">單價</th>
+                  <th className="p-2 w-24 whitespace-nowrap">折扣</th>
+                  <th className="p-2 w-20 whitespace-nowrap">稅率</th>
+                  <th className="p-2 w-28 text-right whitespace-nowrap">小計</th>
+                  <th className="p-2 w-10 whitespace-nowrap"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((it, idx) => {
+                  const line = Number(it.quantity) * Number(it.unitPrice) - Number(it.discount ?? 0);
+                  return (
+                    <tr key={idx} className="border-t">
+                      <td className="p-2 whitespace-nowrap">
+                        <select className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm" value={it.productId} onChange={(e) => updateItem(idx, { productId: e.target.value })}>
+                          <option value="">選擇商品</option>
+                          {products.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.sku} - {p.name}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="p-2 whitespace-nowrap">
+                        <Input type="number" value={it.quantity} onChange={(e) => updateItem(idx, { quantity: Number(e.target.value) })} />
+                      </td>
+                      <td className="p-2 whitespace-nowrap">
+                        <Input type="number" step="0.01" value={it.unitPrice} onChange={(e) => updateItem(idx, { unitPrice: Number(e.target.value) })} />
+                      </td>
+                      <td className="p-2 whitespace-nowrap">
+                        <Input type="number" step="0.01" value={it.discount ?? 0} onChange={(e) => updateItem(idx, { discount: Number(e.target.value) })} />
+                      </td>
+                      <td className="p-2 whitespace-nowrap">
+                        <Input type="number" step="0.01" value={it.taxRate ?? 0} onChange={(e) => updateItem(idx, { taxRate: Number(e.target.value) })} />
+                      </td>
+                      <td className="p-2 text-right whitespace-nowrap">{formatMoney(line)}</td>
+                      <td className="p-2 whitespace-nowrap">
+                        <Button variant="ghost" size="icon" onClick={() => removeItem(idx)}>
+                          <Trash2 className="h-4 w-4 text-red-600" />
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {items.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="p-6 text-center text-muted-foreground text-sm">
+                      尚未新增商品
                     </td>
                   </tr>
-                );
-              })}
-              {items.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="p-6 text-center text-muted-foreground text-sm">
-                    尚未新增商品
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                )}
+              </tbody>
+            </table>
+          </div>
           <div className="p-2">
             <Button variant="outline" size="sm" onClick={addItem}>
               <Plus className="h-4 w-4" />
@@ -453,13 +455,13 @@ function ViewOrderDialog({ kind, id, onClose, onChanged }: any) {
 
   return (
     <Dialog open onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-3xl">
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {kind === "purchase" ? "採購單" : "銷售單"} {data.number} <StatusBadge status={data.status} />
           </DialogTitle>
         </DialogHeader>
-        <div className="grid grid-cols-3 gap-3 text-sm">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
           <div>
             <div className="text-muted-foreground">{kind === "purchase" ? "供應商" : "客戶"}</div>
             <div>{party?.companyName}</div>
@@ -473,28 +475,30 @@ function ViewOrderDialog({ kind, id, onClose, onChanged }: any) {
             <div className="font-bold">{formatMoney(data.total)}</div>
           </div>
         </div>
-        <table className="w-full text-sm border rounded-md">
-          <thead className="bg-muted/50 text-xs text-muted-foreground">
-            <tr>
-              <th className="p-2 text-left">SKU</th>
-              <th className="p-2 text-left">商品</th>
-              <th className="p-2 text-right">數量</th>
-              <th className="p-2 text-right">單價</th>
-              <th className="p-2 text-right">小計</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.items.map((i: any) => (
-              <tr key={i.id} className="border-t">
-                <td className="p-2 font-mono text-xs">{i.product?.sku}</td>
-                <td className="p-2">{i.product?.name}</td>
-                <td className="p-2 text-right">{i.quantity}</td>
-                <td className="p-2 text-right">{formatMoney(i.unitPrice)}</td>
-                <td className="p-2 text-right">{formatMoney(i.subtotal)}</td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm border rounded-md min-w-[400px]">
+            <thead className="bg-muted/50 text-xs text-muted-foreground">
+              <tr>
+                <th className="p-2 text-left whitespace-nowrap">SKU</th>
+                <th className="p-2 text-left whitespace-nowrap">商品</th>
+                <th className="p-2 text-right whitespace-nowrap">數量</th>
+                <th className="p-2 text-right whitespace-nowrap">單價</th>
+                <th className="p-2 text-right whitespace-nowrap">小計</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {data.items.map((i: any) => (
+                <tr key={i.id} className="border-t">
+                  <td className="p-2 font-mono text-xs whitespace-nowrap">{i.product?.sku}</td>
+                  <td className="p-2 whitespace-nowrap">{i.product?.name}</td>
+                  <td className="p-2 text-right whitespace-nowrap">{i.quantity}</td>
+                  <td className="p-2 text-right whitespace-nowrap">{formatMoney(i.unitPrice)}</td>
+                  <td className="p-2 text-right whitespace-nowrap">{formatMoney(i.subtotal)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
 
         {data.remark && <div className="text-sm"><span className="text-muted-foreground">備註：</span>{data.remark}</div>}
 
@@ -632,12 +636,12 @@ function EditOrderDialog({ kind, id, onClose, onSaved }: { kind: Kind; id: strin
 
   return (
     <Dialog open onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-4xl">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>修改{kind === "purchase" ? "採購單" : "銷售單"}</DialogTitle>
         </DialogHeader>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1 col-span-2">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="space-y-1 col-span-1 md:col-span-2">
             <Label>{partyLabel} *</Label>
             <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={partyId} onChange={(e) => setPartyId(e.target.value)}>
               <option value="">請選擇</option>
@@ -649,49 +653,51 @@ function EditOrderDialog({ kind, id, onClose, onSaved }: { kind: Kind; id: strin
         </div>
 
         <div className="border rounded-md overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/50 text-xs text-muted-foreground">
-              <tr>
-                <th className="p-2 text-left">商品</th>
-                <th className="p-2 w-20">數量</th>
-                <th className="p-2 w-28">單價</th>
-                <th className="p-2 w-24">折扣</th>
-                <th className="p-2 w-20">稅率</th>
-                <th className="p-2 w-28 text-right">小計</th>
-                <th className="p-2 w-10"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((it, idx) => {
-                const line = Number(it.quantity) * Number(it.unitPrice) - Number(it.discount ?? 0);
-                return (
-                  <tr key={idx} className="border-t">
-                    <td className="p-2">
-                      <select className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm" value={it.productId} onChange={(e) => updateItem(idx, { productId: e.target.value })}>
-                        <option value="">選擇商品</option>
-                        {products.map((p) => (
-                          <option key={p.id} value={p.id}>{p.sku} - {p.name}</option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="p-2"><Input type="number" value={it.quantity} onChange={(e) => updateItem(idx, { quantity: Number(e.target.value) })} /></td>
-                    <td className="p-2"><Input type="number" step="0.01" value={it.unitPrice} onChange={(e) => updateItem(idx, { unitPrice: Number(e.target.value) })} /></td>
-                    <td className="p-2"><Input type="number" step="0.01" value={it.discount ?? 0} onChange={(e) => updateItem(idx, { discount: Number(e.target.value) })} /></td>
-                    <td className="p-2"><Input type="number" step="0.01" value={it.taxRate ?? 0} onChange={(e) => updateItem(idx, { taxRate: Number(e.target.value) })} /></td>
-                    <td className="p-2 text-right">{formatMoney(line)}</td>
-                    <td className="p-2">
-                      <Button variant="ghost" size="icon" onClick={() => removeItem(idx)}>
-                        <Trash2 className="h-4 w-4 text-red-600" />
-                      </Button>
-                    </td>
-                  </tr>
-                );
-              })}
-              {items.length === 0 && (
-                <tr><td colSpan={7} className="p-6 text-center text-muted-foreground text-sm">尚未新增商品</td></tr>
-              )}
-            </tbody>
-          </table>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[600px]">
+              <thead className="bg-muted/50 text-xs text-muted-foreground">
+                <tr>
+                  <th className="p-2 text-left whitespace-nowrap">商品</th>
+                  <th className="p-2 w-20 whitespace-nowrap">數量</th>
+                  <th className="p-2 w-28 whitespace-nowrap">單價</th>
+                  <th className="p-2 w-24 whitespace-nowrap">折扣</th>
+                  <th className="p-2 w-20 whitespace-nowrap">稅率</th>
+                  <th className="p-2 w-28 text-right whitespace-nowrap">小計</th>
+                  <th className="p-2 w-10 whitespace-nowrap"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((it, idx) => {
+                  const line = Number(it.quantity) * Number(it.unitPrice) - Number(it.discount ?? 0);
+                  return (
+                    <tr key={idx} className="border-t">
+                      <td className="p-2 whitespace-nowrap">
+                        <select className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm" value={it.productId} onChange={(e) => updateItem(idx, { productId: e.target.value })}>
+                          <option value="">選擇商品</option>
+                          {products.map((p) => (
+                            <option key={p.id} value={p.id}>{p.sku} - {p.name}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="p-2 whitespace-nowrap"><Input type="number" value={it.quantity} onChange={(e) => updateItem(idx, { quantity: Number(e.target.value) })} /></td>
+                      <td className="p-2 whitespace-nowrap"><Input type="number" step="0.01" value={it.unitPrice} onChange={(e) => updateItem(idx, { unitPrice: Number(e.target.value) })} /></td>
+                      <td className="p-2 whitespace-nowrap"><Input type="number" step="0.01" value={it.discount ?? 0} onChange={(e) => updateItem(idx, { discount: Number(e.target.value) })} /></td>
+                      <td className="p-2 whitespace-nowrap"><Input type="number" step="0.01" value={it.taxRate ?? 0} onChange={(e) => updateItem(idx, { taxRate: Number(e.target.value) })} /></td>
+                      <td className="p-2 text-right whitespace-nowrap">{formatMoney(line)}</td>
+                      <td className="p-2 whitespace-nowrap">
+                        <Button variant="ghost" size="icon" onClick={() => removeItem(idx)}>
+                          <Trash2 className="h-4 w-4 text-red-600" />
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {items.length === 0 && (
+                  <tr><td colSpan={7} className="p-6 text-center text-muted-foreground text-sm">尚未新增商品</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
           <div className="p-2">
             <Button variant="outline" size="sm" onClick={addItem}>
               <Plus className="h-4 w-4" /> 新增明細
