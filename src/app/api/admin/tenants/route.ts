@@ -136,27 +136,33 @@ export const DELETE = apiHandler(async (_req: NextRequest) => {
     // 檢查該租戶的用戶登入狀態
     let allUsersNeverLoggedIn = true;
     let hasNonSuperAdminUser = false;
+    const userLoginInfo: string[] = [];
     
     if (tenant.users.length === 0) {
       // 沒有用戶的租戶直接刪除
       console.log(`租戶 ${tenant.name} (${tenant.id}) 沒有用戶，準備刪除`);
     } else {
       for (const u of tenant.users) {
-        if ((u as any).isSuperAdmin) {
+        const loginCount = loginMap[u.id] || 0;
+        const isSuper = (u as any).isSuperAdmin;
+        userLoginInfo.push(`${u.username} (superAdmin: ${isSuper}, loginCount: ${loginCount})`);
+        
+        if (isSuper) {
           // 超級管理員不影響判斷
           continue;
         }
         hasNonSuperAdminUser = true;
-        const loginCount = loginMap[u.id] || 0;
         if (loginCount > 0) {
           allUsersNeverLoggedIn = false;
-          console.log(`租戶 ${tenant.name} 用戶 ${u.username} 有登入 ${loginCount} 次，跳過刪除`);
         }
       }
+      console.log(`租戶 ${tenant.name} (${tenant.id}) 用戶資訊: ${userLoginInfo.join(", ")}`);
+      console.log(`hasNonSuperAdminUser: ${hasNonSuperAdminUser}, allUsersNeverLoggedIn: ${allUsersNeverLoggedIn}`);
     }
 
     // 刪除條件：沒有用戶 或 所有非超級管理員用戶都沒登入過
     const shouldDelete = !hasNonSuperAdminUser || allUsersNeverLoggedIn;
+    console.log(`租戶 ${tenant.name} shouldDelete: ${shouldDelete}`);
     
     if (shouldDelete) {
       try {
