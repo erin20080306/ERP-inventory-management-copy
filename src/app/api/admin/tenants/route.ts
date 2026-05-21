@@ -167,11 +167,17 @@ export const DELETE = apiHandler(async (_req: NextRequest) => {
     
     if (shouldDelete) {
       try {
-        console.log(`正在刪除租戶: ${tenant.name} (${tenant.id})`);
+        debugLogs.push(`正在刪除租戶: ${tenant.name} (${tenant.id})`);
         
         // 使用事務刪除租戶及其所有關聯資料
         await prisma.$transaction(async (tx) => {
           const userIds = tenant.users.map(u => u.id);
+
+          // 先清除 createdByUserId 外鍵引用（避免自引用約束）
+          await tx.user.updateMany({
+            where: { createdByUserId: { in: userIds } },
+            data: { createdByUserId: null },
+          });
 
           // 刪除用戶角色、登入日誌、稽核日誌
           await tx.userRole.deleteMany({ where: { userId: { in: userIds } } });
@@ -220,14 +226,15 @@ export const DELETE = apiHandler(async (_req: NextRequest) => {
 
           // 最後刪除租戶
           await tx.tenant.delete({ where: { id: tenant.id } });
-        });
+        }, { timeout: 30000 });
 
         deletedCount++;
         deletedTenantIds.push(tenant.name || tenant.id);
-        console.log(`成功刪除租戶: ${tenant.name}`);
-      } catch (error) {
-        console.error(`刪除租戶失敗: ${tenant.name}`, error);
-        skippedTenantIds.push(`${tenant.name} (錯誤)`);
+        debugLogs.push(`✓ 成功刪除租戶: ${tenant.name}`);
+      } catch (error: any) {
+        const errMsg = error?.message || String(error);
+        debugLogs.push(`✗ 刪除租戶失敗: ${tenant.name} - 錯誤: ${errMsg}`);
+        skippedTenantIds.push(`${tenant.name} (錯誤: ${errMsg.slice(0, 100)})`);
       }
     } else {
       skippedTenantIds.push(`${tenant.name} (有登入紀錄)`);
