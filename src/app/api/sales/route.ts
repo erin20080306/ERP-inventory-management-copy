@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { apiHandler, requirePermission, requireTenantId, audit, nextNumber } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { calcTotals } from "@/lib/documents";
-import { buildARCreatedDraft, autoCreateJournal } from "@/lib/auto-journal";
+import { autoCreateJournalFromOrder } from "@/lib/auto-journal";
 
 export const GET = apiHandler(async (req: NextRequest) => {
   await requirePermission("sales.view");
@@ -36,47 +36,54 @@ export const POST = apiHandler(async (req: NextRequest) => {
   if (!items?.length) throw new Error("請至少新增一項商品");
   const totals = calcTotals(items);
   const number = await nextNumber("SO", tenantId);
-  const created = await prisma.salesOrder.create({
-    data: {
-      tenantId,
-      number,
-      customerId,
-      remark,
-      status: status ?? "DRAFT",
-      subtotal: totals.subtotal,
-      discount: totals.discount,
-      taxAmount: totals.taxAmount,
-      total: totals.total,
-      items: {
-        create: totals.computed.map((i: any) => ({
-          productId: i.productId,
-          quantity: i.quantity,
-          unitPrice: i.unitPrice,
-          discount: i.discount ?? 0,
-          taxRate: i.taxRate ?? 0,
-          subtotal: i.subtotal,
-        })),
+  const isConfirmed = (status ?? "DRAFT") === "CONFIRMED";
+
+  // 使用 transaction 合併所有寫入，減少網路往返
+  const created = await prisma.$transaction(async (tx) => {
+    const order = await tx.salesOrder.create({
+      data: {
+        tenantId,
+        number,
+        customerId,
+        remark,
+        status: status ?? "DRAFT",
+        subtotal: totals.subtotal,
+        discount: totals.discount,
+        taxAmount: totals.taxAmount,
+        total: totals.total,
+        items: {
+          create: totals.computed.map((i: any) => ({
+            productId: i.productId,
+            quantity: i.quantity,
+            unitPrice: i.unitPrice,
+            discount: i.discount ?? 0,
+            taxRate: i.taxRate ?? 0,
+            subtotal: i.subtotal,
+          })),
+        },
       },
-    },
-    include: { items: true, customer: true },
+      include: { items: { include: { product: true } }, customer: true },
+    });
+
+    if (isConfirmed) {
+      await tx.accountsReceivable.create({
+        data: { tenantId, customerId, salesOrderId: order.id, amount: totals.total, status: "OPEN" },
+      });
+    }
+
+    return order;
   });
-  // 並行處理 audit + AR/journal
-  const tasks: Promise<any>[] = [
+
+  // 非同步處理：audit + 自動傳票（不阻塞回應）
+  const bgTasks: Promise<any>[] = [
     audit({ userId: session.user.id, action: "create", module: "sales", refId: created.id, detail: number }),
   ];
-  let autoCreated = false;
-  if ((status ?? "DRAFT") === "CONFIRMED") {
-    autoCreated = true;
-    tasks.push(
-      prisma.accountsReceivable.create({
-        data: { tenantId, customerId, salesOrderId: created.id, amount: totals.total, status: "OPEN" },
-      }).then(async () => {
-        const draft = await buildARCreatedDraft(created.id);
-        await autoCreateJournal(tenantId, draft, session.user.id);
-      })
+  if (isConfirmed) {
+    bgTasks.push(
+      autoCreateJournalFromOrder("sales", created, tenantId, session.user.id)
     );
   }
-  await Promise.all(tasks);
+  await Promise.all(bgTasks);
 
-  return NextResponse.json({ ...created, autoCreated });
+  return NextResponse.json({ ...created, autoCreated: isConfirmed });
 });

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { apiHandler, requirePermission, requireTenantId, audit, nextNumber } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { calcTotals } from "@/lib/documents";
-import { buildAPCreatedDraft, autoCreateJournal } from "@/lib/auto-journal";
+import { autoCreateJournalFromOrder } from "@/lib/auto-journal";
 
 export const GET = apiHandler(async (req: NextRequest) => {
   await requirePermission("purchases.view");
@@ -36,47 +36,55 @@ export const POST = apiHandler(async (req: NextRequest) => {
   if (!items?.length) throw new Error("請至少新增一項商品");
   const totals = calcTotals(items);
   const number = await nextNumber("PO", tenantId);
-  const created = await prisma.purchaseOrder.create({
-    data: {
-      tenantId,
-      number,
-      supplierId,
-      remark,
-      status: status ?? "DRAFT",
-      subtotal: totals.subtotal,
-      discount: totals.discount,
-      taxAmount: totals.taxAmount,
-      total: totals.total,
-      items: {
-        create: totals.computed.map((i: any) => ({
-          productId: i.productId,
-          quantity: i.quantity,
-          unitPrice: i.unitPrice,
-          discount: i.discount ?? 0,
-          taxRate: i.taxRate ?? 0,
-          subtotal: i.subtotal,
-        })),
+  const s = status ?? "DRAFT";
+  const isApproved = s === "SUBMITTED" || s === "APPROVED";
+
+  // 使用 transaction 合併所有寫入，減少網路往返
+  const created = await prisma.$transaction(async (tx) => {
+    const order = await tx.purchaseOrder.create({
+      data: {
+        tenantId,
+        number,
+        supplierId,
+        remark,
+        status: s,
+        subtotal: totals.subtotal,
+        discount: totals.discount,
+        taxAmount: totals.taxAmount,
+        total: totals.total,
+        items: {
+          create: totals.computed.map((i: any) => ({
+            productId: i.productId,
+            quantity: i.quantity,
+            unitPrice: i.unitPrice,
+            discount: i.discount ?? 0,
+            taxRate: i.taxRate ?? 0,
+            subtotal: i.subtotal,
+          })),
+        },
       },
-    },
-    include: { items: true, supplier: true },
+      include: { items: true, supplier: true },
+    });
+
+    if (isApproved) {
+      await tx.accountsPayable.create({
+        data: { tenantId, supplierId, purchaseOrderId: order.id, amount: totals.total, status: "OPEN" },
+      });
+    }
+
+    return order;
   });
-  const tasks: Promise<any>[] = [
+
+  // 非同步處理：audit + 自動傳票（不阻塞回應）
+  const bgTasks: Promise<any>[] = [
     audit({ userId: session.user.id, action: "create", module: "purchases", refId: created.id, detail: number }),
   ];
-  const s = status ?? "DRAFT";
-  let autoCreated = false;
-  if (s === "SUBMITTED" || s === "APPROVED") {
-    autoCreated = true;
-    tasks.push(
-      prisma.accountsPayable.create({
-        data: { tenantId, supplierId, purchaseOrderId: created.id, amount: totals.total, status: "OPEN" },
-      }).then(async () => {
-        const draft = await buildAPCreatedDraft(created.id);
-        await autoCreateJournal(tenantId, draft, session.user.id);
-      })
+  if (isApproved) {
+    bgTasks.push(
+      autoCreateJournalFromOrder("purchase", created, tenantId, session.user.id)
     );
   }
-  await Promise.all(tasks);
+  await Promise.all(bgTasks);
 
-  return NextResponse.json({ ...created, autoCreated });
+  return NextResponse.json({ ...created, autoCreated: isApproved });
 });

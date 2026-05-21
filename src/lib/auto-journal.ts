@@ -488,6 +488,62 @@ export async function buildDiscountNoteDraft(discountNoteId: string): Promise<Dr
 }
 
 /* ============================================================ */
+/*   快速自動傳票（直接使用已查詢的訂單資料，避免重複查詢）          */
+/* ============================================================ */
+export async function autoCreateJournalFromOrder(
+  type: "sales" | "purchase",
+  order: any,
+  tenantId: string,
+  userId?: string,
+) {
+  try {
+    const codes = type === "sales"
+      ? [DEFAULT_ACCOUNT_CODES.AR, DEFAULT_ACCOUNT_CODES.SALES_REVENUE, DEFAULT_ACCOUNT_CODES.OUTPUT_TAX, DEFAULT_ACCOUNT_CODES.COGS, DEFAULT_ACCOUNT_CODES.INVENTORY]
+      : [DEFAULT_ACCOUNT_CODES.INVENTORY, DEFAULT_ACCOUNT_CODES.INPUT_TAX, DEFAULT_ACCOUNT_CODES.AP];
+    await preloadAccounts(tenantId, codes);
+
+    let draft: DraftEntry;
+    if (type === "sales") {
+      const subtotal = Number(order.subtotal) - Number(order.discount);
+      const tax = Number(order.taxAmount);
+      const total = Number(order.total);
+      const cogs = (order.items || []).reduce((s: number, i: any) => s + Number(i.quantity) * Number(i.product?.costPrice ?? 0), 0);
+      const customerName = order.customer?.companyName ?? "";
+
+      const lines: DraftLine[] = [
+        await line(tenantId, DEFAULT_ACCOUNT_CODES.AR, total, 0, customerName),
+        await line(tenantId, DEFAULT_ACCOUNT_CODES.SALES_REVENUE, 0, subtotal, `銷售 ${order.number}`),
+        ...(tax > 0 ? [await line(tenantId, DEFAULT_ACCOUNT_CODES.OUTPUT_TAX, 0, tax, "銷項稅額 5%")] : []),
+      ];
+      if (cogs > 0) {
+        lines.push(
+          await line(tenantId, DEFAULT_ACCOUNT_CODES.COGS, cogs, 0, `銷貨成本 ${order.number}`),
+          await line(tenantId, DEFAULT_ACCOUNT_CODES.INVENTORY, 0, cogs, "結轉存貨"),
+        );
+      }
+      draft = { sourceType: "SALES_CONFIRM", sourceId: order.id, summary: `銷售確認 ${order.number} ${customerName}`, entryDate: new Date().toISOString().slice(0, 10), lines };
+    } else {
+      const subtotal = Number(order.subtotal) - Number(order.discount);
+      const tax = Number(order.taxAmount);
+      const total = Number(order.total);
+      const supplierName = order.supplier?.companyName ?? "";
+
+      const lines: DraftLine[] = [
+        await line(tenantId, DEFAULT_ACCOUNT_CODES.INVENTORY, subtotal, 0, `進貨 ${order.number}`),
+        ...(tax > 0 ? [await line(tenantId, DEFAULT_ACCOUNT_CODES.INPUT_TAX, tax, 0, "進項稅額 5%")] : []),
+        await line(tenantId, DEFAULT_ACCOUNT_CODES.AP, 0, total, supplierName),
+      ];
+      draft = { sourceType: "PURCHASE_APPROVE", sourceId: order.id, summary: `採購核准 ${order.number} ${supplierName}`, entryDate: new Date().toISOString().slice(0, 10), lines };
+    }
+
+    return await autoCreateJournal(tenantId, draft, userId);
+  } catch (err: any) {
+    console.error(`[autoCreateJournalFromOrder] ${type} 失敗:`, err.message);
+    return null;
+  }
+}
+
+/* ============================================================ */
 /*   自動建立傳票（寫入 DB，POSTED 狀態）                            */
 /* ============================================================ */
 export async function autoCreateJournal(
