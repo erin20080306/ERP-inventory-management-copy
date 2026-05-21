@@ -91,7 +91,12 @@ export default function AdminPage() {
                     message += `\n\n跳過：\n${d.skippedTenantIds.join("\n")}`;
                   }
                   if (d.debugLogs && d.debugLogs.length > 0) {
-                    message += `\n\n詳細日誌：\n${d.debugLogs.join("\n")}`;
+                    // 限制日誌數量避免過長
+                    const logsToShow = d.debugLogs.slice(0, 100);
+                    message += `\n\n=== 詳細日誌 (前100筆) ===\n${logsToShow.join("\n")}`;
+                    if (d.debugLogs.length > 100) {
+                      message += `\n... (還有 ${d.debugLogs.length - 100} 筆日誌)`;
+                    }
                   }
                   alert(message);
                   fetch("/api/admin/tenants")
