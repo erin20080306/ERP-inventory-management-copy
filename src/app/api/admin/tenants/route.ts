@@ -21,6 +21,7 @@ export const GET = apiHandler(async (_req: NextRequest) => {
     prisma.user.findMany({
       include: {
         tenant: { select: { name: true } },
+        createdByUser: { select: { username: true, name: true } },
         _count: { select: { loginLogs: true, auditLogs: true } },
       },
       orderBy: { createdAt: "desc" },
@@ -92,6 +93,8 @@ export const GET = apiHandler(async (_req: NextRequest) => {
       lastLoginAt: u.lastLoginAt,
       lastLoginIp: u.lastLoginIp,
       registrationIp: (u as any).registrationIp,
+      createdByUsername: (u as any).createdByUser?.username ?? null,
+      createdByName: (u as any).createdByUser?.name ?? null,
       createdAt: u.createdAt,
       tenantId: u.tenantId,
       tenantName: u.tenant?.name ?? null,

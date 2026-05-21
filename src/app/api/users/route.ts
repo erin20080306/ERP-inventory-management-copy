@@ -50,7 +50,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
   });
   const trialStart = firstUser?.trialStart || new Date();
   const created = await prisma.user.create({
-    data: { tenantId, username, name, email, passwordHash: hash, isActive: isActive ?? true, trialStart },
+    data: { tenantId, username, name, email, passwordHash: hash, isActive: isActive ?? true, trialStart, createdByUserId: session.user.id },
   });
   if (roleIds?.length) {
     await prisma.userRole.createMany({ data: roleIds.map((rid: string) => ({ userId: created.id, roleId: rid })) });
