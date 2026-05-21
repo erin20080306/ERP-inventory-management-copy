@@ -110,18 +110,32 @@ export const DELETE = apiHandler(async (_req: NextRequest) => {
   });
 
   let deletedCount = 0;
+  const deletedTenantIds: string[] = [];
   for (const tenant of tenants) {
-    // 檢查該租戶的所有用戶是否都沒有登入過
-    const hasLoggedInUsers = tenant.users.some((u) => (u as any).isSuperAdmin === false && (loginMap[u.id] || 0) > 0);
+    // 跳過超級管理員租戶（tenantId 為 null）
+    if (!tenant.id) continue;
 
-    // 如果租戶有非超級管理員用戶且都沒登入過，則刪除
-    if (!hasLoggedInUsers && tenant.users.length > 0) {
-      await prisma.tenant.delete({
-        where: { id: tenant.id },
-      });
-      deletedCount++;
+    // 檢查該租戶的所有用戶是否都沒有登入過
+    const allUsersNeverLoggedIn = tenant.users.every((u) => {
+      // 跳過超級管理員
+      if ((u as any).isSuperAdmin) return true;
+      // 檢查登入次數是否為 0
+      return (loginMap[u.id] || 0) === 0;
+    });
+
+    // 如果租戶有非超級管理員用戶且所有用戶都沒登入過，則刪除
+    if (tenant.users.length > 0 && allUsersNeverLoggedIn) {
+      try {
+        await prisma.tenant.delete({
+          where: { id: tenant.id },
+        });
+        deletedCount++;
+        deletedTenantIds.push(tenant.name || tenant.id);
+      } catch (error) {
+        console.error(`刪除租戶失敗: ${tenant.name}`, error);
+      }
     }
   }
 
-  return NextResponse.json({ deletedCount });
+  return NextResponse.json({ deletedCount, deletedTenantIds });
 });
