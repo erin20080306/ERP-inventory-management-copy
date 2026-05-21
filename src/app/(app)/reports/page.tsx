@@ -8,6 +8,7 @@ import { formatMoney, formatNumber } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Printer, FileText, Scale, BookOpen } from "lucide-react";
 import { requireTenantId } from "@/lib/api";
+import { ReportDateFilter } from "./date-filter";
 
 export const dynamic = "force-dynamic";
 
@@ -84,6 +85,7 @@ export default async function Page({ searchParams }: { searchParams: { from?: st
 
   return (
     <PageShell title={`財務報表 (${dateRangeLabel})`} description="損益表、資產負債表、試算表與進銷存總覽">
+      <ReportDateFilter />
       {/* 列印入口卡 */}
       <Card>
         <CardHeader>

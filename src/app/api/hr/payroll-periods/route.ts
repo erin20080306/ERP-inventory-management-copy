@@ -7,7 +7,18 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const tenantId = await requireTenantId();
   const sp = req.nextUrl.searchParams;
   const year = sp.get("year");
+  const fromDate = sp.get("from") ?? "";
+  const toDate = sp.get("to") ?? "";
   const where: any = year ? { tenantId, year: Number(year) } : { tenantId };
+  if (fromDate || toDate) {
+    where.createdAt = {};
+    if (fromDate) where.createdAt.gte = new Date(fromDate);
+    if (toDate) {
+      const end = new Date(toDate);
+      end.setHours(23, 59, 59, 999);
+      where.createdAt.lte = end;
+    }
+  }
   const items = await prisma.payrollPeriod.findMany({
     where,
     orderBy: [{ year: "desc" }, { month: "desc" }],

@@ -6,8 +6,9 @@ import { Input, Label } from "@/components/ui/input";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { StatusBadge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Plus, Loader2, Trash2 } from "lucide-react";
+import { Plus, Loader2, Trash2, Search, Download, FileDown, Printer } from "lucide-react";
 import { formatDate, formatMoney, formatNumber } from "@/lib/utils";
+import { downloadCSV, toCSV } from "@/lib/csv";
 
 type Adjustment = {
   id: string;
@@ -185,13 +186,20 @@ export default function AdjustmentClient() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
+  const [q, setQ] = useState("");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const [openNew, setOpenNew] = useState(false);
+  const [pdfBusy, setPdfBusy] = useState(false);
   const pageSize = 20;
 
   async function load() {
     setLoading(true);
     try {
-      const res = await fetch(`/api/inventory/adjustments?page=${page}&pageSize=${pageSize}`);
+      const params = new URLSearchParams({ q, page: String(page), pageSize: String(pageSize) });
+      if (fromDate) params.set("from", fromDate);
+      if (toDate) params.set("to", toDate);
+      const res = await fetch(`/api/inventory/adjustments?${params.toString()}`);
       const data = await res.json();
       setItems(data.items);
       setTotal(data.total);
@@ -199,12 +207,71 @@ export default function AdjustmentClient() {
       setLoading(false);
     }
   }
-  useEffect(() => { load(); }, [page]);
+  useEffect(() => { load(); }, [page, q, fromDate, toDate]);
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+  async function exportCSV() {
+    const params = new URLSearchParams({ q, pageSize: "10000" });
+    if (fromDate) params.set("from", fromDate);
+    if (toDate) params.set("to", toDate);
+    const res = await fetch(`/api/inventory/adjustments?${params.toString()}`);
+    const d = await res.json();
+    const csv = toCSV(d.items, [
+      { key: "number", title: "單號" },
+      { key: "warehouse", title: "倉庫", get: (r: any) => r.warehouse?.name ?? "" },
+      { key: "reason", title: "原因" },
+      { key: "status", title: "狀態" },
+      { key: "createdAt", title: "日期", get: (r: any) => formatDate(r.createdAt) },
+    ]);
+    downloadCSV(`adjustments-${new Date().toISOString().slice(0, 10)}.csv`, csv);
+    toast.success("已匯出 CSV");
+  }
+
+  async function exportExcel() {
+    const params = new URLSearchParams({ q, pageSize: "10000" });
+    if (fromDate) params.set("from", fromDate);
+    if (toDate) params.set("to", toDate);
+    const res = await fetch(`/api/inventory/adjustments?${params.toString()}`);
+    const d = await res.json();
+    const { downloadExcel } = await import("@/lib/excel");
+    downloadExcel("adjustments", "盤點調整", d.items, [
+      { key: "number", title: "單號" },
+      { key: "warehouse", title: "倉庫", get: (r: any) => r.warehouse?.name ?? "" },
+      { key: "reason", title: "原因" },
+      { key: "status", title: "狀態" },
+      { key: "createdAt", title: "日期", get: (r: any) => formatDate(r.createdAt) },
+    ]);
+    toast.success("已匯出 Excel");
+  }
+
+  async function exportPDF() {
+    setPdfBusy(true);
+    try {
+      const { exportPageToPDF } = await import("@/lib/export-pdf");
+      await exportPageToPDF("盤點調整", "adjustments");
+    } finally { setPdfBusy(false); }
+  }
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
-        <Button onClick={() => setOpenNew(true)}><Plus className="h-4 w-4 mr-1" />新增盤點調整</Button>
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="relative">
+            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+            <Input placeholder="搜尋單號" className="pl-9 w-64" value={q} onChange={(e) => { setPage(1); setQ(e.target.value); }} />
+          </div>
+          <Input type="date" value={fromDate} onChange={(e) => { setPage(1); setFromDate(e.target.value); }} className="w-36" />
+          <Input type="date" value={toDate} onChange={(e) => { setPage(1); setToDate(e.target.value); }} className="w-36" />
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button variant="outline" onClick={exportCSV}><Download className="h-4 w-4" />CSV</Button>
+          <Button variant="outline" onClick={exportExcel}><FileDown className="h-4 w-4" />Excel</Button>
+          <Button variant="outline" onClick={exportPDF} disabled={pdfBusy}>
+            {pdfBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}PDF
+          </Button>
+          <Button onClick={() => setOpenNew(true)}><Plus className="h-4 w-4 mr-1" />新增盤點調整</Button>
+        </div>
       </div>
 
       {loading ? (
@@ -227,6 +294,14 @@ export default function AdjustmentClient() {
             ))}
           </TBody>
         </Table>
+        </div>
+      )}
+
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2 py-2">
+          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>上一頁</Button>
+          <span className="text-sm">{page} / {totalPages}</span>
+          <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>下一頁</Button>
         </div>
       )}
 

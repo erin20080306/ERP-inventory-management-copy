@@ -10,9 +10,20 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const q = sp.get("q") ?? "";
   const page = Number(sp.get("page") ?? 1);
   const pageSize = Number(sp.get("pageSize") ?? 20);
+  const fromDate = sp.get("from") ?? "";
+  const toDate = sp.get("to") ?? "";
   const where: any = q
     ? { tenantId, OR: [{ number: { contains: q, mode: "insensitive" } }, { customer: { companyName: { contains: q, mode: "insensitive" } } }] }
     : { tenantId };
+  if (fromDate || toDate) {
+    where.createdAt = {};
+    if (fromDate) where.createdAt.gte = new Date(fromDate);
+    if (toDate) {
+      const end = new Date(toDate);
+      end.setHours(23, 59, 59, 999);
+      where.createdAt.lte = end;
+    }
+  }
   const [items, total] = await Promise.all([
     prisma.salesReturn.findMany({
       where,

@@ -53,7 +53,10 @@ const sections: NavSection[] = [
       { title: "薪資管理", href: "/hr/payroll", icon: BadgeDollarSign, perm: "payroll.view" },
     ],
   },
-  { label: "報表", items: [{ title: "財務報表", href: "/reports", icon: BarChart3, perm: "reports.view" }] },
+  { label: "報表", items: [
+    { title: "財務報表", href: "/reports", icon: BarChart3, perm: "reports.view" },
+    { title: "BOM 總覽", href: "/bom", icon: FileSpreadsheet, perm: "inventory.view" },
+  ] },
   {
     label: "系統",
     items: [

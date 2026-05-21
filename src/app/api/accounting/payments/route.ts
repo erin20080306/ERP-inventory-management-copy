@@ -10,6 +10,8 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const q = sp.get("q") ?? "";
   const page = Number(sp.get("page") ?? 1);
   const pageSize = Number(sp.get("pageSize") ?? 20);
+  const fromDate = sp.get("from") ?? "";
+  const toDate = sp.get("to") ?? "";
 
   let receivePayments: any[] = [];
   let supplierPayments: any[] = [];
@@ -21,6 +23,11 @@ export const GET = apiHandler(async (req: NextRequest) => {
   if (kind === "ar" || kind === "all") {
     const where: any = { tenantId };
     if (q) where.customer = { companyName: { contains: q, mode: "insensitive" } };
+    if (fromDate || toDate) {
+      where.createdAt = {};
+      if (fromDate) where.createdAt.gte = new Date(fromDate);
+      if (toDate) { const end = new Date(toDate); end.setHours(23, 59, 59, 999); where.createdAt.lte = end; }
+    }
     [receivePayments, totalReceive] = await Promise.all([
       prisma.receivePayment.findMany({
         where,
@@ -36,6 +43,11 @@ export const GET = apiHandler(async (req: NextRequest) => {
   if (kind === "ap" || kind === "all") {
     const where: any = { tenantId };
     if (q) where.supplier = { companyName: { contains: q, mode: "insensitive" } };
+    if (fromDate || toDate) {
+      where.createdAt = {};
+      if (fromDate) where.createdAt.gte = new Date(fromDate);
+      if (toDate) { const end = new Date(toDate); end.setHours(23, 59, 59, 999); where.createdAt.lte = end; }
+    }
     [supplierPayments, totalSupplier] = await Promise.all([
       prisma.supplierPayment.findMany({
         where,
@@ -57,6 +69,11 @@ export const GET = apiHandler(async (req: NextRequest) => {
       { customer: { companyName: { contains: q, mode: "insensitive" } } },
       { supplier: { companyName: { contains: q, mode: "insensitive" } } },
     ];
+  }
+  if (fromDate || toDate) {
+    dnWhere.createdAt = {};
+    if (fromDate) dnWhere.createdAt.gte = new Date(fromDate);
+    if (toDate) { const end = new Date(toDate); end.setHours(23, 59, 59, 999); dnWhere.createdAt.lte = end; }
   }
   [discountNotes, totalDiscount] = await Promise.all([
     prisma.discountNote.findMany({
