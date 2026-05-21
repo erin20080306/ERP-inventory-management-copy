@@ -6,8 +6,10 @@ import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/layout/page-shell";
-import { Loader2, Search, FileDown } from "lucide-react";
+import { Loader2, Search, FileDown, Download, Printer, Upload } from "lucide-react";
 import { formatDate, formatMoney, formatNumber } from "@/lib/utils";
+import { downloadCSV, toCSV } from "@/lib/csv";
+import { toast } from "sonner";
 
 type Module = {
   key: string;
@@ -217,26 +219,74 @@ export function BomClient() {
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
-  async function exportExcel() {
+  async function fetchAll() {
     const params = new URLSearchParams({ q, pageSize: "10000" });
     if (fromDate) params.set("from", fromDate);
     if (toDate) params.set("to", toDate);
     const res = await fetch(`${currentModule.endpoint}?${params.toString()}`);
     const d = await res.json();
+    return d.items ?? [];
+  }
+
+  function getExportColumns() {
+    return currentModule.columns.map((c) => ({
+      key: c.key,
+      title: c.title,
+      get: c.render ? (r: any) => {
+        const val = c.render!(r);
+        return typeof val === "object" ? (r[c.key] ?? "") : val;
+      } : undefined,
+    }));
+  }
+
+  async function exportExcel() {
+    const items = await fetchAll();
     const { downloadExcel } = await import("@/lib/excel");
-    downloadExcel(
-      `bom-${currentModule.key}`,
-      currentModule.label,
-      d.items ?? [],
-      currentModule.columns.map((c) => ({
-        key: c.key,
-        title: c.title,
-        get: c.render ? (r: any) => {
-          const val = c.render!(r);
-          return typeof val === "object" ? (r[c.key] ?? "") : val;
-        } : undefined,
-      }))
-    );
+    downloadExcel(`bom-${currentModule.key}`, currentModule.label, items, getExportColumns());
+    toast.success("已匯出 Excel");
+  }
+
+  async function exportCSV() {
+    const items = await fetchAll();
+    const csv = toCSV(items, getExportColumns());
+    downloadCSV(`bom-${currentModule.key}-${new Date().toISOString().slice(0, 10)}.csv`, csv);
+    toast.success("已匯出 CSV");
+  }
+
+  async function exportPDF() {
+    const { exportPageToPDF } = await import("@/lib/export-pdf");
+    await exportPageToPDF(`BOM-${currentModule.label}`, `bom-${currentModule.key}`);
+    toast.success("已匯出 PDF");
+  }
+
+  async function importFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const ext = file.name.split(".").pop()?.toLowerCase();
+      let data: any[] = [];
+      if (ext === "csv") {
+        const text = await file.text();
+        const lines = text.split("\n").filter(Boolean);
+        if (lines.length < 2) throw new Error("檔案為空");
+        const headers = lines[0].split(",").map((h) => h.trim().replace(/^"|"$/g, ""));
+        for (let i = 1; i < lines.length; i++) {
+          const vals = lines[i].split(",").map((v) => v.trim().replace(/^"|"$/g, ""));
+          const row: any = {};
+          headers.forEach((h, idx) => { row[h] = vals[idx] ?? ""; });
+          data.push(row);
+        }
+      } else {
+        const { readExcelFile } = await import("@/lib/excel");
+        data = await readExcelFile(file);
+      }
+      toast.success(`已讀取 ${data.length} 筆資料（僅預覽，實際匯入請在各模組操作）`);
+      console.table(data.slice(0, 5));
+    } catch (err: any) {
+      toast.error(err.message || "匯入失敗");
+    } finally {
+      e.target.value = "";
+    }
   }
 
   return (
@@ -266,7 +316,11 @@ export function BomClient() {
         </div>
         <Input type="date" value={fromDate} onChange={(e) => { setPage(1); setFromDate(e.target.value); }} className="w-36" />
         <Input type="date" value={toDate} onChange={(e) => { setPage(1); setToDate(e.target.value); }} className="w-36" />
-        <Button variant="outline" onClick={exportExcel}><FileDown className="h-4 w-4 mr-1" />匯出 Excel</Button>
+        <Button variant="outline" onClick={exportCSV}><Download className="h-4 w-4 mr-1" />CSV</Button>
+        <Button variant="outline" onClick={exportExcel}><FileDown className="h-4 w-4 mr-1" />Excel</Button>
+        <Button variant="outline" onClick={exportPDF}><Printer className="h-4 w-4 mr-1" />PDF</Button>
+        <Button variant="outline" onClick={() => document.getElementById("bom-import")?.click()}><Upload className="h-4 w-4 mr-1" />匯入</Button>
+        <input id="bom-import" type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={importFile} />
         <span className="text-sm text-muted-foreground ml-auto">共 {total} 筆</span>
       </div>
 
