@@ -184,36 +184,60 @@ export const DELETE = apiHandler(async (_req: NextRequest) => {
           await tx.loginLog.deleteMany({ where: { userId: { in: userIds } } });
           await tx.auditLog.deleteMany({ where: { userId: { in: userIds } } });
 
-          // 刪除所有相關資料
-          await tx.taxRate.deleteMany({ where: { tenantId: tenant.id } });
-          await tx.productCategory.deleteMany({ where: { tenantId: tenant.id } });
-          await tx.productUnit.deleteMany({ where: { tenantId: tenant.id } });
-          await tx.warehouse.deleteMany({ where: { tenantId: tenant.id } });
-          await tx.inventoryStock.deleteMany({ where: { tenantId: tenant.id } });
+          // === 先刪除所有明細/子表（有外鍵引用父表的） ===
+
+          // 訂單明細項目（引用 Product）
+          const salesOrderIds = (await tx.salesOrder.findMany({ where: { tenantId: tenant.id }, select: { id: true } })).map(o => o.id);
+          const purchaseOrderIds = (await tx.purchaseOrder.findMany({ where: { tenantId: tenant.id }, select: { id: true } })).map(o => o.id);
+          const quotationIds = (await tx.quotation.findMany({ where: { tenantId: tenant.id }, select: { id: true } })).map(o => o.id);
+          const salesReturnIds = (await tx.salesReturn.findMany({ where: { tenantId: tenant.id }, select: { id: true } })).map(o => o.id);
+          const purchaseReturnIds = (await tx.purchaseReturn.findMany({ where: { tenantId: tenant.id }, select: { id: true } })).map(o => o.id);
+          const invoiceIds = (await tx.invoice.findMany({ where: { tenantId: tenant.id }, select: { id: true } })).map(o => o.id);
+          const journalEntryIds = (await tx.journalEntry.findMany({ where: { tenantId: tenant.id }, select: { id: true } })).map(o => o.id);
+          const cashAccountIds = (await tx.cashAccount.findMany({ where: { tenantId: tenant.id }, select: { id: true } })).map(o => o.id);
+          const bankAccountIds = (await tx.bankAccount.findMany({ where: { tenantId: tenant.id }, select: { id: true } })).map(o => o.id);
+
+          // 刪除明細項目
+          if (salesOrderIds.length) await tx.salesOrderItem.deleteMany({ where: { orderId: { in: salesOrderIds } } });
+          if (purchaseOrderIds.length) await tx.purchaseOrderItem.deleteMany({ where: { orderId: { in: purchaseOrderIds } } });
+          if (quotationIds.length) await tx.quotationItem.deleteMany({ where: { quotationId: { in: quotationIds } } });
+          if (salesReturnIds.length) await tx.salesReturnItem.deleteMany({ where: { returnId: { in: salesReturnIds } } });
+          if (purchaseReturnIds.length) await tx.purchaseReturnItem.deleteMany({ where: { returnId: { in: purchaseReturnIds } } });
+          if (invoiceIds.length) await tx.invoiceItem.deleteMany({ where: { invoiceId: { in: invoiceIds } } });
+          if (journalEntryIds.length) await tx.journalEntryLine.deleteMany({ where: { entryId: { in: journalEntryIds } } });
+          if (cashAccountIds.length) await tx.cashTransaction.deleteMany({ where: { cashAccountId: { in: cashAccountIds } } });
+          if (bankAccountIds.length) await tx.bankTransaction.deleteMany({ where: { bankAccountId: { in: bankAccountIds } } });
+
+          // === 刪除主表（按照正確順序） ===
+          await tx.discountNote.deleteMany({ where: { tenantId: tenant.id } });
+          await tx.receivePayment.deleteMany({ where: { tenantId: tenant.id } });
+          await tx.supplierPayment.deleteMany({ where: { tenantId: tenant.id } });
+          await tx.noteReceivable.deleteMany({ where: { tenantId: tenant.id } });
+          await tx.notePayable.deleteMany({ where: { tenantId: tenant.id } });
+          await tx.accountsReceivable.deleteMany({ where: { tenantId: tenant.id } });
+          await tx.accountsPayable.deleteMany({ where: { tenantId: tenant.id } });
+          await tx.salesReturn.deleteMany({ where: { tenantId: tenant.id } });
+          await tx.purchaseReturn.deleteMany({ where: { tenantId: tenant.id } });
+          await tx.salesOrder.deleteMany({ where: { tenantId: tenant.id } });
+          await tx.purchaseOrder.deleteMany({ where: { tenantId: tenant.id } });
+          await tx.quotation.deleteMany({ where: { tenantId: tenant.id } });
+          await tx.invoice.deleteMany({ where: { tenantId: tenant.id } });
+          await tx.journalEntry.deleteMany({ where: { tenantId: tenant.id } });
+          await tx.chartOfAccount.deleteMany({ where: { tenantId: tenant.id } });
           await tx.inventoryTransaction.deleteMany({ where: { tenantId: tenant.id } });
+          await tx.inventoryStock.deleteMany({ where: { tenantId: tenant.id } });
           await tx.stockAdjustment.deleteMany({ where: { tenantId: tenant.id } });
           await tx.stockTransfer.deleteMany({ where: { tenantId: tenant.id } });
           await tx.product.deleteMany({ where: { tenantId: tenant.id } });
+          await tx.productCategory.deleteMany({ where: { tenantId: tenant.id } });
+          await tx.productUnit.deleteMany({ where: { tenantId: tenant.id } });
+          await tx.taxRate.deleteMany({ where: { tenantId: tenant.id } });
           await tx.customer.deleteMany({ where: { tenantId: tenant.id } });
           await tx.supplier.deleteMany({ where: { tenantId: tenant.id } });
-          await tx.quotation.deleteMany({ where: { tenantId: tenant.id } });
-          await tx.salesOrder.deleteMany({ where: { tenantId: tenant.id } });
-          await tx.purchaseOrder.deleteMany({ where: { tenantId: tenant.id } });
-          await tx.salesReturn.deleteMany({ where: { tenantId: tenant.id } });
-          await tx.purchaseReturn.deleteMany({ where: { tenantId: tenant.id } });
-          await tx.chartOfAccount.deleteMany({ where: { tenantId: tenant.id } });
-          await tx.journalEntry.deleteMany({ where: { tenantId: tenant.id } });
-          await tx.accountsReceivable.deleteMany({ where: { tenantId: tenant.id } });
-          await tx.receivePayment.deleteMany({ where: { tenantId: tenant.id } });
-          await tx.accountsPayable.deleteMany({ where: { tenantId: tenant.id } });
-          await tx.supplierPayment.deleteMany({ where: { tenantId: tenant.id } });
+          await tx.warehouse.deleteMany({ where: { tenantId: tenant.id } });
           await tx.cashAccount.deleteMany({ where: { tenantId: tenant.id } });
           await tx.bankAccount.deleteMany({ where: { tenantId: tenant.id } });
-          await tx.invoice.deleteMany({ where: { tenantId: tenant.id } });
-          await tx.discountNote.deleteMany({ where: { tenantId: tenant.id } });
           await tx.invoiceTrack.deleteMany({ where: { tenantId: tenant.id } });
-          await tx.noteReceivable.deleteMany({ where: { tenantId: tenant.id } });
-          await tx.notePayable.deleteMany({ where: { tenantId: tenant.id } });
           await tx.companySetting.deleteMany({ where: { tenantId: tenant.id } });
           await tx.numberSequence.deleteMany({ where: { tenantId: tenant.id } });
           await tx.department.deleteMany({ where: { tenantId: tenant.id } });
