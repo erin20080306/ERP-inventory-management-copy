@@ -25,6 +25,11 @@ export async function requireTenantId() {
   const session = await requireAuth();
   const tenantId = (session.user as any).tenantId;
   if (!tenantId) throw new ApiError(401, "無租戶資訊");
+  
+  // 驗證租戶是否存在
+  const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } });
+  if (!tenant) throw new ApiError(401, "租戶不存在或已被刪除");
+  
   return tenantId as string;
 }
 

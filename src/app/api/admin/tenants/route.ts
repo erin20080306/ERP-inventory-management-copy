@@ -161,8 +161,9 @@ export const DELETE = apiHandler(async (_req: NextRequest) => {
       debugLogs.push(`hasNonSuperAdminUser: ${hasNonSuperAdminUser}, allUsersNeverLoggedIn: ${allUsersNeverLoggedIn}`);
     }
 
-    // 刪除條件：沒有用戶 或 所有非超級管理員用戶都沒登入過
-    const shouldDelete = !hasNonSuperAdminUser || allUsersNeverLoggedIn;
+    // 刪除條件：沒有用戶 或 有非超級管理員用戶且都未登入過
+    // 注意：只有超級管理員的租戶不應被刪除
+    const shouldDelete = tenant.users.length === 0 || (hasNonSuperAdminUser && allUsersNeverLoggedIn);
     debugLogs.push(`租戶 ${tenant.name} shouldDelete: ${shouldDelete}`);
     
     if (shouldDelete) {
