@@ -17,6 +17,8 @@ export function JournalClient() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [q, setQ] = useState("");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const [openNew, setOpenNew] = useState(false);
   const [view, setView] = useState<any>(null);
   const [editId, setEditId] = useState<string | null>(null);
@@ -44,7 +46,10 @@ export function JournalClient() {
 
   async function load() {
     setLoading(true);
-    const res = await fetch(`/api/accounting/journals?q=${encodeURIComponent(q)}&page=${page}&pageSize=${pageSize}`);
+    const params = new URLSearchParams({ q, page: String(page), pageSize: String(pageSize) });
+    if (fromDate) params.set("from", fromDate);
+    if (toDate) params.set("to", toDate);
+    const res = await fetch(`/api/accounting/journals?${params}`);
     const d = await res.json();
     setRows(d.items);
     setTotal(d.total);
@@ -53,7 +58,7 @@ export function JournalClient() {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, q]);
+  }, [page, q, fromDate, toDate]);
 
   async function act(id: string, action: string) {
     try {
@@ -75,9 +80,13 @@ export function JournalClient() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-2 flex-wrap">
-        <div className="relative">
-          <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="搜尋傳票編號 / 摘要" className="pl-9 w-72" value={q} onChange={(e) => { setPage(1); setQ(e.target.value); }} />
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="relative">
+            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+            <Input placeholder="搜尋傳票編號 / 摘要" className="pl-9 w-72" value={q} onChange={(e) => { setPage(1); setQ(e.target.value); }} />
+          </div>
+          <Input type="date" value={fromDate} onChange={(e) => { setPage(1); setFromDate(e.target.value); }} className="w-36" />
+          <Input type="date" value={toDate} onChange={(e) => { setPage(1); setToDate(e.target.value); }} className="w-36" />
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -136,6 +145,25 @@ export function JournalClient() {
             {pdfBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
             PDF
           </Button>
+          <Button variant="outline" onClick={() => {
+            const periodEnd = prompt("請輸入結帳日期 (YYYY-MM-DD):");
+            if (!periodEnd) return;
+            const isYearEnd = confirm("是否為年結？（結轉到保留盈餘）\n取消則為月結（結轉到本期損益）");
+            if (confirm(`確定要${isYearEnd ? "年結" : "月結"}嗎？日期：${periodEnd}`)) {
+              fetch("/api/accounting/closing", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ periodEnd, isYearEnd }),
+              }).then(r => r.json()).then(d => {
+                if (d.ok) {
+                  toast.success(`${isYearEnd ? "年結" : "月結"}完成：${d.summary}`);
+                  load();
+                } else {
+                  toast.error(d.error || "結帳失敗");
+                }
+              }).catch(e => toast.error(e.message));
+            }
+          }}>結帳</Button>
           <Button onClick={() => setOpenNew(true)}><Plus className="h-4 w-4" />新增傳票</Button>
         </div>
       </div>

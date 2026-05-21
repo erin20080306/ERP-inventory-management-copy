@@ -46,6 +46,8 @@ export function OrderClient({ kind }: { kind: Kind }) {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [q, setQ] = useState("");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const [openNew, setOpenNew] = useState(false);
   const [openView, setOpenView] = useState<string | null>(null);
   const [openEdit, setOpenEdit] = useState<string | null>(null);
@@ -54,7 +56,10 @@ export function OrderClient({ kind }: { kind: Kind }) {
   async function load() {
     setLoading(true);
     try {
-      const res = await fetch(`${endpoint}?q=${encodeURIComponent(q)}&page=${page}&pageSize=${pageSize}`);
+      const params = new URLSearchParams({ q, page: String(page), pageSize: String(pageSize) });
+      if (fromDate) params.set("from", fromDate);
+      if (toDate) params.set("to", toDate);
+      const res = await fetch(`${endpoint}?${params}`);
       const data = await res.json();
       setRows(data.items);
       setTotal(data.total);
@@ -65,7 +70,7 @@ export function OrderClient({ kind }: { kind: Kind }) {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, q]);
+  }, [page, q, fromDate, toDate]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
@@ -83,6 +88,8 @@ export function OrderClient({ kind }: { kind: Kind }) {
           <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
           <Input placeholder={`搜尋單號 / ${partyLabel}`} className="pl-9 w-full" value={q} onChange={(e) => { setPage(1); setQ(e.target.value); }} />
         </div>
+        <Input type="date" value={fromDate} onChange={(e) => { setPage(1); setFromDate(e.target.value); }} className="w-36" />
+        <Input type="date" value={toDate} onChange={(e) => { setPage(1); setToDate(e.target.value); }} className="w-36" />
         <div className="hidden md:flex items-center gap-2">
           <Button
             variant="outline"
