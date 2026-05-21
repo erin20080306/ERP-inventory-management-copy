@@ -75,16 +75,32 @@ export default function AdminPage() {
             <button
               onClick={async () => {
                 if (!confirm("確定刪除所有未登入過的租戶？此操作無法復原。")) return;
+                const btn = document.activeElement as HTMLButtonElement;
+                if (btn) {
+                  btn.disabled = true;
+                  btn.innerHTML = `<svg class="animate-spin h-4 w-4 mr-2" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938V16.291z"></path></svg>刪除中...`;
+                }
                 const res = await fetch("/api/admin/tenants", { method: "DELETE" });
                 const d = await res.json();
                 if (res.ok) {
-                  alert(`已刪除 ${d.deletedCount} 個租戶`);
+                  let message = `已刪除 ${d.deletedCount} 個租戶`;
+                  if (d.deletedTenantIds && d.deletedTenantIds.length > 0) {
+                    message += `\n\n已刪除：\n${d.deletedTenantIds.join("\n")}`;
+                  }
+                  if (d.skippedTenantIds && d.skippedTenantIds.length > 0) {
+                    message += `\n\n跳過：\n${d.skippedTenantIds.join("\n")}`;
+                  }
+                  alert(message);
                   fetch("/api/admin/tenants")
                     .then((r) => r.json())
                     .then(setData)
                     .finally(() => setLoading(false));
                 } else {
                   alert("刪除失敗");
+                }
+                if (btn) {
+                  btn.disabled = false;
+                  btn.innerHTML = `<svg class="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2M10 11v6M14 11v6"></path></svg>刪除未登入租戶`;
                 }
               }}
               className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white text-sm font-medium transition"

@@ -127,21 +127,41 @@ export const DELETE = apiHandler(async (_req: NextRequest) => {
 
   let deletedCount = 0;
   const deletedTenantIds: string[] = [];
+  const skippedTenantIds: string[] = [];
+  
   for (const tenant of tenants) {
     // 跳過超級管理員租戶（tenantId 為 null）
     if (!tenant.id) continue;
 
-    // 檢查該租戶的所有用戶是否都沒有登入過
-    const allUsersNeverLoggedIn = tenant.users.every((u) => {
-      // 跳過超級管理員
-      if ((u as any).isSuperAdmin) return true;
-      // 檢查登入次數是否為 0
-      return (loginMap[u.id] || 0) === 0;
-    });
+    // 檢查該租戶的用戶登入狀態
+    let allUsersNeverLoggedIn = true;
+    let hasNonSuperAdminUser = false;
+    
+    if (tenant.users.length === 0) {
+      // 沒有用戶的租戶直接刪除
+      console.log(`租戶 ${tenant.name} (${tenant.id}) 沒有用戶，準備刪除`);
+    } else {
+      for (const u of tenant.users) {
+        if ((u as any).isSuperAdmin) {
+          // 超級管理員不影響判斷
+          continue;
+        }
+        hasNonSuperAdminUser = true;
+        const loginCount = loginMap[u.id] || 0;
+        if (loginCount > 0) {
+          allUsersNeverLoggedIn = false;
+          console.log(`租戶 ${tenant.name} 用戶 ${u.username} 有登入 ${loginCount} 次，跳過刪除`);
+        }
+      }
+    }
 
-    // 如果租戶有非超級管理員用戶且所有用戶都沒登入過，則刪除
-    if (tenant.users.length > 0 && allUsersNeverLoggedIn) {
+    // 刪除條件：沒有用戶 或 所有非超級管理員用戶都沒登入過
+    const shouldDelete = !hasNonSuperAdminUser || allUsersNeverLoggedIn;
+    
+    if (shouldDelete) {
       try {
+        console.log(`正在刪除租戶: ${tenant.name} (${tenant.id})`);
+        
         // 使用事務刪除租戶及其所有關聯資料
         await prisma.$transaction(async (tx) => {
           const userIds = tenant.users.map(u => u.id);
@@ -197,11 +217,15 @@ export const DELETE = apiHandler(async (_req: NextRequest) => {
 
         deletedCount++;
         deletedTenantIds.push(tenant.name || tenant.id);
+        console.log(`成功刪除租戶: ${tenant.name}`);
       } catch (error) {
         console.error(`刪除租戶失敗: ${tenant.name}`, error);
+        skippedTenantIds.push(`${tenant.name} (錯誤)`);
       }
+    } else {
+      skippedTenantIds.push(`${tenant.name} (有登入紀錄)`);
     }
   }
 
-  return NextResponse.json({ deletedCount, deletedTenantIds });
+  return NextResponse.json({ deletedCount, deletedTenantIds, skippedTenantIds });
 });
