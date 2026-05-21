@@ -128,6 +128,7 @@ export const DELETE = apiHandler(async (_req: NextRequest) => {
   let deletedCount = 0;
   const deletedTenantIds: string[] = [];
   const skippedTenantIds: string[] = [];
+  const debugLogs: string[] = [];
   
   for (const tenant of tenants) {
     // 跳過超級管理員租戶（tenantId 為 null）
@@ -140,7 +141,7 @@ export const DELETE = apiHandler(async (_req: NextRequest) => {
     
     if (tenant.users.length === 0) {
       // 沒有用戶的租戶直接刪除
-      console.log(`租戶 ${tenant.name} (${tenant.id}) 沒有用戶，準備刪除`);
+      debugLogs.push(`租戶 ${tenant.name} (${tenant.id}) 沒有用戶，準備刪除`);
     } else {
       for (const u of tenant.users) {
         const loginCount = loginMap[u.id] || 0;
@@ -156,13 +157,13 @@ export const DELETE = apiHandler(async (_req: NextRequest) => {
           allUsersNeverLoggedIn = false;
         }
       }
-      console.log(`租戶 ${tenant.name} (${tenant.id}) 用戶資訊: ${userLoginInfo.join(", ")}`);
-      console.log(`hasNonSuperAdminUser: ${hasNonSuperAdminUser}, allUsersNeverLoggedIn: ${allUsersNeverLoggedIn}`);
+      debugLogs.push(`租戶 ${tenant.name} (${tenant.id}) 用戶資訊: ${userLoginInfo.join(", ")}`);
+      debugLogs.push(`hasNonSuperAdminUser: ${hasNonSuperAdminUser}, allUsersNeverLoggedIn: ${allUsersNeverLoggedIn}`);
     }
 
     // 刪除條件：沒有用戶 或 所有非超級管理員用戶都沒登入過
     const shouldDelete = !hasNonSuperAdminUser || allUsersNeverLoggedIn;
-    console.log(`租戶 ${tenant.name} shouldDelete: ${shouldDelete}`);
+    debugLogs.push(`租戶 ${tenant.name} shouldDelete: ${shouldDelete}`);
     
     if (shouldDelete) {
       try {
@@ -233,5 +234,5 @@ export const DELETE = apiHandler(async (_req: NextRequest) => {
     }
   }
 
-  return NextResponse.json({ deletedCount, deletedTenantIds, skippedTenantIds });
+  return NextResponse.json({ deletedCount, deletedTenantIds, skippedTenantIds, debugLogs });
 });

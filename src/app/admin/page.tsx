@@ -90,6 +90,9 @@ export default function AdminPage() {
                   if (d.skippedTenantIds && d.skippedTenantIds.length > 0) {
                     message += `\n\n跳過：\n${d.skippedTenantIds.join("\n")}`;
                   }
+                  if (d.debugLogs && d.debugLogs.length > 0) {
+                    message += `\n\n詳細日誌：\n${d.debugLogs.join("\n")}`;
+                  }
                   alert(message);
                   fetch("/api/admin/tenants")
                     .then((r) => r.json())
