@@ -129,42 +129,66 @@ export const DELETE = apiHandler(async (_req: NextRequest) => {
   const deletedTenantIds: string[] = [];
   const skippedTenantIds: string[] = [];
   const debugLogs: string[] = [];
+
+  // 取得當前超級管理員的租戶 ID，絕不刪除
+  const superAdminTenantId = session.user.tenantId;
+  debugLogs.push(`當前超級管理員租戶: ${superAdminTenantId}`);
   
   for (const tenant of tenants) {
-    // 跳過超級管理員租戶（tenantId 為 null）
     if (!tenant.id) continue;
 
-    // 檢查該租戶的用戶登入狀態
-    let allUsersNeverLoggedIn = true;
-    let hasNonSuperAdminUser = false;
-    const userLoginInfo: string[] = [];
-    
-    if (tenant.users.length === 0) {
-      // 沒有用戶的租戶直接刪除
-      debugLogs.push(`租戶 ${tenant.name} (${tenant.id}) 沒有用戶，準備刪除`);
-    } else {
-      for (const u of tenant.users) {
-        const loginCount = loginMap[u.id] || 0;
-        const isSuper = (u as any).isSuperAdmin;
-        userLoginInfo.push(`${u.username} (superAdmin: ${isSuper}, loginCount: ${loginCount})`);
-        
-        if (isSuper) {
-          // 超級管理員不影響判斷
-          continue;
-        }
-        hasNonSuperAdminUser = true;
-        if (loginCount > 0) {
-          allUsersNeverLoggedIn = false;
-        }
-      }
-      debugLogs.push(`租戶 ${tenant.name} (${tenant.id}) 用戶資訊: ${userLoginInfo.join(", ")}`);
-      debugLogs.push(`hasNonSuperAdminUser: ${hasNonSuperAdminUser}, allUsersNeverLoggedIn: ${allUsersNeverLoggedIn}`);
+    // === 保護規則 1：絕不刪除超級管理員所在的租戶 ===
+    if (tenant.id === superAdminTenantId) {
+      skippedTenantIds.push(`${tenant.name} (超級管理員所在租戶，受保護)`);
+      debugLogs.push(`租戶 ${tenant.name} 跳過：超級管理員所在租戶`);
+      continue;
     }
 
-    // 刪除條件：沒有用戶 或 有非超級管理員用戶且都未登入過
-    // 注意：只有超級管理員的租戶不應被刪除
-    const shouldDelete = tenant.users.length === 0 || (hasNonSuperAdminUser && allUsersNeverLoggedIn);
-    debugLogs.push(`租戶 ${tenant.name} shouldDelete: ${shouldDelete}`);
+    // === 保護規則 2：租戶內有超級管理員用戶，不刪除 ===
+    const hasSuperAdmin = tenant.users.some((u: any) => u.isSuperAdmin);
+    if (hasSuperAdmin) {
+      skippedTenantIds.push(`${tenant.name} (含超級管理員用戶，受保護)`);
+      debugLogs.push(`租戶 ${tenant.name} 跳過：含超級管理員用戶`);
+      continue;
+    }
+
+    // === 保護規則 3：租戶有任何用戶曾經登入過，不刪除 ===
+    const userLoginInfo: string[] = [];
+    let anyUserLoggedIn = false;
+    for (const u of tenant.users) {
+      const loginCount = loginMap[u.id] || 0;
+      userLoginInfo.push(`${u.username} (loginCount: ${loginCount})`);
+      if (loginCount > 0) {
+        anyUserLoggedIn = true;
+      }
+    }
+
+    if (anyUserLoggedIn) {
+      const loggedInUsers = userLoginInfo.filter((u) => !u.includes("loginCount: 0"));
+      skippedTenantIds.push(`${tenant.name} (有用戶已登入: ${loggedInUsers.slice(0, 2).join(", ")}${loggedInUsers.length > 2 ? "..." : ""})`);
+      debugLogs.push(`租戶 ${tenant.name} 跳過：有用戶已登入 - ${userLoginInfo.join(", ")}`);
+      continue;
+    }
+
+    // === 保護規則 4：租戶有業務資料（訂單、傳票等），不刪除 ===
+    const [salesCount, purchaseCount, quotationCount, journalCount, invoiceCount] = await Promise.all([
+      prisma.salesOrder.count({ where: { tenantId: tenant.id } }),
+      prisma.purchaseOrder.count({ where: { tenantId: tenant.id } }),
+      prisma.quotation.count({ where: { tenantId: tenant.id } }),
+      prisma.journalEntry.count({ where: { tenantId: tenant.id } }),
+      prisma.invoice.count({ where: { tenantId: tenant.id } }),
+    ]);
+    const totalBusinessData = salesCount + purchaseCount + quotationCount + journalCount + invoiceCount;
+
+    if (totalBusinessData > 0) {
+      skippedTenantIds.push(`${tenant.name} (有業務資料: 銷${salesCount}/購${purchaseCount}/報${quotationCount}/傳${journalCount}/票${invoiceCount})`);
+      debugLogs.push(`租戶 ${tenant.name} 跳過：有業務資料 ${totalBusinessData} 筆`);
+      continue;
+    }
+
+    // 通過所有檢查：無超級管理員、無登入、無業務資料 → 可刪除
+    const shouldDelete = true;
+    debugLogs.push(`租戶 ${tenant.name} (${tenant.id}) 用戶: ${userLoginInfo.join(", ") || "無"}, 業務資料: 0 → 準備刪除`);
     
     if (shouldDelete) {
       try {
@@ -261,10 +285,6 @@ export const DELETE = apiHandler(async (_req: NextRequest) => {
         debugLogs.push(`✗ 刪除租戶失敗: ${tenant.name} - 錯誤: ${errMsg}`);
         skippedTenantIds.push(`${tenant.name} (錯誤: ${errMsg.slice(0, 100)})`);
       }
-    } else {
-      // 租戶有用戶登入過，不刪除
-      const loggedInUsers = userLoginInfo.filter((u) => u.includes("loginCount: 0") === false);
-      skippedTenantIds.push(`${tenant.name} (租戶內有用戶已登入: ${loggedInUsers.slice(0, 2).join(", ")}${loggedInUsers.length > 2 ? "..." : ""})`);
     }
   }
 
