@@ -8,7 +8,14 @@ export const GET = apiHandler(async (_req: NextRequest) => {
 
   const [tenants, users, loginStats, auditStats, recentLogins, securityEvents] = await Promise.all([
     prisma.tenant.findMany({
-      include: { _count: { select: { users: true } } },
+      include: {
+        _count: { select: { users: true } },
+        users: {
+          orderBy: { createdAt: "asc" },
+          take: 1,
+          select: { username: true, name: true, email: true },
+        },
+      },
       orderBy: { createdAt: "desc" },
     }),
     prisma.user.findMany({
@@ -59,12 +66,18 @@ export const GET = apiHandler(async (_req: NextRequest) => {
   const auditMap = Object.fromEntries(auditStats.map((a) => [a.userId, a._count]));
 
   return NextResponse.json({
-    tenants: tenants.map((t) => ({
-      id: t.id,
-      name: t.name,
-      createdAt: t.createdAt,
-      userCount: t._count.users,
-    })),
+    tenants: tenants.map((t) => {
+      const owner = t.users?.[0] ?? null;
+      return {
+        id: t.id,
+        name: t.name,
+        createdAt: t.createdAt,
+        userCount: t._count.users,
+        ownerUsername: owner?.username ?? null,
+        ownerName: owner?.name ?? null,
+        ownerEmail: owner?.email ?? null,
+      };
+    }),
     users: users.map((u) => ({
       id: u.id,
       username: u.username,

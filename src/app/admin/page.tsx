@@ -171,14 +171,14 @@ export default function AdminPage() {
             <CardTitle className="text-lg">所有租戶</CardTitle>
           </CardHeader>
           <CardContent>
-            <Table>
+            <Table className="text-xs">
               <THead>
                 <TR>
-                  <TH>公司名稱</TH>
-                  <TH>用戶數</TH>
-                  <TH>訂閱狀態</TH>
-                  <TH>建立時間</TH>
-                  <TH>ID</TH>
+                  <TH className="px-2 py-2 whitespace-nowrap">公司名稱</TH>
+                  <TH className="px-2 py-2 whitespace-nowrap">註冊帳號</TH>
+                  <TH className="px-2 py-2 whitespace-nowrap">用戶數</TH>
+                  <TH className="px-2 py-2 whitespace-nowrap">訂閱狀態</TH>
+                  <TH className="px-2 py-2 whitespace-nowrap">建立時間</TH>
                 </TR>
               </THead>
               <TBody>
@@ -188,11 +188,20 @@ export default function AdminPage() {
                   const status = getTenantStatus(firstUser);
                   return (
                     <TR key={t.id}>
-                      <TD className="font-medium">{t.name}</TD>
-                      <TD><Badge variant="info">{t.userCount} 人</Badge></TD>
-                      <TD>{status}</TD>
-                      <TD className="text-sm text-slate-400">{formatDateTime(t.createdAt)}</TD>
-                      <TD className="text-xs font-mono text-slate-500">{t.id}</TD>
+                      <TD className="px-2 py-2 font-medium whitespace-nowrap">{t.name}</TD>
+                      <TD className="px-2 py-2 whitespace-nowrap">
+                        {t.ownerUsername ? (
+                          <div>
+                            <span className="font-mono text-sky-300">{t.ownerUsername}</span>
+                            {t.ownerName && <span className="text-slate-400 ml-1">({t.ownerName})</span>}
+                          </div>
+                        ) : (
+                          <span className="text-slate-500">—</span>
+                        )}
+                      </TD>
+                      <TD className="px-2 py-2"><Badge variant="info">{t.userCount} 人</Badge></TD>
+                      <TD className="px-2 py-2">{status}</TD>
+                      <TD className="px-2 py-2 text-slate-400 whitespace-nowrap">{formatDateTime(t.createdAt)}</TD>
                     </TR>
                   );
                 })}

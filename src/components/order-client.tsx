@@ -134,7 +134,7 @@ export function OrderClient({ kind }: { kind: Kind }) {
           </Button>
         </div>
         {/* 手機版匯出按鈕 */}
-        <div className="md:hidden flex items-center gap-2">
+        <div className="md:hidden flex items-center gap-2 flex-wrap">
           <Button variant="outline" size="sm" onClick={async () => {
             const res = await fetch(`${endpoint}?q=${encodeURIComponent(q)}&pageSize=10000`);
             const d = await res.json();
@@ -148,10 +148,26 @@ export function OrderClient({ kind }: { kind: Kind }) {
             downloadCSV(`${kind}-orders-${new Date().toISOString().slice(0, 10)}.csv`, csv);
             toast.success("已匯出 CSV");
           }}>
-            <Download className="h-4 w-4" />
+            <Download className="h-4 w-4 mr-1" /> CSV
           </Button>
+          <Button variant="outline" size="sm" onClick={async () => {
+            const res = await fetch(`${endpoint}?q=${encodeURIComponent(q)}&pageSize=10000`);
+            const d = await res.json();
+            const { downloadExcel } = await import("@/lib/excel");
+            downloadExcel(`${kind}-orders`, kind === "purchase" ? "採購單" : "銷售單", d.items, [
+              { key: "number", title: "單號" },
+              { key: "party", title: kind === "purchase" ? "供應商" : "客戶", get: (r: any) => (kind === "purchase" ? r.supplier : r.customer)?.companyName ?? "" },
+              { key: "orderDate", title: "日期", get: (r: any) => formatDate(r.orderDate) },
+              { key: "total", title: "總計", get: (r: any) => Number(r.total) },
+              { key: "status", title: "狀態" },
+            ]);
+            toast.success("已匯出 Excel");
+          }}>
+            <FileDown className="h-4 w-4 mr-1" /> Excel
+          </Button>
+          <PDFOrderBtn kind={kind} />
           <Button variant="outline" size="sm" onClick={() => window.print()}>
-            <Printer className="h-4 w-4" />
+            <Printer className="h-4 w-4 mr-1" /> 列印
           </Button>
         </div>
       </div>
