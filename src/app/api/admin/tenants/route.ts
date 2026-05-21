@@ -261,7 +261,9 @@ export const DELETE = apiHandler(async (_req: NextRequest) => {
         skippedTenantIds.push(`${tenant.name} (錯誤: ${errMsg.slice(0, 100)})`);
       }
     } else {
-      skippedTenantIds.push(`${tenant.name} (有登入紀錄)`);
+      // 租戶有用戶登入過，不刪除
+      const loggedInUsers = userLoginInfo.filter((u) => u.includes("loginCount: 0") === false);
+      skippedTenantIds.push(`${tenant.name} (租戶內有用戶已登入: ${loggedInUsers.slice(0, 2).join(", ")}${loggedInUsers.length > 2 ? "..." : ""})`);
     }
   }
 
