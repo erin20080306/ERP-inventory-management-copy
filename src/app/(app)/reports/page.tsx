@@ -11,14 +11,30 @@ import { requireTenantId } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
-export default async function Page() {
+export default async function Page({ searchParams }: { searchParams: { from?: string; to?: string } }) {
   const g = await requirePermissionOrForbidden("reports.view");
   if (g.forbidden) return g.element;
   const tenantId = await requireTenantId();
+  
+  const fromDate = searchParams.from;
+  const toDate = searchParams.to;
+  const dateFilter = fromDate || toDate;
+  const dateRangeLabel = dateFilter ? `${fromDate || "開始"} ~ ${toDate || "今天"}` : "全部期間";
+
+  // 構建日期篩選條件
+  const dateWhere: any = dateFilter ? {
+    entry: { entryDate: {} },
+  } : {};
+  if (fromDate) dateWhere.entry.entryDate.gte = new Date(fromDate);
+  if (toDate) dateWhere.entry.entryDate.lte = new Date(toDate);
 
   const accounts = await prisma.chartOfAccount.findMany({
     where: { tenantId },
-    include: { lines: { where: { entry: { status: "POSTED" } } } },
+    include: { 
+      lines: { 
+        where: dateFilter ? dateWhere.entry : { entry: { status: "POSTED" } },
+      } 
+    },
     orderBy: { code: "asc" },
   });
 
@@ -43,10 +59,23 @@ export default async function Page() {
   const liability = trial.filter((a: any) => a.type === "LIABILITY").reduce((s: number, a: any) => s + a.balance, 0);
   const equity = trial.filter((a: any) => a.type === "EQUITY").reduce((s: number, a: any) => s + a.balance, 0) + netIncome;
 
-  // 銷售 / 採購 / 毛利
+  // 銷售 / 採購 / 毛利（加入日期篩選）
+  const salesWhere: any = { tenantId, status: { not: "CANCELLED" } };
+  const purchaseWhere: any = { tenantId, status: { not: "CANCELLED" } };
+  if (fromDate) {
+    salesWhere.createdAt = { ...salesWhere.createdAt, gte: new Date(fromDate) };
+    purchaseWhere.createdAt = { ...purchaseWhere.createdAt, gte: new Date(fromDate) };
+  }
+  if (toDate) {
+    const end = new Date(toDate);
+    end.setHours(23, 59, 59, 999);
+    salesWhere.createdAt = { ...salesWhere.createdAt, lte: end };
+    purchaseWhere.createdAt = { ...purchaseWhere.createdAt, lte: end };
+  }
+  
   const [salesTotal, purchaseTotal, stocks] = await Promise.all([
-    prisma.salesOrder.aggregate({ _sum: { total: true }, where: { tenantId, status: { not: "CANCELLED" } } }),
-    prisma.purchaseOrder.aggregate({ _sum: { total: true }, where: { tenantId, status: { not: "CANCELLED" } } }),
+    prisma.salesOrder.aggregate({ _sum: { total: true }, where: salesWhere }),
+    prisma.purchaseOrder.aggregate({ _sum: { total: true }, where: purchaseWhere }),
     prisma.inventoryStock.findMany({ where: { tenantId }, include: { product: true } }),
   ]);
   const inventoryValue = stocks.reduce((s: number, x: any) => s + Number(x.quantity) * Number(x.product.costPrice), 0);
@@ -54,7 +83,7 @@ export default async function Page() {
   const typeLabel: Record<string, string> = { ASSET: "資產", LIABILITY: "負債", EQUITY: "權益", REVENUE: "收入", COST: "成本", EXPENSE: "費用" };
 
   return (
-    <PageShell title="財務報表" description="損益表、資產負債表、試算表與進銷存總覽">
+    <PageShell title={`財務報表 (${dateRangeLabel})`} description="損益表、資產負債表、試算表與進銷存總覽">
       {/* 列印入口卡 */}
       <Card>
         <CardHeader>

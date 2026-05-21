@@ -544,6 +544,165 @@ export async function autoCreateJournalFromOrder(
 }
 
 /* ============================================================ */
+/*               存貨盤點調整                                       */
+/* ============================================================ */
+export async function buildInventoryAdjustmentDraft(adjustmentId: string): Promise<DraftEntry> {
+  const adj = await prisma.stockAdjustment.findUnique({
+    where: { id: adjustmentId },
+    include: { warehouse: true, items: true },
+  });
+  if (!adj) throw new Error("找不到盤點調整單");
+
+  // 手動取得商品資料
+  const productIds = adj.items.map(i => i.productId);
+  const products = await prisma.product.findMany({
+    where: { id: { in: productIds } },
+    select: { id: true, name: true, costPrice: true },
+  });
+  const productMap = Object.fromEntries(products.map(p => [p.id, p]));
+
+  const t = adj.tenantId;
+  const lines: DraftLine[] = [];
+
+  let totalGain = 0;
+  let totalLoss = 0;
+
+  for (const item of adj.items) {
+    const diff = Number(item.diff);
+    const product = productMap[item.productId];
+    const unitCost = Number(product?.costPrice || 0);
+    const amount = Math.abs(diff) * unitCost;
+
+    if (diff > 0) {
+      // 盤盈：借 存貨 / 貸 存貨盤盈
+      lines.push(await line(t, DEFAULT_ACCOUNT_CODES.INVENTORY, amount, 0, `${product?.name || item.productId} 盤盈 +${diff}`));
+      totalGain += amount;
+    } else if (diff < 0) {
+      // 盤虧：借 存貨盤虧 / 貸 存貨
+      lines.push(await line(t, "6302", amount, 0, `${product?.name || item.productId} 盤虧 ${diff}`));
+      lines.push(await line(t, DEFAULT_ACCOUNT_CODES.INVENTORY, 0, amount, `${product?.name || item.productId} 盤虧 ${diff}`));
+      totalLoss += amount;
+    }
+  }
+
+  // 如果有盤盈，貸方加存貨盤盈科目
+  if (totalGain > 0) {
+    lines.push(await line(t, "6301", 0, totalGain, `存貨盤盈 ${adj.number}`));
+  }
+
+  return {
+    sourceType: "INVENTORY_ADJUSTMENT",
+    sourceId: adj.id,
+    summary: `存貨盤點調整 ${adj.number} ${adj.warehouse.name} 盤盈${totalGain.toFixed(0)} 盤虧${totalLoss.toFixed(0)}`,
+    entryDate: adj.createdAt.toISOString().slice(0, 10),
+    lines,
+  };
+}
+
+/* ============================================================ */
+/*               期末結帳（收入/費用結轉本期損益）                     */
+/* ============================================================ */
+export async function buildClosingDraft(tenantId: string, periodEnd: string, isYearEnd: boolean = false): Promise<DraftEntry> {
+  // 取得所有已過帳傳票在該日期之前的分錄
+  const postedEntries = await prisma.journalEntry.findMany({
+    where: {
+      tenantId,
+      status: "POSTED",
+      entryDate: { lte: periodEnd },
+    },
+    include: { lines: true },
+  });
+
+  // 彙總各科目餘額
+  const accountBalances = new Map<string, { debit: number; credit: number; code: string; name: string; type: string }>();
+  
+  for (const entry of postedEntries) {
+    for (const line of entry.lines) {
+      const key = line.accountId;
+      if (!accountBalances.has(key)) {
+        const account = await prisma.chartOfAccount.findUnique({ where: { id: key } });
+        if (!account) continue;
+        accountBalances.set(key, { debit: 0, credit: 0, code: account.code, name: account.name, type: account.type });
+      }
+      const bal = accountBalances.get(key)!;
+      bal.debit += Number(line.debit);
+      bal.credit += Number(line.credit);
+    }
+  }
+
+  const lines: DraftLine[] = [];
+  let totalRevenue = 0;
+  let totalCost = 0;
+  let totalExpense = 0;
+
+  // 收入科目（4xxx）：結轉到本期損益貸方
+  for (const [id, bal] of accountBalances) {
+    if (bal.type === "REVENUE" && bal.code.startsWith("4")) {
+      const net = bal.credit - bal.debit;
+      if (net > 0) {
+        lines.push(await line(tenantId, bal.code, 0, net, `結轉收入 ${bal.name}`));
+        totalRevenue += net;
+      }
+    }
+  }
+
+  // 成本科目（5xxx）：結轉到本期損益借方
+  for (const [id, bal] of accountBalances) {
+    if (bal.type === "COST" && bal.code.startsWith("5")) {
+      const net = bal.debit - bal.credit;
+      if (net > 0) {
+        lines.push(await line(tenantId, bal.code, net, 0, `結轉成本 ${bal.name}`));
+        totalCost += net;
+      }
+    }
+  }
+
+  // 費用科目（6xxx）：結轉到本期損益借方
+  for (const [id, bal] of accountBalances) {
+    if (bal.type === "EXPENSE" && bal.code.startsWith("6")) {
+      const net = bal.debit - bal.credit;
+      if (net > 0) {
+        lines.push(await line(tenantId, bal.code, net, 0, `結轉費用 ${bal.name}`));
+        totalExpense += net;
+      }
+    }
+  }
+
+  // 計算本期損益
+  const netIncome = totalRevenue - totalCost - totalExpense;
+
+  if (isYearEnd) {
+    // 年結：本期損益結轉到保留盈餘
+    if (netIncome > 0) {
+      // 有淨利：借 本期損益 / 貸 保留盈餘
+      lines.push(await line(tenantId, "3102", netIncome, 0, "結轉本期損益"));
+      lines.push(await line(tenantId, "3101", 0, netIncome, "結轉保留盈餘"));
+    } else if (netIncome < 0) {
+      // 有淨損：借 保留盈餘 / 貸 本期損益
+      lines.push(await line(tenantId, "3101", Math.abs(netIncome), 0, "結轉保留盈餘"));
+      lines.push(await line(tenantId, "3102", 0, Math.abs(netIncome), "結轉本期損益"));
+    }
+  } else {
+    // 月結：收入/費用結轉到本期損益
+    if (netIncome > 0) {
+      lines.push(await line(tenantId, "3102", netIncome, 0, "結轉本期淨利"));
+    } else if (netIncome < 0) {
+      lines.push(await line(tenantId, "3102", 0, Math.abs(netIncome), "結轉本期淨損"));
+    }
+  }
+
+  return {
+    sourceType: isYearEnd ? "YEAR_END_CLOSING" : "PERIOD_CLOSING",
+    sourceId: "",
+    summary: isYearEnd 
+      ? `年結 ${periodEnd} 收入${totalRevenue.toFixed(0)} 成本${totalCost.toFixed(0)} 費用${totalExpense.toFixed(0)} 淨利${netIncome.toFixed(0)}`
+      : `月結 ${periodEnd} 收入${totalRevenue.toFixed(0)} 成本${totalCost.toFixed(0)} 費用${totalExpense.toFixed(0)} 淨利${netIncome.toFixed(0)}`,
+    entryDate: periodEnd,
+    lines,
+  };
+}
+
+/* ============================================================ */
 /*   自動建立傳票（寫入 DB，POSTED 狀態）                            */
 /* ============================================================ */
 export async function autoCreateJournal(

@@ -9,7 +9,17 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const q = sp.get("q") ?? "";
   const page = Number(sp.get("page") ?? 1);
   const pageSize = Number(sp.get("pageSize") ?? 20);
+  const fromDate = sp.get("from") ?? "";
+  const toDate = sp.get("to") ?? "";
+  
   const where: any = q ? { tenantId, OR: [{ number: { contains: q, mode: "insensitive" } }, { summary: { contains: q, mode: "insensitive" } }] } : { tenantId };
+  
+  if (fromDate || toDate) {
+    where.entryDate = {};
+    if (fromDate) where.entryDate.gte = new Date(fromDate);
+    if (toDate) where.entryDate.lte = new Date(toDate);
+  }
+  
   const [items, total] = await Promise.all([
     prisma.journalEntry.findMany({
       where,
