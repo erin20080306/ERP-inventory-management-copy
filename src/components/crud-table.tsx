@@ -129,6 +129,7 @@ export function CrudTable<T extends { id: string }>({
   importMap,
   importEndpoint,
   templateHeaders,
+  enableDateFilter = false,
 }: {
   endpoint: string;
   columns: Column<T>[];
@@ -147,12 +148,15 @@ export function CrudTable<T extends { id: string }>({
   templateHeaders?: string[];
   FormDialog: React.FC<{ open: boolean; onClose: () => void; row: T | null; onSaved: () => void }>;
   initialQuery?: Record<string, string>;
+  enableDateFilter?: boolean;
 }) {
   const [rows, setRows] = useState<T[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const pageSize = 20;
   const [q, setQ] = useState("");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<T | null>(null);
   const [open, setOpen] = useState(false);
@@ -161,6 +165,8 @@ export function CrudTable<T extends { id: string }>({
     setLoading(true);
     try {
       const params = new URLSearchParams({ q, page: String(page), pageSize: String(pageSize), ...(initialQuery ?? {}) });
+      if (enableDateFilter && fromDate) params.set("from", fromDate);
+      if (enableDateFilter && toDate) params.set("to", toDate);
       const res = await fetch(`${endpoint}?${params.toString()}`);
       if (!res.ok) throw new Error((await res.json()).error || "載入失敗");
       const data = await res.json();
@@ -171,7 +177,7 @@ export function CrudTable<T extends { id: string }>({
     } finally {
       setLoading(false);
     }
-  }, [endpoint, q, page, initialQuery]);
+  }, [endpoint, q, page, initialQuery, enableDateFilter, fromDate, toDate]);
 
   useEffect(() => {
     load();
@@ -194,17 +200,25 @@ export function CrudTable<T extends { id: string }>({
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-2 flex-wrap">
-        <div className="relative">
-          <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder={searchPlaceholder}
-            className="pl-9 w-72"
-            value={q}
-            onChange={(e) => {
-              setPage(1);
-              setQ(e.target.value);
-            }}
-          />
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="relative">
+            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder={searchPlaceholder}
+              className="pl-9 w-72"
+              value={q}
+              onChange={(e) => {
+                setPage(1);
+                setQ(e.target.value);
+              }}
+            />
+          </div>
+          {enableDateFilter && (
+            <>
+              <Input type="date" value={fromDate} onChange={(e) => { setPage(1); setFromDate(e.target.value); }} className="w-36" />
+              <Input type="date" value={toDate} onChange={(e) => { setPage(1); setToDate(e.target.value); }} className="w-36" />
+            </>
+          )}
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <PDFBtn title={pdfTitle || exportName} filename={exportName} />
@@ -219,6 +233,8 @@ export function CrudTable<T extends { id: string }>({
                 onClick={async () => {
                   try {
                     const params = new URLSearchParams({ q, page: "1", pageSize: "10000", ...(initialQuery ?? {}) });
+                    if (enableDateFilter && fromDate) params.set("from", fromDate);
+                    if (enableDateFilter && toDate) params.set("to", toDate);
                     const res = await fetch(`${endpoint}?${params.toString()}`);
                     const data = await res.json();
                     const { downloadExcel } = await import("@/lib/excel");
@@ -242,6 +258,8 @@ export function CrudTable<T extends { id: string }>({
                 onClick={async () => {
                   try {
                     const params = new URLSearchParams({ q, page: "1", pageSize: "10000", ...(initialQuery ?? {}) });
+                    if (enableDateFilter && fromDate) params.set("from", fromDate);
+                    if (enableDateFilter && toDate) params.set("to", toDate);
                     const res = await fetch(`${endpoint}?${params.toString()}`);
                     const data = await res.json();
                     const csv = toCSV(

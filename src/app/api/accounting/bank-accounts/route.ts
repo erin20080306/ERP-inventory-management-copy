@@ -7,9 +7,20 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const tenantId = await requireTenantId();
   const sp = req.nextUrl.searchParams;
   const q = sp.get("q") ?? "";
+  const fromDate = sp.get("from") ?? "";
+  const toDate = sp.get("to") ?? "";
   const where: any = q
     ? { tenantId, OR: [{ code: { contains: q, mode: "insensitive" } }, { name: { contains: q, mode: "insensitive" } }, { bankName: { contains: q, mode: "insensitive" } }] }
     : { tenantId };
+  if (fromDate || toDate) {
+    where.createdAt = {};
+    if (fromDate) where.createdAt.gte = new Date(fromDate);
+    if (toDate) {
+      const end = new Date(toDate);
+      end.setHours(23, 59, 59, 999);
+      where.createdAt.lte = end;
+    }
+  }
   const items = await prisma.bankAccount.findMany({ where, orderBy: { code: "asc" } });
   return NextResponse.json({ items, total: items.length });
 });

@@ -20,6 +20,8 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [q, setQ] = useState("");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const [pay, setPay] = useState<any>(null);
   const [batchOpen, setBatchOpen] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
@@ -28,7 +30,10 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
 
   async function load() {
     setLoading(true);
-    const res = await fetch(`${endpoint}?q=${encodeURIComponent(q)}&page=${page}&pageSize=${pageSize}`);
+    const params = new URLSearchParams({ q, page: String(page), pageSize: String(pageSize) });
+    if (fromDate) params.set("from", fromDate);
+    if (toDate) params.set("to", toDate);
+    const res = await fetch(`${endpoint}?${params.toString()}`);
     const d = await res.json();
     setRows(d.items);
     setTotal(d.total);
@@ -42,7 +47,7 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
     load();
     loadSummary();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, q]);
+  }, [page, q, fromDate, toDate]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
@@ -82,9 +87,13 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
       )}
 
       <div className="flex items-center justify-between gap-2 flex-wrap">
-        <div className="relative">
-          <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-          <Input placeholder={`搜尋${partyLabel}`} className="pl-9 w-72" value={q} onChange={(e) => { setPage(1); setQ(e.target.value); }} />
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="relative">
+            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+            <Input placeholder={`搜尋${partyLabel}`} className="pl-9 w-72" value={q} onChange={(e) => { setPage(1); setQ(e.target.value); }} />
+          </div>
+          <Input type="date" value={fromDate} onChange={(e) => { setPage(1); setFromDate(e.target.value); }} className="w-36" />
+          <Input type="date" value={toDate} onChange={(e) => { setPage(1); setToDate(e.target.value); }} className="w-36" />
         </div>
         <div className="flex items-center gap-2">
         <Button onClick={() => setBatchOpen(true)}>

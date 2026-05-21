@@ -6,7 +6,18 @@ export const GET = apiHandler(async (req: NextRequest) => {
   await requirePermission("accounting.view");
   const tenantId = await requireTenantId();
   const q = req.nextUrl.searchParams.get("q") ?? "";
+  const fromDate = req.nextUrl.searchParams.get("from") ?? "";
+  const toDate = req.nextUrl.searchParams.get("to") ?? "";
   const where: any = q ? { tenantId, OR: [{ code: { contains: q, mode: "insensitive" } }, { name: { contains: q, mode: "insensitive" } }] } : { tenantId };
+  if (fromDate || toDate) {
+    where.createdAt = {};
+    if (fromDate) where.createdAt.gte = new Date(fromDate);
+    if (toDate) {
+      const end = new Date(toDate);
+      end.setHours(23, 59, 59, 999);
+      where.createdAt.lte = end;
+    }
+  }
   const items = await prisma.chartOfAccount.findMany({ where, orderBy: { code: "asc" } });
   return NextResponse.json({ items, total: items.length });
 });

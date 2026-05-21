@@ -10,6 +10,8 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const departmentId = sp.get("departmentId") ?? "";
   const page = Number(sp.get("page") ?? 1);
   const pageSize = Number(sp.get("pageSize") ?? 20);
+  const fromDate = sp.get("from") ?? "";
+  const toDate = sp.get("to") ?? "";
   const tenantId = await requireTenantId();
   const where: any = { tenantId };
   if (q) {
@@ -22,6 +24,15 @@ export const GET = apiHandler(async (req: NextRequest) => {
   }
   if (status) where.status = status;
   if (departmentId) where.departmentId = departmentId;
+  if (fromDate || toDate) {
+    where.createdAt = {};
+    if (fromDate) where.createdAt.gte = new Date(fromDate);
+    if (toDate) {
+      const end = new Date(toDate);
+      end.setHours(23, 59, 59, 999);
+      where.createdAt.lte = end;
+    }
+  }
   const [items, total] = await Promise.all([
     prisma.employee.findMany({
       where,

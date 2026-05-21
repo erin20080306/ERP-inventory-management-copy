@@ -11,12 +11,17 @@ export default function OverviewClient() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [q, setQ] = useState("");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const pageSize = 20;
 
   async function load() {
     setLoading(true);
     try {
-      const res = await fetch(`/api/products/overview?q=${encodeURIComponent(q)}&page=${page}&pageSize=${pageSize}`);
+      const params = new URLSearchParams({ q, page: String(page), pageSize: String(pageSize) });
+      if (fromDate) params.set("from", fromDate);
+      if (toDate) params.set("to", toDate);
+      const res = await fetch(`/api/products/overview?${params.toString()}`);
       const data = await res.json();
       setItems(data.items);
       setTotal(data.total);
@@ -24,15 +29,17 @@ export default function OverviewClient() {
       setLoading(false);
     }
   }
-  useEffect(() => { load(); }, [page, q]);
+  useEffect(() => { load(); }, [page, q, fromDate, toDate]);
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <div className="relative">
           <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
           <Input placeholder="搜尋 SKU / 商品名稱" className="pl-9 w-72" value={q} onChange={(e) => { setPage(1); setQ(e.target.value); }} />
         </div>
+        <Input type="date" value={fromDate} onChange={(e) => { setPage(1); setFromDate(e.target.value); }} className="w-36" />
+        <Input type="date" value={toDate} onChange={(e) => { setPage(1); setToDate(e.target.value); }} className="w-36" />
       </div>
 
       {loading ? (

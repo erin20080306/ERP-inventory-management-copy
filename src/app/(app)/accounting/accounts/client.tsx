@@ -119,6 +119,7 @@ export function AccountClient() {
         endpoint="/api/accounting/accounts"
         exportName="accounts"
         pdfTitle="會計科目"
+        enableDateFilter={true}
         FormDialog={AccountDialog}
         templateHeaders={["編號", "名稱", "類型", "期初餘額"]}
         importMap={(r) => {

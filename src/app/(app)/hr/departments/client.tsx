@@ -65,6 +65,7 @@ export function DepartmentsClient() {
     <CrudTable<any>
       endpoint="/api/hr/departments"
       searchPlaceholder="搜尋編號 / 名稱"
+      enableDateFilter={true}
       FormDialog={DepartmentDialog}
       exportName="departments"
       pdfTitle="部門管理"

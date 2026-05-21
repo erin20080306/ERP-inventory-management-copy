@@ -18,6 +18,8 @@ export function InvoiceClient() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [q, setQ] = useState("");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const [openNew, setOpenNew] = useState(false);
   const [openFromSO, setOpenFromSO] = useState(false);
   const [openFromPO, setOpenFromPO] = useState(false);
@@ -27,7 +29,10 @@ export function InvoiceClient() {
   async function load() {
     setLoading(true);
     try {
-      const res = await fetch(`/api/accounting/invoices?q=${encodeURIComponent(q)}&page=${page}&pageSize=${pageSize}`);
+      const params = new URLSearchParams({ q, page: String(page), pageSize: String(pageSize) });
+      if (fromDate) params.set("from", fromDate);
+      if (toDate) params.set("to", toDate);
+      const res = await fetch(`/api/accounting/invoices?${params.toString()}`);
       const d = await res.json();
       setRows(d.items);
       setTotal(d.total);
@@ -38,7 +43,7 @@ export function InvoiceClient() {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, q]);
+  }, [page, q, fromDate, toDate]);
 
   async function voidInvoice(id: string) {
     if (!confirm("確定作廢這張發票？")) return;
@@ -95,9 +100,13 @@ export function InvoiceClient() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-2 flex-wrap">
-        <div className="relative">
-          <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="搜尋發票號 / 對象" className="pl-9 w-72" value={q} onChange={(e) => { setPage(1); setQ(e.target.value); }} />
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="relative">
+            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+            <Input placeholder="搜尋發票號 / 對象" className="pl-9 w-72" value={q} onChange={(e) => { setPage(1); setQ(e.target.value); }} />
+          </div>
+          <Input type="date" value={fromDate} onChange={(e) => { setPage(1); setFromDate(e.target.value); }} className="w-36" />
+          <Input type="date" value={toDate} onChange={(e) => { setPage(1); setToDate(e.target.value); }} className="w-36" />
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <Button variant="outline" disabled={pdfBusy} onClick={async () => {

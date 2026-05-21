@@ -125,6 +125,7 @@ export function PartyClient({ kind }: { kind: "customer" | "supplier" }) {
       pdfTitle={kind === "customer" ? "客戶管理" : "供應商管理"}
       exportName={kind === "customer" ? "customers" : "suppliers"}
       templateHeaders={["編號", "公司名稱", "統編", "聯絡人", "電話", "Email", "地址"]}
+      enableDateFilter={true}
       importMap={(r) => ({
         code: String(r["編號"] ?? r.code ?? "").trim(),
         companyName: String(r["公司名稱"] ?? r.companyName ?? "").trim(),

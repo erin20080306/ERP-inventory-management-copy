@@ -27,6 +27,8 @@ export function FixedAssetsClient() {
   const [page, setPage] = useState(1);
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const [openNew, setOpenNew] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const pageSize = 20;
@@ -34,11 +36,13 @@ export function FixedAssetsClient() {
   async function load() {
     setLoading(true);
     const sp = new URLSearchParams({ q, status, page: String(page), pageSize: String(pageSize) });
+    if (fromDate) sp.set("from", fromDate);
+    if (toDate) sp.set("to", toDate);
     const res = await fetch(`/api/accounting/fixed-assets?${sp}`);
     const d = await res.json();
     setRows(d.items); setTotal(d.total); setLoading(false);
   }
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [page, q, status]);
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [page, q, status, fromDate, toDate]);
 
   async function act(id: string, action: string, body?: any) {
     try {
@@ -122,6 +126,8 @@ export function FixedAssetsClient() {
             <option value="DISPOSED">已處分</option>
             <option value="IMPAIRED">減損</option>
           </select>
+          <Input type="date" value={fromDate} onChange={(e) => { setPage(1); setFromDate(e.target.value); }} className="w-36" />
+          <Input type="date" value={toDate} onChange={(e) => { setPage(1); setToDate(e.target.value); }} className="w-36" />
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" onClick={exportExcel}><FileSpreadsheet className="h-4 w-4" />Excel</Button>

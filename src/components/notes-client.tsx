@@ -41,19 +41,23 @@ export function NotesClient({ kind }: { kind: "receivable" | "payable" }) {
   const [page, setPage] = useState(1);
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const [openNew, setOpenNew] = useState(false);
   const pageSize = 20;
 
   async function load() {
     setLoading(true);
     const sp = new URLSearchParams({ q, status, page: String(page), pageSize: String(pageSize) });
+    if (fromDate) sp.set("from", fromDate);
+    if (toDate) sp.set("to", toDate);
     const res = await fetch(`${endpoint}?${sp}`);
     const d = await res.json();
     setRows(d.items);
     setTotal(d.total);
     setLoading(false);
   }
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [page, q, status]);
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [page, q, status, fromDate, toDate]);
 
   async function act(id: string, action: string) {
     try {
@@ -150,6 +154,8 @@ export function NotesClient({ kind }: { kind: "receivable" | "payable" }) {
             <option value="ENDORSED">已背書</option>
             <option value="VOID">作廢</option>
           </select>
+          <Input type="date" value={fromDate} onChange={(e) => { setPage(1); setFromDate(e.target.value); }} className="w-36" />
+          <Input type="date" value={toDate} onChange={(e) => { setPage(1); setToDate(e.target.value); }} className="w-36" />
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" onClick={exportExcel}>

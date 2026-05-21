@@ -160,6 +160,7 @@ export function ProductClient() {
     <CrudTable<Product>
       endpoint="/api/products"
       searchPlaceholder="搜尋 SKU / 商品名稱 / 條碼"
+      enableDateFilter={true}
       columns={[
         { key: "sku", title: "SKU", render: (r) => <span className="font-mono text-xs">{r.sku}</span> },
         { key: "name", title: "商品名稱" },
