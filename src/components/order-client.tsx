@@ -71,12 +71,19 @@ export function OrderClient({ kind }: { kind: Kind }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-2 flex-wrap">
-        <div className="relative">
+      {/* 手機版：新增按鈕置頂 */}
+      <div className="md:hidden">
+        <Button className="w-full h-12 text-base font-semibold" onClick={() => setOpenNew(true)}>
+          <Plus className="h-5 w-5 mr-1" />
+          新增{kind === "purchase" ? "採購單" : "銷售單"}
+        </Button>
+      </div>
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="relative flex-1 min-w-[180px]">
           <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-          <Input placeholder={`搜尋單號 / ${partyLabel}`} className="pl-9 w-72" value={q} onChange={(e) => { setPage(1); setQ(e.target.value); }} />
+          <Input placeholder={`搜尋單號 / ${partyLabel}`} className="pl-9 w-full" value={q} onChange={(e) => { setPage(1); setQ(e.target.value); }} />
         </div>
-        <div className="flex items-center gap-2">
+        <div className="hidden md:flex items-center gap-2">
           <Button
             variant="outline"
             onClick={async () => {
@@ -124,6 +131,27 @@ export function OrderClient({ kind }: { kind: Kind }) {
           <Button onClick={() => setOpenNew(true)}>
             <Plus className="h-4 w-4" />
             新增{kind === "purchase" ? "採購單" : "銷售單"}
+          </Button>
+        </div>
+        {/* 手機版匯出按鈕 */}
+        <div className="md:hidden flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={async () => {
+            const res = await fetch(`${endpoint}?q=${encodeURIComponent(q)}&pageSize=10000`);
+            const d = await res.json();
+            const csv = toCSV(d.items, [
+              { key: "number", title: "單號" },
+              { key: "party", title: partyLabel, get: (r: any) => (kind === "purchase" ? r.supplier : r.customer)?.companyName ?? "" },
+              { key: "orderDate", title: "日期", get: (r: any) => formatDate(r.orderDate) },
+              { key: "total", title: "總計" },
+              { key: "status", title: "狀態" },
+            ]);
+            downloadCSV(`${kind}-orders-${new Date().toISOString().slice(0, 10)}.csv`, csv);
+            toast.success("已匯出 CSV");
+          }}>
+            <Download className="h-4 w-4" />
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => window.print()}>
+            <Printer className="h-4 w-4" />
           </Button>
         </div>
       </div>
@@ -314,7 +342,59 @@ function CreateOrderDialog({ kind, open, onClose, onCreated }: any) {
           </div>
         </div>
 
-        <div className="border rounded-md overflow-hidden">
+        {/* 手機版：卡片式明細 */}
+        <div className="md:hidden space-y-3">
+          {items.map((it, idx) => {
+            const line = Number(it.quantity) * Number(it.unitPrice) - Number(it.discount ?? 0);
+            return (
+              <div key={idx} className="border rounded-lg p-3 space-y-2 bg-muted/20">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-muted-foreground">明細 {idx + 1}</span>
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeItem(idx)}>
+                    <Trash2 className="h-4 w-4 text-red-600" />
+                  </Button>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">商品</Label>
+                  <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={it.productId} onChange={(e) => updateItem(idx, { productId: e.target.value })}>
+                    <option value="">選擇商品</option>
+                    {products.map((p) => (
+                      <option key={p.id} value={p.id}>{p.sku} - {p.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs">數量</Label>
+                    <Input type="number" value={it.quantity} onChange={(e) => updateItem(idx, { quantity: Number(e.target.value) })} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">單價</Label>
+                    <Input type="number" step="0.01" value={it.unitPrice} onChange={(e) => updateItem(idx, { unitPrice: Number(e.target.value) })} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">折扣</Label>
+                    <Input type="number" step="0.01" value={it.discount ?? 0} onChange={(e) => updateItem(idx, { discount: Number(e.target.value) })} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">稅率</Label>
+                    <Input type="number" step="0.01" value={it.taxRate ?? 0} onChange={(e) => updateItem(idx, { taxRate: Number(e.target.value) })} />
+                  </div>
+                </div>
+                <div className="text-right text-sm font-medium">小計：{formatMoney(line)}</div>
+              </div>
+            );
+          })}
+          {items.length === 0 && (
+            <div className="p-6 text-center text-muted-foreground text-sm border rounded-lg border-dashed">尚未新增商品</div>
+          )}
+          <Button variant="outline" className="w-full" onClick={addItem}>
+            <Plus className="h-4 w-4 mr-1" /> 新增明細
+          </Button>
+        </div>
+
+        {/* 桌面版：表格式明細 */}
+        <div className="hidden md:block border rounded-md overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm min-w-[600px]">
               <thead className="bg-muted/50 text-xs text-muted-foreground">
@@ -333,30 +413,20 @@ function CreateOrderDialog({ kind, open, onClose, onCreated }: any) {
                   const line = Number(it.quantity) * Number(it.unitPrice) - Number(it.discount ?? 0);
                   return (
                     <tr key={idx} className="border-t">
-                      <td className="p-2 whitespace-nowrap">
+                      <td className="p-2">
                         <select className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm" value={it.productId} onChange={(e) => updateItem(idx, { productId: e.target.value })}>
                           <option value="">選擇商品</option>
                           {products.map((p) => (
-                            <option key={p.id} value={p.id}>
-                              {p.sku} - {p.name}
-                            </option>
+                            <option key={p.id} value={p.id}>{p.sku} - {p.name}</option>
                           ))}
                         </select>
                       </td>
-                      <td className="p-2 whitespace-nowrap">
-                        <Input type="number" value={it.quantity} onChange={(e) => updateItem(idx, { quantity: Number(e.target.value) })} />
-                      </td>
-                      <td className="p-2 whitespace-nowrap">
-                        <Input type="number" step="0.01" value={it.unitPrice} onChange={(e) => updateItem(idx, { unitPrice: Number(e.target.value) })} />
-                      </td>
-                      <td className="p-2 whitespace-nowrap">
-                        <Input type="number" step="0.01" value={it.discount ?? 0} onChange={(e) => updateItem(idx, { discount: Number(e.target.value) })} />
-                      </td>
-                      <td className="p-2 whitespace-nowrap">
-                        <Input type="number" step="0.01" value={it.taxRate ?? 0} onChange={(e) => updateItem(idx, { taxRate: Number(e.target.value) })} />
-                      </td>
-                      <td className="p-2 text-right whitespace-nowrap">{formatMoney(line)}</td>
-                      <td className="p-2 whitespace-nowrap">
+                      <td className="p-2"><Input type="number" value={it.quantity} onChange={(e) => updateItem(idx, { quantity: Number(e.target.value) })} /></td>
+                      <td className="p-2"><Input type="number" step="0.01" value={it.unitPrice} onChange={(e) => updateItem(idx, { unitPrice: Number(e.target.value) })} /></td>
+                      <td className="p-2"><Input type="number" step="0.01" value={it.discount ?? 0} onChange={(e) => updateItem(idx, { discount: Number(e.target.value) })} /></td>
+                      <td className="p-2"><Input type="number" step="0.01" value={it.taxRate ?? 0} onChange={(e) => updateItem(idx, { taxRate: Number(e.target.value) })} /></td>
+                      <td className="p-2 text-right">{formatMoney(line)}</td>
+                      <td className="p-2">
                         <Button variant="ghost" size="icon" onClick={() => removeItem(idx)}>
                           <Trash2 className="h-4 w-4 text-red-600" />
                         </Button>
@@ -365,24 +435,19 @@ function CreateOrderDialog({ kind, open, onClose, onCreated }: any) {
                   );
                 })}
                 {items.length === 0 && (
-                  <tr>
-                    <td colSpan={7} className="p-6 text-center text-muted-foreground text-sm">
-                      尚未新增商品
-                    </td>
-                  </tr>
+                  <tr><td colSpan={7} className="p-6 text-center text-muted-foreground text-sm">尚未新增商品</td></tr>
                 )}
               </tbody>
             </table>
           </div>
           <div className="p-2">
             <Button variant="outline" size="sm" onClick={addItem}>
-              <Plus className="h-4 w-4" />
-              新增明細
+              <Plus className="h-4 w-4" /> 新增明細
             </Button>
           </div>
         </div>
 
-        <div className="grid grid-cols-4 gap-3 text-sm">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
           <div>
             <div className="text-muted-foreground">小計</div>
             <div className="font-medium">{formatMoney(subtotal)}</div>
@@ -403,9 +468,9 @@ function CreateOrderDialog({ kind, open, onClose, onCreated }: any) {
 
         <Textarea placeholder="備註" value={remark} onChange={(e) => setRemark(e.target.value)} />
 
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>取消</Button>
-          <Button onClick={save} disabled={saving}>
+        <DialogFooter className="flex-col-reverse md:flex-row gap-2">
+          <Button variant="outline" onClick={onClose} className="w-full md:w-auto">取消</Button>
+          <Button onClick={save} disabled={saving} className="w-full md:w-auto">
             {saving ? "儲存中..." : "儲存"}
           </Button>
         </DialogFooter>
@@ -511,7 +576,7 @@ function ViewOrderDialog({ kind, id, onClose, onChanged }: any) {
           </select>
         </div>
 
-        <DialogFooter className="gap-2 flex-wrap">
+        <DialogFooter className="gap-2 flex-wrap flex-col-reverse md:flex-row">
           <Button
             variant="outline"
             onClick={() => window.open(`/print/${kind === "purchase" ? "purchase" : "sales"}/${data.id}`, "_blank")}
@@ -652,7 +717,59 @@ function EditOrderDialog({ kind, id, onClose, onSaved }: { kind: Kind; id: strin
           </div>
         </div>
 
-        <div className="border rounded-md overflow-hidden">
+        {/* 手機版：卡片式明細 */}
+        <div className="md:hidden space-y-3">
+          {items.map((it, idx) => {
+            const line = Number(it.quantity) * Number(it.unitPrice) - Number(it.discount ?? 0);
+            return (
+              <div key={idx} className="border rounded-lg p-3 space-y-2 bg-muted/20">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-muted-foreground">明細 {idx + 1}</span>
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeItem(idx)}>
+                    <Trash2 className="h-4 w-4 text-red-600" />
+                  </Button>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">商品</Label>
+                  <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={it.productId} onChange={(e) => updateItem(idx, { productId: e.target.value })}>
+                    <option value="">選擇商品</option>
+                    {products.map((p) => (
+                      <option key={p.id} value={p.id}>{p.sku} - {p.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs">數量</Label>
+                    <Input type="number" value={it.quantity} onChange={(e) => updateItem(idx, { quantity: Number(e.target.value) })} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">單價</Label>
+                    <Input type="number" step="0.01" value={it.unitPrice} onChange={(e) => updateItem(idx, { unitPrice: Number(e.target.value) })} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">折扣</Label>
+                    <Input type="number" step="0.01" value={it.discount ?? 0} onChange={(e) => updateItem(idx, { discount: Number(e.target.value) })} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">稅率</Label>
+                    <Input type="number" step="0.01" value={it.taxRate ?? 0} onChange={(e) => updateItem(idx, { taxRate: Number(e.target.value) })} />
+                  </div>
+                </div>
+                <div className="text-right text-sm font-medium">小計：{formatMoney(line)}</div>
+              </div>
+            );
+          })}
+          {items.length === 0 && (
+            <div className="p-6 text-center text-muted-foreground text-sm border rounded-lg border-dashed">尚未新增商品</div>
+          )}
+          <Button variant="outline" className="w-full" onClick={addItem}>
+            <Plus className="h-4 w-4 mr-1" /> 新增明細
+          </Button>
+        </div>
+
+        {/* 桌面版：表格式明細 */}
+        <div className="hidden md:block border rounded-md overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm min-w-[600px]">
               <thead className="bg-muted/50 text-xs text-muted-foreground">
@@ -671,7 +788,7 @@ function EditOrderDialog({ kind, id, onClose, onSaved }: { kind: Kind; id: strin
                   const line = Number(it.quantity) * Number(it.unitPrice) - Number(it.discount ?? 0);
                   return (
                     <tr key={idx} className="border-t">
-                      <td className="p-2 whitespace-nowrap">
+                      <td className="p-2">
                         <select className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm" value={it.productId} onChange={(e) => updateItem(idx, { productId: e.target.value })}>
                           <option value="">選擇商品</option>
                           {products.map((p) => (
@@ -679,12 +796,12 @@ function EditOrderDialog({ kind, id, onClose, onSaved }: { kind: Kind; id: strin
                           ))}
                         </select>
                       </td>
-                      <td className="p-2 whitespace-nowrap"><Input type="number" value={it.quantity} onChange={(e) => updateItem(idx, { quantity: Number(e.target.value) })} /></td>
-                      <td className="p-2 whitespace-nowrap"><Input type="number" step="0.01" value={it.unitPrice} onChange={(e) => updateItem(idx, { unitPrice: Number(e.target.value) })} /></td>
-                      <td className="p-2 whitespace-nowrap"><Input type="number" step="0.01" value={it.discount ?? 0} onChange={(e) => updateItem(idx, { discount: Number(e.target.value) })} /></td>
-                      <td className="p-2 whitespace-nowrap"><Input type="number" step="0.01" value={it.taxRate ?? 0} onChange={(e) => updateItem(idx, { taxRate: Number(e.target.value) })} /></td>
-                      <td className="p-2 text-right whitespace-nowrap">{formatMoney(line)}</td>
-                      <td className="p-2 whitespace-nowrap">
+                      <td className="p-2"><Input type="number" value={it.quantity} onChange={(e) => updateItem(idx, { quantity: Number(e.target.value) })} /></td>
+                      <td className="p-2"><Input type="number" step="0.01" value={it.unitPrice} onChange={(e) => updateItem(idx, { unitPrice: Number(e.target.value) })} /></td>
+                      <td className="p-2"><Input type="number" step="0.01" value={it.discount ?? 0} onChange={(e) => updateItem(idx, { discount: Number(e.target.value) })} /></td>
+                      <td className="p-2"><Input type="number" step="0.01" value={it.taxRate ?? 0} onChange={(e) => updateItem(idx, { taxRate: Number(e.target.value) })} /></td>
+                      <td className="p-2 text-right">{formatMoney(line)}</td>
+                      <td className="p-2">
                         <Button variant="ghost" size="icon" onClick={() => removeItem(idx)}>
                           <Trash2 className="h-4 w-4 text-red-600" />
                         </Button>
@@ -705,7 +822,7 @@ function EditOrderDialog({ kind, id, onClose, onSaved }: { kind: Kind; id: strin
           </div>
         </div>
 
-        <div className="grid grid-cols-4 gap-3 text-sm">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
           <div><div className="text-muted-foreground">小計</div><div className="font-medium">{formatMoney(subtotal)}</div></div>
           <div><div className="text-muted-foreground">折扣</div><div className="font-medium">{formatMoney(discount)}</div></div>
           <div><div className="text-muted-foreground">稅額</div><div className="font-medium">{formatMoney(taxAmount)}</div></div>
@@ -714,9 +831,9 @@ function EditOrderDialog({ kind, id, onClose, onSaved }: { kind: Kind; id: strin
 
         <Textarea placeholder="備註" value={remark} onChange={(e) => setRemark(e.target.value)} />
 
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>取消</Button>
-          <Button onClick={save} disabled={saving}>{saving ? "儲存中..." : "儲存修改"}</Button>
+        <DialogFooter className="flex-col-reverse md:flex-row gap-2">
+          <Button variant="outline" onClick={onClose} className="w-full md:w-auto">取消</Button>
+          <Button onClick={save} disabled={saving} className="w-full md:w-auto">{saving ? "儲存中..." : "儲存修改"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
