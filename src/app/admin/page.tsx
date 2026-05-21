@@ -230,7 +230,7 @@ export default function AdminPage() {
                     <TH className="px-2 py-2 whitespace-nowrap text-emerald-300">操作</TH>
                     <TH className="px-2 py-2 whitespace-nowrap text-amber-300">上次登入</TH>
                     <TH className="px-2 py-2 whitespace-nowrap text-cyan-300">註冊IP</TH>
-                    <TH className="px-2 py-2 whitespace-nowrap text-pink-300">建立者</TH>
+                    <TH className="px-2 py-2 whitespace-nowrap text-purple-300">建立者</TH>
                     <TH className="px-2 py-2 whitespace-nowrap">狀況</TH>
                     <TH className="px-2 py-2 whitespace-nowrap">操作</TH>
                   </TR>
@@ -255,7 +255,13 @@ export default function AdminPage() {
                       <TD className="px-2 py-2 text-center font-mono text-emerald-300 whitespace-nowrap">{u.actionCount}</TD>
                       <TD className="px-2 py-2 text-amber-300 whitespace-nowrap">{u.lastLoginAt ? formatDateTime(u.lastLoginAt) : "—"}</TD>
                       <TD className="px-2 py-2 text-cyan-300 font-mono whitespace-nowrap">{u.registrationIp || "—"}</TD>
-                      <TD className="px-2 py-2 text-pink-300 whitespace-nowrap">{u.createdByUsername ? <span className="font-mono">{u.createdByUsername}</span> : <span className="text-slate-500">自行註冊</span>}</TD>
+                      <TD className="px-2 py-2 text-purple-300 whitespace-nowrap">
+                        {u.createdByUsername ? (
+                          <span className="font-mono">{u.createdByUsername}</span>
+                        ) : (
+                          <span className="text-slate-500">—</span>
+                        )}
+                      </TD>
                       <TD className="px-2 py-2 whitespace-nowrap">
                         {u.actionCount > 0 ? (
                           <Badge variant="success">有使用</Badge>
@@ -297,7 +303,7 @@ export default function AdminPage() {
                     <div><span className="text-slate-500">操作次數：</span><span className="font-mono text-emerald-300">{u.actionCount}</span></div>
                     <div className="col-span-2"><span className="text-slate-500">上次登入：</span><span className="text-amber-300">{u.lastLoginAt ? formatDateTime(u.lastLoginAt) : "—"}</span></div>
                     <div className="col-span-2"><span className="text-slate-500">註冊IP：</span><span className="text-cyan-300 font-mono">{u.registrationIp || "—"}</span></div>
-                    <div className="col-span-2"><span className="text-slate-500">建立者：</span><span className="text-pink-300 font-mono">{u.createdByUsername ? `${u.createdByUsername}${u.createdByName ? ` (${u.createdByName})` : ""}` : "自行註冊"}</span></div>
+                    <div className="col-span-2"><span className="text-slate-500">建立者：</span><span className="text-purple-300 font-mono">{u.createdByUsername || "—"}</span></div>
                     <div>
                       <span className="text-slate-500">使用狀況：</span>
                       {u.actionCount > 0 ? (

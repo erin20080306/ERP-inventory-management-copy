@@ -69,19 +69,20 @@ model User {
   lastLoginAt     DateTime?
   lastLoginIp     String?
   registrationIp  String?
-  createdByUserId String?
+  createdByUserId String?   // 誰創建了這個用戶
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
   tenant         Tenant?    @relation(fields: [tenantId], references: [id])
-  createdByUser  User?      @relation("UserCreatedBy", fields: [createdByUserId], references: [id])
-  createdUsers   User[]     @relation("UserCreatedBy")
+  createdByUser  User?      @relation("UserCreator", fields: [createdByUserId], references: [id])
+  createdUsers   User[]     @relation("UserCreator")
   userRoles      UserRole[]
   auditLogs      AuditLog[]
   loginLogs      LoginLog[]
   journalEntries JournalEntry[] @relation("JournalEntryCreator")
 
   @@index([tenantId])
+  @@index([createdByUserId])
 }
 
 model Role {

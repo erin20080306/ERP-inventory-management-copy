@@ -79,7 +79,7 @@ export const GET = apiHandler(async (_req: NextRequest) => {
         ownerEmail: owner?.email ?? null,
       };
     }),
-    users: users.map((u) => ({
+    users: users.map((u: any) => ({
       id: u.id,
       username: u.username,
       name: u.name,
@@ -93,11 +93,11 @@ export const GET = apiHandler(async (_req: NextRequest) => {
       lastLoginAt: u.lastLoginAt,
       lastLoginIp: u.lastLoginIp,
       registrationIp: (u as any).registrationIp,
-      createdByUsername: (u as any).createdByUser?.username ?? null,
-      createdByName: (u as any).createdByUser?.name ?? null,
       createdAt: u.createdAt,
       tenantId: u.tenantId,
-      tenantName: u.tenant?.name ?? null,
+      tenantName: (u as any).tenant?.name ?? null,
+      createdByUsername: (u as any).createdByUser?.username ?? null,
+      createdByName: (u as any).createdByUser?.name ?? null,
       loginCount: loginMap[u.id] ?? 0,
       actionCount: auditMap[u.id] ?? 0,
     })),
