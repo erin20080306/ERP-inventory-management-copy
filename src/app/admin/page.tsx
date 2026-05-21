@@ -209,30 +209,30 @@ export default function AdminPage() {
           <CardContent>
             {/* 桌面版表格 */}
             <div className="hidden md:block overflow-x-auto">
-              <Table>
+              <Table className="text-xs">
                 <THead>
                   <TR>
-                    <TH>帳號</TH>
-                    <TH>姓名</TH>
-                    <TH>Email</TH>
-                    <TH>所屬公司</TH>
-                    <TH>付款狀態</TH>
-                    <TH className="text-indigo-300">登入次數</TH>
-                    <TH className="text-emerald-300">操作次數</TH>
-                    <TH className="text-amber-300">上次登入</TH>
-                    <TH className="text-cyan-300">註冊IP</TH>
-                    <TH>使用狀況</TH>
-                    <TH>操作</TH>
+                    <TH className="px-2 py-2 whitespace-nowrap">帳號</TH>
+                    <TH className="px-2 py-2 whitespace-nowrap">姓名</TH>
+                    <TH className="px-2 py-2 whitespace-nowrap">Email</TH>
+                    <TH className="px-2 py-2 whitespace-nowrap">公司</TH>
+                    <TH className="px-2 py-2 whitespace-nowrap">付款</TH>
+                    <TH className="px-2 py-2 whitespace-nowrap text-indigo-300">登入</TH>
+                    <TH className="px-2 py-2 whitespace-nowrap text-emerald-300">操作</TH>
+                    <TH className="px-2 py-2 whitespace-nowrap text-amber-300">上次登入</TH>
+                    <TH className="px-2 py-2 whitespace-nowrap text-cyan-300">註冊IP</TH>
+                    <TH className="px-2 py-2 whitespace-nowrap">狀況</TH>
+                    <TH className="px-2 py-2 whitespace-nowrap">操作</TH>
                   </TR>
                 </THead>
                 <TBody>
                   {data.users.map((u: any) => (
                     <TR key={u.id}>
-                      <TD className="font-mono text-xs">{u.username}</TD>
-                      <TD>{u.name}</TD>
-                      <TD className="text-sm">{u.email}</TD>
-                      <TD className="text-sm">{u.tenantName ?? <span className="text-amber-400">超級管理員</span>}</TD>
-                      <TD>
+                      <TD className="px-2 py-2 font-mono whitespace-nowrap">{u.username}</TD>
+                      <TD className="px-2 py-2 whitespace-nowrap">{u.name}</TD>
+                      <TD className="px-2 py-2 whitespace-nowrap">{u.email}</TD>
+                      <TD className="px-2 py-2 whitespace-nowrap">{u.tenantName ?? <span className="text-amber-400">超級管理員</span>}</TD>
+                      <TD className="px-2 py-2 whitespace-nowrap">
                         {u.isSuperAdmin ? (
                           <Badge variant="warning">管理員</Badge>
                         ) : u.isPaid ? (
@@ -241,11 +241,11 @@ export default function AdminPage() {
                           <Badge variant="danger">試用中</Badge>
                         )}
                       </TD>
-                      <TD className="text-center font-mono text-indigo-300">{u.loginCount}</TD>
-                      <TD className="text-center font-mono text-emerald-300">{u.actionCount}</TD>
-                      <TD className="text-sm text-amber-300">{u.lastLoginAt ? formatDateTime(u.lastLoginAt) : "—"}</TD>
-                      <TD className="text-sm text-cyan-300 font-mono">{u.registrationIp || "—"}</TD>
-                      <TD>
+                      <TD className="px-2 py-2 text-center font-mono text-indigo-300 whitespace-nowrap">{u.loginCount}</TD>
+                      <TD className="px-2 py-2 text-center font-mono text-emerald-300 whitespace-nowrap">{u.actionCount}</TD>
+                      <TD className="px-2 py-2 text-amber-300 whitespace-nowrap">{u.lastLoginAt ? formatDateTime(u.lastLoginAt) : "—"}</TD>
+                      <TD className="px-2 py-2 text-cyan-300 font-mono whitespace-nowrap">{u.registrationIp || "—"}</TD>
+                      <TD className="px-2 py-2 whitespace-nowrap">
                         {u.actionCount > 0 ? (
                           <Badge variant="success">有使用</Badge>
                         ) : u.loginCount > 1 ? (
@@ -254,7 +254,7 @@ export default function AdminPage() {
                           <Badge variant="danger">未使用</Badge>
                         )}
                       </TD>
-                      <TD>
+                      <TD className="px-2 py-2 whitespace-nowrap">
                         <UserActions u={u} setData={setData} />
                       </TD>
                     </TR>
@@ -280,8 +280,8 @@ export default function AdminPage() {
                     )}
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-xs">
-                    <div><span className="text-slate-500">公司：</span>{u.tenantName ?? <span className="text-amber-400">超級管理員</span>}</div>
-                    <div><span className="text-slate-500">Email：</span>{u.email || "—"}</div>
+                    <div><span className="text-slate-500">公司：</span><span className="text-slate-300">{u.tenantName ?? <span className="text-amber-400">超級管理員</span>}</span></div>
+                    <div><span className="text-slate-500">Email：</span><span className="text-slate-300">{u.email || "—"}</span></div>
                     <div><span className="text-slate-500">登入次數：</span><span className="font-mono text-indigo-300">{u.loginCount}</span></div>
                     <div><span className="text-slate-500">操作次數：</span><span className="font-mono text-emerald-300">{u.actionCount}</span></div>
                     <div className="col-span-2"><span className="text-slate-500">上次登入：</span><span className="text-amber-300">{u.lastLoginAt ? formatDateTime(u.lastLoginAt) : "—"}</span></div>
