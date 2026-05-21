@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { seedTenantDefaults } from "@/lib/seed-tenant";
 import { validateObjectForSQLInjection } from "@/lib/sql-validation";
+import { audit } from "@/lib/api";
 
 export async function POST(req: NextRequest) {
   try {
@@ -16,10 +17,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "密碼至少 4 個字元" }, { status: 400 });
     }
 
+    // 取得 IP 位址
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0] || req.headers.get('x-real-ip') || 'unknown';
+
     // SQL 注入檢測
     const sqlValidation = validateObjectForSQLInjection({ username, name, email, companyName });
     if (!sqlValidation.isValid) {
       console.warn("SQL injection attempt detected:", sqlValidation.detectedFields);
+      // 記錄到稽核日誌（使用系統標記，因為還沒有 userId）
+      await prisma.auditLog.create({
+        data: {
+          userId: "system",
+          action: "sql_injection_blocked",
+          module: "security",
+          detail: `註冊嘗試偵測到 SQL 注入: ${sqlValidation.detectedFields.join(", ")}`,
+          ip: ip,
+        },
+      });
       return NextResponse.json({ error: "輸入包含非法字符" }, { status: 400 });
     }
 
@@ -35,7 +49,6 @@ export async function POST(req: NextRequest) {
     }
 
     // 防止同 IP 重複註冊（防止幽靈帳戶）
-    const ip = req.headers.get('x-forwarded-for')?.split(',')[0] || req.headers.get('x-real-ip') || 'unknown';
     if (ip !== 'unknown') {
       const existingIpUser = await prisma.user.findFirst({
         where: { lastLoginIp: ip },

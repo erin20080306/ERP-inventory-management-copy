@@ -303,6 +303,50 @@ export default function AdminPage() {
             </div>
           </CardContent>
         </Card>
+        {/* 安全事件紀錄 */}
+        <Card className="bg-slate-900 border-slate-800">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Shield className="h-5 w-5 text-red-400" /> 安全事件紀錄 (SQL 注入偵測)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <Table>
+                <THead>
+                  <TR>
+                    <TH>時間</TH>
+                    <TH>類型</TH>
+                    <TH>模組</TH>
+                    <TH>詳細資訊</TH>
+                    <TH>IP</TH>
+                  </TR>
+                </THead>
+                <TBody>
+                  {data.securityEvents && data.securityEvents.length > 0 ? (
+                    data.securityEvents.map((log: any, i: number) => (
+                      <TR key={i}>
+                        <TD className="text-sm">{formatDateTime(log.createdAt)}</TD>
+                        <TD>
+                          <Badge variant="danger">{log.action}</Badge>
+                        </TD>
+                        <TD className="text-sm">{log.module}</TD>
+                        <TD className="text-sm">{log.detail}</TD>
+                        <TD className="font-mono text-xs">{log.ip}</TD>
+                      </TR>
+                    ))
+                  ) : (
+                    <TR>
+                      <TD colSpan={5} className="text-center text-slate-500 py-4">
+                        無安全事件紀錄
+                      </TD>
+                    </TR>
+                  )}
+                </TBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
         {/* 最近登入紀錄 */}
         <Card className="bg-slate-900 border-slate-800">
           <CardHeader>
@@ -316,18 +360,22 @@ export default function AdminPage() {
                 <THead>
                   <TR>
                     <TH>帳號</TH>
-                    <TH>結果</TH>
+                    <TH>狀態</TH>
                     <TH>IP</TH>
                     <TH>時間</TH>
                   </TR>
                 </THead>
                 <TBody>
-                  {(data.recentLogins ?? []).map((l: any, i: number) => (
+                  {data.recentLogins.map((log: any, i: number) => (
                     <TR key={i}>
-                      <TD className="font-mono text-xs">{l.username}</TD>
-                      <TD>{l.success ? <Badge variant="success">成功</Badge> : <Badge variant="danger">失敗</Badge>}</TD>
-                      <TD className="text-xs text-slate-400 font-mono">{l.ip || "—"}</TD>
-                      <TD className="text-sm text-slate-400">{formatDateTime(l.createdAt)}</TD>
+                      <TD className="font-mono text-xs">{log.username}</TD>
+                      <TD>
+                        <Badge variant={log.success ? "success" : "danger"}>
+                          {log.success ? "成功" : "失敗"}
+                        </Badge>
+                      </TD>
+                      <TD className="font-mono text-xs">{log.ip}</TD>
+                      <TD className="text-sm">{formatDateTime(log.createdAt)}</TD>
                     </TR>
                   ))}
                 </TBody>

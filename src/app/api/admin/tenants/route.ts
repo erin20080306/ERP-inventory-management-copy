@@ -6,7 +6,7 @@ export const GET = apiHandler(async (_req: NextRequest) => {
   const session = await requireAuth();
   if (!session.user.isSuperAdmin) throw new ApiError(403, "僅限超級管理員");
 
-  const [tenants, users, loginStats, auditStats, recentLogins] = await Promise.all([
+  const [tenants, users, loginStats, auditStats, recentLogins, securityEvents] = await Promise.all([
     prisma.tenant.findMany({
       include: { _count: { select: { users: true } } },
       orderBy: { createdAt: "desc" },
@@ -36,6 +36,19 @@ export const GET = apiHandler(async (_req: NextRequest) => {
       select: {
         username: true,
         success: true,
+        ip: true,
+        createdAt: true,
+      },
+    }),
+    // 最近 50 筆安全事件（SQL 注入偵測）
+    prisma.auditLog.findMany({
+      take: 50,
+      where: { action: "sql_injection_blocked" },
+      orderBy: { createdAt: "desc" },
+      select: {
+        action: true,
+        module: true,
+        detail: true,
         ip: true,
         createdAt: true,
       },
@@ -73,6 +86,7 @@ export const GET = apiHandler(async (_req: NextRequest) => {
       actionCount: auditMap[u.id] ?? 0,
     })),
     recentLogins,
+    securityEvents,
     totalTenants: tenants.length,
     totalUsers: users.length,
   });
