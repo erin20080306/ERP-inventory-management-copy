@@ -83,6 +83,24 @@ export const POST = apiHandler(async (req: NextRequest) => {
       await tx.accountsReceivable.create({
         data: { tenantId, customerId, salesOrderId: order.id, amount: totals.total, status: "OPEN" },
       });
+      // 確認時自動扣減庫存
+      const defaultWh = await tx.warehouse.findFirst({ where: { tenantId, isActive: true }, orderBy: { createdAt: "asc" } });
+      if (defaultWh) {
+        for (const item of order.items) {
+          const stock = await tx.inventoryStock.findUnique({
+            where: { productId_warehouseId: { productId: item.productId, warehouseId: defaultWh.id } },
+          });
+          const newQty = Math.max(0, Number(stock?.quantity ?? 0) - Number(item.quantity));
+          await tx.inventoryStock.upsert({
+            where: { productId_warehouseId: { productId: item.productId, warehouseId: defaultWh.id } },
+            update: { quantity: newQty },
+            create: { tenantId, productId: item.productId, warehouseId: defaultWh.id, quantity: 0 },
+          });
+          await tx.inventoryTransaction.create({
+            data: { tenantId, productId: item.productId, warehouseId: defaultWh.id, type: "SALES_OUT", quantity: Number(item.quantity) * -1, unitCost: item.unitPrice, refType: "SALES", refId: order.id, remark: `銷售確認出庫 ${order.number}` },
+          });
+        }
+      }
     }
 
     return order;

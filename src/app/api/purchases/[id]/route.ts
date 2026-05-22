@@ -24,8 +24,22 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: {
     await prisma.purchaseOrder.update({ where: { id: params.id, tenantId }, data: { status: "SUBMITTED" } });
   } else if (action === "approve") {
     await requirePermission("purchases.approve");
-    const order = await prisma.purchaseOrder.findUnique({ where: { id: params.id, tenantId } });
+    const order = await prisma.purchaseOrder.findUnique({ where: { id: params.id, tenantId }, include: { items: true } });
     if (!order) throw new Error("找不到採購單");
+    // 核准時自動入庫到預設倉庫
+    const defaultWh = await prisma.warehouse.findFirst({ where: { tenantId, isActive: true }, orderBy: { createdAt: "asc" } });
+    if (defaultWh) {
+      for (const item of order.items) {
+        await prisma.inventoryStock.upsert({
+          where: { productId_warehouseId: { productId: item.productId, warehouseId: defaultWh.id } },
+          update: { quantity: { increment: item.quantity } },
+          create: { tenantId, productId: item.productId, warehouseId: defaultWh.id, quantity: item.quantity },
+        });
+        await prisma.inventoryTransaction.create({
+          data: { tenantId, productId: item.productId, warehouseId: defaultWh.id, type: "PURCHASE_IN", quantity: item.quantity, unitCost: item.unitPrice, refType: "PURCHASE", refId: order.id, remark: `採購核准入庫 ${order.number}` },
+        });
+      }
+    }
     await prisma.purchaseOrder.update({ where: { id: params.id, tenantId }, data: { status: "APPROVED" } });
     // 核准時自動建立應付帳款
     const existingAP = await prisma.accountsPayable.findFirst({ where: { purchaseOrderId: order.id, tenantId } });
@@ -42,7 +56,7 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: {
       // 自動建立傳票：借 存貨(進貨) / 貸 應付帳款
       const draft = await buildAPCreatedDraft(order.id);
       await autoCreateJournal(tenantId, draft, session.user.id);
-      return NextResponse.json({ ok: true, message: "已自動建立應付帳款與傳票" });
+      return NextResponse.json({ ok: true, message: "已自動建立應付帳款與傳票，庫存已增加" });
     }
   } else if (action === "receive") {
     if (!warehouseId) throw new Error("請選擇入庫倉庫");

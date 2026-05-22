@@ -133,11 +133,12 @@ export function AccountClient() {
             openingBalance: Number(r["期初餘額"] ?? r.openingBalance ?? 0),
           };
         }}
+        inlineEdit={true}
         columns={[
-          { key: "code", title: "編號", render: (r: any) => <span className="font-mono text-xs">{r.code}</span> },
-          { key: "name", title: "名稱" },
+          { key: "code", title: "編號", render: (r: any) => <span className="font-mono text-xs">{r.code}</span>, editable: { type: "text" } },
+          { key: "name", title: "名稱", editable: { type: "text" } },
           { key: "type", title: "類型", csv: (r: any) => typeLabel[r.type] ?? r.type, render: (r: any) => <Badge variant={typeVariant[r.type]}>{typeLabel[r.type] ?? r.type}</Badge> },
-          { key: "openingBalance", title: "期初餘額", render: (r: any) => formatMoney(r.openingBalance) },
+          { key: "openingBalance", title: "期初餘額", render: (r: any) => formatMoney(r.openingBalance), editable: { type: "number" } },
           { key: "isActive", title: "狀態", csv: (r: any) => (r.isActive ? "啟用" : "停用"), render: (r: any) => (r.isActive ? <Badge variant="success">啟用</Badge> : <Badge variant="danger">停用</Badge>) },
         ]}
       />

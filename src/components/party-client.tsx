@@ -127,6 +127,7 @@ export function PartyClient({ kind }: { kind: "customer" | "supplier" }) {
       exportName={kind === "customer" ? "customers" : "suppliers"}
       templateHeaders={["編號", "公司名稱", "統編", "聯絡人", "電話", "Email", "地址"]}
       enableDateFilter={true}
+      inlineEdit={true}
       importMap={(r) => ({
         code: String(r["編號"] ?? r.code ?? "").trim(),
         companyName: String(r["公司名稱"] ?? r.companyName ?? "").trim(),
@@ -137,12 +138,12 @@ export function PartyClient({ kind }: { kind: "customer" | "supplier" }) {
         address: String(r["地址"] ?? r.address ?? "").trim() || undefined,
       })}
       columns={[
-        { key: "code", title: "編號", render: (r) => <span className="font-mono text-xs">{r.code}</span> },
-        { key: "companyName", title: "公司名稱" },
-        { key: "taxId", title: "統編" },
-        { key: "contactName", title: "聯絡人" },
-        { key: "phone", title: "電話" },
-        { key: "email", title: "Email" },
+        { key: "code", title: "編號", render: (r) => <span className="font-mono text-xs">{r.code}</span>, editable: { type: "text" } },
+        { key: "companyName", title: "公司名稱", editable: { type: "text" } },
+        { key: "taxId", title: "統編", editable: { type: "text" } },
+        { key: "contactName", title: "聯絡人", editable: { type: "text" } },
+        { key: "phone", title: "電話", editable: { type: "text" } },
+        { key: "email", title: "Email", editable: { type: "text" } },
         {
           key: "isActive",
           title: "狀態",

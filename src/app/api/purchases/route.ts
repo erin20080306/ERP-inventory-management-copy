@@ -84,6 +84,20 @@ export const POST = apiHandler(async (req: NextRequest) => {
       await tx.accountsPayable.create({
         data: { tenantId, supplierId, purchaseOrderId: order.id, amount: totals.total, status: "OPEN" },
       });
+      // 核准時自動入庫到預設倉庫
+      const defaultWh = await tx.warehouse.findFirst({ where: { tenantId, isActive: true }, orderBy: { createdAt: "asc" } });
+      if (defaultWh) {
+        for (const item of order.items) {
+          await tx.inventoryStock.upsert({
+            where: { productId_warehouseId: { productId: item.productId, warehouseId: defaultWh.id } },
+            update: { quantity: { increment: item.quantity } },
+            create: { tenantId, productId: item.productId, warehouseId: defaultWh.id, quantity: item.quantity },
+          });
+          await tx.inventoryTransaction.create({
+            data: { tenantId, productId: item.productId, warehouseId: defaultWh.id, type: "PURCHASE_IN", quantity: item.quantity, unitCost: item.unitPrice, refType: "PURCHASE", refId: order.id, remark: `採購核准入庫 ${order.number}` },
+          });
+        }
+      }
     }
 
     return order;

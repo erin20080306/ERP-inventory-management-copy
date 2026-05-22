@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { EmptyState } from "@/components/layout/page-shell";
-import { Plus, Search, Loader2, Edit2, Trash2, Download, Printer, FileDown, FileSpreadsheet, Upload, Settings2 } from "lucide-react";
+import { Plus, Search, Loader2, Edit2, Trash2, Download, Printer, FileDown, FileSpreadsheet, Upload, Settings2, Save, X } from "lucide-react";
 import { toast } from "sonner";
 import { downloadCSV, toCSV } from "@/lib/csv";
 import {
@@ -119,6 +119,8 @@ export type Column<T> = {
   render?: (row: T) => React.ReactNode;
   className?: string;
   csv?: (row: T) => any; // CSV 匯出值 (若未提供則用 row[key])
+  /** 欄位可行內編輯; type: text|number|select; options: select 選項 */
+  editable?: { type: "text" | "number" | "select"; options?: { value: string; label: string }[] };
 };
 
 export function CrudTable<T extends { id: string }>({
@@ -159,6 +161,8 @@ export function CrudTable<T extends { id: string }>({
   enableDateFilter?: boolean;
   /** 用於自訂欄位的模組 key */
   moduleKey?: string;
+  /** 啟用行內編輯模式（不跳出 Dialog） */
+  inlineEdit?: boolean;
 }) {
   const [rows, setRows] = useState<T[]>([]);
   const [total, setTotal] = useState(0);
@@ -172,6 +176,8 @@ export function CrudTable<T extends { id: string }>({
   const [open, setOpen] = useState(false);
   const customCols = useCustomColumns(moduleKey || exportName);
   const [editingCells, setEditingCells] = useState<Record<string, any>>({});
+  const [inlineEditing, setInlineEditing] = useState<Record<string, Record<string, any>>>({});
+  const [inlineSaving, setInlineSaving] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -205,6 +211,34 @@ export function CrudTable<T extends { id: string }>({
     } catch (e: any) {
       toast.error(e.message);
     }
+  }
+
+  function startInlineEdit(row: T) {
+    const draft: Record<string, any> = {};
+    columns.forEach((c) => { if (c.editable) draft[c.key] = (row as any)[c.key] ?? ""; });
+    setInlineEditing((prev) => ({ ...prev, [row.id]: draft }));
+  }
+
+  async function saveInlineEdit(row: T) {
+    const draft = inlineEditing[row.id];
+    if (!draft) return;
+    setInlineSaving(row.id);
+    try {
+      const payload = { ...(row as any), ...draft };
+      const res = await fetch(`${endpoint}/${row.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      if (!res.ok) throw new Error((await res.json()).error || "儲存失敗");
+      toast.success("已儲存");
+      setInlineEditing((prev) => { const n = { ...prev }; delete n[row.id]; return n; });
+      load();
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setInlineSaving(null);
+    }
+  }
+
+  function cancelInlineEdit(rowId: string) {
+    setInlineEditing((prev) => { const n = { ...prev }; delete n[rowId]; return n; });
   }
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
@@ -349,20 +383,43 @@ export function CrudTable<T extends { id: string }>({
             </TR>
           )}
           {!loading &&
-            rows.map((row) => (
-              <TR key={row.id}>
+            rows.map((row) => {
+              const draft = inlineEditing[row.id];
+              const isRowEditing = !!draft;
+              return (
+              <TR key={row.id} className={isRowEditing ? "bg-blue-50/50 dark:bg-blue-950/20" : ""}>
                 {columns.map((c) => (
                   <TD key={c.key} className={c.className}>
-                    {c.render ? c.render(row) : (row as any)[c.key] ?? "—"}
+                    {isRowEditing && c.editable ? (
+                      c.editable.type === "select" ? (
+                        <select
+                          value={draft[c.key] ?? ""}
+                          onChange={(e) => setInlineEditing((prev) => ({ ...prev, [row.id]: { ...prev[row.id], [c.key]: e.target.value } }))}
+                          className="h-8 w-full rounded border border-input bg-background px-2 text-sm"
+                        >
+                          {c.editable.options?.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                        </select>
+                      ) : (
+                        <Input
+                          type={c.editable.type}
+                          value={draft[c.key] ?? ""}
+                          onChange={(e) => setInlineEditing((prev) => ({ ...prev, [row.id]: { ...prev[row.id], [c.key]: e.target.value } }))}
+                          className="h-8 text-sm"
+                          onKeyDown={(e) => { if (e.key === "Enter") saveInlineEdit(row); if (e.key === "Escape") cancelInlineEdit(row.id); }}
+                        />
+                      )
+                    ) : (
+                      c.render ? c.render(row) : (row as any)[c.key] ?? "—"
+                    )}
                   </TD>
                 ))}
                 {customCols.columns.map((cc) => {
                   const cellKey = `${row.id}_${cc.id}`;
                   const vals = getCustomFieldValues(moduleKey || exportName, row.id);
-                  const isEditing = editingCells[cellKey];
+                  const isCellEditing = editingCells[cellKey];
                   return (
                     <TD key={cc.id} className="min-w-[100px]">
-                      {isEditing ? (
+                      {isCellEditing ? (
                         <Input
                           type={cc.type === "number" ? "number" : cc.type === "date" ? "date" : "text"}
                           defaultValue={vals[cc.id] ?? ""}
@@ -390,28 +447,42 @@ export function CrudTable<T extends { id: string }>({
                 {(canEdit || canDelete) && (
                   <TD className="text-right">
                     <div className="flex items-center justify-end gap-1">
-                      {canEdit && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => {
-                            setEditing(row);
-                            setOpen(true);
-                          }}
-                        >
-                          <Edit2 className="h-4 w-4" />
-                        </Button>
-                      )}
-                      {canDelete && (
-                        <Button variant="ghost" size="icon" onClick={() => onDelete(row)}>
-                          <Trash2 className="h-4 w-4 text-red-600" />
-                        </Button>
+                      {isRowEditing ? (
+                        <>
+                          <Button variant="ghost" size="icon" onClick={() => saveInlineEdit(row)} disabled={inlineSaving === row.id}>
+                            {inlineSaving === row.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4 text-emerald-600" />}
+                          </Button>
+                          <Button variant="ghost" size="icon" onClick={() => cancelInlineEdit(row.id)}>
+                            <X className="h-4 w-4 text-gray-500" />
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          {canEdit && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                const hasEditable = columns.some((c) => c.editable);
+                                if (hasEditable) { startInlineEdit(row); } else { setEditing(row); setOpen(true); }
+                              }}
+                            >
+                              <Edit2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                          {canDelete && (
+                            <Button variant="ghost" size="icon" onClick={() => onDelete(row)}>
+                              <Trash2 className="h-4 w-4 text-red-600" />
+                            </Button>
+                          )}
+                        </>
                       )}
                     </div>
                   </TD>
                 )}
               </TR>
-            ))}
+              );
+            })}
         </TBody>
       </Table>
 

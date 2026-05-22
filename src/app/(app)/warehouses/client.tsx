@@ -67,10 +67,11 @@ export function WarehouseClient() {
       endpoint="/api/warehouses"
       moduleKey="warehouses"
       FormDialog={WarehouseDialog}
+      inlineEdit={true}
       columns={[
-        { key: "code", title: "編號", render: (r: any) => <span className="font-mono text-xs">{r.code}</span> },
-        { key: "name", title: "名稱" },
-        { key: "address", title: "地址" },
+        { key: "code", title: "編號", render: (r: any) => <span className="font-mono text-xs">{r.code}</span>, editable: { type: "text" } },
+        { key: "name", title: "名稱", editable: { type: "text" } },
+        { key: "address", title: "地址", editable: { type: "text" } },
         { key: "isActive", title: "狀態", render: (r: any) => (r.isActive ? <Badge variant="success">啟用</Badge> : <Badge variant="danger">停用</Badge>) },
       ]}
     />

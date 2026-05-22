@@ -45,7 +45,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const [items, total] = await Promise.all([
     prisma.product.findMany({
       where,
-      include: { category: true, unit: true, stocks: true, taxRate: true },
+      include: { category: true, unit: true, stocks: true, taxRate: true, salesItems: { select: { quantity: true } } },
       orderBy: { createdAt: "desc" },
       skip: (page - 1) * pageSize,
       take: pageSize,
@@ -53,7 +53,11 @@ export const GET = apiHandler(async (req: NextRequest) => {
     prisma.product.count({ where }),
   ]);
   return NextResponse.json({
-    items: items.map((p: any) => ({ ...p, stockTotal: p.stocks.reduce((s: number, x: any) => s + Number(x.quantity), 0) })),
+    items: items.map((p: any) => {
+      const stockTotal = p.stocks.reduce((s: number, x: any) => s + Number(x.quantity), 0);
+      const soldTotal = p.salesItems.reduce((s: number, x: any) => s + Number(x.quantity), 0);
+      return { ...p, stockTotal, soldTotal, salesItems: undefined };
+    }),
     total,
   });
 });

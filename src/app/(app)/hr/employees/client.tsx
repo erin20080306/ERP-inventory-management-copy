@@ -163,13 +163,14 @@ export function EmployeesClient() {
         insuredSalary: Number(r["投保薪資"] ?? r["本薪"] ?? 0),
         dependents: Number(r["眷屬數"] ?? 0),
       })}
+      inlineEdit={true}
       columns={[
-        { key: "employeeNo", title: "員工編號", render: (r: any) => <span className="font-mono text-xs">{r.employeeNo}</span> },
-        { key: "name", title: "姓名" },
+        { key: "employeeNo", title: "員工編號", render: (r: any) => <span className="font-mono text-xs">{r.employeeNo}</span>, editable: { type: "text" } },
+        { key: "name", title: "姓名", editable: { type: "text" } },
         { key: "department", title: "部門", render: (r: any) => r.department?.name ?? "—" },
-        { key: "position", title: "職稱" },
-        { key: "phone", title: "電話" },
-        { key: "baseSalary", title: "本薪", render: (r: any) => formatMoney(r.baseSalary) },
+        { key: "position", title: "職稱", editable: { type: "text" } },
+        { key: "phone", title: "電話", editable: { type: "text" } },
+        { key: "baseSalary", title: "本薪", render: (r: any) => formatMoney(r.baseSalary), editable: { type: "number" } },
         { key: "hireDate", title: "到職日", render: (r: any) => r.hireDate?.slice(0, 10) ?? "—" },
         { key: "status", title: "狀態", csv: (r: any) => STATUS_LABELS[r.status] ?? r.status, render: (r: any) => <Badge variant={STATUS_VARIANTS[r.status]}>{STATUS_LABELS[r.status] ?? r.status}</Badge> },
       ]}

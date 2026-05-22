@@ -21,8 +21,26 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: {
   const { action, warehouseId } = body;
 
   if (action === "submit" || action === "confirm") {
-    const order = await prisma.salesOrder.findUnique({ where: { id: params.id, tenantId } });
+    const order = await prisma.salesOrder.findUnique({ where: { id: params.id, tenantId }, include: { items: true } });
     if (!order) throw new Error("找不到銷售單");
+    // 確認時自動從預設倉庫扣減庫存
+    const defaultWh = await prisma.warehouse.findFirst({ where: { tenantId, isActive: true }, orderBy: { createdAt: "asc" } });
+    if (defaultWh) {
+      for (const item of order.items) {
+        const stock = await prisma.inventoryStock.findUnique({
+          where: { productId_warehouseId: { productId: item.productId, warehouseId: defaultWh.id } },
+        });
+        const newQty = Math.max(0, Number(stock?.quantity ?? 0) - Number(item.quantity));
+        await prisma.inventoryStock.upsert({
+          where: { productId_warehouseId: { productId: item.productId, warehouseId: defaultWh.id } },
+          update: { quantity: newQty },
+          create: { tenantId, productId: item.productId, warehouseId: defaultWh.id, quantity: 0 },
+        });
+        await prisma.inventoryTransaction.create({
+          data: { tenantId, productId: item.productId, warehouseId: defaultWh.id, type: "SALES_OUT", quantity: Number(item.quantity) * -1, unitCost: item.unitPrice, refType: "SALES", refId: order.id, remark: `銷售確認出庫 ${order.number}` },
+        });
+      }
+    }
     await prisma.salesOrder.update({ where: { id: params.id, tenantId }, data: { status: "CONFIRMED" } });
     // 確認時自動建立應收帳款
     const existingAR = await prisma.accountsReceivable.findFirst({ where: { salesOrderId: order.id, tenantId } });
@@ -39,7 +57,7 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: {
       // 自動建立傳票：借 應收帳款 / 貸 銷貨收入
       const draft = await buildARCreatedDraft(order.id);
       await autoCreateJournal(tenantId, draft, session.user.id);
-      return NextResponse.json({ ok: true, message: "已自動建立應收帳款與傳票" });
+      return NextResponse.json({ ok: true, message: "已自動建立應收帳款與傳票，庫存已扣減" });
     }
   } else if (action === "ship") {
     if (!warehouseId) throw new Error("請選擇出貨倉庫");

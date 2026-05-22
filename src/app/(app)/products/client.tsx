@@ -19,6 +19,7 @@ type Product = {
   safetyStock: any;
   isActive: boolean;
   stockTotal?: number;
+  soldTotal?: number;
   categoryId?: string | null;
   unitId?: string | null;
 };
@@ -162,23 +163,41 @@ export function ProductClient() {
       moduleKey="products"
       searchPlaceholder="搜尋 SKU / 商品名稱 / 條碼"
       enableDateFilter={true}
+      inlineEdit={true}
       columns={[
-        { key: "sku", title: "SKU", render: (r) => <span className="font-mono text-xs">{r.sku}</span> },
-        { key: "name", title: "商品名稱" },
-        { key: "spec", title: "規格" },
-        { key: "costPrice", title: "成本", render: (r) => formatMoney(r.costPrice) },
-        { key: "salePrice", title: "售價", render: (r) => formatMoney(r.salePrice) },
+        { key: "sku", title: "SKU", render: (r) => <span className="font-mono text-xs">{r.sku}</span>, editable: { type: "text" } },
+        { key: "name", title: "商品名稱", editable: { type: "text" } },
+        { key: "spec", title: "規格", editable: { type: "text" } },
+        { key: "costPrice", title: "成本", render: (r) => formatMoney(r.costPrice), editable: { type: "number" } },
+        { key: "salePrice", title: "售價", render: (r) => formatMoney(r.salePrice), editable: { type: "number" } },
+        { key: "safetyStock", title: "安全庫存", render: (r) => formatNumber(Number(r.safetyStock)), editable: { type: "number" } },
         {
           key: "stockTotal",
-          title: "庫存",
+          title: "剩餘庫存",
           render: (r) => {
             const stock = Number(r.stockTotal ?? 0);
             const safe = Number(r.safetyStock);
             return (
-              <span className={stock < safe ? "text-red-600 font-medium" : ""}>
+              <span className={stock < safe ? "text-red-600 font-medium" : "text-emerald-600"}>
                 {formatNumber(stock)}
               </span>
             );
+          },
+        },
+        {
+          key: "soldTotal",
+          title: "已售出",
+          render: (r) => <span className="text-blue-600">{formatNumber(Number(r.soldTotal ?? 0))}</span>,
+        },
+        {
+          key: "alert",
+          title: "庫存警示",
+          render: (r) => {
+            const stock = Number(r.stockTotal ?? 0);
+            const safe = Number(r.safetyStock);
+            if (stock <= 0) return <Badge variant="danger">缺貨</Badge>;
+            if (stock < safe) return <Badge variant="warning">低庫存</Badge>;
+            return <Badge variant="success">正常</Badge>;
           },
         },
         { key: "isActive", title: "狀態", render: (r) => (r.isActive ? <Badge variant="success">啟用</Badge> : <Badge variant="danger">停用</Badge>) },

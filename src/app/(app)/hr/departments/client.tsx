@@ -70,9 +70,10 @@ export function DepartmentsClient() {
       FormDialog={DepartmentDialog}
       exportName="departments"
       pdfTitle="部門管理"
+      inlineEdit={true}
       columns={[
-        { key: "code", title: "編號", render: (r: any) => <span className="font-mono text-xs">{r.code}</span> },
-        { key: "name", title: "名稱" },
+        { key: "code", title: "編號", render: (r: any) => <span className="font-mono text-xs">{r.code}</span>, editable: { type: "text" } },
+        { key: "name", title: "名稱", editable: { type: "text" } },
         { key: "isActive", title: "狀態", csv: (r: any) => (r.isActive ? "啟用" : "停用"), render: (r: any) => (r.isActive ? <Badge variant="success">啟用</Badge> : <Badge variant="danger">停用</Badge>) },
       ]}
     />
