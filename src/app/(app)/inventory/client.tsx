@@ -9,6 +9,7 @@ import { ExportButton } from "@/components/export-button";
 import { PrintListButton, PDFExportButton } from "@/components/print-list-button";
 import { Loader2, Search } from "lucide-react";
 import { requireTenantId } from "@/lib/api";
+import { useCustomColumns, CustomColumnDialog, CustomColumnButton, getCustomFieldValues, setCustomFieldValue } from "@/components/custom-columns";
 
 export default function InventoryClient() {
   const [stocks, setStocks] = useState<any[]>([]);
@@ -17,6 +18,8 @@ export default function InventoryClient() {
   const [q, setQ] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
+  const customCols = useCustomColumns("inventory");
+  const [editingCells, setEditingCells] = useState<Record<string, any>>({});
 
   async function load() {
     setLoading(true);
@@ -63,6 +66,7 @@ export default function InventoryClient() {
         <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-36" />
         <PDFExportButton title="庫存管理" filename="inventory" />
         <PrintListButton />
+        <CustomColumnButton onClick={() => customCols.setOpen(true)} />
       </div>
 
       {loading ? (
@@ -106,6 +110,7 @@ export default function InventoryClient() {
                     <TH>成本</TH>
                     <TH>庫存價值</TH>
                     <TH>狀態</TH>
+                    {customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}
                   </TR>
                 </THead>
                 <TBody>
@@ -127,6 +132,7 @@ export default function InventoryClient() {
                         <TD>{formatMoney(s.product.costPrice)}</TD>
                         <TD>{formatMoney(qty * Number(s.product.costPrice))}</TD>
                         <TD>{qty < safe ? <Badge variant="warning">低庫存</Badge> : <Badge variant="success">正常</Badge>}</TD>
+                        {customCols.columns.map((cc) => { const ck = `${s.id}_${cc.id}`; const v = getCustomFieldValues("inventory", s.id); const isE = editingCells[ck]; return <TD key={cc.id}>{isE ? <Input type={cc.type === "number" ? "number" : cc.type === "date" ? "date" : "text"} defaultValue={v[cc.id] ?? ""} autoFocus className="h-7 text-xs" onBlur={(e) => { setCustomFieldValue("inventory", s.id, cc.id, e.target.value); setEditingCells((p) => ({ ...p, [ck]: false })); }} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} /> : <span className="cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950 px-1 py-0.5 rounded min-h-[24px] inline-block min-w-[40px]" onClick={() => setEditingCells((p) => ({ ...p, [ck]: true }))}>{v[cc.id] || "—"}</span>}</TD>; })}
                       </TR>
                     );
                   })}
@@ -178,6 +184,7 @@ export default function InventoryClient() {
           </Card>
         </>
       )}
+      <CustomColumnDialog module="inventory" columns={customCols.columns} open={customCols.open} onClose={() => customCols.setOpen(false)} onSave={customCols.save} />
     </div>
   );
 }

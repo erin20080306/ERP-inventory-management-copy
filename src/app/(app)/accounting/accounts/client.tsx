@@ -117,6 +117,7 @@ export function AccountClient() {
       <CrudTable
         key={refreshKey}
         endpoint="/api/accounting/accounts"
+        moduleKey="accounts"
         exportName="accounts"
         pdfTitle="會計科目"
         enableDateFilter={true}

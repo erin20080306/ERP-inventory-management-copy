@@ -7,10 +7,11 @@ import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { StatusBadge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/layout/page-shell";
 import { toast } from "sonner";
-import { Plus, Loader2, Trash2, Eye, Search, Download, Printer, FileDown, Pencil } from "lucide-react";
+import { Plus, Loader2, Trash2, Eye, Search, Download, Printer, FileDown, Pencil, Settings2 } from "lucide-react";
 import { formatDate, formatMoney } from "@/lib/utils";
 import { downloadCSV, toCSV } from "@/lib/csv";
 import { ConvertToJournalButton } from "@/components/convert-to-journal-button";
+import { useCustomColumns, CustomColumnDialog, CustomColumnButton, getCustomFieldValues, setCustomFieldValue } from "@/components/custom-columns";
 
 function PDFOrderBtn({ kind }: { kind: string }) {
   const [busy, setBusy] = useState(false);
@@ -52,6 +53,8 @@ export function OrderClient({ kind }: { kind: Kind }) {
   const [openView, setOpenView] = useState<string | null>(null);
   const [openEdit, setOpenEdit] = useState<string | null>(null);
   const pageSize = 20;
+  const customCols = useCustomColumns(kind === "purchase" ? "purchases" : "sales");
+  const [editingCells, setEditingCells] = useState<Record<string, any>>({});
 
   async function load() {
     setLoading(true);
@@ -135,6 +138,7 @@ export function OrderClient({ kind }: { kind: Kind }) {
             <Printer className="h-4 w-4" />
             列印
           </Button>
+          <CustomColumnButton onClick={() => customCols.setOpen(true)} />
           <Button onClick={() => setOpenNew(true)}>
             <Plus className="h-4 w-4" />
             新增{kind === "purchase" ? "採購單" : "銷售單"}
@@ -187,6 +191,7 @@ export function OrderClient({ kind }: { kind: Kind }) {
             <TH>日期</TH>
             <TH>金額</TH>
             <TH>狀態</TH>
+            {customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}
             <TH className="w-20 text-right">操作</TH>
           </TR>
         </THead>
@@ -215,6 +220,20 @@ export function OrderClient({ kind }: { kind: Kind }) {
                 <TD>
                   <StatusBadge status={r.status} />
                 </TD>
+                {customCols.columns.map((cc) => {
+                  const cellKey = `${r.id}_${cc.id}`;
+                  const vals = getCustomFieldValues(kind === "purchase" ? "purchases" : "sales", r.id);
+                  const isEditing = editingCells[cellKey];
+                  return (
+                    <TD key={cc.id}>
+                      {isEditing ? (
+                        <Input type={cc.type === "number" ? "number" : cc.type === "date" ? "date" : "text"} defaultValue={vals[cc.id] ?? ""} autoFocus className="h-7 text-xs" onBlur={(e) => { setCustomFieldValue(kind === "purchase" ? "purchases" : "sales", r.id, cc.id, e.target.value); setEditingCells((p) => ({ ...p, [cellKey]: false })); }} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} />
+                      ) : (
+                        <span className="cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950 px-1 py-0.5 rounded min-h-[24px] inline-block min-w-[40px]" onClick={() => setEditingCells((p) => ({ ...p, [cellKey]: true }))}>{vals[cc.id] || "—"}</span>
+                      )}
+                    </TD>
+                  );
+                })}
                 <TD className="text-right flex items-center justify-end gap-0">
                   <Button variant="ghost" size="icon" onClick={() => setOpenView(r.id)} title="查看">
                     <Eye className="h-4 w-4" />
@@ -267,6 +286,13 @@ export function OrderClient({ kind }: { kind: Kind }) {
       {openEdit && (
         <EditOrderDialog kind={kind} id={openEdit} onClose={() => setOpenEdit(null)} onSaved={() => { setOpenEdit(null); load(); }} />
       )}
+      <CustomColumnDialog
+        module={kind === "purchase" ? "purchases" : "sales"}
+        columns={customCols.columns}
+        open={customCols.open}
+        onClose={() => customCols.setOpen(false)}
+        onSave={customCols.save}
+      />
     </div>
   );
 }
@@ -290,7 +316,7 @@ function CreateOrderDialog({ kind, open, onClose, onCreated }: any) {
   }, [open, kind]);
 
   function addItem() {
-    setItems([...items, { productId: "", quantity: 1, unitPrice: 0, discount: 0, taxRate: 0.05 }]);
+    setItems([...items, { productId: "", quantity: "", unitPrice: "", discount: "", taxRate: 0.05 }]);
   }
   function updateItem(idx: number, patch: any) {
     const next = [...items];
@@ -674,7 +700,7 @@ function EditOrderDialog({ kind, id, onClose, onSaved }: { kind: Kind; id: strin
   }, [id, kind, endpoint]);
 
   function addItem() {
-    setItems([...items, { productId: "", quantity: 1, unitPrice: 0, discount: 0, taxRate: 0.05 }]);
+    setItems([...items, { productId: "", quantity: "", unitPrice: "", discount: "", taxRate: 0.05 }]);
   }
   function updateItem(idx: number, patch: any) {
     const next = [...items];

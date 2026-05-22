@@ -50,7 +50,7 @@ function AdjustmentDialog({ open, onClose, onSaved }: any) {
   }, [open]);
 
   const addItem = () => {
-    setForm((f: any) => ({ ...f, items: [...f.items, { productId: "", systemQty: 0, actualQty: 0, diff: 0, remark: "" }] }));
+    setForm((f: any) => ({ ...f, items: [...f.items, { productId: "", systemQty: "", actualQty: "", diff: 0, remark: "" }] }));
   };
 
   const updateItem = (idx: number, field: string, value: any) => {

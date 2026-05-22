@@ -190,13 +190,13 @@ function NewInvoiceDialog({ open, onClose, onCreated }: any) {
   const [number, setNumber] = useState("");
   const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().slice(0, 10));
   const [remark, setRemark] = useState("");
-  const [items, setItems] = useState<any[]>([{ description: "", quantity: 1, unitPrice: 0, taxRate: 0.05 }]);
+  const [items, setItems] = useState<any[]>([{ description: "", quantity: "", unitPrice: "", taxRate: 0.05 }]);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     setType("SALES"); setPartyId(""); setNumber(""); setRemark("");
-    setItems([{ description: "", quantity: 1, unitPrice: 0, taxRate: 0.05 }]);
+    setItems([{ description: "", quantity: "", unitPrice: "", taxRate: 0.05 }]);
   }, [open]);
 
   useEffect(() => {
@@ -211,7 +211,7 @@ function NewInvoiceDialog({ open, onClose, onCreated }: any) {
   const total = amountExTax + taxAmount;
 
   function update(idx: number, patch: any) { const n = [...items]; n[idx] = { ...n[idx], ...patch }; setItems(n); }
-  function add() { setItems([...items, { description: "", quantity: 1, unitPrice: 0, taxRate: 0.05 }]); }
+  function add() { setItems([...items, { description: "", quantity: "", unitPrice: "", taxRate: 0.05 }]); }
   function remove(idx: number) { setItems(items.filter((_, i) => i !== idx)); }
 
   async function save() {

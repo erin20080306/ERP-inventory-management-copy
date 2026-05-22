@@ -9,13 +9,14 @@ import { toast } from "sonner";
 import { Plus, Loader2, Trash2, Search, Download, FileDown, Printer } from "lucide-react";
 import { formatDate, formatMoney } from "@/lib/utils";
 import { downloadCSV, toCSV } from "@/lib/csv";
+import { useCustomColumns, CustomColumnDialog, CustomColumnButton, getCustomFieldValues, setCustomFieldValue } from "@/components/custom-columns";
 
 type QuotationItem = {
   productId: string;
-  quantity: number;
-  unitPrice: number;
-  discount: number;
-  taxRate: number;
+  quantity: number | string;
+  unitPrice: number | string;
+  discount: number | string;
+  taxRate: number | string;
   subtotal: number;
 };
 
@@ -50,7 +51,7 @@ function QuotationDialog({ open, onClose, row, onSaved }: any) {
   }, [open, row]);
 
   const addItem = () => {
-    setItems([...items, { productId: "", quantity: 1, unitPrice: 0, discount: 0, taxRate: 0, subtotal: 0 }]);
+    setItems([...items, { productId: "", quantity: "", unitPrice: "", discount: "", taxRate: "", subtotal: 0 }]);
   };
 
   const updateItem = (idx: number, field: string, value: any) => {
@@ -186,6 +187,8 @@ export default function QuotationClient() {
   const [toDate, setToDate] = useState("");
   const [openNew, setOpenNew] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
+  const customCols = useCustomColumns("quotations");
+  const [editingCells, setEditingCells] = useState<Record<string, any>>({});
 
   async function load() {
     setLoading(true);
@@ -258,6 +261,7 @@ export default function QuotationClient() {
           {pdfBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
           PDF
         </Button>
+        <CustomColumnButton onClick={() => customCols.setOpen(true)} />
       </div>
 
       {loading ? (
@@ -265,7 +269,7 @@ export default function QuotationClient() {
       ) : (
         <Table>
           <THead>
-            <TR><TH>單號</TH><TH>客戶</TH><TH>日期</TH><TH>有效期限</TH><TH>總計</TH><TH>狀態</TH></TR>
+            <TR><TH>單號</TH><TH>客戶</TH><TH>日期</TH><TH>有效期限</TH><TH>總計</TH><TH>狀態</TH>{customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}</TR>
           </THead>
           <TBody>
             {items.length === 0 && <TR><TD colSpan={6} className="text-center text-muted-foreground">尚無報價單</TD></TR>}
@@ -277,6 +281,12 @@ export default function QuotationClient() {
                 <TD>{formatDate(q.validUntil)}</TD>
                 <TD>{formatMoney(q.total)}</TD>
                 <TD><StatusBadge status={q.status} /></TD>
+                {customCols.columns.map((cc) => {
+                  const cellKey = `${q.id}_${cc.id}`;
+                  const vals = getCustomFieldValues("quotations", q.id);
+                  const isE = editingCells[cellKey];
+                  return <TD key={cc.id}>{isE ? <Input type={cc.type === "number" ? "number" : cc.type === "date" ? "date" : "text"} defaultValue={vals[cc.id] ?? ""} autoFocus className="h-7 text-xs" onBlur={(e) => { setCustomFieldValue("quotations", q.id, cc.id, e.target.value); setEditingCells((p) => ({ ...p, [cellKey]: false })); }} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} /> : <span className="cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950 px-1 py-0.5 rounded min-h-[24px] inline-block min-w-[40px]" onClick={() => setEditingCells((p) => ({ ...p, [cellKey]: true }))}>{vals[cc.id] || "—"}</span>}</TD>;
+                })}
               </TR>
             ))}
           </TBody>
@@ -284,6 +294,7 @@ export default function QuotationClient() {
       )}
 
       <QuotationDialog open={openNew} onClose={() => setOpenNew(false)} onSaved={load} />
+      <CustomColumnDialog module="quotations" columns={customCols.columns} open={customCols.open} onClose={() => customCols.setOpen(false)} onSave={customCols.save} />
     </div>
   );
 }

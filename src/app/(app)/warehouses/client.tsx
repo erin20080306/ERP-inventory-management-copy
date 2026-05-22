@@ -65,6 +65,7 @@ export function WarehouseClient() {
   return (
     <CrudTable
       endpoint="/api/warehouses"
+      moduleKey="warehouses"
       FormDialog={WarehouseDialog}
       columns={[
         { key: "code", title: "編號", render: (r: any) => <span className="font-mono text-xs">{r.code}</span> },

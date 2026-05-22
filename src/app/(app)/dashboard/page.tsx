@@ -149,20 +149,23 @@ async function getStats(tenantId: string) {
   };
 }
 
-function KPI({ icon: Icon, label, value, hint, accent }: any) {
+function KPI({ icon: Icon, label, value, hint, accent, textColor }: any) {
   return (
-    <Card>
-      <CardContent className="p-5">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="text-xs font-medium text-muted-foreground">{label}</div>
-            <div className="mt-1 text-2xl font-bold tracking-tight">{value}</div>
-            {hint && <div className="text-xs text-muted-foreground mt-1">{hint}</div>}
-          </div>
-          <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${accent ?? "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200"}`}>
-            <Icon className="h-5 w-5" />
+    <Card className={`${accent ?? "bg-white dark:bg-slate-800"} border-0 shadow-md overflow-hidden`}>
+      <CardContent className="p-0">
+        <div className="px-5 pt-4 pb-3">
+          <div className="flex items-center justify-between">
+            <div className="flex-1 min-w-0">
+              <div className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">{label}</div>
+              <div className={`mt-2 text-3xl font-extrabold tracking-tight ${textColor ?? "text-slate-900 dark:text-white"}`}>{value}</div>
+              {hint && <div className="text-xs text-slate-400 mt-1">{hint}</div>}
+            </div>
+            <div className="h-12 w-12 rounded-xl bg-white/20 dark:bg-white/10 flex items-center justify-center">
+              <Icon className="h-6 w-6 text-white/80" />
+            </div>
           </div>
         </div>
+        <div className="h-1 bg-gradient-to-r from-white/20 to-transparent" />
       </CardContent>
     </Card>
   );
@@ -179,28 +182,28 @@ export default async function DashboardPage() {
   return (
     <PageShell title="儀表板" description="營運總覽與即時數據">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <KPI icon={Receipt} label="今日銷售額" value={formatMoney(s.todaySales)} accent="bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300" />
-        <KPI icon={TrendingUp} label="本月銷售額" value={formatMoney(s.monthSales)} accent="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" />
-        <KPI icon={ShoppingCart} label="本月採購額" value={formatMoney(s.monthPurchase)} accent="bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300" />
-        <KPI icon={Package} label="庫存總成本" value={formatMoney(s.inventoryValue)} accent="bg-slate-100 text-slate-700 dark:bg-slate-800" />
-        <KPI icon={Coins} label="應收帳款" value={formatMoney(s.arTotal)} hint="尚未收回" accent="bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300" />
-        <KPI icon={Wallet} label="應付帳款" value={formatMoney(s.apTotal)} hint="尚未付清" accent="bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300" />
-        <KPI icon={TrendingDown} label="未出貨訂單" value={formatNumber(s.unshipped)} accent="bg-indigo-100 text-indigo-700 dark:bg-indigo-950" />
-        <KPI icon={AlertTriangle} label="低庫存商品" value={formatNumber(s.lowStockCount)} accent="bg-orange-100 text-orange-700 dark:bg-orange-950" />
+        <KPI icon={Receipt} label="今日銷售額" value={formatMoney(s.todaySales)} accent="bg-gradient-to-br from-blue-500 to-blue-600" textColor="text-white" />
+        <KPI icon={TrendingUp} label="本月銷售額" value={formatMoney(s.monthSales)} accent="bg-gradient-to-br from-emerald-500 to-emerald-600" textColor="text-white" />
+        <KPI icon={ShoppingCart} label="本月採購額" value={formatMoney(s.monthPurchase)} accent="bg-gradient-to-br from-red-500 to-red-600" textColor="text-white" />
+        <KPI icon={Package} label="庫存總成本" value={formatMoney(s.inventoryValue)} accent="bg-gradient-to-br from-amber-500 to-amber-600" textColor="text-white" />
+        <KPI icon={Coins} label="應收帳款" value={formatMoney(s.arTotal)} hint="尚未收回" accent="bg-gradient-to-br from-green-500 to-green-600" textColor="text-white" />
+        <KPI icon={Wallet} label="應付帳款" value={formatMoney(s.apTotal)} hint="尚未付清" accent="bg-gradient-to-br from-rose-500 to-rose-600" textColor="text-white" />
+        <KPI icon={TrendingDown} label="未出貨訂單" value={formatNumber(s.unshipped)} accent="bg-gradient-to-br from-indigo-500 to-indigo-600" textColor="text-white" />
+        <KPI icon={AlertTriangle} label="低庫存商品" value={formatNumber(s.lowStockCount)} accent="bg-gradient-to-br from-orange-500 to-orange-600" textColor="text-white" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>近 14 日銷售 / 採購趨勢</CardTitle>
+        <Card className="lg:col-span-2 shadow-md border-0">
+          <CardHeader className="bg-gradient-to-r from-slate-50 to-white dark:from-slate-800 dark:to-slate-900 rounded-t-lg">
+            <CardTitle className="text-base flex items-center gap-2"><TrendingUp className="h-4 w-4 text-blue-500" />近 14 日銷售 / 採購趨勢</CardTitle>
           </CardHeader>
           <CardContent>
             <SalesTrendChart data={s.trend} />
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>商品銷售排行</CardTitle>
+        <Card className="shadow-md border-0">
+          <CardHeader className="bg-gradient-to-r from-slate-50 to-white dark:from-slate-800 dark:to-slate-900 rounded-t-lg">
+            <CardTitle className="text-base flex items-center gap-2"><Package className="h-4 w-4 text-emerald-500" />商品銷售排行</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             {s.topProducts.length === 0 && <div className="text-sm text-muted-foreground">尚無資料</div>}
@@ -218,9 +221,9 @@ export default async function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card>
-          <CardHeader>
-            <CardTitle>最近銷售單</CardTitle>
+        <Card className="shadow-md border-0">
+          <CardHeader className="bg-gradient-to-r from-slate-50 to-white dark:from-slate-800 dark:to-slate-900 rounded-t-lg">
+            <CardTitle className="text-base flex items-center gap-2"><Receipt className="h-4 w-4 text-blue-500" />最近銷售單</CardTitle>
           </CardHeader>
           <CardContent>
             <Table>
@@ -254,9 +257,9 @@ export default async function DashboardPage() {
             </Table>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>低庫存警示</CardTitle>
+        <Card className="shadow-md border-0">
+          <CardHeader className="bg-gradient-to-r from-slate-50 to-white dark:from-slate-800 dark:to-slate-900 rounded-t-lg">
+            <CardTitle className="text-base flex items-center gap-2"><AlertTriangle className="h-4 w-4 text-orange-500" />低庫存警示</CardTitle>
           </CardHeader>
           <CardContent>
             <Table>

@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { Search, Loader2, Save, FileSpreadsheet, Upload, RotateCcw, Printer, FileDown, Trash2, Plus } from "lucide-react";
 import { formatMoney } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { useCustomColumns, CustomColumnDialog, CustomColumnButton, getCustomFieldValues, setCustomFieldValue } from "@/components/custom-columns";
 
 type Product = {
   id: string;
@@ -30,8 +31,10 @@ export function CostManagementClient() {
   const [loading, setLoading] = useState(true);
   const [savingAll, setSavingAll] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
-  const [newForm, setNewForm] = useState({ sku: "", name: "", spec: "", costPrice: 0, salePrice: 0 });
+  const [newForm, setNewForm] = useState({ sku: "", name: "", spec: "", costPrice: "", salePrice: "" });
   const [addSaving, setAddSaving] = useState(false);
+  const customCols = useCustomColumns("costs");
+  const [editingCells, setEditingCells] = useState<Record<string, any>>({});
   const pageSize = 30;
 
   // debounce 搜尋
@@ -189,6 +192,7 @@ export function CostManagementClient() {
               </Button>
             </>
           )}
+          <CustomColumnButton onClick={() => customCols.setOpen(true)} />
           <Button onClick={() => setShowAdd(true)}><Plus className="h-4 w-4" />新增</Button>
         </div>
       </div>
@@ -213,11 +217,11 @@ export function CostManagementClient() {
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label>成本</Label>
-                  <Input type="number" step="0.01" value={newForm.costPrice || ""} onChange={(e) => setNewForm({ ...newForm, costPrice: Number(e.target.value) })} />
+                  <Input type="number" step="0.01" value={newForm.costPrice || ""} onChange={(e) => setNewForm({ ...newForm, costPrice: e.target.value })} />
                 </div>
                 <div className="space-y-1">
                   <Label>售價</Label>
-                  <Input type="number" step="0.01" value={newForm.salePrice || ""} onChange={(e) => setNewForm({ ...newForm, salePrice: Number(e.target.value) })} />
+                  <Input type="number" step="0.01" value={newForm.salePrice || ""} onChange={(e) => setNewForm({ ...newForm, salePrice: e.target.value })} />
                 </div>
               </div>
             </div>
@@ -230,7 +234,7 @@ export function CostManagementClient() {
                   if (!res.ok) throw new Error((await res.json()).error || "新增失敗");
                   toast.success("已新增商品");
                   setShowAdd(false);
-                  setNewForm({ sku: "", name: "", spec: "", costPrice: 0, salePrice: 0 });
+                  setNewForm({ sku: "", name: "", spec: "", costPrice: "", salePrice: "" });
                   load();
                 } catch (e: any) { toast.error(e.message); }
                 finally { setAddSaving(false); }
@@ -248,6 +252,7 @@ export function CostManagementClient() {
             <TH>SKU</TH><TH>商品名稱</TH><TH>規格</TH>
             <TH className="w-40">成本</TH><TH className="w-40">售價</TH>
             <TH className="w-20 text-right">毛利率</TH>
+            {customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}
             <TH className="w-24 text-right">操作</TH>
           </TR>
         </THead>
@@ -282,6 +287,7 @@ export function CostManagementClient() {
                   />
                 </TD>
                 <TD className="text-right text-xs">{margin === "—" ? "—" : `${margin}%`}</TD>
+                {customCols.columns.map((cc) => { const ck = `${r.id}_${cc.id}`; const v = getCustomFieldValues("costs", r.id); const isE = editingCells[ck]; return <TD key={cc.id}>{isE ? <Input type={cc.type === "number" ? "number" : cc.type === "date" ? "date" : "text"} defaultValue={v[cc.id] ?? ""} autoFocus className="h-7 text-xs" onBlur={(e) => { setCustomFieldValue("costs", r.id, cc.id, e.target.value); setEditingCells((p) => ({ ...p, [ck]: false })); }} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} /> : <span className="cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950 px-1 py-0.5 rounded min-h-[24px] inline-block min-w-[40px]" onClick={() => setEditingCells((p) => ({ ...p, [ck]: true }))}>{v[cc.id] || "—"}</span>}</TD>; })}
                 <TD className="text-right flex items-center justify-end gap-1">
                   {dirty && (
                     <Button size="sm" variant="outline" onClick={() => saveOne(r.id)}>
@@ -306,6 +312,7 @@ export function CostManagementClient() {
           <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>下一頁</Button>
         </div>
       </div>
+      <CustomColumnDialog module="costs" columns={customCols.columns} open={customCols.open} onClose={() => customCols.setOpen(false)} onSave={customCols.save} />
     </div>
   );
 }

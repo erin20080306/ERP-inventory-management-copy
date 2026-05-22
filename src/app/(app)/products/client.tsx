@@ -33,9 +33,9 @@ function ProductDialog({ open, onClose, row, onSaved }: any) {
         sku: "",
         name: "",
         spec: "",
-        costPrice: 0,
-        salePrice: 0,
-        safetyStock: 0,
+        costPrice: "",
+        salePrice: "",
+        safetyStock: "",
         isActive: true,
       }
     );
@@ -159,6 +159,7 @@ export function ProductClient() {
   return (
     <CrudTable<Product>
       endpoint="/api/products"
+      moduleKey="products"
       searchPlaceholder="搜尋 SKU / 商品名稱 / 條碼"
       enableDateFilter={true}
       columns={[

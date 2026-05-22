@@ -120,6 +120,7 @@ export function PartyClient({ kind }: { kind: "customer" | "supplier" }) {
   return (
     <CrudTable<Party>
       endpoint={endpoint}
+      moduleKey={kind === "customer" ? "customers" : "suppliers"}
       searchPlaceholder="搜尋編號 / 公司名稱 / 統編 / 電話"
       FormDialog={(props) => <PartyDialog {...props} endpoint={endpoint} kind={kind} />}
       pdfTitle={kind === "customer" ? "客戶管理" : "供應商管理"}

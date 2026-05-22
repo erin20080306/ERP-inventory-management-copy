@@ -4,9 +4,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { EmptyState } from "@/components/layout/page-shell";
-import { Plus, Search, Loader2, Edit2, Trash2, Download, Printer, FileDown, FileSpreadsheet, Upload } from "lucide-react";
+import { Plus, Search, Loader2, Edit2, Trash2, Download, Printer, FileDown, FileSpreadsheet, Upload, Settings2 } from "lucide-react";
 import { toast } from "sonner";
 import { downloadCSV, toCSV } from "@/lib/csv";
+import {
+  useCustomColumns,
+  CustomColumnDialog,
+  getCustomFieldValues,
+  setCustomFieldValue,
+  type CustomColumn,
+} from "@/components/custom-columns";
 
 function ImportBtn({
   endpoint,
@@ -130,6 +137,7 @@ export function CrudTable<T extends { id: string }>({
   importEndpoint,
   templateHeaders,
   enableDateFilter = false,
+  moduleKey,
 }: {
   endpoint: string;
   columns: Column<T>[];
@@ -149,6 +157,8 @@ export function CrudTable<T extends { id: string }>({
   FormDialog: React.FC<{ open: boolean; onClose: () => void; row: T | null; onSaved: () => void }>;
   initialQuery?: Record<string, string>;
   enableDateFilter?: boolean;
+  /** 用於自訂欄位的模組 key */
+  moduleKey?: string;
 }) {
   const [rows, setRows] = useState<T[]>([]);
   const [total, setTotal] = useState(0);
@@ -160,6 +170,8 @@ export function CrudTable<T extends { id: string }>({
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<T | null>(null);
   const [open, setOpen] = useState(false);
+  const customCols = useCustomColumns(moduleKey || exportName);
+  const [editingCells, setEditingCells] = useState<Record<string, any>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -287,6 +299,12 @@ export function CrudTable<T extends { id: string }>({
               onDone={load}
             />
           )}
+          {moduleKey && (
+            <Button variant="outline" onClick={() => customCols.setOpen(true)}>
+              <Settings2 className="h-4 w-4" />
+              欄位
+            </Button>
+          )}
           {canCreate && (
             <Button
               onClick={() => {
@@ -308,6 +326,9 @@ export function CrudTable<T extends { id: string }>({
               <TH key={c.key} className={c.className}>
                 {c.title}
               </TH>
+            ))}
+            {customCols.columns.map((cc) => (
+              <TH key={cc.id}>{cc.label}</TH>
             ))}
             {(canEdit || canDelete) && <TH className="w-28 text-right">操作</TH>}
           </TR>
@@ -335,6 +356,37 @@ export function CrudTable<T extends { id: string }>({
                     {c.render ? c.render(row) : (row as any)[c.key] ?? "—"}
                   </TD>
                 ))}
+                {customCols.columns.map((cc) => {
+                  const cellKey = `${row.id}_${cc.id}`;
+                  const vals = getCustomFieldValues(moduleKey || exportName, row.id);
+                  const isEditing = editingCells[cellKey];
+                  return (
+                    <TD key={cc.id} className="min-w-[100px]">
+                      {isEditing ? (
+                        <Input
+                          type={cc.type === "number" ? "number" : cc.type === "date" ? "date" : "text"}
+                          defaultValue={vals[cc.id] ?? ""}
+                          autoFocus
+                          className="h-7 text-xs"
+                          onBlur={(e) => {
+                            setCustomFieldValue(moduleKey || exportName, row.id, cc.id, e.target.value);
+                            setEditingCells((prev) => ({ ...prev, [cellKey]: false }));
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                          }}
+                        />
+                      ) : (
+                        <span
+                          className="cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950 px-1 py-0.5 rounded min-h-[24px] inline-block min-w-[40px]"
+                          onClick={() => setEditingCells((prev) => ({ ...prev, [cellKey]: true }))}
+                        >
+                          {vals[cc.id] || "—"}
+                        </span>
+                      )}
+                    </TD>
+                  );
+                })}
                 {(canEdit || canDelete) && (
                   <TD className="text-right">
                     <div className="flex items-center justify-end gap-1">
@@ -379,6 +431,15 @@ export function CrudTable<T extends { id: string }>({
       </div>
 
       <FormDialog open={open} onClose={() => setOpen(false)} row={editing} onSaved={load} />
+      {moduleKey && (
+        <CustomColumnDialog
+          module={moduleKey || exportName}
+          columns={customCols.columns}
+          open={customCols.open}
+          onClose={() => customCols.setOpen(false)}
+          onSave={customCols.save}
+        />
+      )}
     </div>
   );
 }

@@ -144,6 +144,7 @@ export function EmployeesClient() {
   return (
     <CrudTable<any>
       endpoint="/api/hr/employees"
+      moduleKey="employees"
       searchPlaceholder="搜尋編號 / 姓名 / 電話"
       enableDateFilter={true}
       FormDialog={EmployeeDialog}

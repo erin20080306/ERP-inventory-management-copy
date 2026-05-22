@@ -10,13 +10,14 @@ import { Plus, Loader2, Trash2, Search, Download, FileDown, Printer } from "luci
 import { formatDate, formatMoney } from "@/lib/utils";
 import { downloadCSV, toCSV } from "@/lib/csv";
 import { ConvertToJournalButton } from "@/components/convert-to-journal-button";
+import { useCustomColumns, CustomColumnDialog, CustomColumnButton, getCustomFieldValues, setCustomFieldValue } from "@/components/custom-columns";
 
 type ReturnItem = {
   productId: string;
-  quantity: number;
-  unitPrice: number;
-  discount: number;
-  taxRate: number;
+  quantity: number | string;
+  unitPrice: number | string;
+  discount: number | string;
+  taxRate: number | string;
   subtotal: number;
 };
 
@@ -56,7 +57,7 @@ function ReturnDialog({ open, onClose, row, onSaved, type }: any) {
   }, [open, row]);
 
   const addItem = () => {
-    setItems([...items, { productId: "", quantity: 1, unitPrice: 0, discount: 0, taxRate: 0, subtotal: 0 }]);
+    setItems([...items, { productId: "", quantity: "", unitPrice: "", discount: "", taxRate: "", subtotal: 0 }]);
   };
 
   const updateItem = (idx: number, field: string, value: any) => {
@@ -199,6 +200,8 @@ export default function ReturnsClient() {
   const [openSales, setOpenSales] = useState(false);
   const [openPurchase, setOpenPurchase] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
+  const customCols = useCustomColumns("returns");
+  const [editingCells, setEditingCells] = useState<Record<string, any>>({});
 
   async function load() {
     setLoading(true);
@@ -239,6 +242,7 @@ export default function ReturnsClient() {
           {pdfBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
           PDF
         </Button>
+        <CustomColumnButton onClick={() => customCols.setOpen(true)} />
       </div>
 
       {loading ? (
@@ -249,7 +253,7 @@ export default function ReturnsClient() {
             <h3 className="text-lg font-semibold mb-3">銷售退貨</h3>
             <Table>
               <THead>
-                <TR><TH>單號</TH><TH>客戶</TH><TH>日期</TH><TH>原因</TH><TH>總計</TH><TH>狀態</TH><TH className="text-right">操作</TH></TR>
+                <TR><TH>單號</TH><TH>客戶</TH><TH>日期</TH><TH>原因</TH><TH>總計</TH><TH>狀態</TH>{customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}<TH className="text-right">操作</TH></TR>
               </THead>
               <TBody>
                 {salesReturns.length === 0 && <TR><TD colSpan={7} className="text-center text-muted-foreground">尚無資料</TD></TR>}
@@ -261,6 +265,7 @@ export default function ReturnsClient() {
                     <TD>{r.reason ?? "—"}</TD>
                     <TD>{formatMoney(r.total)}</TD>
                     <TD><StatusBadge status={r.status} /></TD>
+                    {customCols.columns.map((cc) => { const ck = `${r.id}_${cc.id}`; const v = getCustomFieldValues("returns", r.id); const isE = editingCells[ck]; return <TD key={cc.id}>{isE ? <Input type={cc.type === "number" ? "number" : cc.type === "date" ? "date" : "text"} defaultValue={v[cc.id] ?? ""} autoFocus className="h-7 text-xs" onBlur={(e) => { setCustomFieldValue("returns", r.id, cc.id, e.target.value); setEditingCells((p) => ({ ...p, [ck]: false })); }} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} /> : <span className="cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950 px-1 py-0.5 rounded min-h-[24px] inline-block min-w-[40px]" onClick={() => setEditingCells((p) => ({ ...p, [ck]: true }))}>{v[cc.id] || "—"}</span>}</TD>; })}
                     <TD className="text-right">
                       <ConvertToJournalButton sourceType="SALES_RETURN" sourceId={r.id} size="sm" />
                     </TD>
@@ -274,7 +279,7 @@ export default function ReturnsClient() {
             <h3 className="text-lg font-semibold mb-3">採購退貨</h3>
             <Table>
               <THead>
-                <TR><TH>單號</TH><TH>供應商</TH><TH>日期</TH><TH>原因</TH><TH>總計</TH><TH>狀態</TH><TH className="text-right">操作</TH></TR>
+                <TR><TH>單號</TH><TH>供應商</TH><TH>日期</TH><TH>原因</TH><TH>總計</TH><TH>狀態</TH>{customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}<TH className="text-right">操作</TH></TR>
               </THead>
               <TBody>
                 {purchaseReturns.length === 0 && <TR><TD colSpan={7} className="text-center text-muted-foreground">尚無資料</TD></TR>}
@@ -286,6 +291,7 @@ export default function ReturnsClient() {
                     <TD>{r.reason ?? "—"}</TD>
                     <TD>{formatMoney(r.total)}</TD>
                     <TD><StatusBadge status={r.status} /></TD>
+                    {customCols.columns.map((cc) => { const ck = `${r.id}_${cc.id}`; const v = getCustomFieldValues("returns", r.id); const isE = editingCells[ck]; return <TD key={cc.id}>{isE ? <Input type={cc.type === "number" ? "number" : cc.type === "date" ? "date" : "text"} defaultValue={v[cc.id] ?? ""} autoFocus className="h-7 text-xs" onBlur={(e) => { setCustomFieldValue("returns", r.id, cc.id, e.target.value); setEditingCells((p) => ({ ...p, [ck]: false })); }} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} /> : <span className="cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950 px-1 py-0.5 rounded min-h-[24px] inline-block min-w-[40px]" onClick={() => setEditingCells((p) => ({ ...p, [ck]: true }))}>{v[cc.id] || "—"}</span>}</TD>; })}
                     <TD className="text-right">
                       <ConvertToJournalButton sourceType="PURCHASE_RETURN" sourceId={r.id} size="sm" />
                     </TD>
@@ -299,6 +305,7 @@ export default function ReturnsClient() {
 
       <ReturnDialog open={openSales} onClose={() => setOpenSales(false)} onSaved={load} type="sales" />
       <ReturnDialog open={openPurchase} onClose={() => setOpenPurchase(false)} onSaved={load} type="purchase" />
+      <CustomColumnDialog module="returns" columns={customCols.columns} open={customCols.open} onClose={() => customCols.setOpen(false)} onSave={customCols.save} />
     </div>
   );
 }
