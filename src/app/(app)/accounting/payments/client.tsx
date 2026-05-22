@@ -10,6 +10,7 @@ import { Loader2, Search, Download, Printer, FileDown } from "lucide-react";
 import { formatDate, formatMoney } from "@/lib/utils";
 import { downloadCSV, toCSV } from "@/lib/csv";
 import { useCustomColumns, CustomColumnDialog, CustomColumnButton, getCustomFieldValues, setCustomFieldValue } from "@/components/custom-columns";
+import { TableHint, useColumnDrag } from "@/components/table-helpers";
 
 export function PaymentHistoryClient() {
   const [rows, setRows] = useState<any[]>([]);
@@ -24,6 +25,7 @@ export function PaymentHistoryClient() {
   const pageSize = 20;
   const customCols = useCustomColumns("payments");
   const [editingCells, setEditingCells] = useState<Record<string, any>>({});
+  const colDrag = useColumnDrag("payments", ["type", "number", "party", "relNumber", "amount", "method", "date", "remark"]);
 
   async function load() {
     setLoading(true);
@@ -126,20 +128,18 @@ export function PaymentHistoryClient() {
         </div>
       </div>
 
-      <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-        <span>💡 自訂欄位可使用 ↑↓ 按鈕調整順序</span>
-      </div>
+      <TableHint />
       <Table>
         <THead>
           <TR>
-            <TH>類型</TH>
-            <TH>單號</TH>
-            <TH>對象</TH>
-            <TH>關聯單號</TH>
-            <TH>金額</TH>
-            <TH>方式</TH>
-            <TH>日期</TH>
-            <TH>備註</TH>
+            <TH {...colDrag.thProps("type")}>類型</TH>
+            <TH {...colDrag.thProps("number")}>單號</TH>
+            <TH {...colDrag.thProps("party")}>對象</TH>
+            <TH {...colDrag.thProps("relNumber")}>關聯單號</TH>
+            <TH {...colDrag.thProps("amount")}>金額</TH>
+            <TH {...colDrag.thProps("method")}>方式</TH>
+            <TH {...colDrag.thProps("date")}>日期</TH>
+            <TH {...colDrag.thProps("remark")}>備註</TH>
             {customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}
           </TR>
         </THead>

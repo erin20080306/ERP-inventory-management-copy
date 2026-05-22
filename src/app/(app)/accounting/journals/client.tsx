@@ -11,6 +11,7 @@ import { Plus, Trash2, Loader2, Search, Eye, Download, Printer, FileDown, Pencil
 import { formatDate, formatMoney } from "@/lib/utils";
 import { downloadCSV, toCSV } from "@/lib/csv";
 import { useCustomColumns, CustomColumnDialog, CustomColumnButton, getCustomFieldValues, setCustomFieldValue } from "@/components/custom-columns";
+import { TableHint, useColumnDrag } from "@/components/table-helpers";
 
 export function JournalClient() {
   const [rows, setRows] = useState<any[]>([]);
@@ -28,6 +29,7 @@ export function JournalClient() {
   const customCols = useCustomColumns("journals");
   const [editingCells, setEditingCells] = useState<Record<string, any>>({});
   const [inlineRow, setInlineRow] = useState<Record<string, any>>({});
+  const colDrag = useColumnDrag("journals", ["number", "date", "summary", "debit", "credit", "status", "updatedBy"]);
   const [inlineSaving, setInlineSaving] = useState<string | null>(null);
 
   // 讀取從進銷存頁面轉傳票傳入的草稿
@@ -187,13 +189,11 @@ export function JournalClient() {
         </div>
       </div>
 
-      <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-        <span>💡 自訂欄位可使用 ↑↓ 按鈕調整順序</span>
-      </div>
+      <TableHint />
       <Table>
         <THead>
           <TR>
-            <TH>編號</TH><TH>日期</TH><TH>摘要</TH><TH>借方</TH><TH>貸方</TH><TH>狀態</TH><TH>操作人員</TH>{customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}<TH className="w-20 text-right">操作</TH>
+            <TH {...colDrag.thProps("number")}>編號</TH><TH {...colDrag.thProps("date")}>日期</TH><TH {...colDrag.thProps("summary")}>摘要</TH><TH {...colDrag.thProps("debit")}>借方</TH><TH {...colDrag.thProps("credit")}>貸方</TH><TH {...colDrag.thProps("status")}>狀態</TH><TH {...colDrag.thProps("updatedBy")}>操作人員</TH>{customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}<TH className="w-20 text-right">操作</TH>
           </TR>
         </THead>
         <TBody>

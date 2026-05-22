@@ -12,6 +12,7 @@ import { formatDate, formatMoney } from "@/lib/utils";
 import { downloadCSV, toCSV } from "@/lib/csv";
 import { ConvertToJournalButton } from "@/components/convert-to-journal-button";
 import { useCustomColumns, CustomColumnDialog, CustomColumnButton, getCustomFieldValues, setCustomFieldValue } from "@/components/custom-columns";
+import { TableHint, useColumnDrag } from "@/components/table-helpers";
 
 export function InvoiceClient() {
   const [rows, setRows] = useState<any[]>([]);
@@ -28,6 +29,7 @@ export function InvoiceClient() {
   const pageSize = 20;
   const customCols = useCustomColumns("invoices");
   const [editingCells, setEditingCells] = useState<Record<string, any>>({});
+  const colDrag = useColumnDrag("invoices", ["date", "type", "number", "party", "amountExTax", "taxAmount", "totalAmount", "status"]);
 
   async function load() {
     setLoading(true);
@@ -131,13 +133,11 @@ export function InvoiceClient() {
         </div>
       </div>
 
-      <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-        <span>💡 自訂欄位可使用 ↑↓ 按鈕調整順序</span>
-      </div>
+      <TableHint />
       <Table>
         <THead>
           <TR>
-            <TH>日期</TH><TH>類型</TH><TH>發票號碼</TH><TH>對象</TH><TH>未稅</TH><TH>稅額</TH><TH>含稅</TH><TH>狀態</TH>{customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}<TH className="w-20 text-right">操作</TH>
+            <TH {...colDrag.thProps("date")}>日期</TH><TH {...colDrag.thProps("type")}>類型</TH><TH {...colDrag.thProps("number")}>發票號碼</TH><TH {...colDrag.thProps("party")}>對象</TH><TH {...colDrag.thProps("amountExTax")}>未稅</TH><TH {...colDrag.thProps("taxAmount")}>稅額</TH><TH {...colDrag.thProps("totalAmount")}>含稅</TH><TH {...colDrag.thProps("status")}>狀態</TH>{customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}<TH className="w-20 text-right">操作</TH>
           </TR>
         </THead>
         <TBody>

@@ -9,6 +9,7 @@ import { ExportButton } from "@/components/export-button";
 import { PrintListButton, PDFExportButton } from "@/components/print-list-button";
 import { Loader2, Search } from "lucide-react";
 import { useCustomColumns, CustomColumnDialog, CustomColumnButton, getCustomFieldValues, setCustomFieldValue } from "@/components/custom-columns";
+import { TableHint, useColumnDrag } from "@/components/table-helpers";
 
 export default function InventoryClient() {
   const [stocks, setStocks] = useState<any[]>([]);
@@ -19,6 +20,7 @@ export default function InventoryClient() {
   const [toDate, setToDate] = useState("");
   const customCols = useCustomColumns("inventory");
   const [editingCells, setEditingCells] = useState<Record<string, any>>({});
+  const colDrag = useColumnDrag("inventory", ["warehouse", "sku", "product", "quantity", "safetyStock", "cost", "value", "stockStatus"]);
 
   async function load() {
     setLoading(true);
@@ -68,9 +70,7 @@ export default function InventoryClient() {
         <CustomColumnButton onClick={() => customCols.setOpen(true)} />
       </div>
 
-      <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-        <span>💡 自訂欄位可使用 ↑↓ 按鈕調整順序</span>
-      </div>
+      <TableHint />
 
       {loading ? (
         <div className="flex justify-center py-8"><Loader2 className="h-8 w-8 animate-spin" /></div>
@@ -105,14 +105,14 @@ export default function InventoryClient() {
               <Table>
                 <THead>
                   <TR>
-                    <TH>倉庫</TH>
-                    <TH>SKU</TH>
-                    <TH>商品</TH>
-                    <TH>數量</TH>
-                    <TH>安全庫存</TH>
-                    <TH>成本</TH>
-                    <TH>庫存價值</TH>
-                    <TH>狀態</TH>
+                    <TH {...colDrag.thProps("warehouse")}>倉庫</TH>
+                    <TH {...colDrag.thProps("sku")}>SKU</TH>
+                    <TH {...colDrag.thProps("product")}>商品</TH>
+                    <TH {...colDrag.thProps("quantity")}>數量</TH>
+                    <TH {...colDrag.thProps("safetyStock")}>安全庫存</TH>
+                    <TH {...colDrag.thProps("cost")}>成本</TH>
+                    <TH {...colDrag.thProps("value")}>庫存價值</TH>
+                    <TH {...colDrag.thProps("stockStatus")}>狀態</TH>
                     {customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}
                   </TR>
                 </THead>

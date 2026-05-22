@@ -12,6 +12,7 @@ import { formatDate, formatMoney } from "@/lib/utils";
 import { downloadCSV, toCSV } from "@/lib/csv";
 import { ConvertToJournalButton } from "@/components/convert-to-journal-button";
 import { useCustomColumns, CustomColumnDialog, CustomColumnButton, getCustomFieldValues, setCustomFieldValue } from "@/components/custom-columns";
+import { TableHint, useColumnDrag } from "@/components/table-helpers";
 
 export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
   const endpoint = kind === "ar" ? "/api/accounting/receivables" : "/api/accounting/payables";
@@ -30,6 +31,7 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
   const pageSize = 20;
   const customCols = useCustomColumns(kind === "ar" ? "receivables" : "payables");
   const [editingCells, setEditingCells] = useState<Record<string, any>>({});
+  const colDrag = useColumnDrag(kind === "ar" ? "receivables" : "payables", ["party", "relNumber", "date", "amount", "paid", "balance", "status", "updatedBy"]);
 
   async function load() {
     setLoading(true);
@@ -157,13 +159,11 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
         </div>
       </div>
 
-      <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-        <span>💡 自訂欄位可使用 ↑↓ 按鈕調整順序</span>
-      </div>
+      <TableHint />
       <Table>
         <THead>
           <TR>
-            <TH>{partyLabel}</TH><TH>關聯單號</TH><TH>日期</TH><TH>金額</TH><TH>已{kind === "ar" ? "收" : "付"}</TH><TH>未結</TH><TH>狀態</TH><TH>操作人員</TH>{customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}<TH className="w-24 text-right">操作</TH>
+            <TH {...colDrag.thProps("party")}>{partyLabel}</TH><TH {...colDrag.thProps("relNumber")}>關聯單號</TH><TH {...colDrag.thProps("date")}>日期</TH><TH {...colDrag.thProps("amount")}>金額</TH><TH {...colDrag.thProps("paid")}>已{kind === "ar" ? "收" : "付"}</TH><TH {...colDrag.thProps("balance")}>未結</TH><TH {...colDrag.thProps("status")}>狀態</TH><TH {...colDrag.thProps("updatedBy")}>操作人員</TH>{customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}<TH className="w-24 text-right">操作</TH>
           </TR>
         </THead>
         <TBody>

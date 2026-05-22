@@ -12,6 +12,7 @@ import { formatDate, formatMoney } from "@/lib/utils";
 import { downloadCSV, toCSV } from "@/lib/csv";
 import { ConvertToJournalButton } from "@/components/convert-to-journal-button";
 import { useCustomColumns, CustomColumnDialog, CustomColumnButton, getCustomFieldValues, setCustomFieldValue } from "@/components/custom-columns";
+import { TableHint, useColumnDrag } from "@/components/table-helpers";
 
 function PDFOrderBtn({ kind }: { kind: string }) {
   const [busy, setBusy] = useState(false);
@@ -56,6 +57,7 @@ export function OrderClient({ kind }: { kind: Kind }) {
   const pageSize = 20;
   const customCols = useCustomColumns(kind === "purchase" ? "purchases" : "sales");
   const [editingCells, setEditingCells] = useState<Record<string, any>>({});
+  const colDrag = useColumnDrag(kind === "purchase" ? "purchases" : "sales", ["number", "party", "date", "amount", "status", "updatedBy"]);
 
   async function load() {
     setLoading(true);
@@ -184,18 +186,16 @@ export function OrderClient({ kind }: { kind: Kind }) {
         </div>
       </div>
 
-      <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-        <span>💡 自訂欄位可使用 ↑↓ 按鈕調整順序</span>
-      </div>
+      <TableHint />
       <Table>
         <THead>
           <TR>
-            <TH>單號</TH>
-            <TH>{partyLabel}</TH>
-            <TH>日期</TH>
-            <TH>金額</TH>
-            <TH>狀態</TH>
-            <TH>操作人員</TH>
+            <TH {...colDrag.thProps("number")}>單號</TH>
+            <TH {...colDrag.thProps("party")}>{partyLabel}</TH>
+            <TH {...colDrag.thProps("date")}>日期</TH>
+            <TH {...colDrag.thProps("amount")}>金額</TH>
+            <TH {...colDrag.thProps("status")}>狀態</TH>
+            <TH {...colDrag.thProps("updatedBy")}>操作人員</TH>
             {customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}
             <TH className="w-20 text-right">操作</TH>
           </TR>

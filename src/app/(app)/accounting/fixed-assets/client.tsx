@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { Plus, Search, Loader2, TrendingDown, Trash2, Ban, FileSpreadsheet, Upload, Save, X, Pencil } from "lucide-react";
 import { formatDate, formatMoney } from "@/lib/utils";
 import { useCustomColumns, CustomColumnDialog, CustomColumnButton, getCustomFieldValues, setCustomFieldValue } from "@/components/custom-columns";
+import { TableHint, useColumnDrag } from "@/components/table-helpers";
 
 const STATUS_LABELS: Record<string, string> = {
   IN_USE: "使用中", IDLE: "閒置", DISPOSED: "已處分", IMPAIRED: "減損",
@@ -36,6 +37,7 @@ export function FixedAssetsClient() {
   const customCols = useCustomColumns("fixed-assets");
   const [editingCells, setEditingCells] = useState<Record<string, any>>({});
   const [inlineRow, setInlineRow] = useState<Record<string, any>>({});
+  const colDrag = useColumnDrag("fixed-assets", ["code", "name", "category", "acquireDate", "acquireCost", "accDep", "bookValue", "method", "status", "updatedBy"]);
   const [inlineSaving, setInlineSaving] = useState<string | null>(null);
 
   async function saveInlineAsset(r: any) {
@@ -155,15 +157,13 @@ export function FixedAssetsClient() {
         </div>
       </div>
 
-      <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-        <span>💡 自訂欄位可使用 ↑↓ 按鈕調整順序</span>
-      </div>
+      <TableHint />
       <Table>
         <THead>
           <TR>
-            <TH>編號</TH><TH>名稱</TH><TH>分類</TH><TH>取得日</TH>
-            <TH className="text-right">取得成本</TH><TH className="text-right">累計折舊</TH><TH className="text-right">帳面價值</TH>
-            <TH>折舊法</TH><TH>狀態</TH><TH>操作人員</TH>{customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}<TH className="text-right w-32">操作</TH>
+            <TH {...colDrag.thProps("code")}>編號</TH><TH {...colDrag.thProps("name")}>名稱</TH><TH {...colDrag.thProps("category")}>分類</TH><TH {...colDrag.thProps("acquireDate")}>取得日</TH>
+            <TH {...colDrag.thProps("acquireCost")} className="text-right">取得成本</TH><TH {...colDrag.thProps("accDep")} className="text-right">累計折舊</TH><TH {...colDrag.thProps("bookValue")} className="text-right">帳面價值</TH>
+            <TH {...colDrag.thProps("method")}>折舊法</TH><TH {...colDrag.thProps("status")}>狀態</TH><TH {...colDrag.thProps("updatedBy")}>操作人員</TH>{customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}<TH className="text-right w-32">操作</TH>
           </TR>
         </THead>
         <TBody>

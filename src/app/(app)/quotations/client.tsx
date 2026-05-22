@@ -10,6 +10,7 @@ import { Plus, Loader2, Trash2, Search, Download, FileDown, Printer, Pencil } fr
 import { formatDate, formatMoney } from "@/lib/utils";
 import { downloadCSV, toCSV } from "@/lib/csv";
 import { useCustomColumns, CustomColumnDialog, CustomColumnButton, getCustomFieldValues, setCustomFieldValue } from "@/components/custom-columns";
+import { TableHint, useColumnDrag } from "@/components/table-helpers";
 
 type QuotationItem = {
   productId: string;
@@ -191,6 +192,7 @@ export default function QuotationClient() {
   const [pdfBusy, setPdfBusy] = useState(false);
   const customCols = useCustomColumns("quotations");
   const [editingCells, setEditingCells] = useState<Record<string, any>>({});
+  const colDrag = useColumnDrag("quotations", ["number", "customer", "date", "validUntil", "total", "status", "updatedBy"]);
 
   async function load() {
     setLoading(true);
@@ -266,16 +268,14 @@ export default function QuotationClient() {
         <CustomColumnButton onClick={() => customCols.setOpen(true)} />
       </div>
 
-      <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-        <span>💡 自訂欄位可使用 ↑↓ 按鈕調整順序</span>
-      </div>
+      <TableHint />
 
       {loading ? (
         <div className="flex justify-center py-8"><Loader2 className="h-8 w-8 animate-spin" /></div>
       ) : (
         <Table>
           <THead>
-            <TR><TH>單號</TH><TH>客戶</TH><TH>日期</TH><TH>有效期限</TH><TH>總計</TH><TH>狀態</TH><TH>操作人員</TH>{customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}<TH className="text-right">操作</TH></TR>
+            <TR><TH {...colDrag.thProps("number")}>單號</TH><TH {...colDrag.thProps("customer")}>客戶</TH><TH {...colDrag.thProps("date")}>日期</TH><TH {...colDrag.thProps("validUntil")}>有效期限</TH><TH {...colDrag.thProps("total")}>總計</TH><TH {...colDrag.thProps("status")}>狀態</TH><TH {...colDrag.thProps("updatedBy")}>操作人員</TH>{customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}<TH className="text-right">操作</TH></TR>
           </THead>
           <TBody>
             {items.length === 0 && <TR><TD colSpan={8} className="text-center text-muted-foreground">尚無報價單</TD></TR>}

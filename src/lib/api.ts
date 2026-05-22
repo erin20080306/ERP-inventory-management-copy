@@ -35,7 +35,13 @@ export async function requireTenantId() {
 
 export async function getCurrentUserId() {
   const session = await requireAuth();
-  return (session.user as any).id as string;
+  // 回傳使用者姓名作為操作人員欄位顯示值
+  return (session.user as any).name as string || (session.user as any).username as string || (session.user as any).id as string;
+}
+
+export async function getCurrentUserName() {
+  const session = await requireAuth();
+  return (session.user as any).name as string || (session.user as any).username as string || "";
 }
 
 export class ApiError extends Error {

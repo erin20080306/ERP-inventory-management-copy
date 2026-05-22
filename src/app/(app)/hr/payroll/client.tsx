@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { Plus, Loader2, Calculator, FileSpreadsheet, Printer, Eye, CheckCircle2, DollarSign, Ban, BookOpen } from "lucide-react";
 import { formatMoney, formatDate } from "@/lib/utils";
 import { useCustomColumns, CustomColumnDialog, CustomColumnButton, getCustomFieldValues, setCustomFieldValue } from "@/components/custom-columns";
+import { TableHint, useColumnDrag } from "@/components/table-helpers";
 
 const STATUS_LABELS: Record<string, string> = { DRAFT: "草稿", CONFIRMED: "已確認", PAID: "已發放", VOID: "作廢" };
 const STATUS_VARIANTS: Record<string, any> = { DRAFT: "info", CONFIRMED: "warning", PAID: "success", VOID: "danger" };
@@ -24,6 +25,7 @@ export function PayrollClient() {
   const [viewPayroll, setViewPayroll] = useState<any>(null);
   const customCols = useCustomColumns("payroll");
   const [editingCells, setEditingCells] = useState<Record<string, any>>({});
+  const colDrag = useColumnDrag("payroll", ["number", "employee", "dept", "earnings", "deductions", "netPay", "employerCost", "status"]);
 
   async function loadPeriods() {
     const res = await fetch("/api/hr/payroll-periods");
@@ -155,20 +157,18 @@ export function PayrollClient() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-            <span>💡 自訂欄位可使用 ↑↓ 按鈕調整順序</span>
-          </div>
+          <TableHint />
 
           {/* 薪資清冊 */}
           <Table>
             <THead>
               <TR>
-                <TH>單號</TH><TH>員工</TH><TH>部門</TH>
-                <TH className="text-right">應發</TH>
-                <TH className="text-right">應扣</TH>
-                <TH className="text-right">實領</TH>
-                <TH className="text-right">雇主負擔</TH>
-                <TH>狀態</TH>
+                <TH {...colDrag.thProps("number")}>單號</TH><TH {...colDrag.thProps("employee")}>員工</TH><TH {...colDrag.thProps("dept")}>部門</TH>
+                <TH {...colDrag.thProps("earnings")} className="text-right">應發</TH>
+                <TH {...colDrag.thProps("deductions")} className="text-right">應扣</TH>
+                <TH {...colDrag.thProps("netPay")} className="text-right">實領</TH>
+                <TH {...colDrag.thProps("employerCost")} className="text-right">雇主負擔</TH>
+                <TH {...colDrag.thProps("status")}>狀態</TH>
                 {customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}
                 <TH className="text-right w-40">操作</TH>
               </TR>

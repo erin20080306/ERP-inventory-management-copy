@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { Plus, Search, Loader2, CheckCircle2, XCircle, Ban, Trash2, FileSpreadsheet, Upload, Pencil } from "lucide-react";
 import { formatDate, formatMoney } from "@/lib/utils";
 import { useCustomColumns, CustomColumnDialog, CustomColumnButton, getCustomFieldValues, setCustomFieldValue } from "@/components/custom-columns";
+import { TableHint, useColumnDrag } from "@/components/table-helpers";
 
 const NOTE_TYPE_LABELS: Record<string, string> = {
   CHECK: "支票",
@@ -49,6 +50,7 @@ export function NotesClient({ kind }: { kind: "receivable" | "payable" }) {
   const pageSize = 20;
   const customCols = useCustomColumns(kind === "receivable" ? "notes-receivable" : "notes-payable");
   const [editingCells, setEditingCells] = useState<Record<string, any>>({});
+  const colDrag = useColumnDrag(kind === "receivable" ? "notes-receivable" : "notes-payable", ["noteNumber", "noteType", "party", "bank", "issueDate", "dueDate", "amount", "status", "updatedBy"]);
 
   async function load() {
     setLoading(true);
@@ -176,16 +178,14 @@ export function NotesClient({ kind }: { kind: "receivable" | "payable" }) {
         </div>
       </div>
 
-      <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-        <span>💡 自訂欄位可使用 ↑↓ 按鈕調整順序</span>
-      </div>
+      <TableHint />
       <Table>
         <THead>
           <TR>
-            <TH>票號</TH><TH>種類</TH><TH>{partyLabel}</TH>
-            {kind === "receivable" && <TH>付款銀行</TH>}
-            {kind === "payable" && <TH>開票銀行</TH>}
-            <TH>票面日期</TH><TH>到期日</TH><TH className="text-right">金額</TH><TH>狀態</TH><TH>操作人員</TH>
+            <TH {...colDrag.thProps("noteNumber")}>票號</TH><TH {...colDrag.thProps("noteType")}>種類</TH><TH {...colDrag.thProps("party")}>{partyLabel}</TH>
+            {kind === "receivable" && <TH {...colDrag.thProps("bank")}>付款銀行</TH>}
+            {kind === "payable" && <TH {...colDrag.thProps("bank")}>開票銀行</TH>}
+            <TH {...colDrag.thProps("issueDate")}>票面日期</TH><TH {...colDrag.thProps("dueDate")}>到期日</TH><TH {...colDrag.thProps("amount")} className="text-right">金額</TH><TH {...colDrag.thProps("status")}>狀態</TH><TH {...colDrag.thProps("updatedBy")}>操作人員</TH>
             {customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}
             <TH className="text-right w-40">操作</TH>
           </TR>

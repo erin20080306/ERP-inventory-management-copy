@@ -11,6 +11,7 @@ import { formatDate, formatMoney } from "@/lib/utils";
 import { downloadCSV, toCSV } from "@/lib/csv";
 import { ConvertToJournalButton } from "@/components/convert-to-journal-button";
 import { useCustomColumns, CustomColumnDialog, CustomColumnButton, getCustomFieldValues, setCustomFieldValue } from "@/components/custom-columns";
+import { TableHint, useColumnDrag } from "@/components/table-helpers";
 
 type ReturnItem = {
   productId: string;
@@ -205,6 +206,7 @@ export default function ReturnsClient() {
   const [pdfBusy, setPdfBusy] = useState(false);
   const customCols = useCustomColumns("returns");
   const [editingCells, setEditingCells] = useState<Record<string, any>>({});
+  const colDrag = useColumnDrag("returns", ["number", "party", "date", "reason", "total", "status", "updatedBy"]);
 
   async function load() {
     setLoading(true);
@@ -248,9 +250,7 @@ export default function ReturnsClient() {
         <CustomColumnButton onClick={() => customCols.setOpen(true)} />
       </div>
 
-      <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-        <span>💡 自訂欄位可使用 ↑↓ 按鈕調整順序</span>
-      </div>
+      <TableHint />
 
       {loading ? (
         <div className="flex justify-center py-8"><Loader2 className="h-8 w-8 animate-spin" /></div>
@@ -260,7 +260,7 @@ export default function ReturnsClient() {
             <h3 className="text-lg font-semibold mb-3">銷售退貨</h3>
             <Table>
               <THead>
-                <TR><TH>單號</TH><TH>客戶</TH><TH>日期</TH><TH>原因</TH><TH>總計</TH><TH>狀態</TH><TH>操作人員</TH>{customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}<TH className="text-right">操作</TH></TR>
+                <TR><TH {...colDrag.thProps("number")}>單號</TH><TH {...colDrag.thProps("party")}>客戶</TH><TH {...colDrag.thProps("date")}>日期</TH><TH {...colDrag.thProps("reason")}>原因</TH><TH {...colDrag.thProps("total")}>總計</TH><TH {...colDrag.thProps("status")}>狀態</TH><TH {...colDrag.thProps("updatedBy")}>操作人員</TH>{customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}<TH className="text-right">操作</TH></TR>
               </THead>
               <TBody>
                 {salesReturns.length === 0 && <TR><TD colSpan={8} className="text-center text-muted-foreground">尚無資料</TD></TR>}
@@ -290,7 +290,7 @@ export default function ReturnsClient() {
             <h3 className="text-lg font-semibold mb-3">採購退貨</h3>
             <Table>
               <THead>
-                <TR><TH>單號</TH><TH>供應商</TH><TH>日期</TH><TH>原因</TH><TH>總計</TH><TH>狀態</TH><TH>操作人員</TH>{customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}<TH className="text-right">操作</TH></TR>
+                <TR><TH {...colDrag.thProps("number")}>單號</TH><TH {...colDrag.thProps("party")}>供應商</TH><TH {...colDrag.thProps("date")}>日期</TH><TH {...colDrag.thProps("reason")}>原因</TH><TH {...colDrag.thProps("total")}>總計</TH><TH {...colDrag.thProps("status")}>狀態</TH><TH {...colDrag.thProps("updatedBy")}>操作人員</TH>{customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}<TH className="text-right">操作</TH></TR>
               </THead>
               <TBody>
                 {purchaseReturns.length === 0 && <TR><TD colSpan={8} className="text-center text-muted-foreground">尚無資料</TD></TR>}
