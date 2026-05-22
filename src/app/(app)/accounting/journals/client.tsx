@@ -365,7 +365,7 @@ function ViewJournalDialog({ entry, onClose, onAct, onEdit }: any) {
   );
 }
 
-function EditJournalDialog({ id, onClose, onSaved }: { id: string; onClose: () => void; onSaved: () => void }) {
+function EditJournalDialog({ id, onClose, onSaved }: { id: string; onClose: () => void; onSaved: (updated?: any) => void }) {
   const [accounts, setAccounts] = useState<any[]>([]);
   const [summary, setSummary] = useState("");
   const [entryDate, setEntryDate] = useState("");
