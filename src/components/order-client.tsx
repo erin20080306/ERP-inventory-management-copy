@@ -670,7 +670,7 @@ function ViewOrderDialog({ kind, id, onClose, onChanged }: any) {
   );
 }
 
-function EditOrderDialog({ kind, id, onClose, onSaved }: { kind: Kind; id: string; onClose: () => void; onSaved: () => void }) {
+function EditOrderDialog({ kind, id, onClose, onSaved }: { kind: Kind; id: string; onClose: () => void; onSaved: (updated?: any) => void }) {
   const endpoint = kind === "purchase" ? "/api/purchases" : "/api/sales";
   const partyLabel = kind === "purchase" ? "供應商" : "客戶";
   const [parties, setParties] = useState<any[]>([]);
@@ -743,8 +743,9 @@ function EditOrderDialog({ kind, id, onClose, onSaved }: { kind: Kind; id: strin
         ),
       });
       if (!res.ok) throw new Error((await res.json()).error || "儲存失敗");
+      const saved = await res.json();
       toast.success("已更新");
-      onSaved();
+      onSaved(saved);
     } catch (e: any) {
       toast.error(e.message);
     } finally {

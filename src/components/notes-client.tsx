@@ -270,8 +270,8 @@ export function NotesClient({ kind }: { kind: "receivable" | "payable" }) {
           <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>下一頁</Button>
         </div>
       </div>
-      {openNew && <NewNoteDialog kind={kind} endpoint={endpoint} partyLabel={partyLabel} partyEndpoint={partyEndpoint} onClose={() => setOpenNew(false)} onCreated={(saved) => { setOpenNew(false); if (saved) { setRows((prev) => prev.map((r) => r.id === saved.id ? saved : r)); } else { load(); } }} />}
-      {editId && <NewNoteDialog kind={kind} endpoint={endpoint} partyLabel={partyLabel} partyEndpoint={partyEndpoint} row={rows.find((r) => r.id === editId)} onClose={() => setEditId(null)} onCreated={(saved) => { setEditId(null); if (saved) { setRows((prev) => prev.map((r) => r.id === saved.id ? saved : r)); } else { load(); } }} />}
+      {openNew && <NewNoteDialog kind={kind} endpoint={endpoint} partyLabel={partyLabel} partyEndpoint={partyEndpoint} onClose={() => setOpenNew(false)} onCreated={(saved: any) => { setOpenNew(false); if (saved) { setRows((prev) => prev.map((r) => r.id === saved.id ? saved : r)); } else { load(); } }} />}
+      {editId && <NewNoteDialog kind={kind} endpoint={endpoint} partyLabel={partyLabel} partyEndpoint={partyEndpoint} row={rows.find((r) => r.id === editId)} onClose={() => setEditId(null)} onCreated={(saved: any) => { setEditId(null); if (saved) { setRows((prev) => prev.map((r) => r.id === saved.id ? saved : r)); } else { load(); } }} />}
       <CustomColumnDialog module={kind === "receivable" ? "notes-receivable" : "notes-payable"} columns={customCols.columns} open={customCols.open} onClose={() => customCols.setOpen(false)} onSave={customCols.save} />
     </div>
   );

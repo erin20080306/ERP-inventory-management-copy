@@ -249,7 +249,7 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
           <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>下一頁</Button>
         </div>
       </div>
-      {pay && <PayDialog row={pay} kind={kind} onClose={() => setPay(null)} onDone={(updated) => { setPay(null); if (updated) { setRows((prev) => prev.map((r) => r.id === updated.id ? updated : r)); loadSummary(); } else { load(); loadSummary(); } }} />}
+      {pay && <PayDialog row={pay} kind={kind} onClose={() => setPay(null)} onDone={(updated: any) => { setPay(null); if (updated) { setRows((prev) => prev.map((r) => r.id === updated.id ? updated : r)); loadSummary(); } else { load(); loadSummary(); } }} />}
       {batchOpen && <BatchPayDialog kind={kind} onClose={() => setBatchOpen(false)} onDone={() => { setBatchOpen(false); load(); loadSummary(); }} />}
       <CustomColumnDialog module={kind === "ar" ? "receivables" : "payables"} columns={customCols.columns} open={customCols.open} onClose={() => customCols.setOpen(false)} onSave={customCols.save} />
     </div>

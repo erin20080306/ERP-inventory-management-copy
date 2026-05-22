@@ -318,10 +318,10 @@ export default function ReturnsClient() {
         </>
       )}
 
-      <ReturnDialog open={openSales} onClose={() => setOpenSales(false)} onSaved={(saved) => { setOpenSales(false); if (saved) { setSalesReturns((prev) => prev.map((r) => r.id === saved.id ? saved : r)); } else { load(); } }} type="sales" />
-      {editSalesId && <ReturnDialog open={!!editSalesId} row={salesReturns.find((r) => r.id === editSalesId)} onClose={() => setEditSalesId(null)} onSaved={(saved) => { setEditSalesId(null); if (saved) { setSalesReturns((prev) => prev.map((r) => r.id === saved.id ? saved : r)); } else { load(); } }} type="sales" />}
-      <ReturnDialog open={openPurchase} onClose={() => setOpenPurchase(false)} onSaved={(saved) => { setOpenPurchase(false); if (saved) { setPurchaseReturns((prev) => prev.map((r) => r.id === saved.id ? saved : r)); } else { load(); } }} type="purchase" />
-      {editPurchaseId && <ReturnDialog open={!!editPurchaseId} row={purchaseReturns.find((r) => r.id === editPurchaseId)} onClose={() => setEditPurchaseId(null)} onSaved={(saved) => { setEditPurchaseId(null); if (saved) { setPurchaseReturns((prev) => prev.map((r) => r.id === saved.id ? saved : r)); } else { load(); } }} type="purchase" />}
+      <ReturnDialog open={openSales} onClose={() => setOpenSales(false)} onSaved={(saved: any) => { setOpenSales(false); if (saved) { setSalesReturns((prev) => prev.map((r) => r.id === saved.id ? saved : r)); } else { load(); } }} type="sales" />
+      {editSalesId && <ReturnDialog open={!!editSalesId} row={salesReturns.find((r) => r.id === editSalesId)} onClose={() => setEditSalesId(null)} onSaved={(saved: any) => { setEditSalesId(null); if (saved) { setSalesReturns((prev) => prev.map((r) => r.id === saved.id ? saved : r)); } else { load(); } }} type="sales" />}
+      <ReturnDialog open={openPurchase} onClose={() => setOpenPurchase(false)} onSaved={(saved: any) => { setOpenPurchase(false); if (saved) { setPurchaseReturns((prev) => prev.map((r) => r.id === saved.id ? saved : r)); } else { load(); } }} type="purchase" />
+      {editPurchaseId && <ReturnDialog open={!!editPurchaseId} row={purchaseReturns.find((r) => r.id === editPurchaseId)} onClose={() => setEditPurchaseId(null)} onSaved={(saved: any) => { setEditPurchaseId(null); if (saved) { setPurchaseReturns((prev) => prev.map((r) => r.id === saved.id ? saved : r)); } else { load(); } }} type="purchase" />}
       <CustomColumnDialog module="returns" columns={customCols.columns} open={customCols.open} onClose={() => customCols.setOpen(false)} onSave={customCols.save} />
     </div>
   );

@@ -305,8 +305,8 @@ export default function QuotationClient() {
         </Table>
       )}
 
-      <QuotationDialog open={openNew} onClose={() => setOpenNew(false)} onSaved={(saved) => { setOpenNew(false); if (saved) { setItems((prev) => prev.map((q) => q.id === saved.id ? saved : q)); } else { load(); } }} />
-      {editId && <QuotationDialog open={!!editId} row={items.find((q) => q.id === editId)} onClose={() => setEditId(null)} onSaved={(saved) => { setEditId(null); if (saved) { setItems((prev) => prev.map((q) => q.id === saved.id ? saved : q)); } else { load(); } }} />}
+      <QuotationDialog open={openNew} onClose={() => setOpenNew(false)} onSaved={(saved: any) => { setOpenNew(false); if (saved) { setItems((prev) => prev.map((q) => q.id === saved.id ? saved : q)); } else { load(); } }} />
+      {editId && <QuotationDialog open={!!editId} row={items.find((q) => q.id === editId)} onClose={() => setEditId(null)} onSaved={(saved: any) => { setEditId(null); if (saved) { setItems((prev) => prev.map((q) => q.id === saved.id ? saved : q)); } else { load(); } }} />}
       <CustomColumnDialog module="quotations" columns={customCols.columns} open={customCols.open} onClose={() => customCols.setOpen(false)} onSave={customCols.save} />
     </div>
   );
