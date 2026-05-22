@@ -33,6 +33,11 @@ export async function requireTenantId() {
   return tenantId as string;
 }
 
+export async function getCurrentUserId() {
+  const session = await requireAuth();
+  return (session.user as any).id as string;
+}
+
 export class ApiError extends Error {
   status: number;
   constructor(status: number, message: string) {

@@ -8,7 +8,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ExportButton } from "@/components/export-button";
 import { PrintListButton, PDFExportButton } from "@/components/print-list-button";
 import { Loader2, Search } from "lucide-react";
-import { requireTenantId } from "@/lib/api";
 import { useCustomColumns, CustomColumnDialog, CustomColumnButton, getCustomFieldValues, setCustomFieldValue } from "@/components/custom-columns";
 
 export default function InventoryClient() {
@@ -24,13 +23,13 @@ export default function InventoryClient() {
   async function load() {
     setLoading(true);
     try {
-      const tenantId = await requireTenantId();
       const params = new URLSearchParams();
+      if (q) params.set("q", q);
       if (fromDate) params.set("from", fromDate);
       if (toDate) params.set("to", toDate);
       
       const [sRes, tRes] = await Promise.all([
-        fetch(`/api/inventory/stocks?q=${encodeURIComponent(q)}`),
+        fetch(`/api/inventory/stocks?${params}`),
         fetch(`/api/inventory/transactions?${params}`),
       ]);
       const sData = await sRes.json();
@@ -67,6 +66,10 @@ export default function InventoryClient() {
         <PDFExportButton title="庫存管理" filename="inventory" />
         <PrintListButton />
         <CustomColumnButton onClick={() => customCols.setOpen(true)} />
+      </div>
+
+      <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
+        <span>💡 自訂欄位可使用 ↑↓ 按鈕調整順序</span>
       </div>
 
       {loading ? (

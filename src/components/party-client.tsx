@@ -19,6 +19,7 @@ type Party = {
   paymentTerms?: string | null;
   creditLimit?: any;
   isActive: boolean;
+  updatedBy?: string | null;
 };
 
 function PartyDialog({ open, onClose, row, onSaved, endpoint, kind }: any) {
@@ -149,6 +150,7 @@ export function PartyClient({ kind }: { kind: "customer" | "supplier" }) {
           title: "狀態",
           render: (r) => (r.isActive ? <Badge variant="success">啟用</Badge> : <Badge variant="danger">停用</Badge>),
         },
+        { key: "updatedBy", title: "操作人員", render: (r) => <span className="text-xs text-gray-500">{r.updatedBy || "-"}</span> },
       ]}
     />
   );

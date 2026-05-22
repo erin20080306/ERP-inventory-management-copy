@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { apiHandler, requirePermission, requireTenantId, audit } from "@/lib/api";
+import { apiHandler, requirePermission, requireTenantId, audit, getCurrentUserId } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 
 export const GET = apiHandler(async (req: NextRequest) => {
@@ -40,6 +40,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
 export const POST = apiHandler(async (req: NextRequest) => {
   const session = await requirePermission("assets.create");
   const tenantId = await requireTenantId();
+  const currentUserId = await getCurrentUserId();
   const body = await req.json();
   if (!body.code) throw new Error("請輸入資產編號");
   if (!body.name) throw new Error("請輸入資產名稱");
@@ -64,6 +65,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
     status: body.status ?? "IN_USE",
     remark: body.remark,
     sourceJournalId: body.sourceJournalId || null,
+    updatedBy: currentUserId,
   };
   const upsert = req.nextUrl.searchParams.get("upsert") === "1";
   if (upsert) {

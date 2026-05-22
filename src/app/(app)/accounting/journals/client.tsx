@@ -7,9 +7,10 @@ import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { StatusBadge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/layout/page-shell";
 import { toast } from "sonner";
-import { Plus, Trash2, Loader2, Search, Eye, Download, Printer, FileDown, Pencil } from "lucide-react";
+import { Plus, Trash2, Loader2, Search, Eye, Download, Printer, FileDown, Pencil, Save, X } from "lucide-react";
 import { formatDate, formatMoney } from "@/lib/utils";
 import { downloadCSV, toCSV } from "@/lib/csv";
+import { useCustomColumns, CustomColumnDialog, CustomColumnButton, getCustomFieldValues, setCustomFieldValue } from "@/components/custom-columns";
 
 export function JournalClient() {
   const [rows, setRows] = useState<any[]>([]);
@@ -24,6 +25,10 @@ export function JournalClient() {
   const [editId, setEditId] = useState<string | null>(null);
   const [pdfBusy, setPdfBusy] = useState(false);
   const [prefillDraft, setPrefillDraft] = useState<any>(null);
+  const customCols = useCustomColumns("journals");
+  const [editingCells, setEditingCells] = useState<Record<string, any>>({});
+  const [inlineRow, setInlineRow] = useState<Record<string, any>>({});
+  const [inlineSaving, setInlineSaving] = useState<string | null>(null);
 
   // 讀取從進銷存頁面轉傳票傳入的草稿
   useEffect(() => {
@@ -74,6 +79,19 @@ export function JournalClient() {
     } catch (e: any) {
       toast.error(e.message);
     }
+  }
+
+  async function saveInlineJournal(r: any) {
+    const draft = inlineRow[r.id];
+    if (!draft) return;
+    setInlineSaving(r.id);
+    try {
+      const res = await fetch(`/api/accounting/journals/${r.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "update-header", summary: draft.summary, entryDate: draft.entryDate }) });
+      if (!res.ok) throw new Error((await res.json()).error || "儲存失敗");
+      toast.success("已儲存");
+      setInlineRow((p) => { const n = { ...p }; delete n[r.id]; return n; });
+      load();
+    } catch (e: any) { toast.error(e.message); } finally { setInlineSaving(null); }
   }
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
@@ -165,32 +183,49 @@ export function JournalClient() {
             }
           }}>結帳</Button>
           <Button onClick={() => setOpenNew(true)}><Plus className="h-4 w-4" />新增傳票</Button>
+          <CustomColumnButton onClick={() => customCols.setOpen(true)} />
         </div>
+      </div>
+
+      <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
+        <span>💡 自訂欄位可使用 ↑↓ 按鈕調整順序</span>
       </div>
       <Table>
         <THead>
           <TR>
-            <TH>編號</TH><TH>日期</TH><TH>摘要</TH><TH>借方</TH><TH>貸方</TH><TH>狀態</TH><TH className="w-20 text-right">操作</TH>
+            <TH>編號</TH><TH>日期</TH><TH>摘要</TH><TH>借方</TH><TH>貸方</TH><TH>狀態</TH><TH>操作人員</TH>{customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}<TH className="w-20 text-right">操作</TH>
           </TR>
         </THead>
         <TBody>
-          {loading && <TR><TD colSpan={7} className="text-center py-10"><Loader2 className="inline h-5 w-5 animate-spin" /></TD></TR>}
-          {!loading && rows.length === 0 && <TR><TD colSpan={7}><EmptyState /></TD></TR>}
+          {loading && <TR><TD colSpan={8} className="text-center py-10"><Loader2 className="inline h-5 w-5 animate-spin" /></TD></TR>}
+          {!loading && rows.length === 0 && <TR><TD colSpan={8}><EmptyState /></TD></TR>}
           {!loading && rows.map((r) => {
             const debit = r.lines.reduce((s: number, l: any) => s + Number(l.debit), 0);
             const credit = r.lines.reduce((s: number, l: any) => s + Number(l.credit), 0);
+            const isEditing = !!inlineRow[r.id];
             return (
-              <TR key={r.id}>
+              <TR key={r.id} className={isEditing ? "bg-blue-50/50 dark:bg-blue-950/20" : ""}>
                 <TD className="font-mono text-xs">{r.number}</TD>
-                <TD>{formatDate(r.entryDate)}</TD>
-                <TD>{r.summary}</TD>
+                <TD>{isEditing ? <Input type="date" value={inlineRow[r.id]?.entryDate ?? ""} onChange={(e) => setInlineRow((p) => ({ ...p, [r.id]: { ...p[r.id], entryDate: e.target.value } }))} className="h-8 text-sm w-36" /> : formatDate(r.entryDate)}</TD>
+                <TD>{isEditing ? <Input value={inlineRow[r.id]?.summary ?? ""} onChange={(e) => setInlineRow((p) => ({ ...p, [r.id]: { ...p[r.id], summary: e.target.value } }))} className="h-8 text-sm" onKeyDown={(e) => { if (e.key === "Enter") saveInlineJournal(r); }} /> : r.summary}</TD>
                 <TD>{formatMoney(debit)}</TD>
                 <TD>{formatMoney(credit)}</TD>
                 <TD><StatusBadge status={r.status} /></TD>
+                <TD className="text-xs text-gray-500">{r.updatedBy || "-"}</TD>
+                {customCols.columns.map((cc) => { const ck = `${r.id}_${cc.id}`; const v = getCustomFieldValues("journals", r.id); const isE = editingCells[ck]; return <TD key={cc.id}>{isE ? <Input type={cc.type === "number" ? "number" : cc.type === "date" ? "date" : "text"} defaultValue={v[cc.id] ?? ""} autoFocus className="h-7 text-xs" onBlur={(e) => { setCustomFieldValue("journals", r.id, cc.id, e.target.value); setEditingCells((p) => ({ ...p, [ck]: false })); }} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} /> : <span className="cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950 px-1 py-0.5 rounded min-h-[24px] inline-block min-w-[40px]" onClick={() => setEditingCells((p) => ({ ...p, [ck]: true }))}>{v[cc.id] || "—"}</span>}</TD>; })}
                 <TD className="text-right flex items-center justify-end gap-0">
-                  <Button variant="ghost" size="icon" onClick={() => setView(r)} title="查看"><Eye className="h-4 w-4" /></Button>
-                  <Button variant="ghost" size="icon" onClick={() => setEditId(r.id)} title="修改"><Pencil className="h-4 w-4" /></Button>
-                  <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-700" title="刪除" onClick={() => { if (confirm(`確定刪除 ${r.number}？注意：已過帳傳票刪除可能會影響財務報表`)) act(r.id, "delete"); }}><Trash2 className="h-4 w-4" /></Button>
+                  {isEditing ? (
+                    <>
+                      <Button variant="ghost" size="icon" onClick={() => saveInlineJournal(r)} disabled={inlineSaving === r.id}>{inlineSaving === r.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4 text-emerald-600" />}</Button>
+                      <Button variant="ghost" size="icon" onClick={() => setInlineRow((p) => { const n = { ...p }; delete n[r.id]; return n; })}><X className="h-4 w-4 text-gray-500" /></Button>
+                    </>
+                  ) : (
+                    <>
+                      <Button variant="ghost" size="icon" onClick={() => setView(r)} title="查看"><Eye className="h-4 w-4" /></Button>
+                      <Button variant="ghost" size="icon" onClick={() => setInlineRow((p) => ({ ...p, [r.id]: { summary: r.summary, entryDate: r.entryDate?.slice(0, 10) ?? "" } }))} title="行內編輯"><Pencil className="h-4 w-4" /></Button>
+                      <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-700" title="刪除" onClick={() => { if (confirm(`確定刪除 ${r.number}？注意：已過帳傳票刪除可能會影響財務報表`)) act(r.id, "delete"); }}><Trash2 className="h-4 w-4" /></Button>
+                    </>
+                  )}
                 </TD>
               </TR>
             );
@@ -207,7 +242,8 @@ export function JournalClient() {
       </div>
       <CreateJournalDialog open={openNew} onClose={() => { setOpenNew(false); setPrefillDraft(null); }} onCreated={() => { setOpenNew(false); setPrefillDraft(null); load(); }} prefillDraft={prefillDraft} />
       {view && <ViewJournalDialog entry={view} onClose={() => setView(null)} onAct={act} onEdit={(id: string) => { setView(null); setEditId(id); }} />}
-      {editId && <EditJournalDialog id={editId} onClose={() => setEditId(null)} onSaved={() => { setEditId(null); load(); }} />}
+      {editId && <EditJournalDialog id={editId} onClose={() => setEditId(null)} onSaved={(updated) => { setEditId(null); if (updated) { setRows((prev) => prev.map((r) => r.id === updated.id ? updated : r)); } else { load(); } }} />}
+      <CustomColumnDialog module="journals" columns={customCols.columns} open={customCols.open} onClose={() => customCols.setOpen(false)} onSave={customCols.save} />
     </div>
   );
 }
@@ -376,8 +412,9 @@ function EditJournalDialog({ id, onClose, onSaved }: { id: string; onClose: () =
         body: JSON.stringify({ summary, entryDate, lines }),
       });
       if (!res.ok) throw new Error((await res.json()).error || "儲存失敗");
+      const saved = await res.json();
       toast.success("已更新");
-      onSaved();
+      onSaved(saved);
     } catch (e: any) { toast.error(e.message); } finally { setSaving(false); }
   }
 

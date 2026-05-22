@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { apiHandler, requirePermission, requireTenantId, audit, nextNumber } from "@/lib/api";
+import { apiHandler, requirePermission, requireTenantId, audit, nextNumber, getCurrentUserId } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 
 export const GET = apiHandler(async (req: NextRequest) => {
@@ -46,6 +46,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
 export const POST = apiHandler(async (req: NextRequest) => {
   const session = await requirePermission("notes.create");
   const tenantId = await requireTenantId();
+  const currentUserId = await getCurrentUserId();
   const body = await req.json();
   if (!body.supplierId) throw new Error("請選擇供應商");
   if (!body.amount || Number(body.amount) <= 0) throw new Error("金額必須大於 0");
@@ -66,8 +67,44 @@ export const POST = apiHandler(async (req: NextRequest) => {
       status: "PENDING",
       payableId: body.payableId || null,
       remark: body.remark,
+      updatedBy: currentUserId,
     },
   });
   await audit({ userId: session.user.id, action: "create", module: "notes-payable", refId: created.id, detail: number });
   return NextResponse.json(created);
+});
+
+export const PUT = apiHandler(async (req: NextRequest) => {
+  const session = await requirePermission("notes.edit");
+  const tenantId = await requireTenantId();
+  const currentUserId = await getCurrentUserId();
+  const body = await req.json();
+  const { id, supplierId, noteNumber, noteType, bankAccountId, payeeName, amount, issueDate, dueDate, remark } = body;
+  if (!supplierId) throw new Error("請選擇供應商");
+  if (!amount || Number(amount) <= 0) throw new Error("金額必須大於 0");
+  if (!dueDate) throw new Error("請選擇到期日");
+
+  const existing = await prisma.notePayable.findUnique({ where: { id, tenantId } });
+  if (!existing) throw new Error("票據不存在");
+
+  const updated = await prisma.notePayable.update({
+    where: { id, tenantId },
+    data: {
+      supplierId,
+      noteNumber: noteNumber || existing.number,
+      noteType: noteType ?? existing.noteType,
+      bankAccountId,
+      payeeName,
+      amount: Number(amount),
+      issueDate: issueDate ? new Date(issueDate) : existing.issueDate,
+      dueDate: new Date(dueDate),
+      remark,
+      updatedBy: currentUserId,
+    },
+    include: { supplier: true, payable: true, bankAccount: true },
+  });
+
+  await audit({ userId: session.user.id, action: "update", module: "notes-payable", refId: id, detail: existing.number });
+
+  return NextResponse.json(updated);
 });

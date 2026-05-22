@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { StatusBadge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Plus, Loader2, Trash2, Search, Download, FileDown, Printer } from "lucide-react";
+import { Plus, Loader2, Trash2, Search, Download, FileDown, Printer, Pencil } from "lucide-react";
 import { formatDate, formatMoney } from "@/lib/utils";
 import { downloadCSV, toCSV } from "@/lib/csv";
 import { ConvertToJournalButton } from "@/components/convert-to-journal-button";
@@ -84,14 +84,15 @@ function ReturnDialog({ open, onClose, row, onSaved, type }: any) {
     setSaving(true);
     try {
       const endpoint = type === "sales" ? "/api/returns/sales" : "/api/returns/purchases";
-      const res = await fetch(endpoint, {
-        method: "POST",
+      const res = await fetch(row ? `${endpoint}/${row.id}` : endpoint, {
+        method: row ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, items }),
+        body: JSON.stringify({ ...form, id: row?.id, items }),
       });
       if (!res.ok) throw new Error((await res.json()).error || "儲存失敗");
+      const saved = await res.json();
       toast.success("已儲存");
-      onSaved();
+      onSaved(saved);
       onClose();
     } catch (e: any) {
       toast.error(e.message);
@@ -199,6 +200,8 @@ export default function ReturnsClient() {
   const [toDate, setToDate] = useState("");
   const [openSales, setOpenSales] = useState(false);
   const [openPurchase, setOpenPurchase] = useState(false);
+  const [editSalesId, setEditSalesId] = useState<string | null>(null);
+  const [editPurchaseId, setEditPurchaseId] = useState<string | null>(null);
   const [pdfBusy, setPdfBusy] = useState(false);
   const customCols = useCustomColumns("returns");
   const [editingCells, setEditingCells] = useState<Record<string, any>>({});
@@ -245,6 +248,10 @@ export default function ReturnsClient() {
         <CustomColumnButton onClick={() => customCols.setOpen(true)} />
       </div>
 
+      <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
+        <span>💡 自訂欄位可使用 ↑↓ 按鈕調整順序</span>
+      </div>
+
       {loading ? (
         <div className="flex justify-center py-8"><Loader2 className="h-8 w-8 animate-spin" /></div>
       ) : (
@@ -253,10 +260,10 @@ export default function ReturnsClient() {
             <h3 className="text-lg font-semibold mb-3">銷售退貨</h3>
             <Table>
               <THead>
-                <TR><TH>單號</TH><TH>客戶</TH><TH>日期</TH><TH>原因</TH><TH>總計</TH><TH>狀態</TH>{customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}<TH className="text-right">操作</TH></TR>
+                <TR><TH>單號</TH><TH>客戶</TH><TH>日期</TH><TH>原因</TH><TH>總計</TH><TH>狀態</TH><TH>操作人員</TH>{customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}<TH className="text-right">操作</TH></TR>
               </THead>
               <TBody>
-                {salesReturns.length === 0 && <TR><TD colSpan={7} className="text-center text-muted-foreground">尚無資料</TD></TR>}
+                {salesReturns.length === 0 && <TR><TD colSpan={8} className="text-center text-muted-foreground">尚無資料</TD></TR>}
                 {salesReturns.map((r) => (
                   <TR key={r.id}>
                     <TD className="font-mono text-xs">{r.number}</TD>
@@ -265,8 +272,12 @@ export default function ReturnsClient() {
                     <TD>{r.reason ?? "—"}</TD>
                     <TD>{formatMoney(r.total)}</TD>
                     <TD><StatusBadge status={r.status} /></TD>
+                    <TD className="text-xs text-gray-500">{r.updatedBy || "-"}</TD>
                     {customCols.columns.map((cc) => { const ck = `${r.id}_${cc.id}`; const v = getCustomFieldValues("returns", r.id); const isE = editingCells[ck]; return <TD key={cc.id}>{isE ? <Input type={cc.type === "number" ? "number" : cc.type === "date" ? "date" : "text"} defaultValue={v[cc.id] ?? ""} autoFocus className="h-7 text-xs" onBlur={(e) => { setCustomFieldValue("returns", r.id, cc.id, e.target.value); setEditingCells((p) => ({ ...p, [ck]: false })); }} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} /> : <span className="cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950 px-1 py-0.5 rounded min-h-[24px] inline-block min-w-[40px]" onClick={() => setEditingCells((p) => ({ ...p, [ck]: true }))}>{v[cc.id] || "—"}</span>}</TD>; })}
-                    <TD className="text-right">
+                    <TD className="text-right flex items-center justify-end gap-1">
+                      <Button variant="ghost" size="icon" onClick={() => setEditSalesId(r.id)} title="編輯">
+                        <Pencil className="h-4 w-4" />
+                      </Button>
                       <ConvertToJournalButton sourceType="SALES_RETURN" sourceId={r.id} size="sm" />
                     </TD>
                   </TR>
@@ -279,10 +290,10 @@ export default function ReturnsClient() {
             <h3 className="text-lg font-semibold mb-3">採購退貨</h3>
             <Table>
               <THead>
-                <TR><TH>單號</TH><TH>供應商</TH><TH>日期</TH><TH>原因</TH><TH>總計</TH><TH>狀態</TH>{customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}<TH className="text-right">操作</TH></TR>
+                <TR><TH>單號</TH><TH>供應商</TH><TH>日期</TH><TH>原因</TH><TH>總計</TH><TH>狀態</TH><TH>操作人員</TH>{customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}<TH className="text-right">操作</TH></TR>
               </THead>
               <TBody>
-                {purchaseReturns.length === 0 && <TR><TD colSpan={7} className="text-center text-muted-foreground">尚無資料</TD></TR>}
+                {purchaseReturns.length === 0 && <TR><TD colSpan={8} className="text-center text-muted-foreground">尚無資料</TD></TR>}
                 {purchaseReturns.map((r) => (
                   <TR key={r.id}>
                     <TD className="font-mono text-xs">{r.number}</TD>
@@ -291,8 +302,12 @@ export default function ReturnsClient() {
                     <TD>{r.reason ?? "—"}</TD>
                     <TD>{formatMoney(r.total)}</TD>
                     <TD><StatusBadge status={r.status} /></TD>
+                    <TD className="text-xs text-gray-500">{r.updatedBy || "-"}</TD>
                     {customCols.columns.map((cc) => { const ck = `${r.id}_${cc.id}`; const v = getCustomFieldValues("returns", r.id); const isE = editingCells[ck]; return <TD key={cc.id}>{isE ? <Input type={cc.type === "number" ? "number" : cc.type === "date" ? "date" : "text"} defaultValue={v[cc.id] ?? ""} autoFocus className="h-7 text-xs" onBlur={(e) => { setCustomFieldValue("returns", r.id, cc.id, e.target.value); setEditingCells((p) => ({ ...p, [ck]: false })); }} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} /> : <span className="cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950 px-1 py-0.5 rounded min-h-[24px] inline-block min-w-[40px]" onClick={() => setEditingCells((p) => ({ ...p, [ck]: true }))}>{v[cc.id] || "—"}</span>}</TD>; })}
-                    <TD className="text-right">
+                    <TD className="text-right flex items-center justify-end gap-1">
+                      <Button variant="ghost" size="icon" onClick={() => setEditPurchaseId(r.id)} title="編輯">
+                        <Pencil className="h-4 w-4" />
+                      </Button>
                       <ConvertToJournalButton sourceType="PURCHASE_RETURN" sourceId={r.id} size="sm" />
                     </TD>
                   </TR>
@@ -303,8 +318,10 @@ export default function ReturnsClient() {
         </>
       )}
 
-      <ReturnDialog open={openSales} onClose={() => setOpenSales(false)} onSaved={load} type="sales" />
-      <ReturnDialog open={openPurchase} onClose={() => setOpenPurchase(false)} onSaved={load} type="purchase" />
+      <ReturnDialog open={openSales} onClose={() => setOpenSales(false)} onSaved={(saved) => { setOpenSales(false); if (saved) { setSalesReturns((prev) => prev.map((r) => r.id === saved.id ? saved : r)); } else { load(); } }} type="sales" />
+      {editSalesId && <ReturnDialog open={!!editSalesId} row={salesReturns.find((r) => r.id === editSalesId)} onClose={() => setEditSalesId(null)} onSaved={(saved) => { setEditSalesId(null); if (saved) { setSalesReturns((prev) => prev.map((r) => r.id === saved.id ? saved : r)); } else { load(); } }} type="sales" />}
+      <ReturnDialog open={openPurchase} onClose={() => setOpenPurchase(false)} onSaved={(saved) => { setOpenPurchase(false); if (saved) { setPurchaseReturns((prev) => prev.map((r) => r.id === saved.id ? saved : r)); } else { load(); } }} type="purchase" />
+      {editPurchaseId && <ReturnDialog open={!!editPurchaseId} row={purchaseReturns.find((r) => r.id === editPurchaseId)} onClose={() => setEditPurchaseId(null)} onSaved={(saved) => { setEditPurchaseId(null); if (saved) { setPurchaseReturns((prev) => prev.map((r) => r.id === saved.id ? saved : r)); } else { load(); } }} type="purchase" />}
       <CustomColumnDialog module="returns" columns={customCols.columns} open={customCols.open} onClose={() => customCols.setOpen(false)} onSave={customCols.save} />
     </div>
   );

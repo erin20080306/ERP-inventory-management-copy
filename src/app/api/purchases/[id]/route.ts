@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { apiHandler, requirePermission, requireTenantId, audit } from "@/lib/api";
+import { apiHandler, requirePermission, requireTenantId, audit, getCurrentUserId } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { receivePurchaseOrder, calcTotals } from "@/lib/documents";
 import { buildAPCreatedDraft, autoCreateJournal } from "@/lib/auto-journal";
@@ -17,11 +17,12 @@ export const GET = apiHandler(async (_req: NextRequest, { params }: { params: { 
 export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: { id: string } }) => {
   const session = await requirePermission("purchases.edit");
   const tenantId = await requireTenantId();
+  const currentUserId = await getCurrentUserId();
   const body = await req.json();
   const { action, warehouseId } = body;
 
   if (action === "submit") {
-    await prisma.purchaseOrder.update({ where: { id: params.id, tenantId }, data: { status: "SUBMITTED" } });
+    await prisma.purchaseOrder.update({ where: { id: params.id, tenantId }, data: { status: "SUBMITTED", updatedBy: currentUserId } });
   } else if (action === "approve") {
     await requirePermission("purchases.approve");
     const order = await prisma.purchaseOrder.findUnique({ where: { id: params.id, tenantId }, include: { items: true } });
@@ -40,7 +41,7 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: {
         });
       }
     }
-    await prisma.purchaseOrder.update({ where: { id: params.id, tenantId }, data: { status: "APPROVED" } });
+    await prisma.purchaseOrder.update({ where: { id: params.id, tenantId }, data: { status: "APPROVED", updatedBy: currentUserId } });
     // 核准時自動建立應付帳款
     const existingAP = await prisma.accountsPayable.findFirst({ where: { purchaseOrderId: order.id, tenantId } });
     if (!existingAP) {
@@ -63,7 +64,7 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: {
     await receivePurchaseOrder(params.id, warehouseId);
   } else if (action === "cancel") {
     await requirePermission("purchases.void");
-    await prisma.purchaseOrder.update({ where: { id: params.id, tenantId }, data: { status: "CANCELLED" } });
+    await prisma.purchaseOrder.update({ where: { id: params.id, tenantId }, data: { status: "CANCELLED", updatedBy: currentUserId } });
   }
   await audit({ userId: session.user.id, action, module: "purchases", refId: params.id });
   return NextResponse.json({ ok: true });
@@ -72,6 +73,7 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: {
 export const PUT = apiHandler(async (req: NextRequest, { params }: { params: { id: string } }) => {
   const session = await requirePermission("purchases.edit");
   const tenantId = await requireTenantId();
+  const currentUserId = await getCurrentUserId();
   const existing = await prisma.purchaseOrder.findUnique({ where: { id: params.id, tenantId } });
   if (!existing) throw new Error("找不到採購單");
   if (["RECEIVED", "PAID"].includes(existing.status)) {
@@ -92,6 +94,7 @@ export const PUT = apiHandler(async (req: NextRequest, { params }: { params: { i
       discount: totals.discount,
       taxAmount: totals.taxAmount,
       total: totals.total,
+      updatedBy: currentUserId,
       items: {
         create: totals.computed.map((i: any) => ({
           productId: i.productId,

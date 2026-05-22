@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { apiHandler, requirePermission, requireTenantId, audit } from "@/lib/api";
+import { apiHandler, requirePermission, requireTenantId, audit, getCurrentUserId } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 
 export const GET = apiHandler(async (req: NextRequest) => {
@@ -49,6 +49,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
 export const POST = apiHandler(async (req: NextRequest) => {
   const session = await requirePermission("hr.create");
   const tenantId = await requireTenantId();
+  const currentUserId = await getCurrentUserId();
   const body = await req.json();
   if (!body.employeeNo) throw new Error("請輸入員工編號");
   if (!body.name) throw new Error("請輸入姓名");
@@ -82,6 +83,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
     bankAccountNo: body.bankAccountNo,
     taxId: body.taxId,
     remark: body.remark,
+    updatedBy: currentUserId,
   };
   const upsert = req.nextUrl.searchParams.get("upsert") === "1";
   if (upsert) {

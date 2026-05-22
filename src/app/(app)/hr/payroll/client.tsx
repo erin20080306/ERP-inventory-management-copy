@@ -10,6 +10,7 @@ import { EmptyState } from "@/components/layout/page-shell";
 import { toast } from "sonner";
 import { Plus, Loader2, Calculator, FileSpreadsheet, Printer, Eye, CheckCircle2, DollarSign, Ban, BookOpen } from "lucide-react";
 import { formatMoney, formatDate } from "@/lib/utils";
+import { useCustomColumns, CustomColumnDialog, CustomColumnButton, getCustomFieldValues, setCustomFieldValue } from "@/components/custom-columns";
 
 const STATUS_LABELS: Record<string, string> = { DRAFT: "草稿", CONFIRMED: "已確認", PAID: "已發放", VOID: "作廢" };
 const STATUS_VARIANTS: Record<string, any> = { DRAFT: "info", CONFIRMED: "warning", PAID: "success", VOID: "danger" };
@@ -21,6 +22,8 @@ export function PayrollClient() {
   const [loading, setLoading] = useState(false);
   const [openNew, setOpenNew] = useState(false);
   const [viewPayroll, setViewPayroll] = useState<any>(null);
+  const customCols = useCustomColumns("payroll");
+  const [editingCells, setEditingCells] = useState<Record<string, any>>({});
 
   async function loadPeriods() {
     const res = await fetch("/api/hr/payroll-periods");
@@ -148,7 +151,12 @@ export function PayrollClient() {
                   window.location.href = "/accounting/journals?fromSource=1";
                 } catch (e: any) { toast.error(e.message); }
               }}><BookOpen className="h-4 w-4" />轉傳票</Button>
+              <CustomColumnButton onClick={() => customCols.setOpen(true)} />
             </div>
+          </div>
+
+          <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
+            <span>💡 自訂欄位可使用 ↑↓ 按鈕調整順序</span>
           </div>
 
           {/* 薪資清冊 */}
@@ -161,6 +169,7 @@ export function PayrollClient() {
                 <TH className="text-right">實領</TH>
                 <TH className="text-right">雇主負擔</TH>
                 <TH>狀態</TH>
+                {customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}
                 <TH className="text-right w-40">操作</TH>
               </TR>
             </THead>
@@ -186,6 +195,35 @@ export function PayrollClient() {
                       {p.status !== "VOID" && p.status !== "PAID" && <Button size="sm" variant="ghost" title="作廢" onClick={() => act(p.id, "void")}><Ban className="h-4 w-4 text-red-600" /></Button>}
                     </div>
                   </TD>
+                  {customCols.columns.map((cc) => {
+                    const cellKey = `${p.id}_${cc.id}`;
+                    const vals = getCustomFieldValues("payroll", p.id);
+                    const isEditing = editingCells[cellKey];
+                    return (
+                      <TD key={cc.id}>
+                        {isEditing ? (
+                          <Input
+                            type={cc.type === "number" ? "number" : cc.type === "date" ? "date" : "text"}
+                            defaultValue={vals[cc.id] ?? ""}
+                            autoFocus
+                            className="h-7 text-xs"
+                            onBlur={(e) => {
+                              setCustomFieldValue("payroll", p.id, cc.id, e.target.value);
+                              setEditingCells((p) => ({ ...p, [cellKey]: false }));
+                            }}
+                            onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                          />
+                        ) : (
+                          <span
+                            className="cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950 px-1 py-0.5 rounded min-h-[24px] inline-block min-w-[40px]"
+                            onClick={() => setEditingCells((p) => ({ ...p, [cellKey]: true }))}
+                          >
+                            {vals[cc.id] || "—"}
+                          </span>
+                        )}
+                      </TD>
+                    );
+                  })}
                 </TR>
               ))}
             </TBody>
@@ -195,6 +233,7 @@ export function PayrollClient() {
 
       {openNew && <NewPeriodDialog onClose={() => setOpenNew(false)} onCreated={() => { setOpenNew(false); loadPeriods(); }} />}
       {viewPayroll && <PayrollDetailDialog id={viewPayroll.id} onClose={() => setViewPayroll(null)} onChanged={loadPayrolls} />}
+      <CustomColumnDialog module="payroll" columns={customCols.columns} open={customCols.open} onClose={() => customCols.setOpen(false)} onSave={customCols.save} />
     </div>
   );
 }

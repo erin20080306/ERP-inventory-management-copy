@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { apiHandler, requirePermission, requireTenantId, audit } from "@/lib/api";
+import { apiHandler, requirePermission, requireTenantId, audit, getCurrentUserId } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 
@@ -65,14 +65,15 @@ export const GET = apiHandler(async (req: NextRequest) => {
 export const POST = apiHandler(async (req: NextRequest) => {
   const session = await requirePermission("products.create");
   const tenantId = await requireTenantId();
+  const currentUserId = await getCurrentUserId();
   const body = ProductInput.parse(await req.json());
   const upsert = req.nextUrl.searchParams.get("upsert") === "1";
   if (upsert) {
     const { stockQty, ...productData } = body;
     const result = await prisma.product.upsert({
       where: { tenantId_sku: { tenantId, sku: body.sku } },
-      update: { ...productData } as any,
-      create: { ...productData, tenantId } as any,
+      update: { ...productData, updatedBy: currentUserId } as any,
+      create: { ...productData, tenantId, updatedBy: currentUserId } as any,
     });
     // 庫存數量處理：導入時写入預設倉庫
     if (stockQty != null && stockQty >= 0) {
@@ -88,7 +89,17 @@ export const POST = apiHandler(async (req: NextRequest) => {
     await audit({ userId: session.user.id, action: "upsert", module: "products", refId: result.id, detail: result.sku });
     return NextResponse.json(result);
   }
-  const created = await prisma.product.create({ data: { ...body, tenantId } as any });
+  const { stockQty: _sq, ...createData } = body;
+  const created = await prisma.product.create({ data: { ...createData, tenantId, updatedBy: currentUserId } as any });
+  // 自動在預設倉庫建立庫存記錄（數量 0），確保庫存管理頁面可見
+  const defaultWh = await prisma.warehouse.findFirst({ where: { tenantId, isActive: true }, orderBy: { createdAt: "asc" } });
+  if (defaultWh) {
+    await prisma.inventoryStock.upsert({
+      where: { productId_warehouseId: { productId: created.id, warehouseId: defaultWh.id } },
+      update: {},
+      create: { tenantId, productId: created.id, warehouseId: defaultWh.id, quantity: 0 },
+    });
+  }
   await audit({ userId: session.user.id, action: "create", module: "products", refId: created.id, detail: created.sku });
   return NextResponse.json(created);
 });

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { apiHandler, requirePermission, requireTenantId, audit } from "@/lib/api";
+import { apiHandler, requirePermission, requireTenantId, audit, getCurrentUserId } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 
 export const GET = apiHandler(async (req: NextRequest) => {
@@ -28,6 +28,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
 export const POST = apiHandler(async (req: NextRequest) => {
   const session = await requirePermission("hr.create");
   const tenantId = await requireTenantId();
+  const currentUserId = await getCurrentUserId();
   const body = await req.json();
   if (!body.code) throw new Error("請輸入部門編號");
   if (!body.name) throw new Error("請輸入部門名稱");
@@ -38,6 +39,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
       name: body.name,
       parentId: body.parentId || null,
       isActive: body.isActive ?? true,
+      updatedBy: currentUserId,
     },
   });
   await audit({ userId: session.user.id, action: "create", module: "departments", refId: created.id });

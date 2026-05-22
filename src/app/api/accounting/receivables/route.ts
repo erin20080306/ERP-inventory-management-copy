@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { apiHandler, requirePermission, requireTenantId, audit, nextNumber } from "@/lib/api";
+import { apiHandler, requirePermission, requireTenantId, audit, nextNumber, getCurrentUserId } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { buildReceivePaymentDraft, buildDiscountNoteDraft, autoCreateJournal } from "@/lib/auto-journal";
 
@@ -44,6 +44,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
 export const POST = apiHandler(async (req: NextRequest) => {
   const session = await requirePermission("receivables.edit");
   const tenantId = await requireTenantId();
+  const currentUserId = await getCurrentUserId();
   const body = await req.json();
   const { receivableId, amount, discount, discountNote, method, remark } = body;
   const ar = await prisma.accountsReceivable.findUnique({
@@ -65,7 +66,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
       const created = await tx.receivePayment.create({
         data: {
           tenantId, number, customerId: ar.customerId, receivableId: ar.id,
-          amount: Number(amount), method, remark,
+          amount: Number(amount), method, remark, updatedBy: currentUserId,
         },
       });
       paymentId = created.id;
@@ -88,7 +89,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
     const status = newPaid >= Number(ar.amount) ? "PAID" : "PARTIAL";
     await tx.accountsReceivable.update({
       where: { id: ar.id },
-      data: { paidAmount: newPaid, status },
+      data: { paidAmount: newPaid, status, updatedBy: currentUserId },
     });
     if (status === "PAID" && ar.salesOrderId) {
       await tx.salesOrder.update({ where: { id: ar.salesOrderId }, data: { status: "PAID" } });
@@ -106,5 +107,11 @@ export const POST = apiHandler(async (req: NextRequest) => {
     await autoCreateJournal(tenantId, draft, session.user.id);
   }
 
-  return NextResponse.json({ ok: true, paymentId, discountId, number });
+  // 返回更新後的應收帳款記錄
+  const updated = await prisma.accountsReceivable.findUnique({
+    where: { id: receivableId },
+    include: { customer: true, salesOrder: true, payments: true },
+  });
+
+  return NextResponse.json({ ok: true, paymentId, discountId, number, updated });
 });

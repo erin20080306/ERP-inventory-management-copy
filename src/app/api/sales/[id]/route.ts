@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { apiHandler, requirePermission, requireTenantId, audit } from "@/lib/api";
+import { apiHandler, requirePermission, requireTenantId, audit, getCurrentUserId } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { shipSalesOrder, calcTotals } from "@/lib/documents";
 import { buildARCreatedDraft, autoCreateJournal } from "@/lib/auto-journal";
@@ -17,6 +17,7 @@ export const GET = apiHandler(async (_req: NextRequest, { params }: { params: { 
 export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: { id: string } }) => {
   const session = await requirePermission("sales.edit");
   const tenantId = await requireTenantId();
+  const currentUserId = await getCurrentUserId();
   const body = await req.json();
   const { action, warehouseId } = body;
 
@@ -41,7 +42,7 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: {
         });
       }
     }
-    await prisma.salesOrder.update({ where: { id: params.id, tenantId }, data: { status: "CONFIRMED" } });
+    await prisma.salesOrder.update({ where: { id: params.id, tenantId }, data: { status: "CONFIRMED", updatedBy: currentUserId } });
     // 確認時自動建立應收帳款
     const existingAR = await prisma.accountsReceivable.findFirst({ where: { salesOrderId: order.id, tenantId } });
     if (!existingAR) {
@@ -64,7 +65,7 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: {
     await shipSalesOrder(params.id, warehouseId);
   } else if (action === "cancel") {
     await requirePermission("sales.void");
-    await prisma.salesOrder.update({ where: { id: params.id, tenantId }, data: { status: "CANCELLED" } });
+    await prisma.salesOrder.update({ where: { id: params.id, tenantId }, data: { status: "CANCELLED", updatedBy: currentUserId } });
   }
   await audit({ userId: session.user.id, action, module: "sales", refId: params.id });
   return NextResponse.json({ ok: true });
@@ -73,6 +74,7 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: {
 export const PUT = apiHandler(async (req: NextRequest, { params }: { params: { id: string } }) => {
   const session = await requirePermission("sales.edit");
   const tenantId = await requireTenantId();
+  const currentUserId = await getCurrentUserId();
   const existing = await prisma.salesOrder.findUnique({ where: { id: params.id, tenantId } });
   if (!existing) throw new Error("找不到銷售單");
   if (existing.status === "SHIPPED" || existing.status === "PAID") {
@@ -94,6 +96,7 @@ export const PUT = apiHandler(async (req: NextRequest, { params }: { params: { i
       discount: totals.discount,
       taxAmount: totals.taxAmount,
       total: totals.total,
+      updatedBy: currentUserId,
       items: {
         create: totals.computed.map((i: any) => ({
           productId: i.productId,

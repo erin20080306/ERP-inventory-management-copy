@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Plus, Trash2, Settings2 } from "lucide-react";
+import { Plus, Trash2, Settings2, ArrowUp, ArrowDown, GripVertical } from "lucide-react";
 
 export type CustomColumn = {
   id: string;
@@ -94,6 +94,14 @@ export function CustomColumnDialog({
     setDraft(draft.filter((_, i) => i !== idx));
   }
 
+  function moveColumn(idx: number, dir: -1 | 1) {
+    const target = idx + dir;
+    if (target < 0 || target >= draft.length) return;
+    const next = [...draft];
+    [next[idx], next[target]] = [next[target], next[idx]];
+    setDraft(next);
+  }
+
   function save() {
     const valid = draft.filter((c) => c.label.trim());
     onSave(valid);
@@ -105,13 +113,16 @@ export function CustomColumnDialog({
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>自訂欄位管理</DialogTitle>
+          <p className="text-xs text-muted-foreground">使用 ↑↓ 按鈕調整欄位顯示順序，表頭欄位也可直接拖曳排序</p>
         </DialogHeader>
         <div className="space-y-3 max-h-80 overflow-y-auto">
           {draft.length === 0 && (
             <p className="text-sm text-muted-foreground text-center py-4">尚無自訂欄位，點下方按鈕新增</p>
           )}
           {draft.map((col, idx) => (
-            <div key={col.id} className="flex items-center gap-2">
+            <div key={col.id} className="flex items-center gap-2 group">
+              <GripVertical className="h-4 w-4 text-muted-foreground/50 flex-shrink-0" />
+              <span className="text-xs text-muted-foreground w-5 text-center flex-shrink-0">{idx + 1}</span>
               <Input
                 placeholder="欄位名稱"
                 value={col.label}
@@ -127,6 +138,14 @@ export function CustomColumnDialog({
                 <option value="number">數字</option>
                 <option value="date">日期</option>
               </select>
+              <div className="flex flex-col">
+                <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => moveColumn(idx, -1)} disabled={idx === 0} title="上移">
+                  <ArrowUp className="h-3 w-3" />
+                </Button>
+                <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => moveColumn(idx, 1)} disabled={idx === draft.length - 1} title="下移">
+                  <ArrowDown className="h-3 w-3" />
+                </Button>
+              </div>
               <Button size="sm" variant="ghost" onClick={() => removeColumn(idx)}>
                 <Trash2 className="h-4 w-4 text-red-500" />
               </Button>

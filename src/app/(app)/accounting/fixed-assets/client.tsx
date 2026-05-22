@@ -7,8 +7,9 @@ import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/layout/page-shell";
 import { toast } from "sonner";
-import { Plus, Search, Loader2, TrendingDown, Trash2, Ban, FileSpreadsheet, Upload } from "lucide-react";
+import { Plus, Search, Loader2, TrendingDown, Trash2, Ban, FileSpreadsheet, Upload, Save, X, Pencil } from "lucide-react";
 import { formatDate, formatMoney } from "@/lib/utils";
+import { useCustomColumns, CustomColumnDialog, CustomColumnButton, getCustomFieldValues, setCustomFieldValue } from "@/components/custom-columns";
 
 const STATUS_LABELS: Record<string, string> = {
   IN_USE: "使用中", IDLE: "閒置", DISPOSED: "已處分", IMPAIRED: "減損",
@@ -32,6 +33,20 @@ export function FixedAssetsClient() {
   const [openNew, setOpenNew] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const pageSize = 20;
+  const customCols = useCustomColumns("fixed-assets");
+  const [editingCells, setEditingCells] = useState<Record<string, any>>({});
+  const [inlineRow, setInlineRow] = useState<Record<string, any>>({});
+  const [inlineSaving, setInlineSaving] = useState<string | null>(null);
+
+  async function saveInlineAsset(r: any) {
+    const draft = inlineRow[r.id]; if (!draft) return;
+    setInlineSaving(r.id);
+    try {
+      const res = await fetch(`/api/accounting/fixed-assets/${r.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "update-header", ...draft }) });
+      if (!res.ok) throw new Error((await res.json()).error || "儲存失敗");
+      toast.success("已儲存"); setInlineRow((p) => { const n = { ...p }; delete n[r.id]; return n; }); load();
+    } catch (e: any) { toast.error(e.message); } finally { setInlineSaving(null); }
+  }
 
   async function load() {
     setLoading(true);
@@ -136,54 +151,74 @@ export function FixedAssetsClient() {
             <Upload className="h-4 w-4" />匯入
           </Button>
           <Button onClick={() => { setEditing(null); setOpenNew(true); }}><Plus className="h-4 w-4" />新增資產</Button>
+          <CustomColumnButton onClick={() => customCols.setOpen(true)} />
         </div>
+      </div>
+
+      <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
+        <span>💡 自訂欄位可使用 ↑↓ 按鈕調整順序</span>
       </div>
       <Table>
         <THead>
           <TR>
             <TH>編號</TH><TH>名稱</TH><TH>分類</TH><TH>取得日</TH>
             <TH className="text-right">取得成本</TH><TH className="text-right">累計折舊</TH><TH className="text-right">帳面價值</TH>
-            <TH>折舊法</TH><TH>狀態</TH><TH className="text-right w-32">操作</TH>
+            <TH>折舊法</TH><TH>狀態</TH><TH>操作人員</TH>{customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}<TH className="text-right w-32">操作</TH>
           </TR>
         </THead>
         <TBody>
-          {loading && <TR><TD colSpan={10} className="text-center py-10"><Loader2 className="inline h-5 w-5 animate-spin" /></TD></TR>}
-          {!loading && rows.length === 0 && <TR><TD colSpan={10}><EmptyState /></TD></TR>}
-          {!loading && rows.map((r) => (
-            <TR key={r.id}>
-              <TD className="font-mono text-xs">{r.code}</TD>
-              <TD>{r.name}</TD>
-              <TD>{r.category ?? "—"}</TD>
+          {loading && <TR><TD colSpan={11} className="text-center py-10"><Loader2 className="inline h-5 w-5 animate-spin" /></TD></TR>}
+          {!loading && rows.length === 0 && <TR><TD colSpan={11}><EmptyState /></TD></TR>}
+          {!loading && rows.map((r) => {
+            const isEditing = !!inlineRow[r.id];
+            return (
+            <TR key={r.id} className={isEditing ? "bg-blue-50/50 dark:bg-blue-950/20" : ""}>
+              <TD className="font-mono text-xs">{isEditing ? <Input value={inlineRow[r.id]?.code ?? ""} onChange={(e) => setInlineRow((p) => ({ ...p, [r.id]: { ...p[r.id], code: e.target.value } }))} className="h-8 text-sm w-20" /> : r.code}</TD>
+              <TD>{isEditing ? <Input value={inlineRow[r.id]?.name ?? ""} onChange={(e) => setInlineRow((p) => ({ ...p, [r.id]: { ...p[r.id], name: e.target.value } }))} className="h-8 text-sm" onKeyDown={(e) => { if (e.key === "Enter") saveInlineAsset(r); }} /> : r.name}</TD>
+              <TD>{isEditing ? <Input value={inlineRow[r.id]?.category ?? ""} onChange={(e) => setInlineRow((p) => ({ ...p, [r.id]: { ...p[r.id], category: e.target.value } }))} className="h-8 text-sm w-20" /> : (r.category ?? "—")}</TD>
               <TD>{formatDate(r.acquireDate)}</TD>
               <TD className="text-right">{formatMoney(r.acquireCost)}</TD>
               <TD className="text-right text-red-600">{formatMoney(r.accumulatedDepreciation)}</TD>
               <TD className="text-right font-medium">{formatMoney(r.bookValue)}</TD>
               <TD className="text-xs">{METHOD_LABELS[r.method] ?? r.method}</TD>
               <TD><Badge variant={STATUS_VARIANTS[r.status]}>{STATUS_LABELS[r.status] ?? r.status}</Badge></TD>
+              <TD className="text-xs text-gray-500">{r.updatedBy || "-"}</TD>
+              {customCols.columns.map((cc) => { const ck = `${r.id}_${cc.id}`; const v = getCustomFieldValues("fixed-assets", r.id); const isE = editingCells[ck]; return <TD key={cc.id}>{isE ? <Input type={cc.type === "number" ? "number" : cc.type === "date" ? "date" : "text"} defaultValue={v[cc.id] ?? ""} autoFocus className="h-7 text-xs" onBlur={(e) => { setCustomFieldValue("fixed-assets", r.id, cc.id, e.target.value); setEditingCells((p) => ({ ...p, [ck]: false })); }} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} /> : <span className="cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950 px-1 py-0.5 rounded min-h-[24px] inline-block min-w-[40px]" onClick={() => setEditingCells((p) => ({ ...p, [ck]: true }))}>{v[cc.id] || "—"}</span>}</TD>; })}
               <TD className="text-right">
                 <div className="flex items-center justify-end gap-1">
-                  {r.status === "IN_USE" && (
-                    <Button size="sm" variant="ghost" title="計提折舊一期" onClick={() => act(r.id, "depreciate")}>
-                      <TrendingDown className="h-4 w-4 text-amber-600" />
-                    </Button>
+                  {isEditing ? (
+                    <>
+                      <Button size="sm" variant="ghost" onClick={() => saveInlineAsset(r)} disabled={inlineSaving === r.id}>{inlineSaving === r.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4 text-emerald-600" />}</Button>
+                      <Button size="sm" variant="ghost" onClick={() => setInlineRow((p) => { const n = { ...p }; delete n[r.id]; return n; })}><X className="h-4 w-4 text-gray-500" /></Button>
+                    </>
+                  ) : (
+                    <>
+                      <Button size="sm" variant="ghost" title="行內編輯" onClick={() => setInlineRow((p) => ({ ...p, [r.id]: { code: r.code, name: r.name, category: r.category ?? "" } }))}><Pencil className="h-4 w-4" /></Button>
+                      {r.status === "IN_USE" && (
+                        <Button size="sm" variant="ghost" title="計提折舊一期" onClick={() => act(r.id, "depreciate")}>
+                          <TrendingDown className="h-4 w-4 text-amber-600" />
+                        </Button>
+                      )}
+                      {r.status !== "DISPOSED" && (
+                        <Button size="sm" variant="ghost" title="處分" onClick={() => {
+                          const amount = window.prompt("處分金額 (0 = 報廢)", "0");
+                          if (amount !== null) act(r.id, "dispose", { disposeAmount: Number(amount) });
+                        }}>
+                          <Ban className="h-4 w-4 text-red-600" />
+                        </Button>
+                      )}
+                      <Button size="sm" variant="ghost" title="刪除" onClick={() => {
+                        if (confirm("確定刪除？")) act(r.id, "delete");
+                      }}>
+                        <Trash2 className="h-4 w-4 text-muted-foreground" />
+                      </Button>
+                    </>
                   )}
-                  {r.status !== "DISPOSED" && (
-                    <Button size="sm" variant="ghost" title="處分" onClick={() => {
-                      const amount = window.prompt("處分金額 (0 = 報廢)", "0");
-                      if (amount !== null) act(r.id, "dispose", { disposeAmount: Number(amount) });
-                    }}>
-                      <Ban className="h-4 w-4 text-red-600" />
-                    </Button>
-                  )}
-                  <Button size="sm" variant="ghost" title="刪除" onClick={() => {
-                    if (confirm("確定刪除？")) act(r.id, "delete");
-                  }}>
-                    <Trash2 className="h-4 w-4 text-muted-foreground" />
-                  </Button>
                 </div>
               </TD>
             </TR>
-          ))}
+            );
+          })}
         </TBody>
       </Table>
       <div className="flex items-center justify-between text-sm text-muted-foreground">
@@ -195,6 +230,7 @@ export function FixedAssetsClient() {
         </div>
       </div>
       {openNew && <NewAssetDialog onClose={() => setOpenNew(false)} onCreated={() => { setOpenNew(false); load(); }} />}
+      <CustomColumnDialog module="fixed-assets" columns={customCols.columns} open={customCols.open} onClose={() => customCols.setOpen(false)} onSave={customCols.save} />
     </div>
   );
 }

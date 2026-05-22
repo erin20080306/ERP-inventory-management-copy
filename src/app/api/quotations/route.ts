@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { apiHandler, requirePermission, requireTenantId, audit, nextNumber } from "@/lib/api";
+import { apiHandler, requirePermission, requireTenantId, audit, nextNumber, getCurrentUserId } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { calcTotals } from "@/lib/documents";
 
@@ -39,6 +39,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
 export const POST = apiHandler(async (req: NextRequest) => {
   const session = await requirePermission("quotations.edit");
   const tenantId = await requireTenantId();
+  const currentUserId = await getCurrentUserId();
   const body = await req.json();
   const { customerId, quoteDate, validUntil, reason, status, items } = body as any;
   if (!customerId) throw new Error("請選擇客戶");
@@ -55,6 +56,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
       validUntil: validUntil ? new Date(validUntil) : null,
       status: status ?? "DRAFT",
       total: totals.total,
+      updatedBy: currentUserId,
       items: {
         create: totals.computed.map((i: any) => ({
           productId: i.productId,
@@ -77,15 +79,58 @@ export const POST = apiHandler(async (req: NextRequest) => {
 export const PATCH = apiHandler(async (req: NextRequest) => {
   const session = await requirePermission("quotations.edit");
   const tenantId = await requireTenantId();
+  const currentUserId = await getCurrentUserId();
   const body = await req.json();
   const { id, status } = body as any;
-  
+
   const updated = await prisma.quotation.update({
     where: { id, tenantId },
-    data: { status },
+    data: { status, updatedBy: currentUserId },
   });
 
   await audit({ userId: session.user.id, action: "update", module: "quotations", refId: id, detail: `狀態: ${status}` });
+
+  return NextResponse.json(updated);
+});
+
+export const PUT = apiHandler(async (req: NextRequest) => {
+  const session = await requirePermission("quotations.edit");
+  const tenantId = await requireTenantId();
+  const currentUserId = await getCurrentUserId();
+  const body = await req.json();
+  const { id, customerId, quoteDate, validUntil, status, items } = body as any;
+  if (!customerId) throw new Error("請選擇客戶");
+  if (!items?.length) throw new Error("請至少新增一項商品");
+  const totals = calcTotals(items);
+
+  const existing = await prisma.quotation.findUnique({ where: { id, tenantId } });
+  if (!existing) throw new Error("報價單不存在");
+
+  const updated = await prisma.quotation.update({
+    where: { id, tenantId },
+    data: {
+      customerId,
+      quoteDate: quoteDate ? new Date(quoteDate) : existing.quoteDate,
+      validUntil: validUntil ? new Date(validUntil) : null,
+      status: status ?? existing.status,
+      total: totals.total,
+      updatedBy: currentUserId,
+      items: {
+        deleteMany: {},
+        create: totals.computed.map((i: any) => ({
+          productId: i.productId,
+          quantity: i.quantity,
+          unitPrice: i.unitPrice,
+          discount: i.discount ?? 0,
+          taxRate: i.taxRate ?? 0,
+          subtotal: i.subtotal,
+        })),
+      },
+    },
+    include: { items: true, customer: true },
+  });
+
+  await audit({ userId: session.user.id, action: "update", module: "quotations", refId: id, detail: existing.number });
 
   return NextResponse.json(updated);
 });

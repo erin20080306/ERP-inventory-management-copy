@@ -46,13 +46,19 @@ export const PUT = apiHandler(async (req: NextRequest, { params }: { params: { i
 export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: { id: string } }) => {
   const session = await requirePermission("journals.edit");
   const tenantId = await requireTenantId();
-  const { action } = await req.json();
+  const body = await req.json();
+  const { action } = body;
   if (action === "post") {
     await requirePermission("journals.approve");
     await prisma.journalEntry.update({ where: { id: params.id, tenantId }, data: { status: "POSTED" } });
   } else if (action === "void") {
     await requirePermission("journals.void");
     await prisma.journalEntry.update({ where: { id: params.id, tenantId }, data: { status: "VOID" } });
+  } else if (action === "update-header") {
+    const data: any = {};
+    if (body.summary !== undefined) data.summary = body.summary;
+    if (body.entryDate !== undefined) data.entryDate = new Date(body.entryDate);
+    await prisma.journalEntry.update({ where: { id: params.id, tenantId }, data });
   }
   await audit({ userId: session.user.id, action, module: "journals", refId: params.id });
   return NextResponse.json({ ok: true });

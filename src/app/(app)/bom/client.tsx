@@ -6,47 +6,48 @@ import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/layout/page-shell";
-import { Loader2, Search, FileDown, Download, Printer, Upload } from "lucide-react";
+import { Loader2, Search, FileDown, Download, Printer, Upload, Pencil, Save, X } from "lucide-react";
 import { formatDate, formatMoney, formatNumber } from "@/lib/utils";
 import { downloadCSV, toCSV } from "@/lib/csv";
 import { toast } from "sonner";
+import { useCustomColumns, CustomColumnDialog, CustomColumnButton, getCustomFieldValues, setCustomFieldValue } from "@/components/custom-columns";
 
 type Module = {
   key: string;
   label: string;
   endpoint: string;
-  columns: { key: string; title: string; render?: (r: any) => any }[];
+  columns: { key: string; title: string; render?: (r: any) => any; editable?: boolean }[];
 };
 
 const MODULES: Module[] = [
   {
     key: "products", label: "商品管理", endpoint: "/api/products",
     columns: [
-      { key: "sku", title: "SKU" },
-      { key: "name", title: "名稱" },
-      { key: "spec", title: "規格" },
-      { key: "costPrice", title: "成本", render: (r) => formatMoney(r.costPrice) },
-      { key: "salePrice", title: "售價", render: (r) => formatMoney(r.salePrice) },
+      { key: "sku", title: "SKU", editable: true },
+      { key: "name", title: "名稱", editable: true },
+      { key: "spec", title: "規格", editable: true },
+      { key: "costPrice", title: "成本", render: (r) => formatMoney(r.costPrice), editable: true },
+      { key: "salePrice", title: "售價", render: (r) => formatMoney(r.salePrice), editable: true },
       { key: "createdAt", title: "建立日期", render: (r) => formatDate(r.createdAt) },
     ],
   },
   {
     key: "customers", label: "客戶管理", endpoint: "/api/customers",
     columns: [
-      { key: "code", title: "編號" },
-      { key: "companyName", title: "公司名稱" },
-      { key: "contactName", title: "聯絡人" },
-      { key: "phone", title: "電話" },
+      { key: "code", title: "編號", editable: true },
+      { key: "companyName", title: "公司名稱", editable: true },
+      { key: "contactName", title: "聯絡人", editable: true },
+      { key: "phone", title: "電話", editable: true },
       { key: "createdAt", title: "建立日期", render: (r) => formatDate(r.createdAt) },
     ],
   },
   {
     key: "suppliers", label: "供應商管理", endpoint: "/api/suppliers",
     columns: [
-      { key: "code", title: "編號" },
-      { key: "companyName", title: "公司名稱" },
-      { key: "contactName", title: "聯絡人" },
-      { key: "phone", title: "電話" },
+      { key: "code", title: "編號", editable: true },
+      { key: "companyName", title: "公司名稱", editable: true },
+      { key: "contactName", title: "聯絡人", editable: true },
+      { key: "phone", title: "電話", editable: true },
       { key: "createdAt", title: "建立日期", render: (r) => formatDate(r.createdAt) },
     ],
   },
@@ -189,6 +190,20 @@ export function BomClient() {
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
   const pageSize = 50;
+  const customCols = useCustomColumns(`bom-${selectedModule}`);
+  const [editingCells, setEditingCells] = useState<Record<string, any>>({});
+  const [inlineRow, setInlineRow] = useState<Record<string, any>>({});
+  const [inlineSaving, setInlineSaving] = useState<string | null>(null);
+
+  async function saveInlineRow(row: any) {
+    const draft = inlineRow[row.id]; if (!draft) return;
+    setInlineSaving(row.id);
+    try {
+      const res = await fetch(`${currentModule.endpoint}/${row.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...row, ...draft }) });
+      if (!res.ok) throw new Error((await res.json()).error || "儲存失敗");
+      toast.success("已儲存"); setInlineRow((p) => { const n = { ...p }; delete n[row.id]; return n; }); load();
+    } catch (e: any) { toast.error(e.message); } finally { setInlineSaving(null); }
+  }
 
   const currentModule = MODULES.find((m) => m.key === selectedModule)!;
 
@@ -321,6 +336,7 @@ export function BomClient() {
         <Button variant="outline" onClick={exportPDF}><Printer className="h-4 w-4 mr-1" />PDF</Button>
         <Button variant="outline" onClick={() => document.getElementById("bom-import")?.click()}><Upload className="h-4 w-4 mr-1" />匯入</Button>
         <input id="bom-import" type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={importFile} />
+        <CustomColumnButton onClick={() => customCols.setOpen(true)} />
         <span className="text-sm text-muted-foreground ml-auto">共 {total} 筆</span>
       </div>
 
@@ -337,18 +353,40 @@ export function BomClient() {
                 {currentModule.columns.map((col) => (
                   <TH key={col.key}>{col.title}</TH>
                 ))}
+                {customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}
+                <TH className="w-20 text-right">操作</TH>
               </TR>
             </THead>
             <TBody>
-              {rows.map((row, idx) => (
-                <TR key={row.id ?? idx}>
+              {rows.map((row, idx) => {
+                const isEditing = !!inlineRow[row.id];
+                return (
+                <TR key={row.id ?? idx} className={isEditing ? "bg-blue-50/50 dark:bg-blue-950/20" : ""}>
                   {currentModule.columns.map((col) => (
                     <TD key={col.key}>
-                      {col.render ? col.render(row) : (row[col.key] ?? "—")}
+                      {isEditing && col.editable ? (
+                        <Input value={inlineRow[row.id]?.[col.key] ?? ""} onChange={(e) => setInlineRow((p) => ({ ...p, [row.id]: { ...p[row.id], [col.key]: e.target.value } }))} className="h-8 text-sm" onKeyDown={(e) => { if (e.key === "Enter") saveInlineRow(row); if (e.key === "Escape") setInlineRow((p) => { const n = { ...p }; delete n[row.id]; return n; }); }} />
+                      ) : (
+                        col.render ? col.render(row) : (row[col.key] ?? "—")
+                      )}
                     </TD>
                   ))}
+                  {customCols.columns.map((cc) => { const ck = `${row.id}_${cc.id}`; const v = getCustomFieldValues(`bom-${selectedModule}`, row.id); const isE = editingCells[ck]; return <TD key={cc.id}>{isE ? <Input type={cc.type === "number" ? "number" : "text"} defaultValue={v[cc.id] ?? ""} autoFocus className="h-7 text-xs" onBlur={(e) => { setCustomFieldValue(`bom-${selectedModule}`, row.id, cc.id, e.target.value); setEditingCells((p) => ({ ...p, [ck]: false })); }} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} /> : <span className="cursor-pointer hover:bg-blue-50 px-1 py-0.5 rounded min-h-[24px] inline-block min-w-[40px]" onClick={() => setEditingCells((p) => ({ ...p, [ck]: true }))}>{v[cc.id] || "—"}</span>}</TD>; })}
+                  <TD className="text-right">
+                    {isEditing ? (
+                      <div className="flex items-center justify-end gap-1">
+                        <Button variant="ghost" size="icon" onClick={() => saveInlineRow(row)} disabled={inlineSaving === row.id}>{inlineSaving === row.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4 text-emerald-600" />}</Button>
+                        <Button variant="ghost" size="icon" onClick={() => setInlineRow((p) => { const n = { ...p }; delete n[row.id]; return n; })}><X className="h-4 w-4 text-gray-500" /></Button>
+                      </div>
+                    ) : (
+                      row.id && currentModule.columns.some((c) => c.editable) ? (
+                        <Button variant="ghost" size="icon" onClick={() => { const draft: any = {}; currentModule.columns.forEach((c) => { if (c.editable) draft[c.key] = row[c.key] ?? ""; }); setInlineRow((p) => ({ ...p, [row.id]: draft })); }}><Pencil className="h-4 w-4" /></Button>
+                      ) : null
+                    )}
+                  </TD>
                 </TR>
-              ))}
+                );
+              })}
             </TBody>
           </Table>
         </div>
@@ -362,6 +400,7 @@ export function BomClient() {
           <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>下一頁</Button>
         </div>
       )}
+      <CustomColumnDialog module={`bom-${selectedModule}`} columns={customCols.columns} open={customCols.open} onClose={() => customCols.setOpen(false)} onSave={customCols.save} />
     </div>
   );
 }

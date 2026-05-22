@@ -7,8 +7,9 @@ import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/layout/page-shell";
 import { toast } from "sonner";
-import { Plus, Search, Loader2, CheckCircle2, XCircle, Ban, Trash2, FileSpreadsheet, Upload } from "lucide-react";
+import { Plus, Search, Loader2, CheckCircle2, XCircle, Ban, Trash2, FileSpreadsheet, Upload, Pencil } from "lucide-react";
 import { formatDate, formatMoney } from "@/lib/utils";
+import { useCustomColumns, CustomColumnDialog, CustomColumnButton, getCustomFieldValues, setCustomFieldValue } from "@/components/custom-columns";
 
 const NOTE_TYPE_LABELS: Record<string, string> = {
   CHECK: "支票",
@@ -44,7 +45,10 @@ export function NotesClient({ kind }: { kind: "receivable" | "payable" }) {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [openNew, setOpenNew] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
   const pageSize = 20;
+  const customCols = useCustomColumns(kind === "receivable" ? "notes-receivable" : "notes-payable");
+  const [editingCells, setEditingCells] = useState<Record<string, any>>({});
 
   async function load() {
     setLoading(true);
@@ -168,7 +172,12 @@ export function NotesClient({ kind }: { kind: "receivable" | "payable" }) {
           <Button onClick={() => setOpenNew(true)}>
             <Plus className="h-4 w-4" />新增票據
           </Button>
+          <CustomColumnButton onClick={() => customCols.setOpen(true)} />
         </div>
+      </div>
+
+      <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
+        <span>💡 自訂欄位可使用 ↑↓ 按鈕調整順序</span>
       </div>
       <Table>
         <THead>
@@ -176,13 +185,14 @@ export function NotesClient({ kind }: { kind: "receivable" | "payable" }) {
             <TH>票號</TH><TH>種類</TH><TH>{partyLabel}</TH>
             {kind === "receivable" && <TH>付款銀行</TH>}
             {kind === "payable" && <TH>開票銀行</TH>}
-            <TH>票面日期</TH><TH>到期日</TH><TH className="text-right">金額</TH><TH>狀態</TH>
+            <TH>票面日期</TH><TH>到期日</TH><TH className="text-right">金額</TH><TH>狀態</TH><TH>操作人員</TH>
+            {customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}
             <TH className="text-right w-40">操作</TH>
           </TR>
         </THead>
         <TBody>
-          {loading && <TR><TD colSpan={9} className="text-center py-10"><Loader2 className="inline h-5 w-5 animate-spin" /></TD></TR>}
-          {!loading && rows.length === 0 && <TR><TD colSpan={9}><EmptyState /></TD></TR>}
+          {loading && <TR><TD colSpan={10} className="text-center py-10"><Loader2 className="inline h-5 w-5 animate-spin" /></TD></TR>}
+          {!loading && rows.length === 0 && <TR><TD colSpan={10}><EmptyState /></TD></TR>}
           {!loading && rows.map((r) => (
             <TR key={r.id}>
               <TD className="font-mono text-xs">{r.noteNumber}</TD>
@@ -193,8 +203,12 @@ export function NotesClient({ kind }: { kind: "receivable" | "payable" }) {
               <TD>{formatDate(r.dueDate)}</TD>
               <TD className="text-right font-medium">{formatMoney(r.amount)}</TD>
               <TD><Badge variant={STATUS_VARIANTS[r.status]}>{STATUS_LABELS[r.status] ?? r.status}</Badge></TD>
+              <TD className="text-xs text-gray-500">{r.updatedBy || "-"}</TD>
               <TD className="text-right">
                 <div className="flex items-center justify-end gap-1">
+                  <Button size="sm" variant="ghost" title="編輯" onClick={() => setEditId(r.id)}>
+                    <Pencil className="h-4 w-4" />
+                  </Button>
                   {r.status === "PENDING" && (
                     <>
                       <Button size="sm" variant="ghost" title="兌現" onClick={() => act(r.id, "clear")}>
@@ -215,6 +229,35 @@ export function NotesClient({ kind }: { kind: "receivable" | "payable" }) {
                   </Button>
                 </div>
               </TD>
+              {customCols.columns.map((cc) => {
+                const cellKey = `${r.id}_${cc.id}`;
+                const vals = getCustomFieldValues(kind === "receivable" ? "notes-receivable" : "notes-payable", r.id);
+                const isEditing = editingCells[cellKey];
+                return (
+                  <TD key={cc.id}>
+                    {isEditing ? (
+                      <Input
+                        type={cc.type === "number" ? "number" : cc.type === "date" ? "date" : "text"}
+                        defaultValue={vals[cc.id] ?? ""}
+                        autoFocus
+                        className="h-7 text-xs"
+                        onBlur={(e) => {
+                          setCustomFieldValue(kind === "receivable" ? "notes-receivable" : "notes-payable", r.id, cc.id, e.target.value);
+                          setEditingCells((p) => ({ ...p, [cellKey]: false }));
+                        }}
+                        onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                      />
+                    ) : (
+                      <span
+                        className="cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950 px-1 py-0.5 rounded min-h-[24px] inline-block min-w-[40px]"
+                        onClick={() => setEditingCells((p) => ({ ...p, [cellKey]: true }))}
+                      >
+                        {vals[cc.id] || "—"}
+                      </span>
+                    )}
+                  </TD>
+                );
+              })}
             </TR>
           ))}
         </TBody>
@@ -227,12 +270,14 @@ export function NotesClient({ kind }: { kind: "receivable" | "payable" }) {
           <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>下一頁</Button>
         </div>
       </div>
-      {openNew && <NewNoteDialog kind={kind} endpoint={endpoint} partyLabel={partyLabel} partyEndpoint={partyEndpoint} onClose={() => setOpenNew(false)} onCreated={() => { setOpenNew(false); load(); }} />}
+      {openNew && <NewNoteDialog kind={kind} endpoint={endpoint} partyLabel={partyLabel} partyEndpoint={partyEndpoint} onClose={() => setOpenNew(false)} onCreated={(saved) => { setOpenNew(false); if (saved) { setRows((prev) => prev.map((r) => r.id === saved.id ? saved : r)); } else { load(); } }} />}
+      {editId && <NewNoteDialog kind={kind} endpoint={endpoint} partyLabel={partyLabel} partyEndpoint={partyEndpoint} row={rows.find((r) => r.id === editId)} onClose={() => setEditId(null)} onCreated={(saved) => { setEditId(null); if (saved) { setRows((prev) => prev.map((r) => r.id === saved.id ? saved : r)); } else { load(); } }} />}
+      <CustomColumnDialog module={kind === "receivable" ? "notes-receivable" : "notes-payable"} columns={customCols.columns} open={customCols.open} onClose={() => customCols.setOpen(false)} onSave={customCols.save} />
     </div>
   );
 }
 
-function NewNoteDialog({ kind, endpoint, partyLabel, partyEndpoint, onClose, onCreated }: any) {
+function NewNoteDialog({ kind, endpoint, partyLabel, partyEndpoint, onClose, onCreated, row }: any) {
   const [parties, setParties] = useState<any[]>([]);
   const [banks, setBanks] = useState<any[]>([]);
   const [form, setForm] = useState({
@@ -256,7 +301,23 @@ function NewNoteDialog({ kind, endpoint, partyLabel, partyEndpoint, onClose, onC
     if (kind === "payable") {
       fetch("/api/accounting/bank-accounts").then((r) => r.json()).then((d) => setBanks(d.items ?? d ?? []));
     }
-  }, []);
+    if (row) {
+      setForm({
+        noteNumber: row.noteNumber || "",
+        noteType: row.noteType || "CHECK",
+        partyId: kind === "receivable" ? row.customerId : row.supplierId,
+        bankName: row.bankName || "",
+        branchName: row.branchName || "",
+        drawerName: row.drawerName || "",
+        payeeName: row.payeeName || "",
+        bankAccountId: row.bankAccountId || "",
+        amount: row.amount || "",
+        issueDate: row.issueDate?.slice(0, 10) || new Date().toISOString().slice(0, 10),
+        dueDate: row.dueDate?.slice(0, 10) || "",
+        remark: row.remark || "",
+      });
+    }
+  }, [row, kind, partyEndpoint]);
 
   async function save() {
     if (!form.partyId) return toast.error(`請選擇${partyLabel}`);
@@ -282,17 +343,22 @@ function NewNoteDialog({ kind, endpoint, partyLabel, partyEndpoint, onClose, onC
         payload.bankAccountId = form.bankAccountId || null;
         payload.payeeName = form.payeeName;
       }
-      const res = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-      if (!res.ok) throw new Error((await res.json()).error || "新增失敗");
-      toast.success("已新增");
-      onCreated();
+      const res = await fetch(row ? `${endpoint}/${row.id}` : endpoint, {
+        method: row ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...payload, id: row?.id }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || "儲存失敗");
+      const saved = await res.json();
+      toast.success("已儲存");
+      onCreated(saved);
     } catch (e: any) { toast.error(e.message); } finally { setSaving(false); }
   }
 
   return (
     <Dialog open onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-2xl">
-        <DialogHeader><DialogTitle>新增{kind === "receivable" ? "應收" : "應付"}票據</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{row ? "編輯" : "新增"}{kind === "receivable" ? "應收" : "應付"}票據</DialogTitle></DialogHeader>
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
             <Label>票據種類</Label>

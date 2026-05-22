@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { apiHandler, requirePermission, requireTenantId, audit, nextNumber } from "@/lib/api";
+import { apiHandler, requirePermission, requireTenantId, audit, nextNumber, getCurrentUserId } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 
 export const GET = apiHandler(async (req: NextRequest) => {
@@ -36,6 +36,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
 export const POST = apiHandler(async (req: NextRequest) => {
   const session = await requirePermission("journals.create");
   const tenantId = await requireTenantId();
+  const currentUserId = await getCurrentUserId();
   const body = await req.json();
   const { summary, entryDate, lines, attachment } = body as any;
   if (!lines?.length) throw new Error("請至少新增一筆分錄");
@@ -52,6 +53,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
       entryDate: entryDate ? new Date(entryDate) : new Date(),
       attachment,
       createdById: session.user.id,
+      updatedBy: currentUserId,
       status: "DRAFT",
       lines: {
         create: lines.map((l: any) => ({

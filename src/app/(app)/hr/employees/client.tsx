@@ -173,6 +173,7 @@ export function EmployeesClient() {
         { key: "baseSalary", title: "本薪", render: (r: any) => formatMoney(r.baseSalary), editable: { type: "number" } },
         { key: "hireDate", title: "到職日", render: (r: any) => r.hireDate?.slice(0, 10) ?? "—" },
         { key: "status", title: "狀態", csv: (r: any) => STATUS_LABELS[r.status] ?? r.status, render: (r: any) => <Badge variant={STATUS_VARIANTS[r.status]}>{STATUS_LABELS[r.status] ?? r.status}</Badge> },
+        { key: "updatedBy", title: "操作人員", render: (r: any) => <span className="text-xs text-gray-500">{r.updatedBy || "-"}</span> },
       ]}
     />
   );

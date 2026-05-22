@@ -37,6 +37,7 @@ type OrderRow = {
   orderDate: string;
   supplier?: { companyName: string };
   customer?: { companyName: string };
+  updatedBy?: string | null;
 };
 
 export function OrderClient({ kind }: { kind: Kind }) {
@@ -183,6 +184,9 @@ export function OrderClient({ kind }: { kind: Kind }) {
         </div>
       </div>
 
+      <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
+        <span>💡 自訂欄位可使用 ↑↓ 按鈕調整順序</span>
+      </div>
       <Table>
         <THead>
           <TR>
@@ -191,6 +195,7 @@ export function OrderClient({ kind }: { kind: Kind }) {
             <TH>日期</TH>
             <TH>金額</TH>
             <TH>狀態</TH>
+            <TH>操作人員</TH>
             {customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}
             <TH className="w-20 text-right">操作</TH>
           </TR>
@@ -198,14 +203,14 @@ export function OrderClient({ kind }: { kind: Kind }) {
         <TBody>
           {loading && (
             <TR>
-              <TD colSpan={6} className="text-center py-10">
+              <TD colSpan={7} className="text-center py-10">
                 <Loader2 className="h-5 w-5 animate-spin inline-block" />
               </TD>
             </TR>
           )}
           {!loading && rows.length === 0 && (
             <TR>
-              <TD colSpan={6}>
+              <TD colSpan={7}>
                 <EmptyState />
               </TD>
             </TR>
@@ -220,6 +225,7 @@ export function OrderClient({ kind }: { kind: Kind }) {
                 <TD>
                   <StatusBadge status={r.status} />
                 </TD>
+                <TD className="text-xs text-gray-500">{r.updatedBy || "-"}</TD>
                 {customCols.columns.map((cc) => {
                   const cellKey = `${r.id}_${cc.id}`;
                   const vals = getCustomFieldValues(kind === "purchase" ? "purchases" : "sales", r.id);
@@ -284,7 +290,7 @@ export function OrderClient({ kind }: { kind: Kind }) {
         <ViewOrderDialog kind={kind} id={openView} onClose={() => setOpenView(null)} onChanged={load} />
       )}
       {openEdit && (
-        <EditOrderDialog kind={kind} id={openEdit} onClose={() => setOpenEdit(null)} onSaved={() => { setOpenEdit(null); load(); }} />
+        <EditOrderDialog kind={kind} id={openEdit} onClose={() => setOpenEdit(null)} onSaved={(updated) => { setOpenEdit(null); if (updated) { setRows((prev) => prev.map((r) => r.id === updated.id ? updated : r)); } else { load(); } }} />
       )}
       <CustomColumnDialog
         module={kind === "purchase" ? "purchases" : "sales"}

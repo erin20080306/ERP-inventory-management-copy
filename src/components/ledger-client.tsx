@@ -11,6 +11,7 @@ import { Loader2, Search, CreditCard, Download, Printer, FileDown, ListChecks, T
 import { formatDate, formatMoney } from "@/lib/utils";
 import { downloadCSV, toCSV } from "@/lib/csv";
 import { ConvertToJournalButton } from "@/components/convert-to-journal-button";
+import { useCustomColumns, CustomColumnDialog, CustomColumnButton, getCustomFieldValues, setCustomFieldValue } from "@/components/custom-columns";
 
 export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
   const endpoint = kind === "ar" ? "/api/accounting/receivables" : "/api/accounting/payables";
@@ -27,6 +28,8 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
   const [pdfBusy, setPdfBusy] = useState(false);
   const [summary, setSummary] = useState<any>(null);
   const pageSize = 20;
+  const customCols = useCustomColumns(kind === "ar" ? "receivables" : "payables");
+  const [editingCells, setEditingCells] = useState<Record<string, any>>({});
 
   async function load() {
     setLoading(true);
@@ -150,17 +153,22 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
           <Download className="h-4 w-4" />
           匯出 CSV
         </Button>
+        <CustomColumnButton onClick={() => customCols.setOpen(true)} />
         </div>
+      </div>
+
+      <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
+        <span>💡 自訂欄位可使用 ↑↓ 按鈕調整順序</span>
       </div>
       <Table>
         <THead>
           <TR>
-            <TH>{partyLabel}</TH><TH>關聯單號</TH><TH>日期</TH><TH>金額</TH><TH>已{kind === "ar" ? "收" : "付"}</TH><TH>未結</TH><TH>狀態</TH><TH className="w-24 text-right">操作</TH>
+            <TH>{partyLabel}</TH><TH>關聯單號</TH><TH>日期</TH><TH>金額</TH><TH>已{kind === "ar" ? "收" : "付"}</TH><TH>未結</TH><TH>狀態</TH><TH>操作人員</TH>{customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}<TH className="w-24 text-right">操作</TH>
           </TR>
         </THead>
         <TBody>
-          {loading && <TR><TD colSpan={8} className="text-center py-10"><Loader2 className="inline h-5 w-5 animate-spin" /></TD></TR>}
-          {!loading && rows.length === 0 && <TR><TD colSpan={8}><EmptyState /></TD></TR>}
+          {loading && <TR><TD colSpan={9} className="text-center py-10"><Loader2 className="inline h-5 w-5 animate-spin" /></TD></TR>}
+          {!loading && rows.length === 0 && <TR><TD colSpan={9}><EmptyState /></TD></TR>}
           {!loading && rows.map((r) => {
             const party = kind === "ar" ? r.customer : r.supplier;
             const rel = kind === "ar" ? r.salesOrder : r.purchaseOrder;
@@ -174,6 +182,7 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
                 <TD>{formatMoney(r.paidAmount)}</TD>
                 <TD className={balance > 0 ? "text-red-600 font-medium" : ""}>{formatMoney(balance)}</TD>
                 <TD><StatusBadge status={r.status} /></TD>
+                <TD className="text-xs text-gray-500">{r.updatedBy || "-"}</TD>
                 <TD className="text-right flex items-center justify-end gap-1">
                   {balance > 0 && (
                     <Button size="sm" variant="outline" onClick={() => setPay(r)}>
@@ -181,9 +190,14 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
                       {kind === "ar" ? "收款" : "付款"}
                     </Button>
                   )}
+                  {balance <= 0 && (
+                    <Button size="sm" variant="ghost" onClick={() => setPay(r)}>
+                      編輯
+                    </Button>
+                  )}
                   {Number(r.paidAmount) === 0 && (
                     <Button size="sm" variant="ghost" className="text-red-500 hover:text-red-700" onClick={async () => {
-                      if (!confirm("確定刪除此筆帳款？")) return;
+                      if (!confirm("確定刪除此筆帳款？\n\n注意：刪除會刪除相對應傳票，確認是否刪除？")) return;
                       const res = await fetch(`${endpoint}/${r.id}`, { method: "DELETE" });
                       if (!res.ok) { const e = await res.json(); toast.error(e.error || "刪除失敗"); return; }
                       toast.success("已刪除");
@@ -193,6 +207,35 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
                     </Button>
                   )}
                 </TD>
+                {customCols.columns.map((cc) => {
+                  const cellKey = `${r.id}_${cc.id}`;
+                  const vals = getCustomFieldValues(kind === "ar" ? "receivables" : "payables", r.id);
+                  const isEditing = editingCells[cellKey];
+                  return (
+                    <TD key={cc.id}>
+                      {isEditing ? (
+                        <Input
+                          type={cc.type === "number" ? "number" : cc.type === "date" ? "date" : "text"}
+                          defaultValue={vals[cc.id] ?? ""}
+                          autoFocus
+                          className="h-7 text-xs"
+                          onBlur={(e) => {
+                            setCustomFieldValue(kind === "ar" ? "receivables" : "payables", r.id, cc.id, e.target.value);
+                            setEditingCells((p) => ({ ...p, [cellKey]: false }));
+                          }}
+                          onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                        />
+                      ) : (
+                        <span
+                          className="cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950 px-1 py-0.5 rounded min-h-[24px] inline-block min-w-[40px]"
+                          onClick={() => setEditingCells((p) => ({ ...p, [cellKey]: true }))}
+                        >
+                          {vals[cc.id] || "—"}
+                        </span>
+                      )}
+                    </TD>
+                  );
+                })}
               </TR>
             );
           })}
@@ -206,8 +249,9 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
           <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>下一頁</Button>
         </div>
       </div>
-      {pay && <PayDialog row={pay} kind={kind} onClose={() => setPay(null)} onDone={() => { setPay(null); load(); loadSummary(); }} />}
+      {pay && <PayDialog row={pay} kind={kind} onClose={() => setPay(null)} onDone={(updated) => { setPay(null); if (updated) { setRows((prev) => prev.map((r) => r.id === updated.id ? updated : r)); loadSummary(); } else { load(); loadSummary(); } }} />}
       {batchOpen && <BatchPayDialog kind={kind} onClose={() => setBatchOpen(false)} onDone={() => { setBatchOpen(false); load(); loadSummary(); }} />}
+      <CustomColumnDialog module={kind === "ar" ? "receivables" : "payables"} columns={customCols.columns} open={customCols.open} onClose={() => customCols.setOpen(false)} onSave={customCols.save} />
     </div>
   );
 }
@@ -261,7 +305,7 @@ function PayDialog({ row, kind, onClose, onDone }: any) {
       if (result.paymentId || result.discountId) {
         setSavedPayment({ paymentId: result.paymentId, discountId: result.discountId });
       } else {
-        onDone();
+        onDone(result.updated || null);
       }
     } catch (e: any) { toast.error(e.message); } finally { setSaving(false); }
   }

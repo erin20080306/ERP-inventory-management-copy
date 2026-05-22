@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { EmptyState } from "@/components/layout/page-shell";
-import { Plus, Search, Loader2, Edit2, Trash2, Download, Printer, FileDown, FileSpreadsheet, Upload, Settings2, Save, X } from "lucide-react";
+import { Plus, Search, Loader2, Trash2, Download, Printer, FileDown, FileSpreadsheet, Upload, Settings2, Save, X } from "lucide-react";
 import { toast } from "sonner";
 import { downloadCSV, toCSV } from "@/lib/csv";
 import {
@@ -178,6 +178,49 @@ export function CrudTable<T extends { id: string }>({
   const [editingCells, setEditingCells] = useState<Record<string, any>>({});
   const [inlineEditing, setInlineEditing] = useState<Record<string, Record<string, any>>>({});
   const [inlineSaving, setInlineSaving] = useState<string | null>(null);
+  // 單格編輯追蹤 (像真正 Excel)
+  const [activeCell, setActiveCell] = useState<{ rowId: string; colKey: string } | null>(null);
+
+  // 欄位順序管理（拖曳表頭排序）
+  const colOrderKey = `erp_col_order_${moduleKey || exportName}`;
+  const [colOrder, setColOrder] = useState<string[]>(() => {
+    if (typeof window === "undefined") return columns.map((c) => c.key);
+    try {
+      const saved = localStorage.getItem(colOrderKey);
+      if (saved) {
+        const parsed = JSON.parse(saved) as string[];
+        // 確保涵蓋所有欄位
+        const allKeys = columns.map((c) => c.key);
+        const valid = parsed.filter((k) => allKeys.includes(k));
+        const missing = allKeys.filter((k) => !valid.includes(k));
+        return [...valid, ...missing];
+      }
+    } catch {}
+    return columns.map((c) => c.key);
+  });
+  const [dragCol, setDragCol] = useState<string | null>(null);
+
+  function saveColOrder(order: string[]) {
+    setColOrder(order);
+    localStorage.setItem(colOrderKey, JSON.stringify(order));
+  }
+
+  function handleDragStart(key: string) { setDragCol(key); }
+  function handleDragOver(e: React.DragEvent) { e.preventDefault(); }
+  function handleDrop(targetKey: string) {
+    if (!dragCol || dragCol === targetKey) { setDragCol(null); return; }
+    const order = [...colOrder];
+    const fromIdx = order.indexOf(dragCol);
+    const toIdx = order.indexOf(targetKey);
+    if (fromIdx === -1 || toIdx === -1) { setDragCol(null); return; }
+    order.splice(fromIdx, 1);
+    order.splice(toIdx, 0, dragCol);
+    saveColOrder(order);
+    setDragCol(null);
+  }
+
+  // 依據 colOrder 排序 columns
+  const orderedColumns = [...columns].sort((a, b) => colOrder.indexOf(a.key) - colOrder.indexOf(b.key));
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -219,6 +262,66 @@ export function CrudTable<T extends { id: string }>({
     setInlineEditing((prev) => ({ ...prev, [row.id]: draft }));
   }
 
+  // 進入單格編輯（點擊某個 cell）
+  function startCellEdit(row: T, colKey: string) {
+    if (!inlineEditing[row.id]) {
+      const draft: Record<string, any> = {};
+      columns.forEach((c) => { if (c.editable) draft[c.key] = (row as any)[c.key] ?? ""; });
+      setInlineEditing((prev) => ({ ...prev, [row.id]: draft }));
+    }
+    setActiveCell({ rowId: row.id, colKey });
+  }
+
+  // 鍵盤導航：Enter/ArrowDown 下移、ArrowUp 上移、Tab 右移、Escape 取消
+  function handleCellKeyDown(e: React.KeyboardEvent, row: T, colKey: string) {
+    const editableCols = orderedColumns.filter((c) => c.editable);
+    const rowIdx = rows.findIndex((r) => r.id === row.id);
+    const colIdx = editableCols.findIndex((c) => c.key === colKey);
+
+    if (e.key === "Enter" || e.key === "ArrowDown") {
+      e.preventDefault();
+      saveCellAndMove(row, rowIdx + 1, colKey);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      saveCellAndMove(row, rowIdx - 1, colKey);
+    } else if (e.key === "Tab") {
+      e.preventDefault();
+      if (e.shiftKey) {
+        // Shift+Tab 往左
+        if (colIdx > 0) {
+          setActiveCell({ rowId: row.id, colKey: editableCols[colIdx - 1].key });
+        } else if (rowIdx > 0) {
+          // 上一行最後一個
+          saveCellAndMove(row, rowIdx - 1, editableCols[editableCols.length - 1].key);
+        }
+      } else {
+        // Tab 往右
+        if (colIdx < editableCols.length - 1) {
+          setActiveCell({ rowId: row.id, colKey: editableCols[colIdx + 1].key });
+        } else if (rowIdx < rows.length - 1) {
+          // 下一行第一個
+          saveCellAndMove(row, rowIdx + 1, editableCols[0].key);
+        }
+      }
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      cancelInlineEdit(row.id);
+      setActiveCell(null);
+    }
+  }
+
+  async function saveCellAndMove(currentRow: T, targetRowIdx: number, targetColKey: string) {
+    // 先儲存當前行
+    await saveInlineEdit(currentRow);
+    // 移動到目標行
+    if (targetRowIdx >= 0 && targetRowIdx < rows.length) {
+      const targetRow = rows[targetRowIdx];
+      startCellEdit(targetRow as T, targetColKey);
+    } else {
+      setActiveCell(null);
+    }
+  }
+
   async function saveInlineEdit(row: T) {
     const draft = inlineEditing[row.id];
     if (!draft) return;
@@ -227,9 +330,11 @@ export function CrudTable<T extends { id: string }>({
       const payload = { ...(row as any), ...draft };
       const res = await fetch(`${endpoint}/${row.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       if (!res.ok) throw new Error((await res.json()).error || "儲存失敗");
+      const saved = await res.json().catch(() => null);
       toast.success("已儲存");
       setInlineEditing((prev) => { const n = { ...prev }; delete n[row.id]; return n; });
-      load();
+      // 本地更新而非全部重整
+      setRows((prev) => prev.map((r) => r.id === row.id ? (saved && saved.id ? saved : { ...r, ...draft } as T) : r));
     } catch (e: any) {
       toast.error(e.message);
     } finally {
@@ -239,6 +344,7 @@ export function CrudTable<T extends { id: string }>({
 
   function cancelInlineEdit(rowId: string) {
     setInlineEditing((prev) => { const n = { ...prev }; delete n[rowId]; return n; });
+    if (activeCell?.rowId === rowId) setActiveCell(null);
   }
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
@@ -288,7 +394,7 @@ export function CrudTable<T extends { id: string }>({
                       exportName,
                       pdfTitle || exportName,
                       data.items,
-                      columns.map((c) => ({ key: c.key, title: c.title, get: c.csv })) as any
+                      orderedColumns.map((c) => ({ key: c.key, title: c.title, get: c.csv })) as any
                     );
                     toast.success("已匯出 Excel");
                   } catch (e: any) {
@@ -310,7 +416,7 @@ export function CrudTable<T extends { id: string }>({
                     const data = await res.json();
                     const csv = toCSV(
                       data.items,
-                      columns.map((c) => ({ key: c.key, title: c.title, get: c.csv })) as any
+                      orderedColumns.map((c) => ({ key: c.key, title: c.title, get: c.csv })) as any
                     );
                     downloadCSV(`${exportName}-${new Date().toISOString().slice(0, 10)}.csv`, csv);
                     toast.success("已匯出 CSV");
@@ -353,11 +459,22 @@ export function CrudTable<T extends { id: string }>({
         </div>
       </div>
 
+      <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
+        <span>💡 可拖曳表頭欄位調整順序 ｜ 點擊儲存格直接編輯 ｜ Enter/↓ 下一列 ｜ ↑ 上一列 ｜ Tab 下一欄 ｜ Esc 取消</span>
+      </div>
       <Table>
         <THead>
           <TR>
-            {columns.map((c) => (
-              <TH key={c.key} className={c.className}>
+            {orderedColumns.map((c) => (
+              <TH
+                key={c.key}
+                className={`${c.className ?? ""} cursor-grab select-none ${dragCol === c.key ? "opacity-50 bg-blue-100 dark:bg-blue-900" : ""}`}
+                draggable
+                onDragStart={() => handleDragStart(c.key)}
+                onDragOver={handleDragOver}
+                onDrop={() => handleDrop(c.key)}
+                title="拖曳調整欄位順序"
+              >
                 {c.title}
               </TH>
             ))}
@@ -370,14 +487,14 @@ export function CrudTable<T extends { id: string }>({
         <TBody>
           {loading && (
             <TR>
-              <TD colSpan={columns.length + 1} className="text-center py-10">
+              <TD colSpan={orderedColumns.length + customCols.columns.length + 2} className="text-center py-10">
                 <Loader2 className="h-5 w-5 animate-spin inline-block" />
               </TD>
             </TR>
           )}
           {!loading && rows.length === 0 && (
             <TR>
-              <TD colSpan={columns.length + 1}>
+              <TD colSpan={orderedColumns.length + customCols.columns.length + 2}>
                 <EmptyState />
               </TD>
             </TR>
@@ -388,31 +505,45 @@ export function CrudTable<T extends { id: string }>({
               const isRowEditing = !!draft;
               return (
               <TR key={row.id} className={isRowEditing ? "bg-blue-50/50 dark:bg-blue-950/20" : ""}>
-                {columns.map((c) => (
-                  <TD key={c.key} className={c.className}>
-                    {isRowEditing && c.editable ? (
-                      c.editable.type === "select" ? (
+                {orderedColumns.map((c) => {
+                  const isCellActive = activeCell?.rowId === row.id && activeCell?.colKey === c.key;
+                  const showInput = isRowEditing && c.editable && isCellActive;
+                  return (
+                  <TD
+                    key={c.key}
+                    className={`${c.className ?? ""} ${c.editable ? "cursor-cell hover:bg-blue-50/60 dark:hover:bg-blue-950/30 transition-colors" : ""} ${isCellActive ? "ring-2 ring-blue-400 ring-inset" : ""}`}
+                    onClick={() => { if (c.editable) startCellEdit(row, c.key); }}
+                  >
+                    {showInput ? (
+                      c.editable!.type === "select" ? (
                         <select
                           value={draft[c.key] ?? ""}
+                          autoFocus
                           onChange={(e) => setInlineEditing((prev) => ({ ...prev, [row.id]: { ...prev[row.id], [c.key]: e.target.value } }))}
-                          className="h-8 w-full rounded border border-input bg-background px-2 text-sm"
+                          onKeyDown={(e) => handleCellKeyDown(e, row, c.key)}
+                          onBlur={() => { /* 保持焦點管理由 keyboard 處理 */ }}
+                          className="h-8 w-full rounded border-0 bg-transparent px-1 text-sm focus:outline-none"
                         >
-                          {c.editable.options?.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                          {c.editable!.options?.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                         </select>
                       ) : (
                         <Input
-                          type={c.editable.type}
+                          type={c.editable!.type}
                           value={draft[c.key] ?? ""}
+                          autoFocus
                           onChange={(e) => setInlineEditing((prev) => ({ ...prev, [row.id]: { ...prev[row.id], [c.key]: e.target.value } }))}
-                          className="h-8 text-sm"
-                          onKeyDown={(e) => { if (e.key === "Enter") saveInlineEdit(row); if (e.key === "Escape") cancelInlineEdit(row.id); }}
+                          className="h-8 text-sm border-0 bg-transparent shadow-none focus-visible:ring-0 px-1"
+                          onKeyDown={(e) => handleCellKeyDown(e, row, c.key)}
                         />
                       )
+                    ) : isRowEditing && c.editable ? (
+                      <span className="block px-1 py-1 text-sm min-h-[32px] leading-8">{draft[c.key] ?? "—"}</span>
                     ) : (
                       c.render ? c.render(row) : (row as any)[c.key] ?? "—"
                     )}
                   </TD>
-                ))}
+                  );
+                })}
                 {customCols.columns.map((cc) => {
                   const cellKey = `${row.id}_${cc.id}`;
                   const vals = getCustomFieldValues(moduleKey || exportName, row.id);
@@ -449,27 +580,15 @@ export function CrudTable<T extends { id: string }>({
                     <div className="flex items-center justify-end gap-1">
                       {isRowEditing ? (
                         <>
-                          <Button variant="ghost" size="icon" onClick={() => saveInlineEdit(row)} disabled={inlineSaving === row.id}>
+                          <Button variant="ghost" size="icon" onClick={() => { saveInlineEdit(row); setActiveCell(null); }} disabled={inlineSaving === row.id} title="儲存 (Enter)">
                             {inlineSaving === row.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4 text-emerald-600" />}
                           </Button>
-                          <Button variant="ghost" size="icon" onClick={() => cancelInlineEdit(row.id)}>
+                          <Button variant="ghost" size="icon" onClick={() => cancelInlineEdit(row.id)} title="取消 (Esc)">
                             <X className="h-4 w-4 text-gray-500" />
                           </Button>
                         </>
                       ) : (
                         <>
-                          {canEdit && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => {
-                                const hasEditable = columns.some((c) => c.editable);
-                                if (hasEditable) { startInlineEdit(row); } else { setEditing(row); setOpen(true); }
-                              }}
-                            >
-                              <Edit2 className="h-4 w-4" />
-                            </Button>
-                          )}
                           {canDelete && (
                             <Button variant="ghost" size="icon" onClick={() => onDelete(row)}>
                               <Trash2 className="h-4 w-4 text-red-600" />

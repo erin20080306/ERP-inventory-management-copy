@@ -11,6 +11,7 @@ import { Plus, Trash2, Loader2, Search, Download, FileText, Ban, Printer, FileDo
 import { formatDate, formatMoney } from "@/lib/utils";
 import { downloadCSV, toCSV } from "@/lib/csv";
 import { ConvertToJournalButton } from "@/components/convert-to-journal-button";
+import { useCustomColumns, CustomColumnDialog, CustomColumnButton, getCustomFieldValues, setCustomFieldValue } from "@/components/custom-columns";
 
 export function InvoiceClient() {
   const [rows, setRows] = useState<any[]>([]);
@@ -25,6 +26,8 @@ export function InvoiceClient() {
   const [openFromPO, setOpenFromPO] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
   const pageSize = 20;
+  const customCols = useCustomColumns("invoices");
+  const [editingCells, setEditingCells] = useState<Record<string, any>>({});
 
   async function load() {
     setLoading(true);
@@ -124,13 +127,17 @@ export function InvoiceClient() {
           <Button variant="outline" onClick={() => setOpenFromSO(true)}><FileText className="h-4 w-4" />由銷售單開立</Button>
           <Button variant="outline" onClick={() => setOpenFromPO(true)}><FileText className="h-4 w-4" />由採購單開立</Button>
           <Button onClick={() => setOpenNew(true)}><Plus className="h-4 w-4" />新增發票</Button>
+          <CustomColumnButton onClick={() => customCols.setOpen(true)} />
         </div>
       </div>
 
+      <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
+        <span>💡 自訂欄位可使用 ↑↓ 按鈕調整順序</span>
+      </div>
       <Table>
         <THead>
           <TR>
-            <TH>日期</TH><TH>類型</TH><TH>發票號碼</TH><TH>對象</TH><TH>未稅</TH><TH>稅額</TH><TH>含稅</TH><TH>狀態</TH><TH className="w-20 text-right">操作</TH>
+            <TH>日期</TH><TH>類型</TH><TH>發票號碼</TH><TH>對象</TH><TH>未稅</TH><TH>稅額</TH><TH>含稅</TH><TH>狀態</TH>{customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}<TH className="w-20 text-right">操作</TH>
           </TR>
         </THead>
         <TBody>
@@ -146,6 +153,7 @@ export function InvoiceClient() {
               <TD>{formatMoney(i.taxAmount)}</TD>
               <TD className="font-medium">{formatMoney(i.totalAmount)}</TD>
               <TD><StatusBadge status={i.status} /></TD>
+              {customCols.columns.map((cc) => { const ck = `${i.id}_${cc.id}`; const v = getCustomFieldValues("invoices", i.id); const isE = editingCells[ck]; return <TD key={cc.id}>{isE ? <Input type={cc.type === "number" ? "number" : cc.type === "date" ? "date" : "text"} defaultValue={v[cc.id] ?? ""} autoFocus className="h-7 text-xs" onBlur={(e) => { setCustomFieldValue("invoices", i.id, cc.id, e.target.value); setEditingCells((p) => ({ ...p, [ck]: false })); }} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} /> : <span className="cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950 px-1 py-0.5 rounded min-h-[24px] inline-block min-w-[40px]" onClick={() => setEditingCells((p) => ({ ...p, [ck]: true }))}>{v[cc.id] || "—"}</span>}</TD>; })}
               <TD className="text-right">
                 <div className="flex items-center justify-end gap-1">
                   {i.status !== "VOID" && <ConvertToJournalButton sourceType="INVOICE" sourceId={i.id} size="sm" />}
@@ -179,6 +187,7 @@ export function InvoiceClient() {
       <NewInvoiceDialog open={openNew} onClose={() => setOpenNew(false)} onCreated={() => { setOpenNew(false); load(); }} />
       <FromOrderDialog kind="sales" open={openFromSO} onClose={() => setOpenFromSO(false)} onDone={() => { setOpenFromSO(false); load(); }} />
       <FromOrderDialog kind="purchase" open={openFromPO} onClose={() => setOpenFromPO(false)} onDone={() => { setOpenFromPO(false); load(); }} />
+      <CustomColumnDialog module="invoices" columns={customCols.columns} open={customCols.open} onClose={() => customCols.setOpen(false)} onSave={customCols.save} />
     </div>
   );
 }

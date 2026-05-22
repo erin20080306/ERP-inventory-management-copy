@@ -22,6 +22,7 @@ type Product = {
   soldTotal?: number;
   categoryId?: string | null;
   unitId?: string | null;
+  updatedBy?: string | null;
 };
 
 function ProductDialog({ open, onClose, row, onSaved }: any) {
@@ -201,6 +202,7 @@ export function ProductClient() {
           },
         },
         { key: "isActive", title: "狀態", render: (r) => (r.isActive ? <Badge variant="success">啟用</Badge> : <Badge variant="danger">停用</Badge>) },
+        { key: "updatedBy", title: "操作人員", render: (r) => <span className="text-xs text-gray-500">{r.updatedBy || "-"}</span> },
       ]}
       FormDialog={ProductDialog}
       pdfTitle="商品管理"

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { apiHandler, requirePermission, requireTenantId, audit, nextNumber } from "@/lib/api";
+import { apiHandler, requirePermission, requireTenantId, audit, nextNumber, getCurrentUserId } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { calcTotals } from "@/lib/documents";
 import { autoCreateJournalFromOrder } from "@/lib/auto-journal";
@@ -44,6 +44,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
 export const POST = apiHandler(async (req: NextRequest) => {
   const session = await requirePermission("purchases.create");
   const tenantId = await requireTenantId();
+  const currentUserId = await getCurrentUserId();
   const body = await req.json();
   const { supplierId, items, remark, status } = body as any;
   if (!supplierId) throw new Error("請選擇供應商");
@@ -66,6 +67,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
         discount: totals.discount,
         taxAmount: totals.taxAmount,
         total: totals.total,
+        updatedBy: currentUserId,
         items: {
           create: totals.computed.map((i: any) => ({
             productId: i.productId,

@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { StatusBadge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Plus, Loader2, Trash2, Search, Download, FileDown, Printer } from "lucide-react";
+import { Plus, Loader2, Trash2, Search, Download, FileDown, Printer, Pencil } from "lucide-react";
 import { formatDate, formatMoney } from "@/lib/utils";
 import { downloadCSV, toCSV } from "@/lib/csv";
 import { useCustomColumns, CustomColumnDialog, CustomColumnButton, getCustomFieldValues, setCustomFieldValue } from "@/components/custom-columns";
@@ -75,14 +75,15 @@ function QuotationDialog({ open, onClose, row, onSaved }: any) {
     if (items.length === 0) return toast.error("請至少新增一項商品");
     setSaving(true);
     try {
-      const res = await fetch("/api/quotations", {
-        method: "POST",
+      const res = await fetch(row ? `/api/quotations/${row.id}` : "/api/quotations", {
+        method: row ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, items }),
+        body: JSON.stringify({ ...form, id: row?.id, items }),
       });
       if (!res.ok) throw new Error((await res.json()).error || "儲存失敗");
+      const saved = await res.json();
       toast.success("已儲存");
-      onSaved();
+      onSaved(saved);
       onClose();
     } catch (e: any) {
       toast.error(e.message);
@@ -186,6 +187,7 @@ export default function QuotationClient() {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [openNew, setOpenNew] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
   const [pdfBusy, setPdfBusy] = useState(false);
   const customCols = useCustomColumns("quotations");
   const [editingCells, setEditingCells] = useState<Record<string, any>>({});
@@ -264,15 +266,19 @@ export default function QuotationClient() {
         <CustomColumnButton onClick={() => customCols.setOpen(true)} />
       </div>
 
+      <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
+        <span>💡 自訂欄位可使用 ↑↓ 按鈕調整順序</span>
+      </div>
+
       {loading ? (
         <div className="flex justify-center py-8"><Loader2 className="h-8 w-8 animate-spin" /></div>
       ) : (
         <Table>
           <THead>
-            <TR><TH>單號</TH><TH>客戶</TH><TH>日期</TH><TH>有效期限</TH><TH>總計</TH><TH>狀態</TH>{customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}</TR>
+            <TR><TH>單號</TH><TH>客戶</TH><TH>日期</TH><TH>有效期限</TH><TH>總計</TH><TH>狀態</TH><TH>操作人員</TH>{customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}<TH className="text-right">操作</TH></TR>
           </THead>
           <TBody>
-            {items.length === 0 && <TR><TD colSpan={6} className="text-center text-muted-foreground">尚無報價單</TD></TR>}
+            {items.length === 0 && <TR><TD colSpan={8} className="text-center text-muted-foreground">尚無報價單</TD></TR>}
             {items.map((q) => (
               <TR key={q.id}>
                 <TD className="font-mono text-xs">{q.number}</TD>
@@ -281,19 +287,26 @@ export default function QuotationClient() {
                 <TD>{formatDate(q.validUntil)}</TD>
                 <TD>{formatMoney(q.total)}</TD>
                 <TD><StatusBadge status={q.status} /></TD>
+                <TD className="text-xs text-gray-500">{q.updatedBy || "-"}</TD>
                 {customCols.columns.map((cc) => {
                   const cellKey = `${q.id}_${cc.id}`;
                   const vals = getCustomFieldValues("quotations", q.id);
                   const isE = editingCells[cellKey];
                   return <TD key={cc.id}>{isE ? <Input type={cc.type === "number" ? "number" : cc.type === "date" ? "date" : "text"} defaultValue={vals[cc.id] ?? ""} autoFocus className="h-7 text-xs" onBlur={(e) => { setCustomFieldValue("quotations", q.id, cc.id, e.target.value); setEditingCells((p) => ({ ...p, [cellKey]: false })); }} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} /> : <span className="cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950 px-1 py-0.5 rounded min-h-[24px] inline-block min-w-[40px]" onClick={() => setEditingCells((p) => ({ ...p, [cellKey]: true }))}>{vals[cc.id] || "—"}</span>}</TD>;
                 })}
+                <TD className="text-right">
+                  <Button variant="ghost" size="icon" onClick={() => setEditId(q.id)} title="編輯">
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                </TD>
               </TR>
             ))}
           </TBody>
         </Table>
       )}
 
-      <QuotationDialog open={openNew} onClose={() => setOpenNew(false)} onSaved={load} />
+      <QuotationDialog open={openNew} onClose={() => setOpenNew(false)} onSaved={(saved) => { setOpenNew(false); if (saved) { setItems((prev) => prev.map((q) => q.id === saved.id ? saved : q)); } else { load(); } }} />
+      {editId && <QuotationDialog open={!!editId} row={items.find((q) => q.id === editId)} onClose={() => setEditId(null)} onSaved={(saved) => { setEditId(null); if (saved) { setItems((prev) => prev.map((q) => q.id === saved.id ? saved : q)); } else { load(); } }} />}
       <CustomColumnDialog module="quotations" columns={customCols.columns} open={customCols.open} onClose={() => customCols.setOpen(false)} onSave={customCols.save} />
     </div>
   );

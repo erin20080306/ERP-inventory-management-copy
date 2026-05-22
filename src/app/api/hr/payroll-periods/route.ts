@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { apiHandler, requirePermission, requireTenantId, audit } from "@/lib/api";
+import { apiHandler, requirePermission, requireTenantId, audit, getCurrentUserId } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 
 export const GET = apiHandler(async (req: NextRequest) => {
@@ -30,6 +30,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
 export const POST = apiHandler(async (req: NextRequest) => {
   const session = await requirePermission("payroll.create");
   const tenantId = await requireTenantId();
+  const currentUserId = await getCurrentUserId();
   const body = await req.json();
   const year = Number(body.year);
   const month = Number(body.month);
@@ -49,6 +50,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
       payDate: body.payDate ? new Date(body.payDate) : null,
       status: "DRAFT",
       remark: body.remark,
+      updatedBy: currentUserId,
     },
   });
   await audit({ userId: session.user.id, action: "create", module: "payroll-periods", refId: created.id });

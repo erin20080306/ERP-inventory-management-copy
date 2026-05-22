@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { Loader2, Search, Download, Printer, FileDown } from "lucide-react";
 import { formatDate, formatMoney } from "@/lib/utils";
 import { downloadCSV, toCSV } from "@/lib/csv";
+import { useCustomColumns, CustomColumnDialog, CustomColumnButton, getCustomFieldValues, setCustomFieldValue } from "@/components/custom-columns";
 
 export function PaymentHistoryClient() {
   const [rows, setRows] = useState<any[]>([]);
@@ -21,6 +22,8 @@ export function PaymentHistoryClient() {
   const [toDate, setToDate] = useState("");
   const [pdfBusy, setPdfBusy] = useState(false);
   const pageSize = 20;
+  const customCols = useCustomColumns("payments");
+  const [editingCells, setEditingCells] = useState<Record<string, any>>({});
 
   async function load() {
     setLoading(true);
@@ -119,9 +122,13 @@ export function PaymentHistoryClient() {
             <Download className="h-4 w-4" />
             CSV
           </Button>
+          <CustomColumnButton onClick={() => customCols.setOpen(true)} />
         </div>
       </div>
 
+      <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
+        <span>💡 自訂欄位可使用 ↑↓ 按鈕調整順序</span>
+      </div>
       <Table>
         <THead>
           <TR>
@@ -133,6 +140,7 @@ export function PaymentHistoryClient() {
             <TH>方式</TH>
             <TH>日期</TH>
             <TH>備註</TH>
+            {customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}
           </TR>
         </THead>
         <TBody>
@@ -148,6 +156,35 @@ export function PaymentHistoryClient() {
               <TD>{methodLabel(r.method)}</TD>
               <TD>{formatDate(r.date)}</TD>
               <TD className="text-muted-foreground text-xs max-w-[150px] truncate">{r.remark ?? ""}</TD>
+              {customCols.columns.map((cc) => {
+                const cellKey = `${r.id}_${cc.id}`;
+                const vals = getCustomFieldValues("payments", r.id);
+                const isEditing = editingCells[cellKey];
+                return (
+                  <TD key={cc.id}>
+                    {isEditing ? (
+                      <Input
+                        type={cc.type === "number" ? "number" : cc.type === "date" ? "date" : "text"}
+                        defaultValue={vals[cc.id] ?? ""}
+                        autoFocus
+                        className="h-7 text-xs"
+                        onBlur={(e) => {
+                          setCustomFieldValue("payments", r.id, cc.id, e.target.value);
+                          setEditingCells((p) => ({ ...p, [cellKey]: false }));
+                        }}
+                        onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                      />
+                    ) : (
+                      <span
+                        className="cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950 px-1 py-0.5 rounded min-h-[24px] inline-block min-w-[40px]"
+                        onClick={() => setEditingCells((p) => ({ ...p, [cellKey]: true }))}
+                      >
+                        {vals[cc.id] || "—"}
+                      </span>
+                    )}
+                  </TD>
+                );
+              })}
             </TR>
           ))}
         </TBody>
@@ -161,6 +198,7 @@ export function PaymentHistoryClient() {
           <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>下一頁</Button>
         </div>
       </div>
+      <CustomColumnDialog module="payments" columns={customCols.columns} open={customCols.open} onClose={() => customCols.setOpen(false)} onSave={customCols.save} />
     </div>
   );
 }

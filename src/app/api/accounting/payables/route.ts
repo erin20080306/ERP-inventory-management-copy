@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { apiHandler, requirePermission, requireTenantId, audit, nextNumber } from "@/lib/api";
+import { apiHandler, requirePermission, requireTenantId, audit, nextNumber, getCurrentUserId } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { buildSupplierPaymentDraft, buildDiscountNoteDraft, autoCreateJournal } from "@/lib/auto-journal";
 
@@ -44,6 +44,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
 export const POST = apiHandler(async (req: NextRequest) => {
   const session = await requirePermission("payables.edit");
   const tenantId = await requireTenantId();
+  const currentUserId = await getCurrentUserId();
   const body = await req.json();
   const { payableId, amount, discount, discountNote, method, remark } = body;
   const ap = await prisma.accountsPayable.findUnique({
@@ -63,7 +64,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
     // 建立付款紀錄
     if (Number(amount) > 0) {
       const created = await tx.supplierPayment.create({
-        data: { tenantId, number, supplierId: ap.supplierId, payableId: ap.id, amount: Number(amount), method, remark },
+        data: { tenantId, number, supplierId: ap.supplierId, payableId: ap.id, amount: Number(amount), method, remark, updatedBy: currentUserId },
       });
       paymentId = created.id;
     }
@@ -83,7 +84,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
     // 更新應付帳款
     const newPaid = Number(ap.paidAmount) + totalWriteOff;
     const status = newPaid >= Number(ap.amount) ? "PAID" : "PARTIAL";
-    await tx.accountsPayable.update({ where: { id: ap.id }, data: { paidAmount: newPaid, status } });
+    await tx.accountsPayable.update({ where: { id: ap.id }, data: { paidAmount: newPaid, status, updatedBy: currentUserId } });
   });
   await audit({ userId: session.user.id, action: "pay", module: "payables", refId: payableId, detail: number });
 
@@ -97,5 +98,11 @@ export const POST = apiHandler(async (req: NextRequest) => {
     await autoCreateJournal(tenantId, draft, session.user.id);
   }
 
-  return NextResponse.json({ ok: true, paymentId, discountId, number });
+  // 返回更新後的應付帳款記錄
+  const updated = await prisma.accountsPayable.findUnique({
+    where: { id: payableId },
+    include: { supplier: true, purchaseOrder: true, payments: true },
+  });
+
+  return NextResponse.json({ ok: true, paymentId, discountId, number, updated });
 });
