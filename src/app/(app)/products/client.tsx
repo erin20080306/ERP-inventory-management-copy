@@ -117,11 +117,11 @@ function ProductDialog({ open, onClose, row, onSaved }: any) {
           </div>
           <div className="space-y-1">
             <Label>成本價</Label>
-            <Input type="number" step="0.01" value={form.costPrice ?? 0} onChange={(e) => setForm({ ...form, costPrice: e.target.value })} />
+            <Input type="number" step="1" value={form.costPrice ?? 0} onChange={(e) => setForm({ ...form, costPrice: e.target.value })} />
           </div>
           <div className="space-y-1">
             <Label>售價</Label>
-            <Input type="number" step="0.01" value={form.salePrice ?? 0} onChange={(e) => setForm({ ...form, salePrice: e.target.value })} />
+            <Input type="number" step="1" value={form.salePrice ?? 0} onChange={(e) => setForm({ ...form, salePrice: e.target.value })} />
           </div>
           <div className="space-y-1">
             <Label>安全庫存</Label>

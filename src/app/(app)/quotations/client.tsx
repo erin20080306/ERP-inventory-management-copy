@@ -158,10 +158,10 @@ function QuotationDialog({ open, onClose, row, onSaved }: any) {
                           {products.map((p: any) => <option key={p.id} value={p.id}>{p.sku} - {p.name}</option>)}
                         </select>
                       </TD>
-                      <TD><Input type="number" step="0.01" value={item.quantity} onChange={(e) => updateItem(idx, "quantity", e.target.value)} className="w-20" /></TD>
-                      <TD><Input type="number" step="0.01" value={item.unitPrice} onChange={(e) => updateItem(idx, "unitPrice", e.target.value)} className="w-24" /></TD>
-                      <TD><Input type="number" step="0.01" value={item.discount} onChange={(e) => updateItem(idx, "discount", e.target.value)} className="w-20" /></TD>
-                      <TD><Input type="number" step="0.01" value={item.taxRate} onChange={(e) => updateItem(idx, "taxRate", e.target.value)} className="w-16" /></TD>
+                      <TD><Input type="number" step="1" value={item.quantity} onChange={(e) => updateItem(idx, "quantity", e.target.value)} className="w-20" /></TD>
+                      <TD><Input type="number" step="1" value={item.unitPrice} onChange={(e) => updateItem(idx, "unitPrice", e.target.value)} className="w-24" /></TD>
+                      <TD><Input type="number" step="1" value={item.discount} onChange={(e) => updateItem(idx, "discount", e.target.value)} className="w-20" /></TD>
+                      <TD><Input type="number" step="1" value={item.taxRate} onChange={(e) => updateItem(idx, "taxRate", e.target.value)} className="w-16" /></TD>
                       <TD>{formatMoney(item.subtotal)}</TD>
                       <TD><Button size="sm" variant="ghost" onClick={() => removeItem(idx)}><Trash2 className="h-4 w-4 text-red-600" /></Button></TD>
                     </TR>

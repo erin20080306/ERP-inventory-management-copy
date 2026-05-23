@@ -556,15 +556,15 @@ function CreateOrderDialog({ kind, open, onClose, onCreated }: any) {
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">單價</Label>
-                    <Input type="number" step="0.01" value={it.unitPrice} onChange={(e) => updateItem(idx, { unitPrice: Number(e.target.value) })} />
+                    <Input type="number" step="1" value={it.unitPrice} onChange={(e) => updateItem(idx, { unitPrice: Number(e.target.value) })} />
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">折扣</Label>
-                    <Input type="number" step="0.01" value={it.discount ?? 0} onChange={(e) => updateItem(idx, { discount: Number(e.target.value) })} />
+                    <Input type="number" step="1" value={it.discount ?? 0} onChange={(e) => updateItem(idx, { discount: Number(e.target.value) })} />
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">稅率</Label>
-                    <Input type="number" step="0.01" value={it.taxRate ?? 0} onChange={(e) => updateItem(idx, { taxRate: Number(e.target.value) })} />
+                    <Input type="number" step="1" value={it.taxRate ?? 0} onChange={(e) => updateItem(idx, { taxRate: Number(e.target.value) })} />
                   </div>
                 </div>
                 <div className="text-right text-sm font-medium">小計：{formatMoney(line)}</div>
@@ -938,15 +938,15 @@ function EditOrderDialog({ kind, id, onClose, onSaved }: { kind: Kind; id: strin
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">單價</Label>
-                    <Input type="number" step="0.01" value={it.unitPrice} onChange={(e) => updateItem(idx, { unitPrice: Number(e.target.value) })} />
+                    <Input type="number" step="1" value={it.unitPrice} onChange={(e) => updateItem(idx, { unitPrice: Number(e.target.value) })} />
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">折扣</Label>
-                    <Input type="number" step="0.01" value={it.discount ?? 0} onChange={(e) => updateItem(idx, { discount: Number(e.target.value) })} />
+                    <Input type="number" step="1" value={it.discount ?? 0} onChange={(e) => updateItem(idx, { discount: Number(e.target.value) })} />
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">稅率</Label>
-                    <Input type="number" step="0.01" value={it.taxRate ?? 0} onChange={(e) => updateItem(idx, { taxRate: Number(e.target.value) })} />
+                    <Input type="number" step="1" value={it.taxRate ?? 0} onChange={(e) => updateItem(idx, { taxRate: Number(e.target.value) })} />
                   </div>
                 </div>
                 <div className="text-right text-sm font-medium">小計：{formatMoney(line)}</div>

@@ -529,6 +529,7 @@ export function CrudTable<T extends { id: string }>({
                       ) : (
                         <Input
                           type={c.editable!.type}
+                          step={c.editable!.type === "number" ? "1" : undefined}
                           value={draft[c.key] ?? ""}
                           autoFocus
                           onChange={(e) => setInlineEditing((prev) => ({ ...prev, [row.id]: { ...prev[row.id], [c.key]: e.target.value } }))}
