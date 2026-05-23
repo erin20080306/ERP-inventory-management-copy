@@ -430,6 +430,7 @@ function CreateOrderDialog({ kind, open, onClose, onCreated }: any) {
   const [partyId, setPartyId] = useState("");
   const [items, setItems] = useState<any[]>([]);
   const [remark, setRemark] = useState("");
+  const [isTaxable, setIsTaxable] = useState(true);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -440,6 +441,7 @@ function CreateOrderDialog({ kind, open, onClose, onCreated }: any) {
     setPartyId("");
     setItems([]);
     setRemark("");
+    setIsTaxable(true);
   }, [open, kind]);
 
   function addItem() {
@@ -459,10 +461,10 @@ function CreateOrderDialog({ kind, open, onClose, onCreated }: any) {
     setItems(items.filter((_, i) => i !== idx));
   }
 
-  const subtotal = items.reduce((s, i) => s + Number(i.quantity) * Number(i.unitPrice), 0);
-  const discount = items.reduce((s, i) => s + Number(i.discount ?? 0), 0);
+  const subtotal = items.reduce((s, i) => s + Math.round(Number(i.quantity)) * Math.round(Number(i.unitPrice)), 0);
+  const discount = items.reduce((s, i) => s + Math.round(Number(i.discount ?? 0)), 0);
   const taxableTotal = subtotal - discount;
-  const taxAmount = Math.round(taxableTotal * 0.05);
+  const taxAmount = isTaxable ? Math.round(taxableTotal * 0.05) : 0;
   const total = subtotal - discount + taxAmount;
 
   async function save() {
@@ -478,8 +480,8 @@ function CreateOrderDialog({ kind, open, onClose, onCreated }: any) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
           kind === "purchase"
-            ? { supplierId: partyId, items, remark, status: "SUBMITTED" }
-            : { customerId: partyId, items, remark, status: "SUBMITTED" }
+            ? { supplierId: partyId, items, remark, status: "SUBMITTED", isTaxable }
+            : { customerId: partyId, items, remark, status: "SUBMITTED", isTaxable }
         ),
       });
       toast.dismiss(loadingToastId);
@@ -515,6 +517,14 @@ function CreateOrderDialog({ kind, open, onClose, onCreated }: any) {
                 </option>
               ))}
             </select>
+          </div>
+          <div className="space-y-1">
+            <Label>備註</Label>
+            <Textarea value={remark} onChange={(e) => setRemark(e.target.value)} className="h-10" />
+          </div>
+          <div className="space-y-1 flex items-center gap-2">
+            <input type="checkbox" id="isTaxable" checked={isTaxable} onChange={(e) => setIsTaxable(e.target.checked)} />
+            <Label htmlFor="isTaxable" className="cursor-pointer">應稅收據</Label>
           </div>
         </div>
 

@@ -46,10 +46,10 @@ export const POST = apiHandler(async (req: NextRequest) => {
   const tenantId = await requireTenantId();
   const currentUserId = await getCurrentUserId();
   const body = await req.json();
-  const { customerId, items, remark, status } = body as any;
+  const { customerId, items, remark, status, isTaxable } = body as any;
   if (!customerId) throw new Error("請選擇客戶");
   if (!items?.length) throw new Error("請至少新增一項商品");
-  const totals = calcTotals(items);
+  const totals = calcTotals(items, isTaxable !== false);
   const number = await nextNumber("SO", tenantId);
   const isConfirmed = (status ?? "DRAFT") === "APPROVED";
 
@@ -66,6 +66,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
         discount: totals.discount,
         taxAmount: totals.taxAmount,
         total: totals.total,
+        isTaxable: isTaxable !== false,
         updatedBy: currentUserId,
         items: {
           create: totals.computed.map((i: any) => ({

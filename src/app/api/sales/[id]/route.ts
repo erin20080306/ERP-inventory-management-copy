@@ -91,10 +91,10 @@ export const PUT = apiHandler(async (req: NextRequest, { params }: { params: { i
     throw new Error("已過帳/已作廢狀態無法修改");
   }
   const body = await req.json();
-  const { customerId, items, remark } = body as any;
+  const { customerId, items, remark, isTaxable } = body as any;
   if (!customerId) throw new Error("請選擇客戶");
   if (!items?.length) throw new Error("請至少新增一項商品");
-  const totals = calcTotals(items);
+  const totals = calcTotals(items, isTaxable !== false);
   // 先刪除舊的 items
   await prisma.salesOrderItem.deleteMany({ where: { orderId: params.id } });
   const updated = await prisma.salesOrder.update({
@@ -106,6 +106,7 @@ export const PUT = apiHandler(async (req: NextRequest, { params }: { params: { i
       discount: totals.discount,
       taxAmount: totals.taxAmount,
       total: totals.total,
+      isTaxable: isTaxable !== false,
       updatedBy: currentUserId,
       items: {
         create: totals.computed.map((i: any) => ({

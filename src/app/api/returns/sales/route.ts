@@ -42,10 +42,10 @@ export const POST = apiHandler(async (req: NextRequest) => {
   const tenantId = await requireTenantId();
   const currentUserId = await getCurrentUserId();
   const body = await req.json();
-  const { customerId, salesOrderId, reason, status, items } = body as any;
+  const { customerId, salesOrderId, reason, status, items, isTaxable } = body as any;
   if (!customerId) throw new Error("請選擇客戶");
   if (!items?.length) throw new Error("請至少新增一項商品");
-  const totals = calcTotals(items);
+  const totals = calcTotals(items, isTaxable !== false);
   const number = await nextNumber("SR", tenantId);
 
   const created = await prisma.$transaction(async (tx) => {
@@ -59,6 +59,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
         status: status ?? "DRAFT",
         returnDate: new Date(),
         total: totals.total,
+        isTaxable: isTaxable !== false,
         updatedBy: currentUserId,
         items: {
           create: totals.computed.map((i: any) => ({
@@ -156,10 +157,10 @@ export const PUT = apiHandler(async (req: NextRequest) => {
   const tenantId = await requireTenantId();
   const currentUserId = await getCurrentUserId();
   const body = await req.json();
-  const { id, customerId, salesOrderId, reason, status, items } = body as any;
+  const { id, customerId, salesOrderId, reason, status, items, isTaxable } = body as any;
   if (!customerId) throw new Error("請選擇客戶");
   if (!items?.length) throw new Error("請至少新增一項商品");
-  const totals = calcTotals(items);
+  const totals = calcTotals(items, isTaxable !== false);
 
   const existing = await prisma.salesReturn.findUnique({ where: { id, tenantId } });
   if (!existing) throw new Error("退貨單不存在");
@@ -172,6 +173,7 @@ export const PUT = apiHandler(async (req: NextRequest) => {
       reason,
       status: status ?? existing.status,
       total: totals.total,
+      isTaxable: isTaxable !== false,
       updatedBy: currentUserId,
       items: {
         deleteMany: {},

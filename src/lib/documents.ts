@@ -8,23 +8,25 @@ export type DocItem = {
   taxRate?: number;
 };
 
-export function calcTotals(items: DocItem[]) {
+export function calcTotals(items: DocItem[], isTaxable: boolean = true) {
   let subtotal = 0;
   let discount = 0;
   const computed = items.map((i) => {
-    const line = i.quantity * i.unitPrice;
-    const ldisc = Number(i.discount ?? 0);
+    const qty = Math.round(Number(i.quantity));
+    const price = Math.round(Number(i.unitPrice));
+    const line = qty * price;
+    const ldisc = Math.round(Number(i.discount ?? 0));
     const taxable = line - ldisc;
     subtotal += line;
     discount += ldisc;
-    return { ...i, subtotal: +(taxable).toFixed(2) };
+    return { ...i, quantity: qty, unitPrice: price, discount: ldisc, subtotal: taxable };
   });
   const taxableTotal = subtotal - discount;
-  const taxAmount = Math.round(taxableTotal * 0.05);
-  const total = +(subtotal - discount + taxAmount).toFixed(2);
+  const taxAmount = isTaxable ? Math.round(taxableTotal * 0.05) : 0;
+  const total = subtotal - discount + taxAmount;
   return {
-    subtotal: +subtotal.toFixed(2),
-    discount: +discount.toFixed(2),
+    subtotal,
+    discount,
     taxAmount,
     total,
     computed,

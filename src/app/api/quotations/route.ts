@@ -41,10 +41,10 @@ export const POST = apiHandler(async (req: NextRequest) => {
   const tenantId = await requireTenantId();
   const currentUserId = await getCurrentUserId();
   const body = await req.json();
-  const { customerId, quoteDate, validUntil, reason, status, items } = body as any;
+  const { customerId, quoteDate, validUntil, reason, status, items, isTaxable } = body as any;
   if (!customerId) throw new Error("請選擇客戶");
   if (!items?.length) throw new Error("請至少新增一項商品");
-  const totals = calcTotals(items);
+  const totals = calcTotals(items, isTaxable !== false);
   const number = await nextNumber("QT", tenantId);
 
   const created = await prisma.quotation.create({
@@ -56,6 +56,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
       validUntil: validUntil ? new Date(validUntil) : null,
       status: status ?? "DRAFT",
       total: totals.total,
+      isTaxable: isTaxable !== false,
       updatedBy: currentUserId,
       items: {
         create: totals.computed.map((i: any) => ({
@@ -119,10 +120,10 @@ export const PUT = apiHandler(async (req: NextRequest) => {
   const tenantId = await requireTenantId();
   const currentUserId = await getCurrentUserId();
   const body = await req.json();
-  const { id, customerId, quoteDate, validUntil, status, items } = body as any;
+  const { id, customerId, quoteDate, validUntil, status, items, isTaxable } = body as any;
   if (!customerId) throw new Error("請選擇客戶");
   if (!items?.length) throw new Error("請至少新增一項商品");
-  const totals = calcTotals(items);
+  const totals = calcTotals(items, isTaxable !== false);
 
   const existing = await prisma.quotation.findUnique({ where: { id, tenantId } });
   if (!existing) throw new Error("報價單不存在");
@@ -135,6 +136,7 @@ export const PUT = apiHandler(async (req: NextRequest) => {
       validUntil: validUntil ? new Date(validUntil) : null,
       status: status ?? existing.status,
       total: totals.total,
+      isTaxable: isTaxable !== false,
       updatedBy: currentUserId,
       items: {
         deleteMany: {},
