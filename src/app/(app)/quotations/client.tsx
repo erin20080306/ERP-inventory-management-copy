@@ -123,10 +123,11 @@ function QuotationDialog({ open, onClose, row, onSaved }: any) {
                 <Label>狀態</Label>
                 <select value={form.status || "DRAFT"} onChange={(e) => setForm({ ...form, status: e.target.value })} className="w-full px-3 py-2 border rounded">
                   <option value="DRAFT">草稿</option>
-                  <option value="SENT">已送出</option>
-                  <option value="ACCEPTED">已接受</option>
-                  <option value="REJECTED">已拒絕</option>
-                  <option value="EXPIRED">已過期</option>
+                  <option value="SUBMITTED">已送審</option>
+                  <option value="APPROVED">已審核</option>
+                  <option value="POSTED">已過帳</option>
+                  <option value="VOIDED">已作廢</option>
+                  <option value="REJECTED">已駁回</option>
                 </select>
               </div>
             </div>
@@ -214,6 +215,21 @@ export default function QuotationClient() {
   useEffect(() => { load(); }, [q, fromDate, toDate]);
 
   const editableFields = ["quoteDate", "validUntil"];
+
+  async function onAct(id: string, action: string) {
+    try {
+      const res = await fetch("/api/quotations", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, action }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || "操作失敗");
+      toast.success("已處理");
+      load();
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+  }
 
   function startCellEdit(row: any, colKey: string) {
     if (!inlineEditing[row.id]) {
@@ -410,6 +426,15 @@ export default function QuotationClient() {
                   return <TD key={cc.id}>{isE ? <Input type={cc.type === "number" ? "number" : cc.type === "date" ? "date" : "text"} defaultValue={vals[cc.id] ?? ""} autoFocus className="h-7 text-xs" onBlur={(e) => { setCustomFieldValue("quotations", q.id, cc.id, e.target.value); setEditingCells((p) => ({ ...p, [cellKey]: false })); }} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} /> : <span className="cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950 px-1 py-0.5 rounded min-h-[24px] inline-block min-w-[40px]" onClick={() => setEditingCells((p) => ({ ...p, [cellKey]: true }))}>{vals[cc.id] || "—"}</span>}</TD>;
                 })}
                 <TD className="text-right">
+                  {q.status === "DRAFT" && <Button size="sm" variant="outline" onClick={() => onAct(q.id, "submit")}>送出</Button>}
+                  {q.status === "SUBMITTED" && (
+                    <>
+                      <Button size="sm" variant="outline" onClick={() => onAct(q.id, "approve")}>審核</Button>
+                      <Button size="sm" variant="destructive" onClick={() => onAct(q.id, "reject")}>駁回</Button>
+                    </>
+                  )}
+                  {q.status === "APPROVED" && <Button size="sm" onClick={() => onAct(q.id, "post")}>過帳</Button>}
+                  {q.status !== "VOIDED" && q.status !== "POSTED" && <Button size="sm" variant="destructive" onClick={() => onAct(q.id, "void")}>作廢</Button>}
                   <Button variant="ghost" size="icon" onClick={() => setEditId(q.id)} title="編輯">
                     <Pencil className="h-4 w-4" />
                   </Button>

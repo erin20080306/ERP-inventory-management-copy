@@ -81,7 +81,28 @@ export const PATCH = apiHandler(async (req: NextRequest) => {
   const tenantId = await requireTenantId();
   const currentUserId = await getCurrentUserId();
   const body = await req.json();
-  const { id, status } = body as any;
+  const { id, status, action } = body as any;
+
+  if (action) {
+    if (action === "submit") {
+      await requirePermission("quotations.submit");
+      await prisma.quotation.update({ where: { id, tenantId }, data: { status: "SUBMITTED", updatedBy: currentUserId } });
+    } else if (action === "approve") {
+      await requirePermission("quotations.approve");
+      await prisma.quotation.update({ where: { id, tenantId }, data: { status: "APPROVED", updatedBy: currentUserId } });
+    } else if (action === "reject") {
+      await requirePermission("quotations.reject");
+      await prisma.quotation.update({ where: { id, tenantId }, data: { status: "REJECTED", updatedBy: currentUserId } });
+    } else if (action === "post") {
+      await requirePermission("quotations.post");
+      await prisma.quotation.update({ where: { id, tenantId }, data: { status: "POSTED", updatedBy: currentUserId } });
+    } else if (action === "void") {
+      await requirePermission("quotations.void");
+      await prisma.quotation.update({ where: { id, tenantId }, data: { status: "VOIDED", updatedBy: currentUserId } });
+    }
+    await audit({ userId: session.user.id, action, module: "quotations", refId: id });
+    return NextResponse.json({ ok: true });
+  }
 
   const updated = await prisma.quotation.update({
     where: { id, tenantId },

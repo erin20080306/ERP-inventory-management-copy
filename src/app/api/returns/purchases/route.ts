@@ -123,6 +123,34 @@ export const POST = apiHandler(async (req: NextRequest) => {
   return NextResponse.json(created);
 });
 
+export const PATCH = apiHandler(async (req: NextRequest) => {
+  const session = await requirePermission("returns.edit");
+  const tenantId = await requireTenantId();
+  const currentUserId = await getCurrentUserId();
+  const body = await req.json();
+  const { id, action } = body as any;
+
+  if (action === "submit") {
+    await requirePermission("returns.submit");
+    await prisma.purchaseReturn.update({ where: { id, tenantId }, data: { status: "SUBMITTED", updatedBy: currentUserId } });
+  } else if (action === "approve") {
+    await requirePermission("returns.approve");
+    await prisma.purchaseReturn.update({ where: { id, tenantId }, data: { status: "APPROVED", updatedBy: currentUserId } });
+  } else if (action === "reject") {
+    await requirePermission("returns.reject");
+    await prisma.purchaseReturn.update({ where: { id, tenantId }, data: { status: "REJECTED", updatedBy: currentUserId } });
+  } else if (action === "post") {
+    await requirePermission("returns.post");
+    await prisma.purchaseReturn.update({ where: { id, tenantId }, data: { status: "POSTED", updatedBy: currentUserId } });
+  } else if (action === "void") {
+    await requirePermission("returns.void");
+    await prisma.purchaseReturn.update({ where: { id, tenantId }, data: { status: "VOIDED", updatedBy: currentUserId } });
+  }
+
+  await audit({ userId: session.user.id, action, module: "returns", refId: id });
+  return NextResponse.json({ ok: true });
+});
+
 export const PUT = apiHandler(async (req: NextRequest) => {
   const session = await requirePermission("returns.edit");
   const tenantId = await requireTenantId();

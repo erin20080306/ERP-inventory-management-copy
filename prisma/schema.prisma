@@ -534,6 +534,15 @@ model QuotationItem {
 }
 
 // ─────────────────────────── 退貨 ───────────────────────────
+enum ReturnStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  POSTED
+  VOIDED
+  REJECTED
+}
+
 model SalesReturn {
   id           String            @id @default(cuid())
   tenantId     String
@@ -542,7 +551,7 @@ model SalesReturn {
   salesOrderId String?
   returnDate   DateTime          @default(now())
   reason       String?
-  status       String            @default("DRAFT") // DRAFT / CONFIRMED
+  status       ReturnStatus      @default(DRAFT)
   total        Decimal           @default(0) @db.Decimal(18, 2)
   updatedBy    String?
   createdAt    DateTime          @default(now())
@@ -575,7 +584,7 @@ model PurchaseReturn {
   purchaseOrderId String?
   returnDate      DateTime             @default(now())
   reason          String?
-  status          String               @default("DRAFT")
+  status          ReturnStatus         @default(DRAFT)
   total           Decimal              @default(0) @db.Decimal(18, 2)
   updatedBy       String?
   createdAt       DateTime             @default(now())

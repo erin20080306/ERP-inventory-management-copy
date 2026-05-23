@@ -134,7 +134,11 @@ function ReturnDialog({ open, onClose, row, onSaved, type }: any) {
                 <Label>狀態</Label>
                 <select value={form.status || "DRAFT"} onChange={(e) => setForm({ ...form, status: e.target.value })} className="w-full px-3 py-2 border rounded">
                   <option value="DRAFT">草稿</option>
-                  <option value="APPROVED">確認（自動調整庫存）</option>
+                  <option value="SUBMITTED">已送審</option>
+                  <option value="APPROVED">已審核</option>
+                  <option value="POSTED">已過帳</option>
+                  <option value="VOIDED">已作廢</option>
+                  <option value="REJECTED">已駁回</option>
                 </select>
               </div>
               <div className="space-y-1 col-span-2">
@@ -233,6 +237,22 @@ export default function ReturnsClient() {
   useEffect(() => { load(); }, [q, fromDate, toDate]);
 
   const editableFields = ["reason"];
+
+  async function onAct(id: string, action: string, isSales: boolean) {
+    try {
+      const endpoint = isSales ? "/api/returns/sales" : "/api/returns/purchases";
+      const res = await fetch(endpoint, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, action }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || "操作失敗");
+      toast.success("已處理");
+      load();
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+  }
 
   function startCellEdit(row: any, colKey: string) {
     if (!inlineEditing[row.id]) {
@@ -381,6 +401,15 @@ export default function ReturnsClient() {
                     <TD className="text-xs text-gray-500">{r.updatedBy || "-"}</TD>
                     {customCols.columns.map((cc) => { const ck = `${r.id}_${cc.id}`; const v = getCustomFieldValues("returns", r.id); const isE = editingCells[ck]; return <TD key={cc.id}>{isE ? <Input type={cc.type === "number" ? "number" : cc.type === "date" ? "date" : "text"} defaultValue={v[cc.id] ?? ""} autoFocus className="h-7 text-xs" onBlur={(e) => { setCustomFieldValue("returns", r.id, cc.id, e.target.value); setEditingCells((p) => ({ ...p, [ck]: false })); }} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} /> : <span className="cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950 px-1 py-0.5 rounded min-h-[24px] inline-block min-w-[40px]" onClick={() => setEditingCells((p) => ({ ...p, [ck]: true }))}>{v[cc.id] || "—"}</span>}</TD>; })}
                     <TD className="text-right flex items-center justify-end gap-1">
+                      {r.status === "DRAFT" && <Button size="sm" variant="outline" onClick={() => onAct(r.id, "submit", true)}>送出</Button>}
+                      {r.status === "SUBMITTED" && (
+                        <>
+                          <Button size="sm" variant="outline" onClick={() => onAct(r.id, "approve", true)}>審核</Button>
+                          <Button size="sm" variant="destructive" onClick={() => onAct(r.id, "reject", true)}>駁回</Button>
+                        </>
+                      )}
+                      {r.status === "APPROVED" && <Button size="sm" onClick={() => onAct(r.id, "post", true)}>過帳</Button>}
+                      {r.status !== "VOIDED" && r.status !== "POSTED" && <Button size="sm" variant="destructive" onClick={() => onAct(r.id, "void", true)}>作廢</Button>}
                       <Button variant="ghost" size="icon" onClick={() => setEditSalesId(r.id)} title="編輯">
                         <Pencil className="h-4 w-4" />
                       </Button>
@@ -439,6 +468,15 @@ export default function ReturnsClient() {
                     <TD className="text-xs text-gray-500">{r.updatedBy || "-"}</TD>
                     {customCols.columns.map((cc) => { const ck = `${r.id}_${cc.id}`; const v = getCustomFieldValues("returns", r.id); const isE = editingCells[ck]; return <TD key={cc.id}>{isE ? <Input type={cc.type === "number" ? "number" : cc.type === "date" ? "date" : "text"} defaultValue={v[cc.id] ?? ""} autoFocus className="h-7 text-xs" onBlur={(e) => { setCustomFieldValue("returns", r.id, cc.id, e.target.value); setEditingCells((p) => ({ ...p, [ck]: false })); }} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} /> : <span className="cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950 px-1 py-0.5 rounded min-h-[24px] inline-block min-w-[40px]" onClick={() => setEditingCells((p) => ({ ...p, [ck]: true }))}>{v[cc.id] || "—"}</span>}</TD>; })}
                     <TD className="text-right flex items-center justify-end gap-1">
+                      {r.status === "DRAFT" && <Button size="sm" variant="outline" onClick={() => onAct(r.id, "submit", false)}>送出</Button>}
+                      {r.status === "SUBMITTED" && (
+                        <>
+                          <Button size="sm" variant="outline" onClick={() => onAct(r.id, "approve", false)}>審核</Button>
+                          <Button size="sm" variant="destructive" onClick={() => onAct(r.id, "reject", false)}>駁回</Button>
+                        </>
+                      )}
+                      {r.status === "APPROVED" && <Button size="sm" onClick={() => onAct(r.id, "post", false)}>過帳</Button>}
+                      {r.status !== "VOIDED" && r.status !== "POSTED" && <Button size="sm" variant="destructive" onClick={() => onAct(r.id, "void", false)}>作廢</Button>}
                       <Button variant="ghost" size="icon" onClick={() => setEditPurchaseId(r.id)} title="編輯">
                         <Pencil className="h-4 w-4" />
                       </Button>
