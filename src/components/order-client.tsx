@@ -39,6 +39,10 @@ type OrderRow = {
   supplier?: { companyName: string };
   customer?: { companyName: string };
   updatedBy?: string | null;
+  items?: Array<{
+    product?: { name: string };
+    quantity: number;
+  }>;
 };
 
 export function OrderClient({ kind }: { kind: Kind }) {
