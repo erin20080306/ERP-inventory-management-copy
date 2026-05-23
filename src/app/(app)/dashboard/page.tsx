@@ -178,6 +178,7 @@ export default async function DashboardPage() {
     if (session?.user?.isSuperAdmin) redirect("/admin");
     redirect("/login");
   }
+  // 即使是 superadmin，只要有 tenantId 就允許進入前台
   const s = await getStats(tenantId);
   return (
     <PageShell title="儀表板" description="營運總覽與即時數據">
