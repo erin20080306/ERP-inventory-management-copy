@@ -970,6 +970,23 @@ model AuditLog {
   @@index([userId])
 }
 
+model PermissionChangeLog {
+  id          String   @id @default(cuid())
+  userId      String?
+  roleId      String
+  roleName    String?
+  action      String
+  oldValue    String?
+  newValue    String?
+  permissionCode String?
+  ip          String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  @@index([roleId])
+  @@index([userId])
+}
+
 model LoginLog {
   id        String   @id @default(cuid())
   userId    String?

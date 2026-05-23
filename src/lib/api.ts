@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, NextRequest } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions, hasPermission } from "./auth";
 import { prisma } from "./prisma";
@@ -79,6 +79,46 @@ export async function audit(opts: {
   } catch (e) {
     console.error("[audit] failed", e);
   }
+}
+
+export async function logPermissionChange(opts: {
+  userId?: string | null;
+  roleId: string;
+  roleName: string;
+  action: "create" | "update" | "delete";
+  before?: string;
+  after?: string;
+  ip?: string;
+  userAgent?: string;
+}) {
+  try {
+    // Use existing PermissionChangeLog table structure
+    // Map to existing columns: newValue, oldValue, permissionCode
+    await prisma.permissionChangeLog.create({
+      data: {
+        userId: opts.userId,
+        roleId: opts.roleId,
+        roleName: opts.roleName,
+        action: opts.action,
+        oldValue: opts.before,
+        newValue: opts.after,
+        permissionCode: `${opts.action}_${opts.roleName}`,
+        ip: opts.ip,
+        userAgent: opts.userAgent,
+      },
+    });
+  } catch (e) {
+    console.error("[logPermissionChange] failed", e);
+  }
+}
+
+export function getClientInfo(req: NextRequest) {
+  const ip = req.headers.get("x-forwarded-for") || 
+            req.headers.get("x-real-ip") || 
+            req.headers.get("cf-connecting-ip") || 
+            "unknown";
+  const userAgent = req.headers.get("user-agent") || "unknown";
+  return { ip, userAgent };
 }
 
 // 編號產生器
