@@ -156,8 +156,6 @@ export const DELETE = apiHandler(async (_req: NextRequest, { params }: { params:
   if (!canDelete) throw new Error("已出貨/已付款狀態無法刪除");
   // 刪除關聯的 AR
   await prisma.accountsReceivable.deleteMany({ where: { salesOrderId: params.id, tenantId } });
-  // 刪除關聯的傳票
-  await prisma.journalEntry.deleteMany({ where: { sourceId: params.id, tenantId } });
   await prisma.salesOrder.delete({ where: { id: params.id, tenantId } });
   await audit({ userId: session.user.id, action: "delete", module: "sales", refId: params.id });
   return NextResponse.json({ ok: true });
