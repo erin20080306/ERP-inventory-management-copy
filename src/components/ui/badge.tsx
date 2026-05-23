@@ -38,9 +38,15 @@ export function Badge({
 
 export function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { label: string; variant: keyof typeof styles }> = {
+    // 統一單據狀態流程
     DRAFT: { label: "草稿", variant: "outline" },
-    SUBMITTED: { label: "已送出", variant: "info" },
-    APPROVED: { label: "已核准", variant: "success" },
+    SUBMITTED: { label: "已送審", variant: "info" },
+    APPROVED: { label: "已審核", variant: "success" },
+    POSTED: { label: "已過帳", variant: "success" },
+    VOIDED: { label: "已作廢", variant: "danger" },
+    REJECTED: { label: "已駁回", variant: "danger" },
+    
+    // 舊有狀態（向後兼容）
     RECEIVED: { label: "已進貨", variant: "success" },
     CANCELLED: { label: "已取消", variant: "danger" },
     CONFIRMED: { label: "已確認", variant: "info" },
@@ -48,14 +54,18 @@ export function StatusBadge({ status }: { status: string }) {
     INVOICED: { label: "已開立發票", variant: "success" },
     PAID: { label: "已收款", variant: "success" },
     ACCEPTED: { label: "已接受", variant: "success" },
-    REJECTED: { label: "已拒絕", variant: "danger" },
     EXPIRED: { label: "已過期", variant: "warning" },
-    POSTED: { label: "已過帳", variant: "success" },
     VOID: { label: "作廢", variant: "danger" },
     OPEN: { label: "未結", variant: "info" },
     PARTIAL: { label: "部分沖銷", variant: "warning" },
     OVERDUE: { label: "逾期", variant: "danger" },
     ISSUED: { label: "已開立", variant: "success" },
+    
+    // 票據狀態
+    PENDING: { label: "未到期", variant: "info" },
+    CLEARED: { label: "已兌現", variant: "success" },
+    BOUNCED: { label: "退票", variant: "danger" },
+    ENDORSED: { label: "已背書轉讓", variant: "warning" },
   };
   const info = map[status] ?? { label: status, variant: "default" as const };
   return <Badge variant={info.variant}>{info.label}</Badge>;

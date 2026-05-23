@@ -42,7 +42,7 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: {
         });
       }
     }
-    await prisma.salesOrder.update({ where: { id: params.id, tenantId }, data: { status: "CONFIRMED", updatedBy: currentUserId } });
+    await prisma.salesOrder.update({ where: { id: params.id, tenantId }, data: { status: "APPROVED", updatedBy: currentUserId } });
     // 確認時自動建立應收帳款
     const existingAR = await prisma.accountsReceivable.findFirst({ where: { salesOrderId: order.id, tenantId } });
     if (!existingAR) {
@@ -52,7 +52,7 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: {
           customerId: order.customerId,
           salesOrderId: order.id,
           amount: order.total,
-          status: "OPEN",
+          status: "DRAFT",
         },
       });
       // 自動建立傳票：借 應收帳款 / 貸 銷貨收入
@@ -65,7 +65,7 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: {
     await shipSalesOrder(params.id, warehouseId);
   } else if (action === "cancel") {
     await requirePermission("sales.void");
-    await prisma.salesOrder.update({ where: { id: params.id, tenantId }, data: { status: "CANCELLED", updatedBy: currentUserId } });
+    await prisma.salesOrder.update({ where: { id: params.id, tenantId }, data: { status: "VOIDED", updatedBy: currentUserId } });
   }
   await audit({ userId: session.user.id, action, module: "sales", refId: params.id });
   return NextResponse.json({ ok: true });
@@ -77,8 +77,8 @@ export const PUT = apiHandler(async (req: NextRequest, { params }: { params: { i
   const currentUserId = await getCurrentUserId();
   const existing = await prisma.salesOrder.findUnique({ where: { id: params.id, tenantId } });
   if (!existing) throw new Error("找不到銷售單");
-  if (existing.status === "SHIPPED" || existing.status === "PAID") {
-    throw new Error("已出貨/已付款狀態無法修改");
+  if (existing.status === "POSTED" || existing.status === "VOIDED") {
+    throw new Error("已過帳/已作廢狀態無法修改");
   }
   const body = await req.json();
   const { customerId, items, remark } = body as any;

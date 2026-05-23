@@ -51,7 +51,7 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: {
           supplierId: order.supplierId,
           purchaseOrderId: order.id,
           amount: order.total,
-          status: "OPEN",
+          status: "DRAFT",
         },
       });
       // 自動建立傳票：借 存貨(進貨) / 貸 應付帳款
@@ -64,7 +64,7 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: {
     await receivePurchaseOrder(params.id, warehouseId);
   } else if (action === "cancel") {
     await requirePermission("purchases.void");
-    await prisma.purchaseOrder.update({ where: { id: params.id, tenantId }, data: { status: "CANCELLED", updatedBy: currentUserId } });
+    await prisma.purchaseOrder.update({ where: { id: params.id, tenantId }, data: { status: "VOIDED", updatedBy: currentUserId } });
   }
   await audit({ userId: session.user.id, action, module: "purchases", refId: params.id });
   return NextResponse.json({ ok: true });
@@ -76,8 +76,8 @@ export const PUT = apiHandler(async (req: NextRequest, { params }: { params: { i
   const currentUserId = await getCurrentUserId();
   const existing = await prisma.purchaseOrder.findUnique({ where: { id: params.id, tenantId } });
   if (!existing) throw new Error("找不到採購單");
-  if (["RECEIVED", "PAID"].includes(existing.status)) {
-    throw new Error("已入庫/已付款狀態無法修改");
+  if (["POSTED", "VOIDED"].includes(existing.status)) {
+    throw new Error("已過帳/已作廢狀態無法修改");
   }
   const body = await req.json();
   const { supplierId, items, remark } = body as any;

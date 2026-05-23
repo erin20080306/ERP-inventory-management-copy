@@ -386,8 +386,9 @@ enum PurchaseStatus {
   DRAFT
   SUBMITTED
   APPROVED
-  RECEIVED
-  CANCELLED
+  POSTED
+  VOIDED
+  REJECTED
 }
 
 model PurchaseOrder {
@@ -436,11 +437,11 @@ model PurchaseOrderItem {
 // ─────────────────────────── 銷售 ───────────────────────────
 enum SalesStatus {
   DRAFT
-  CONFIRMED
-  SHIPPED
-  INVOICED
-  PAID
-  CANCELLED
+  SUBMITTED
+  APPROVED
+  POSTED
+  VOIDED
+  REJECTED
 }
 
 model SalesOrder {
@@ -489,9 +490,10 @@ model SalesOrderItem {
 enum QuotationStatus {
   DRAFT
   SUBMITTED
-  ACCEPTED
+  APPROVED
+  POSTED
+  VOIDED
   REJECTED
-  EXPIRED
 }
 
 model Quotation {
@@ -631,8 +633,11 @@ model ChartOfAccount {
 
 enum JournalStatus {
   DRAFT
+  SUBMITTED
+  APPROVED
   POSTED
-  VOID
+  VOIDED
+  REJECTED
 }
 
 model JournalEntry {
@@ -666,6 +671,15 @@ model JournalEntryLine {
   account   ChartOfAccount @relation(fields: [accountId], references: [id])
 }
 
+enum ReceivableStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  POSTED
+  VOIDED
+  REJECTED
+}
+
 model AccountsReceivable {
   id           String           @id @default(cuid())
   tenantId     String
@@ -675,7 +689,7 @@ model AccountsReceivable {
   amount       Decimal          @db.Decimal(18, 2)
   paidAmount   Decimal          @default(0) @db.Decimal(18, 2)
   dueDate      DateTime?
-  status       String           @default("OPEN") // OPEN / PARTIAL / PAID / OVERDUE
+  status       ReceivableStatus @default(DRAFT)
   updatedBy    String?
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
@@ -710,6 +724,15 @@ model ReceivePayment {
   @@index([tenantId])
 }
 
+enum PayableStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  POSTED
+  VOIDED
+  REJECTED
+}
+
 model AccountsPayable {
   id              String            @id @default(cuid())
   tenantId        String
@@ -719,7 +742,7 @@ model AccountsPayable {
   amount          Decimal           @db.Decimal(18, 2)
   paidAmount      Decimal           @default(0) @db.Decimal(18, 2)
   dueDate         DateTime?
-  status          String            @default("OPEN")
+  status          PayableStatus     @default(DRAFT)
   updatedBy       String?
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
@@ -822,31 +845,51 @@ model BankAccount {
   @@index([tenantId])
 }
 
+enum TransactionStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  POSTED
+  VOIDED
+  REJECTED
+}
+
 model CashTransaction {
-  id            String      @id @default(cuid())
+  id            String            @id @default(cuid())
   cashAccountId String
   type          String // IN / OUT / TRANSFER
-  amount        Decimal     @db.Decimal(18, 2)
-  txnDate       DateTime    @default(now())
+  amount        Decimal           @db.Decimal(18, 2)
+  txnDate       DateTime          @default(now())
+  status        TransactionStatus @default(DRAFT)
   remark        String?
-  account       CashAccount @relation(fields: [cashAccountId], references: [id])
+  account       CashAccount       @relation(fields: [cashAccountId], references: [id])
 }
 
 model BankTransaction {
-  id            String      @id @default(cuid())
+  id            String            @id @default(cuid())
   bankAccountId String
   type          String
-  amount        Decimal     @db.Decimal(18, 2)
-  txnDate       DateTime    @default(now())
+  amount        Decimal           @db.Decimal(18, 2)
+  txnDate       DateTime          @default(now())
+  status        TransactionStatus @default(DRAFT)
   remark        String?
-  reconciled    Boolean     @default(false)
-  account       BankAccount @relation(fields: [bankAccountId], references: [id])
+  reconciled    Boolean           @default(false)
+  account       BankAccount       @relation(fields: [bankAccountId], references: [id])
 }
 
 // ─────────────────────────── 發票 / 稅務 ───────────────────────────
 enum InvoiceType {
   SALES
   PURCHASE
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  POSTED
+  VOIDED
+  REJECTED
 }
 
 model Invoice {
@@ -860,7 +903,7 @@ model Invoice {
   amountExTax Decimal       @db.Decimal(18, 2)
   taxAmount   Decimal       @default(0) @db.Decimal(18, 2)
   totalAmount Decimal       @db.Decimal(18, 2)
-  status      String        @default("ISSUED") // ISSUED / VOID
+  status      InvoiceStatus @default(DRAFT)
   remark      String?
   updatedBy   String?
   createdAt   DateTime      @default(now())
@@ -1000,11 +1043,12 @@ model LoginLog {
 
 // ─────────────────────────── 票據管理 ───────────────────────────
 enum NoteStatus {
-  PENDING // 未到期
-  CLEARED // 已兌現
-  BOUNCED // 退票
-  ENDORSED // 已背書轉讓
-  VOID // 作廢
+  DRAFT
+  SUBMITTED
+  APPROVED
+  POSTED
+  VOIDED
+  REJECTED
 }
 
 enum NoteType {
@@ -1028,7 +1072,7 @@ model NoteReceivable {
   amount       Decimal             @db.Decimal(18, 2)
   issueDate    DateTime            @default(now()) // 票面日期
   dueDate      DateTime // 到期日 / 兌現日
-  status       NoteStatus          @default(PENDING)
+  status       NoteStatus          @default(DRAFT)
   clearedDate  DateTime?
   receivableId String? // 關聯之應收帳款
   remark       String?
@@ -1058,7 +1102,7 @@ model NotePayable {
   amount        Decimal          @db.Decimal(18, 2)
   issueDate     DateTime         @default(now())
   dueDate       DateTime
-  status        NoteStatus       @default(PENDING)
+  status        NoteStatus       @default(DRAFT)
   clearedDate   DateTime?
   payableId     String?
   remark        String?

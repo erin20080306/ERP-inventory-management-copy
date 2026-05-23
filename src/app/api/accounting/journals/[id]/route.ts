@@ -53,7 +53,7 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: {
     await prisma.journalEntry.update({ where: { id: params.id, tenantId }, data: { status: "POSTED" } });
   } else if (action === "void") {
     await requirePermission("journals.void");
-    await prisma.journalEntry.update({ where: { id: params.id, tenantId }, data: { status: "VOID" } });
+    await prisma.journalEntry.update({ where: { id: params.id, tenantId }, data: { status: "VOIDED" } });
   } else if (action === "update-header") {
     const data: any = {};
     if (body.summary !== undefined) data.summary = body.summary;

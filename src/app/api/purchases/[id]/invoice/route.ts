@@ -10,8 +10,8 @@ export const POST = apiHandler(async (_req: NextRequest, { params }: { params: {
     include: { supplier: true, items: { include: { product: true } } },
   });
   if (!order) throw new Error("找不到採購單");
-  if (order.status === "CANCELLED" || order.status === "DRAFT") {
-    throw new Error("草稿或已取消採購單無法開立發票");
+  if (order.status === "VOIDED" || order.status === "DRAFT") {
+    throw new Error("草稿或已作廢採購單無法開立發票");
   }
   const number = await nextNumber("INV", tenantId);
   const invoice = await prisma.invoice.create({
@@ -24,7 +24,7 @@ export const POST = apiHandler(async (_req: NextRequest, { params }: { params: {
       amountExTax: +(Number(order.subtotal) - Number(order.discount)).toFixed(2),
       taxAmount: +Number(order.taxAmount).toFixed(2),
       totalAmount: +Number(order.total).toFixed(2),
-      status: "ISSUED",
+      status: "POSTED",
       remark: `由採購單 ${order.number} 自動開立`,
       items: {
         create: order.items.map((i: any) => ({

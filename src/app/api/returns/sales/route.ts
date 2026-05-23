@@ -110,7 +110,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
           customerId,
           salesOrderId: ret.id,
           amount: -totals.total,
-          status: "OPEN",
+          status: "DRAFT",
         },
       });
     }

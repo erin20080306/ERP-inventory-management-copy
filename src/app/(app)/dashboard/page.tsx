@@ -32,18 +32,18 @@ async function getStats(tenantId: string) {
   ] = await Promise.all([
     prisma.salesOrder.aggregate({
       _sum: { total: true },
-      where: { tenantId, orderDate: { gte: startToday }, status: { not: "CANCELLED" } },
+      where: { tenantId, orderDate: { gte: startToday }, status: { not: "VOIDED" } },
     }),
     prisma.salesOrder.aggregate({
       _sum: { total: true },
-      where: { tenantId, orderDate: { gte: startMonth }, status: { not: "CANCELLED" } },
+      where: { tenantId, orderDate: { gte: startMonth }, status: { not: "VOIDED" } },
     }),
     prisma.purchaseOrder.aggregate({
       _sum: { total: true },
-      where: { tenantId, orderDate: { gte: startMonth }, status: { not: "CANCELLED" } },
+      where: { tenantId, orderDate: { gte: startMonth }, status: { not: "VOIDED" } },
     }),
-    prisma.accountsReceivable.aggregate({ _sum: { amount: true, paidAmount: true }, where: { tenantId, status: { not: "PAID" } } }),
-    prisma.accountsPayable.aggregate({ _sum: { amount: true, paidAmount: true }, where: { tenantId, status: { not: "PAID" } } }),
+    prisma.accountsReceivable.aggregate({ _sum: { amount: true, paidAmount: true }, where: { tenantId, status: { not: "POSTED" } } }),
+    prisma.accountsPayable.aggregate({ _sum: { amount: true, paidAmount: true }, where: { tenantId, status: { not: "POSTED" } } }),
     (prisma.$queryRawUnsafe as any)(
       `SELECT COALESCE(SUM(s.quantity * p."costPrice"),0) as total FROM "InventoryStock" s JOIN "Product" p ON p.id = s."productId" WHERE s."tenantId" = $1`,
       tenantId
@@ -53,8 +53,8 @@ async function getStats(tenantId: string) {
       include: { stocks: true },
       take: 100,
     }),
-    prisma.salesOrder.count({ where: { tenantId, status: { in: ["DRAFT", "CONFIRMED"] } } }),
-    prisma.purchaseOrder.count({ where: { tenantId, status: { in: ["SUBMITTED", "APPROVED", "RECEIVED"] } } }),
+    prisma.salesOrder.count({ where: { tenantId, status: { in: ["DRAFT", "SUBMITTED"] } } }),
+    prisma.purchaseOrder.count({ where: { tenantId, status: { in: ["SUBMITTED", "APPROVED"] } } }),
     prisma.salesOrder.findMany({
       where: { tenantId },
       take: 8,
@@ -72,7 +72,7 @@ async function getStats(tenantId: string) {
     prisma.salesOrder.groupBy({
       by: ["customerId"],
       _sum: { total: true },
-      where: { tenantId, status: { not: "CANCELLED" } },
+      where: { tenantId, status: { not: "VOIDED" } },
       orderBy: { _sum: { total: "desc" } },
       take: 5,
     }),

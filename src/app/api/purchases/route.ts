@@ -84,7 +84,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
 
     if (isApproved) {
       await tx.accountsPayable.create({
-        data: { tenantId, supplierId, purchaseOrderId: order.id, amount: totals.total, status: "OPEN" },
+        data: { tenantId, supplierId, purchaseOrderId: order.id, amount: totals.total, status: "DRAFT" },
       });
       // 核准時自動入庫到預設倉庫
       const defaultWh = await tx.warehouse.findFirst({ where: { tenantId, isActive: true }, orderBy: { createdAt: "asc" } });

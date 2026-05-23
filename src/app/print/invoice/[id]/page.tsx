@@ -28,7 +28,7 @@ export default async function Page({ params }: { params: { id: string } }) {
           <div><span className="label">{inv.type === "SALES" ? "買受人" : "賣方"}：</span>{party?.companyName ?? "—"}</div>
           <div><span className="label">統一編號：</span>{party?.taxId ?? "—"}</div>
           <div><span className="label">地　　址：</span>{party?.address ?? "—"}</div>
-          <div><span className="label">狀　　態：</span>{inv.status === "ISSUED" ? "已開立" : "已作廢"}</div>
+          <div><span className="label">狀　　態：</span>{inv.status === "POSTED" ? "已過帳" : inv.status === "VOIDED" ? "已作廢" : inv.status}</div>
         </div>
         <table className="doc-table">
           <thead>

@@ -102,7 +102,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
       taxAmount: +taxAmount.toFixed(2),
       totalAmount,
       remark,
-      status: "ISSUED",
+      status: "POSTED",
       items: { create: computed },
     },
     include: { items: true, customer: true, supplier: true },

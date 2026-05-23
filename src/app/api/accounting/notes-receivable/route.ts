@@ -65,7 +65,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
       amount: Number(body.amount),
       issueDate: body.issueDate ? new Date(body.issueDate) : new Date(),
       dueDate: new Date(body.dueDate),
-      status: "PENDING",
+      status: "DRAFT",
       receivableId: body.receivableId || null,
       remark: body.remark,
       updatedBy: currentUserId,

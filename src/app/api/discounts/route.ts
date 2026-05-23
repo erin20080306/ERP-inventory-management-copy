@@ -79,7 +79,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
           tenantId,
           customerId,
           amount: -Number(amount),
-          status: "OPEN",
+          status: "DRAFT",
         },
       });
     } else {
@@ -88,7 +88,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
           tenantId,
           supplierId,
           amount: -Number(amount),
-          status: "OPEN",
+          status: "DRAFT",
         },
       });
     }

@@ -8,7 +8,7 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: {
   const { action } = await req.json();
   if (action === "void") {
     await requirePermission("invoices.void");
-    await prisma.invoice.update({ where: { id: params.id, tenantId }, data: { status: "VOID" } });
+    await prisma.invoice.update({ where: { id: params.id, tenantId }, data: { status: "VOIDED" } });
   }
   await audit({ userId: session.user.id, action, module: "invoices", refId: params.id });
   return NextResponse.json({ ok: true });
