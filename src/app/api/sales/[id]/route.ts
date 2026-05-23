@@ -87,11 +87,6 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: {
     } else {
       await prisma.accountsReceivable.update({ where: { id: ar.id }, data: { status: "POSTED" } });
     }
-    // 查找關聯的傳票並返回 ID
-    const journal = await prisma.journalEntry.findFirst({ where: { sourceId: params.id, tenantId } });
-    if (journal) {
-      return NextResponse.json({ ok: true, journalId: journal.id });
-    }
   } else if (action === "ship") {
     if (!warehouseId) throw new Error("請選擇出貨倉庫");
     await shipSalesOrder(params.id, warehouseId);

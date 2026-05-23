@@ -96,11 +96,7 @@ export function OrderClient({ kind }: { kind: Kind }) {
       });
       if (!res.ok) throw new Error((await res.json()).error || "操作失敗");
       const data = await res.json();
-      if (action === "post" && data.journalId) {
-        toast.success("已過帳，傳票 ID: " + data.journalId);
-      } else {
-        toast.success(data.message || "已處理");
-      }
+      toast.success(data.message || "已處理");
       load();
     } catch (e: any) {
       toast.error(e.message);
