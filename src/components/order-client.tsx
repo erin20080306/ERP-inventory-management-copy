@@ -344,22 +344,18 @@ export function OrderClient({ kind }: { kind: Kind }) {
                   <Button variant="ghost" size="icon" onClick={() => setOpenView(r.id)} title="查看">
                     <Eye className="h-4 w-4" />
                   </Button>
-                  {(r.status === "DRAFT" || r.status === "CONFIRMED" || r.status === "SUBMITTED") && (
-                    <Button variant="ghost" size="icon" onClick={() => setOpenEdit(r.id)} title="修改">
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                  )}
-                  {(r.status === "DRAFT" || r.status === "CONFIRMED" || r.status === "SUBMITTED" || r.status === "CANCELLED") && (
-                    <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-700" title="刪除" onClick={async () => {
-                      if (!confirm(`確定刪除 ${r.number}？`)) return;
-                      const res = await fetch(`${endpoint}/${r.id}`, { method: "DELETE" });
-                      if (!res.ok) { const e = await res.json(); toast.error(e.error || "刪除失敗"); return; }
-                      toast.success("已刪除");
-                      load();
-                    }}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  )}
+                  <Button variant="ghost" size="icon" onClick={() => setOpenEdit(r.id)} title="修改">
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-700" title="刪除" onClick={async () => {
+                    if (!confirm(`確定刪除 ${r.number}？`)) return;
+                    const res = await fetch(`${endpoint}/${r.id}`, { method: "DELETE" });
+                    if (!res.ok) { const e = await res.json(); toast.error(e.error || "刪除失敗"); return; }
+                    toast.success("已刪除");
+                    load();
+                  }}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </TD>
               </TR>
             );

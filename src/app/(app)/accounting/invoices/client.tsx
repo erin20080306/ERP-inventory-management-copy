@@ -25,6 +25,7 @@ export function InvoiceClient() {
   const [openNew, setOpenNew] = useState(false);
   const [openFromSO, setOpenFromSO] = useState(false);
   const [openFromPO, setOpenFromPO] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
   const [pdfBusy, setPdfBusy] = useState(false);
   const pageSize = 20;
   const customCols = useCustomColumns("invoices");
@@ -255,6 +256,9 @@ export function InvoiceClient() {
               {customCols.columns.map((cc) => { const ck = `${i.id}_${cc.id}`; const v = getCustomFieldValues("invoices", i.id); const isE = editingCells[ck]; return <TD key={cc.id}>{isE ? <Input type={cc.type === "number" ? "number" : cc.type === "date" ? "date" : "text"} defaultValue={v[cc.id] ?? ""} autoFocus className="h-7 text-xs" onBlur={(e) => { setCustomFieldValue("invoices", i.id, cc.id, e.target.value); setEditingCells((p) => ({ ...p, [ck]: false })); }} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} /> : <span className="cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950 px-1 py-0.5 rounded min-h-[24px] inline-block min-w-[40px]" onClick={() => setEditingCells((p) => ({ ...p, [ck]: true }))}>{v[cc.id] || "—"}</span>}</TD>; })}
               <TD className="text-right">
                 <div className="flex items-center justify-end gap-1">
+                  <Button variant="ghost" size="icon" onClick={() => setEditId(i.id)} title="編輯">
+                    <Pencil className="h-4 w-4" />
+                  </Button>
                   {i.status !== "VOID" && <ConvertToJournalButton sourceType="INVOICE" sourceId={i.id} size="sm" />}
                   <Button variant="ghost" size="icon" title="一般列印" onClick={() => window.open(`/print/invoice/${i.id}`, "_blank")}>
                     <Printer className="h-4 w-4" />
@@ -285,6 +289,7 @@ export function InvoiceClient() {
       </div>
 
       <NewInvoiceDialog open={openNew} onClose={() => setOpenNew(false)} onCreated={() => { setOpenNew(false); load(); }} />
+      {editId && <NewInvoiceDialog open={!!editId} row={rows.find((r) => r.id === editId)} onClose={() => setEditId(null)} onSaved={(saved) => { setEditId(null); if (saved) { setRows((prev) => prev.map((r) => r.id === saved.id ? saved : r)); } else { load(); } }} />}
       <FromOrderDialog kind="sales" open={openFromSO} onClose={() => setOpenFromSO(false)} onDone={() => { setOpenFromSO(false); load(); }} />
       <FromOrderDialog kind="purchase" open={openFromPO} onClose={() => setOpenFromPO(false)} onDone={() => { setOpenFromPO(false); load(); }} />
       <CustomColumnDialog module="invoices" columns={customCols.columns} open={customCols.open} onClose={() => customCols.setOpen(false)} onSave={customCols.save} />
@@ -292,7 +297,7 @@ export function InvoiceClient() {
   );
 }
 
-function NewInvoiceDialog({ open, onClose, onCreated }: any) {
+function NewInvoiceDialog({ open, onClose, onCreated, row, onSaved }: any) {
   const [type, setType] = useState<"SALES" | "PURCHASE">("SALES");
   const [parties, setParties] = useState<any[]>([]);
   const [partyId, setPartyId] = useState("");
@@ -304,9 +309,18 @@ function NewInvoiceDialog({ open, onClose, onCreated }: any) {
 
   useEffect(() => {
     if (!open) return;
-    setType("SALES"); setPartyId(""); setNumber(""); setRemark("");
-    setItems([{ description: "", quantity: "", unitPrice: "", taxRate: 0.05 }]);
-  }, [open]);
+    if (row) {
+      setType(row.type);
+      setPartyId(row.customer?.id || row.supplier?.id || "");
+      setNumber(row.number || "");
+      setInvoiceDate(row.invoiceDate?.slice(0, 10) || new Date().toISOString().slice(0, 10));
+      setRemark(row.remark || "");
+      setItems(row.items || [{ description: "", quantity: "", unitPrice: "", taxRate: 0.05 }]);
+    } else {
+      setType("SALES"); setPartyId(""); setNumber(""); setRemark("");
+      setItems([{ description: "", quantity: "", unitPrice: "", taxRate: 0.05 }]);
+    }
+  }, [open, row]);
 
   useEffect(() => {
     if (!open) return;
@@ -328,29 +342,35 @@ function NewInvoiceDialog({ open, onClose, onCreated }: any) {
     if (items.some((i) => !i.description)) return toast.error("每項明細需填寫品名");
     setSaving(true);
     try {
-      const res = await fetch("/api/accounting/invoices", {
-        method: "POST",
+      const payload = {
+        type,
+        number: number || undefined,
+        invoiceDate,
+        customerId: type === "SALES" ? partyId : undefined,
+        supplierId: type === "PURCHASE" ? partyId : undefined,
+        items,
+        remark,
+      };
+      const res = await fetch(row ? `/api/accounting/invoices/${row.id}` : "/api/accounting/invoices", {
+        method: row ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type,
-          number: number || undefined,
-          invoiceDate,
-          customerId: type === "SALES" ? partyId : undefined,
-          supplierId: type === "PURCHASE" ? partyId : undefined,
-          items,
-          remark,
-        }),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error((await res.json()).error || "儲存失敗");
-      toast.success("已建立");
-      onCreated();
+      const saved = await res.json();
+      toast.success(row ? "已更新" : "已建立");
+      if (row) {
+        onSaved?.(saved);
+      } else {
+        onCreated();
+      }
     } catch (e: any) { toast.error(e.message); } finally { setSaving(false); }
   }
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-3xl">
-        <DialogHeader><DialogTitle>新增發票</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{row ? "編輯發票" : "新增發票"}</DialogTitle></DialogHeader>
         <div className="grid grid-cols-4 gap-3">
           <div className="space-y-1">
             <Label>類型</Label>
