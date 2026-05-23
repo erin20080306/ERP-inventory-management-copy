@@ -22,6 +22,7 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: {
   const { action, warehouseId } = body;
 
   if (action === "submit" || action === "confirm") {
+    if (action === "submit") await requirePermission("sales.submit");
     const order = await prisma.salesOrder.findUnique({ where: { id: params.id, tenantId }, include: { items: true } });
     if (!order) throw new Error("找不到銷售單");
     // 確認時自動從預設倉庫扣減庫存
@@ -60,6 +61,15 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: {
       await autoCreateJournal(tenantId, draft, session.user.id);
       return NextResponse.json({ ok: true, message: "已自動建立應收帳款與傳票，庫存已扣減" });
     }
+  } else if (action === "approve") {
+    await requirePermission("sales.approve");
+    await prisma.salesOrder.update({ where: { id: params.id, tenantId }, data: { status: "APPROVED", updatedBy: currentUserId } });
+  } else if (action === "reject") {
+    await requirePermission("sales.reject");
+    await prisma.salesOrder.update({ where: { id: params.id, tenantId }, data: { status: "REJECTED", updatedBy: currentUserId } });
+  } else if (action === "post") {
+    await requirePermission("sales.post");
+    await prisma.salesOrder.update({ where: { id: params.id, tenantId }, data: { status: "POSTED", updatedBy: currentUserId } });
   } else if (action === "ship") {
     if (!warehouseId) throw new Error("請選擇出貨倉庫");
     await shipSalesOrder(params.id, warehouseId);

@@ -29,7 +29,7 @@ export const MODULES = [
 ] as const;
 export type Module = (typeof MODULES)[number];
 
-export const ACTIONS = ["view", "create", "edit", "delete", "export", "approve", "void", "manage"] as const;
+export const ACTIONS = ["view", "create", "edit", "delete", "export", "submit", "approve", "reject", "post", "void", "manage"] as const;
 export type Action = (typeof ACTIONS)[number];
 
 // 中文對照
@@ -68,7 +68,10 @@ export const ACTION_LABELS: Record<Action, string> = {
   edit: "編輯",
   delete: "刪除",
   export: "匯出",
+  submit: "送審",
   approve: "審核",
+  reject: "駁回",
+  post: "過帳",
   void: "作廢",
   manage: "全部管理",
 };

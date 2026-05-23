@@ -22,6 +22,7 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: {
   const { action, warehouseId } = body;
 
   if (action === "submit") {
+    await requirePermission("purchases.submit");
     await prisma.purchaseOrder.update({ where: { id: params.id, tenantId }, data: { status: "SUBMITTED", updatedBy: currentUserId } });
   } else if (action === "approve") {
     await requirePermission("purchases.approve");
@@ -59,6 +60,12 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: {
       await autoCreateJournal(tenantId, draft, session.user.id);
       return NextResponse.json({ ok: true, message: "已自動建立應付帳款與傳票，庫存已增加" });
     }
+  } else if (action === "reject") {
+    await requirePermission("purchases.reject");
+    await prisma.purchaseOrder.update({ where: { id: params.id, tenantId }, data: { status: "REJECTED", updatedBy: currentUserId } });
+  } else if (action === "post") {
+    await requirePermission("purchases.post");
+    await prisma.purchaseOrder.update({ where: { id: params.id, tenantId }, data: { status: "POSTED", updatedBy: currentUserId } });
   } else if (action === "receive") {
     if (!warehouseId) throw new Error("請選擇入庫倉庫");
     await receivePurchaseOrder(params.id, warehouseId);

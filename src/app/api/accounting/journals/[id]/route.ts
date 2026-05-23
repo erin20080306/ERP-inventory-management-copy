@@ -48,8 +48,17 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: {
   const tenantId = await requireTenantId();
   const body = await req.json();
   const { action } = body;
-  if (action === "post") {
+  if (action === "submit") {
+    await requirePermission("journals.submit");
+    await prisma.journalEntry.update({ where: { id: params.id, tenantId }, data: { status: "SUBMITTED" } });
+  } else if (action === "approve") {
     await requirePermission("journals.approve");
+    await prisma.journalEntry.update({ where: { id: params.id, tenantId }, data: { status: "APPROVED" } });
+  } else if (action === "reject") {
+    await requirePermission("journals.reject");
+    await prisma.journalEntry.update({ where: { id: params.id, tenantId }, data: { status: "REJECTED" } });
+  } else if (action === "post") {
+    await requirePermission("journals.post");
     await prisma.journalEntry.update({ where: { id: params.id, tenantId }, data: { status: "POSTED" } });
   } else if (action === "void") {
     await requirePermission("journals.void");
