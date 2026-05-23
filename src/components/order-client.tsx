@@ -97,14 +97,7 @@ export function OrderClient({ kind }: { kind: Kind }) {
       if (!res.ok) throw new Error((await res.json()).error || "操作失敗");
       const data = await res.json();
       if (action === "post" && data.journalId) {
-        toast.success(
-          <div className="flex items-center gap-2">
-            <span>已過帳</span>
-            <a href={`/accounting/journals/${data.journalId}`} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">
-              查看傳票
-            </a>
-          </div>
-        );
+        toast.success("已過帳，傳票 ID: " + data.journalId);
       } else {
         toast.success(data.message || "已處理");
       }
