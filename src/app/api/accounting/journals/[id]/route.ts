@@ -85,6 +85,27 @@ export const DELETE = apiHandler(async (_req: NextRequest, { params }: { params:
   if (!entry) throw new Error("找不到傳票");
   
   // 刪除關聯的應收應付記錄
+  const receivables = await prisma.accountsReceivable.findMany({
+    where: { invoiceId: params.id, tenantId },
+  });
+  const payables = await prisma.accountsPayable.findMany({
+    where: { invoiceId: params.id, tenantId },
+  });
+  
+  // 刪除關聯的應收票據
+  if (receivables.length > 0) {
+    await prisma.noteReceivable.deleteMany({
+      where: { receivableId: { in: receivables.map((r) => r.id) } },
+    });
+  }
+  
+  // 刪除關聯的應付票據
+  if (payables.length > 0) {
+    await prisma.notePayable.deleteMany({
+      where: { payableId: { in: payables.map((p) => p.id) } },
+    });
+  }
+  
   await prisma.accountsReceivable.deleteMany({
     where: { invoiceId: params.id, tenantId },
   });
