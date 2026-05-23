@@ -57,6 +57,15 @@ function translateAction(action: string) {
   return actionNames[action] || action;
 }
 
+function formatRefId(detail: string | null, refId: string | null) {
+  // 如果 detail 有內容，優先顯示 detail（通常包含有意義的資訊）
+  if (detail && detail.trim()) {
+    return detail;
+  }
+  // 否則顯示 ID
+  return refId || "—";
+}
+
 export default async function Page() {
   const g = await requirePermissionOrForbidden("audit.view");
   if (g.forbidden) return g.element;
@@ -80,17 +89,16 @@ export default async function Page() {
         <CardHeader><CardTitle>操作紀錄 (最近 200 筆)</CardTitle></CardHeader>
         <CardContent>
           <Table>
-            <THead><TR><TH>時間</TH><TH>使用者</TH><TH>模組</TH><TH>動作</TH><TH>對象</TH><TH>備註</TH><TH>IP</TH></TR></THead>
+            <THead><TR><TH>時間</TH><TH>使用者</TH><TH>模組</TH><TH>動作</TH><TH>對象</TH><TH>IP</TH></TR></THead>
             <TBody>
-              {logs.length === 0 && <TR><TD colSpan={7} className="text-center text-muted-foreground">尚無資料</TD></TR>}
+              {logs.length === 0 && <TR><TD colSpan={6} className="text-center text-muted-foreground">尚無資料</TD></TR>}
               {logs.map((l: any) => (
                 <TR key={l.id}>
                   <TD className="text-xs">{formatDateTime(l.createdAt)}</TD>
                   <TD>{l.user?.name ?? "—"}</TD>
                   <TD>{translateModule(l.module)}</TD>
                   <TD>{translateAction(l.action)}</TD>
-                  <TD className="font-mono text-xs">{l.refId ?? "—"}</TD>
-                  <TD>{l.detail ?? "—"}</TD>
+                  <TD className="text-xs">{formatRefId(l.detail, l.refId)}</TD>
                   <TD className="text-xs">{l.ip ?? "—"}</TD>
                 </TR>
               ))}
