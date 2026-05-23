@@ -99,13 +99,13 @@ async function getStats(tenantId: string) {
   start14.setHours(0, 0, 0, 0);
   const dailySales = (await (prisma.$queryRawUnsafe as any)(
     `SELECT to_char("orderDate"::date, 'YYYY-MM-DD') as d, COALESCE(SUM(total),0) as total
-     FROM "SalesOrder" WHERE "tenantId" = $1 AND "orderDate" >= $2 AND status <> 'CANCELLED'
+     FROM "SalesOrder" WHERE "tenantId" = $1 AND "orderDate" >= $2 AND status <> 'VOIDED'
      GROUP BY 1 ORDER BY 1`,
     tenantId, start14
   )) as { d: string; total: any }[];
   const dailyPurchase = (await (prisma.$queryRawUnsafe as any)(
     `SELECT to_char("orderDate"::date, 'YYYY-MM-DD') as d, COALESCE(SUM(total),0) as total
-     FROM "PurchaseOrder" WHERE "tenantId" = $1 AND "orderDate" >= $2 AND status <> 'CANCELLED'
+     FROM "PurchaseOrder" WHERE "tenantId" = $1 AND "orderDate" >= $2 AND status <> 'VOIDED'
      GROUP BY 1 ORDER BY 1`,
     tenantId, start14
   )) as { d: string; total: any }[];

@@ -51,7 +51,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
   if (!items?.length) throw new Error("請至少新增一項商品");
   const totals = calcTotals(items);
   const number = await nextNumber("SO", tenantId);
-  const isConfirmed = (status ?? "DRAFT") === "CONFIRMED";
+  const isConfirmed = (status ?? "DRAFT") === "APPROVED";
 
   // 使用 transaction 合併所有寫入，減少網路往返
   const created = await prisma.$transaction(async (tx) => {

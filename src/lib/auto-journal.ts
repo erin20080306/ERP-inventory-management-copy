@@ -89,7 +89,7 @@ async function line(tenantId: string, code: string, debit: number, credit: numbe
 }
 
 /* ============================================================ */
-/*               採購單進貨 (RECEIVED)                            */
+/*               採購單進貨 (POSTED)                              */
 /* ============================================================ */
 export async function buildPurchaseReceiveDraft(purchaseOrderId: string): Promise<DraftEntry> {
   const po = await prisma.purchaseOrder.findUnique({
@@ -120,7 +120,7 @@ export async function buildPurchaseReceiveDraft(purchaseOrderId: string): Promis
 }
 
 /* ============================================================ */
-/*               銷售開票 (INVOICED)                              */
+/*               銷售開票 (POSTED)                                 */
 /* ============================================================ */
 export async function buildSalesInvoiceDraft(salesOrderId: string): Promise<DraftEntry> {
   const so = await prisma.salesOrder.findUnique({

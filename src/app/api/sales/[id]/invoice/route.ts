@@ -41,7 +41,7 @@ export const POST = apiHandler(async (_req: NextRequest, { params }: { params: {
       },
     },
   });
-  // 若銷售單還沒到 INVOICED，更新狀態
+  // 若銷售單還沒到 POSTED，更新狀態
   if (order.status === "SUBMITTED" || order.status === "APPROVED") {
     await prisma.salesOrder.update({ where: { id: order.id }, data: { status: "POSTED" } });
   }

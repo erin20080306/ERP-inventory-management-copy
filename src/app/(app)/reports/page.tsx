@@ -61,8 +61,8 @@ export default async function Page({ searchParams }: { searchParams: { from?: st
   const equity = trial.filter((a: any) => a.type === "EQUITY").reduce((s: number, a: any) => s + a.balance, 0) + netIncome;
 
   // 銷售 / 採購 / 毛利（加入日期篩選）
-  const salesWhere: any = { tenantId, status: { not: "CANCELLED" } };
-  const purchaseWhere: any = { tenantId, status: { not: "CANCELLED" } };
+  const salesWhere: any = { tenantId, status: { not: "VOIDED" } };
+  const purchaseWhere: any = { tenantId, status: { not: "VOIDED" } };
   if (fromDate) {
     salesWhere.createdAt = { ...salesWhere.createdAt, gte: new Date(fromDate) };
     purchaseWhere.createdAt = { ...purchaseWhere.createdAt, gte: new Date(fromDate) };

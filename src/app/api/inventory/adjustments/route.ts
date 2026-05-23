@@ -62,7 +62,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
   if (!items?.length) throw new Error("請至少新增一項商品");
   
   const number = await nextNumber("IA", tenantId);
-  const isConfirmed = (status ?? "DRAFT") === "CONFIRMED";
+  const isConfirmed = (status ?? "DRAFT") === "APPROVED";
 
   // 計算差異總金額（用於傳票）
   const totalGain = items.reduce((s: number, i: any) => s + (Number(i.diff) > 0 ? Number(i.diff) * Number(i.unitCost || 0) : 0), 0);

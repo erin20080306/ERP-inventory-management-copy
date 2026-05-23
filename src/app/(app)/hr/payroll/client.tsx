@@ -13,8 +13,8 @@ import { formatMoney, formatDate } from "@/lib/utils";
 import { useCustomColumns, CustomColumnDialog, CustomColumnButton, getCustomFieldValues, setCustomFieldValue } from "@/components/custom-columns";
 import { TableHint, useColumnDrag } from "@/components/table-helpers";
 
-const STATUS_LABELS: Record<string, string> = { DRAFT: "草稿", CONFIRMED: "已確認", PAID: "已發放", VOID: "作廢" };
-const STATUS_VARIANTS: Record<string, any> = { DRAFT: "info", CONFIRMED: "warning", PAID: "success", VOID: "danger" };
+const STATUS_LABELS: Record<string, string> = { DRAFT: "草稿", APPROVED: "已確認", POSTED: "已發放", VOIDED: "作廢" };
+const STATUS_VARIANTS: Record<string, any> = { DRAFT: "info", APPROVED: "warning", POSTED: "success", VOIDED: "danger" };
 
 export function PayrollClient() {
   const [periods, setPeriods] = useState<any[]>([]);
@@ -191,8 +191,8 @@ export function PayrollClient() {
                       <Button size="sm" variant="ghost" title="檢視" onClick={() => setViewPayroll(p)}><Eye className="h-4 w-4" /></Button>
                       <Button size="sm" variant="ghost" title="列印薪資單" onClick={() => window.open(`/print/payroll/${p.id}`, "_blank")}><Printer className="h-4 w-4" /></Button>
                       {p.status === "DRAFT" && <Button size="sm" variant="ghost" title="確認" onClick={() => act(p.id, "confirm")}><CheckCircle2 className="h-4 w-4 text-emerald-600" /></Button>}
-                      {p.status === "CONFIRMED" && <Button size="sm" variant="ghost" title="發放" onClick={() => act(p.id, "pay")}><DollarSign className="h-4 w-4 text-emerald-600" /></Button>}
-                      {p.status !== "VOID" && p.status !== "PAID" && <Button size="sm" variant="ghost" title="作廢" onClick={() => act(p.id, "void")}><Ban className="h-4 w-4 text-red-600" /></Button>}
+                      {p.status === "APPROVED" && <Button size="sm" variant="ghost" title="發放" onClick={() => act(p.id, "pay")}><DollarSign className="h-4 w-4 text-emerald-600" /></Button>}
+                      {p.status !== "VOIDED" && p.status !== "POSTED" && <Button size="sm" variant="ghost" title="作廢" onClick={() => act(p.id, "void")}><Ban className="h-4 w-4 text-red-600" /></Button>}
                     </div>
                   </TD>
                   {customCols.columns.map((cc) => {

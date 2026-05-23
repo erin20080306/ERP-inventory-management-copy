@@ -8,7 +8,7 @@ import { formatDate, formatMoney } from "@/lib/utils";
 export const dynamic = "force-dynamic";
 
 const STATUS_LABEL: Record<string, string> = {
-  DRAFT: "草稿", CONFIRMED: "已確認", SHIPPED: "已出貨", INVOICED: "已開立發票", PAID: "已收款", CANCELLED: "已取消",
+  DRAFT: "草稿", SUBMITTED: "已送審", APPROVED: "已審核", POSTED: "已過帳", VOIDED: "已作廢", REJECTED: "已駁回",
 };
 
 export default async function Page({ params }: { params: { id: string } }) {

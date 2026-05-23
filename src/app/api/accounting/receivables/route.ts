@@ -92,7 +92,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
       data: { paidAmount: newPaid, status, updatedBy: currentUserId },
     });
     if (status === "PAID" && ar.salesOrderId) {
-      await tx.salesOrder.update({ where: { id: ar.salesOrderId }, data: { status: "PAID" } });
+      await tx.salesOrder.update({ where: { id: ar.salesOrderId }, data: { status: "POSTED" } });
     }
   });
   await audit({ userId: session.user.id, action: "receive", module: "receivables", refId: receivableId, detail: number });

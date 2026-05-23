@@ -35,9 +35,9 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: {
   if (!payroll) throw new Error("找不到薪資單");
 
   let data: any = {};
-  if (action === "confirm") data = { status: "CONFIRMED" };
-  else if (action === "pay") data = { status: "PAID", paidAt: new Date() };
-  else if (action === "void") data = { status: "VOID" };
+  if (action === "confirm") data = { status: "APPROVED" };
+  else if (action === "pay") data = { status: "POSTED", paidAt: new Date() };
+  else if (action === "void") data = { status: "VOIDED" };
   else {
     // 重新計算
     const overtimePay = Number(patch.overtimePay ?? findItemAmount(payroll.items, "OT"));

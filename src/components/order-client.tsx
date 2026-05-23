@@ -455,7 +455,7 @@ function CreateOrderDialog({ kind, open, onClose, onCreated }: any) {
         body: JSON.stringify(
           kind === "purchase"
             ? { supplierId: partyId, items, remark, status: "SUBMITTED" }
-            : { customerId: partyId, items, remark, status: "CONFIRMED" }
+            : { customerId: partyId, items, remark, status: "SUBMITTED" }
         ),
       });
       toast.dismiss(loadingToastId);
@@ -668,7 +668,7 @@ function ViewOrderDialog({ kind, id, onClose, onChanged }: any) {
 
   if (!data) return null;
   const party = kind === "purchase" ? data.supplier : data.customer;
-  const canReceiveShip = kind === "purchase" ? data.status === "APPROVED" || data.status === "SUBMITTED" : data.status === "CONFIRMED";
+  const canReceiveShip = kind === "purchase" ? data.status === "APPROVED" || data.status === "SUBMITTED" : data.status === "APPROVED";
 
   return (
     <Dialog open onOpenChange={(v) => !v && onClose()}>
@@ -735,7 +735,7 @@ function ViewOrderDialog({ kind, id, onClose, onChanged }: any) {
           >
             <Printer className="h-4 w-4" />列印
           </Button>
-          {(data.status === "RECEIVED" || data.status === "SHIPPED" || data.status === "INVOICED" || data.status === "PAID") && (
+          {data.status === "POSTED" && (
             <ConvertToJournalButton sourceType={kind === "purchase" ? "PURCHASE" : "SALES"} sourceId={data.id} />
           )}
           {data.status === "DRAFT" && <Button variant="outline" onClick={() => act("submit")}>送出</Button>}
@@ -745,10 +745,10 @@ function ViewOrderDialog({ kind, id, onClose, onChanged }: any) {
               {kind === "purchase" ? "進貨入庫" : "出貨扣庫"}
             </Button>
           )}
-          {data.status !== "CANCELLED" && data.status !== "RECEIVED" && data.status !== "SHIPPED" && data.status !== "PAID" && (
+          {data.status !== "VOIDED" && data.status !== "POSTED" && (
             <Button variant="destructive" onClick={() => act("cancel")}>取消</Button>
           )}
-          {(data.status === "DRAFT" || data.status === "CONFIRMED" || data.status === "SUBMITTED" || data.status === "CANCELLED") && (
+          {(data.status === "DRAFT" || data.status === "APPROVED" || data.status === "SUBMITTED" || data.status === "VOIDED") && (
             <Button variant="ghost" className="text-red-500 hover:text-red-700" onClick={async () => {
               if (!confirm(`確定刪除 ${data.number}？`)) return;
               const res = await fetch(`${endpoint}/${id}`, { method: "DELETE" });

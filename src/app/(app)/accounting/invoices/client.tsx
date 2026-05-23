@@ -464,7 +464,7 @@ function FromOrderDialog({ kind, open, onClose, onDone }: any) {
           <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={id} onChange={(e) => setId(e.target.value)}>
             <option value="">請選擇</option>
             {orders
-              .filter((o: any) => o.status !== "DRAFT" && o.status !== "CANCELLED")
+              .filter((o: any) => o.status !== "DRAFT" && o.status !== "VOIDED")
               .map((o: any) => (
                 <option key={o.id} value={o.id}>
                   {o.number} - {(kind === "sales" ? o.customer : o.supplier)?.companyName} - {formatMoney(o.total)}

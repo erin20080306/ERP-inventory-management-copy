@@ -36,8 +36,8 @@ export async function receivePurchaseOrder(orderId: string, warehouseId: string)
   return await prisma.$transaction(async (tx: any) => {
     const order = await tx.purchaseOrder.findUnique({ where: { id: orderId }, include: { items: true } });
     if (!order) throw new Error("找不到採購單");
-    if (order.status === "RECEIVED") throw new Error("已進貨，不可重複");
-    if (order.status === "CANCELLED") throw new Error("採購單已取消");
+    if (order.status === "POSTED") throw new Error("已過帳，不可重複");
+    if (order.status === "VOIDED") throw new Error("採購單已作廢");
 
     for (const item of order.items) {
       const stock = await tx.inventoryStock.upsert({
@@ -63,7 +63,7 @@ export async function receivePurchaseOrder(orderId: string, warehouseId: string)
 
     await tx.purchaseOrder.update({
       where: { id: order.id },
-      data: { status: "RECEIVED", receivedAt: new Date(), warehouseId },
+      data: { status: "POSTED", receivedAt: new Date(), warehouseId },
     });
 
     // 只在尚未建立應付時才建立（可能已在核准時建立）
@@ -87,8 +87,8 @@ export async function shipSalesOrder(orderId: string, warehouseId: string) {
   return await prisma.$transaction(async (tx: any) => {
     const order = await tx.salesOrder.findUnique({ where: { id: orderId }, include: { items: true } });
     if (!order) throw new Error("找不到銷售單");
-    if (order.status === "SHIPPED" || order.status === "PAID") throw new Error("已出貨，不可重複");
-    if (order.status === "CANCELLED") throw new Error("銷售單已取消");
+    if (order.status === "POSTED") throw new Error("已過帳，不可重複");
+    if (order.status === "VOIDED") throw new Error("銷售單已作廢");
 
     for (const item of order.items) {
       const stock = await tx.inventoryStock.findUnique({
@@ -120,7 +120,7 @@ export async function shipSalesOrder(orderId: string, warehouseId: string) {
 
     await tx.salesOrder.update({
       where: { id: order.id },
-      data: { status: "SHIPPED", shippedAt: new Date(), warehouseId },
+      data: { status: "POSTED", shippedAt: new Date(), warehouseId },
     });
 
     // 只在尚未建立應收時才建立（可能已在確認時建立）

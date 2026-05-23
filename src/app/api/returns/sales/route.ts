@@ -75,7 +75,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
     });
 
     // 如果確認，更新庫存和應收帳款
-    if ((status ?? "DRAFT") === "CONFIRMED") {
+    if ((status ?? "DRAFT") === "APPROVED") {
       for (const item of ret.items) {
         // 更新庫存（退貨入庫）
         const stock = await tx.inventoryStock.findFirst({

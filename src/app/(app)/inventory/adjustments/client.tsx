@@ -115,7 +115,7 @@ function AdjustmentDialog({ open, onClose, onSaved }: any) {
                 <Label>狀態</Label>
                 <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className="w-full px-3 py-2 border rounded">
                   <option value="DRAFT">草稿</option>
-                  <option value="CONFIRMED">確認（自動切傳票）</option>
+                  <option value="APPROVED">確認（自動切傳票）</option>
                 </select>
               </div>
               <div className="space-y-1 col-span-2">

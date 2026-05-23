@@ -128,7 +128,7 @@ export const DELETE = apiHandler(async (_req: NextRequest, { params }: { params:
   const tenantId = await requireTenantId();
   const order = await prisma.purchaseOrder.findUnique({ where: { id: params.id, tenantId } });
   if (!order) throw new Error("找不到採購單");
-  const canDelete = ["DRAFT", "CANCELLED", "SUBMITTED", "APPROVED"].includes(order.status);
+  const canDelete = ["DRAFT", "VOIDED", "SUBMITTED", "APPROVED"].includes(order.status);
   if (!canDelete) throw new Error("已入庫/已付款狀態無法刪除");
   await prisma.accountsPayable.deleteMany({ where: { purchaseOrderId: params.id, tenantId } });
   await prisma.purchaseOrder.delete({ where: { id: params.id, tenantId } });
