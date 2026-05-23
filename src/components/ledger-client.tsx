@@ -25,6 +25,7 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [pay, setPay] = useState<any>(null);
+  const [editRow, setEditRow] = useState<any>(null);
   const [batchOpen, setBatchOpen] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
   const [summary, setSummary] = useState<any>(null);
@@ -190,22 +191,21 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
                       {kind === "ar" ? "收款" : "付款"}
                     </Button>
                   )}
-                  {balance <= 0 && (
-                    <Button size="sm" variant="ghost" onClick={() => setPay(r)}>
-                      編輯
-                    </Button>
-                  )}
-                  {Number(r.paidAmount) === 0 && (
-                    <Button size="sm" variant="ghost" className="text-red-500 hover:text-red-700" onClick={async () => {
-                      if (!confirm("確定刪除此筆帳款？\n\n注意：刪除會刪除相對應傳票，確認是否刪除？")) return;
-                      const res = await fetch(`${endpoint}/${r.id}`, { method: "DELETE" });
-                      if (!res.ok) { const e = await res.json(); toast.error(e.error || "刪除失敗"); return; }
-                      toast.success("已刪除");
-                      load(); loadSummary();
-                    }}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  )}
+                  <Button size="sm" variant="ghost" onClick={() => setEditRow(r)}>
+                    編輯
+                  </Button>
+                  <Button size="sm" variant="ghost" className="text-red-500 hover:text-red-700" onClick={async () => {
+                    const warning = Number(r.paidAmount) > 0 
+                      ? "此筆帳款已有收款紀錄，刪除將同時刪除相關收款紀錄和票據。確定要刪除嗎？"
+                      : "確定刪除此筆帳款？";
+                    if (!confirm(warning)) return;
+                    const res = await fetch(`${endpoint}/${r.id}`, { method: "DELETE" });
+                    if (!res.ok) { const e = await res.json(); toast.error(e.error || "刪除失敗"); return; }
+                    toast.success("已刪除");
+                    load(); loadSummary();
+                  }}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </TD>
                 {customCols.columns.map((cc) => {
                   const cellKey = `${r.id}_${cc.id}`;
@@ -250,6 +250,7 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
         </div>
       </div>
       {pay && <PayDialog row={pay} kind={kind} onClose={() => setPay(null)} onDone={(updated: any) => { setPay(null); if (updated) { setRows((prev) => prev.map((r) => r.id === updated.id ? updated : r)); loadSummary(); } else { load(); loadSummary(); } }} />}
+      {editRow && <EditDialog row={editRow} kind={kind} onClose={() => setEditRow(null)} onDone={(updated: any) => { setEditRow(null); if (updated) { setRows((prev) => prev.map((r) => r.id === updated.id ? updated : r)); loadSummary(); } else { load(); loadSummary(); } }} />}
       {batchOpen && <BatchPayDialog kind={kind} onClose={() => setBatchOpen(false)} onDone={() => { setBatchOpen(false); load(); loadSummary(); }} />}
       <CustomColumnDialog module={kind === "ar" ? "receivables" : "payables"} columns={customCols.columns} open={customCols.open} onClose={() => customCols.setOpen(false)} onSave={customCols.save} />
     </div>
@@ -697,6 +698,63 @@ function BatchPayDialog({ kind, onClose, onDone }: { kind: "ar" | "ap"; onClose:
             </DialogFooter>
           </div>
         )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EditDialog({ row, kind, onClose, onDone }: any) {
+  const [amount, setAmount] = useState(row.amount);
+  const [dueDate, setDueDate] = useState(row.dueDate ? row.dueDate.slice(0, 10) : "");
+  const [status, setStatus] = useState(row.status);
+  const [saving, setSaving] = useState(false);
+  const endpoint = kind === "ar" ? "/api/accounting/receivables" : "/api/accounting/payables";
+
+  async function save() {
+    setSaving(true);
+    try {
+      const res = await fetch(`${endpoint}/${row.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          amount: Number(amount),
+          dueDate: dueDate || null,
+          status,
+        }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || "更新失敗");
+      const updated = await res.json();
+      toast.success("已更新");
+      onDone(updated);
+    } catch (e: any) { toast.error(e.message); } finally { setSaving(false); }
+  }
+
+  return (
+    <Dialog open onOpenChange={(v) => !v && onClose()}>
+      <DialogContent>
+        <DialogHeader><DialogTitle>{kind === "ar" ? "編輯應收帳款" : "編輯應付帳款"}</DialogTitle></DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1"><Label>金額</Label><Input type="number" step="0.01" value={amount} onChange={(e) => setAmount(Number(e.target.value))} /></div>
+          <div className="space-y-1"><Label>到期日</Label><Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} /></div>
+          <div className="space-y-1">
+            <Label>狀態</Label>
+            <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={status} onChange={(e) => setStatus(e.target.value)}>
+              <option value="OPEN">未收</option>
+              <option value="PARTIAL">部分收款</option>
+              <option value="PAID">已收</option>
+              <option value="OVERDUE">逾期</option>
+            </select>
+          </div>
+          {status === "OPEN" && Number(row.paidAmount) > 0 && (
+            <div className="text-sm text-amber-600 bg-amber-50 p-2 rounded">
+              注意：將狀態改為「未收」會重置已收款金額並刪除相關收款紀錄。
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>取消</Button>
+          <Button onClick={save} disabled={saving}>{saving ? "儲存中..." : "儲存"}</Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
