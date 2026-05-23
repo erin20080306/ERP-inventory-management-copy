@@ -57,7 +57,7 @@ export function OrderClient({ kind }: { kind: Kind }) {
   const pageSize = 20;
   const customCols = useCustomColumns(kind === "purchase" ? "purchases" : "sales");
   const [editingCells, setEditingCells] = useState<Record<string, any>>({});
-  const colDrag = useColumnDrag(kind === "purchase" ? "purchases" : "sales", ["number", "party", "date", "amount", "status", "updatedBy"]);
+  const colDrag = useColumnDrag(kind === "purchase" ? "purchases" : "sales", ["number", "party", "date", "products", "quantity", "amount", "status", "updatedBy"]);
   const [inlineEditing, setInlineEditing] = useState<Record<string, Record<string, any>>>({});
   const [inlineSaving, setInlineSaving] = useState<string | null>(null);
   const [activeCell, setActiveCell] = useState<{ rowId: string; colKey: string } | null>(null);
@@ -289,6 +289,8 @@ export function OrderClient({ kind }: { kind: Kind }) {
             <TH {...colDrag.thProps("number")}>單號</TH>
             <TH {...colDrag.thProps("party")}>{partyLabel}</TH>
             <TH {...colDrag.thProps("date")}>日期</TH>
+            <TH {...colDrag.thProps("products")}>商品</TH>
+            <TH {...colDrag.thProps("quantity")}>數量</TH>
             <TH {...colDrag.thProps("amount")}>金額</TH>
             <TH {...colDrag.thProps("status")}>狀態</TH>
             <TH {...colDrag.thProps("updatedBy")}>操作人員</TH>
@@ -299,14 +301,14 @@ export function OrderClient({ kind }: { kind: Kind }) {
         <TBody>
           {loading && (
             <TR>
-              <TD colSpan={7} className="text-center py-10">
+              <TD colSpan={9} className="text-center py-10">
                 <Loader2 className="h-5 w-5 animate-spin inline-block" />
               </TD>
             </TR>
           )}
           {!loading && rows.length === 0 && (
             <TR>
-              <TD colSpan={7}>
+              <TD colSpan={9}>
                 <EmptyState />
               </TD>
             </TR>
@@ -335,6 +337,12 @@ export function OrderClient({ kind }: { kind: Kind }) {
                   ) : (
                     formatDate(r.orderDate)
                   )}
+                </TD>
+                <TD className="text-xs max-w-[200px] truncate" title={r.items?.map((i: any) => i.product?.name).join(", ")}>
+                  {r.items?.map((i: any) => i.product?.name).join(", ") || "—"}
+                </TD>
+                <TD className="text-xs">
+                  {r.items?.reduce((sum: number, i: any) => sum + Number(i.quantity || 0), 0) || 0}
                 </TD>
                 <TD>{formatMoney(r.total)}</TD>
                 <TD>
