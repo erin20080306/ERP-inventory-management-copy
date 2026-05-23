@@ -739,14 +739,20 @@ function ViewOrderDialog({ kind, id, onClose, onChanged }: any) {
             <ConvertToJournalButton sourceType={kind === "purchase" ? "PURCHASE" : "SALES"} sourceId={data.id} />
           )}
           {data.status === "DRAFT" && <Button variant="outline" onClick={() => act("submit")}>送出</Button>}
-          {data.status === "SUBMITTED" && kind === "purchase" && <Button variant="outline" onClick={() => act("approve")}>核准</Button>}
+          {data.status === "SUBMITTED" && (
+            <>
+              <Button variant="outline" onClick={() => act("approve")}>審核</Button>
+              <Button variant="destructive" onClick={() => act("reject")}>駁回</Button>
+            </>
+          )}
+          {data.status === "APPROVED" && <Button variant="outline" onClick={() => act("post")}>過帳</Button>}
           {canReceiveShip && (
             <Button onClick={() => act(kind === "purchase" ? "receive" : "ship")}>
               {kind === "purchase" ? "進貨入庫" : "出貨扣庫"}
             </Button>
           )}
           {data.status !== "VOIDED" && data.status !== "POSTED" && (
-            <Button variant="destructive" onClick={() => act("cancel")}>取消</Button>
+            <Button variant="destructive" onClick={() => act("cancel")}>作廢</Button>
           )}
           {(data.status === "DRAFT" || data.status === "APPROVED" || data.status === "SUBMITTED" || data.status === "VOIDED") && (
             <Button variant="ghost" className="text-red-500 hover:text-red-700" onClick={async () => {
