@@ -4,8 +4,10 @@ import { formatMoney, formatNumber } from "@/lib/utils";
 import { PageShell } from "@/components/layout/page-shell";
 import { StatusBadge } from "@/components/ui/badge";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
-import { TrendingUp, TrendingDown, Package, AlertTriangle, ShoppingCart, Receipt, Coins, Wallet } from "lucide-react";
+import { TrendingUp, TrendingDown, Package, AlertTriangle, ShoppingCart, Receipt, Coins, Wallet, PieChart } from "lucide-react";
 import { SalesTrendChart } from "./trend-chart";
+import { PieChartComponent } from "./pie-chart";
+import { HorizontalBarChart } from "./horizontal-bar-chart";
 import { requireTenantId, getSession } from "@/lib/api";
 import { redirect } from "next/navigation";
 
@@ -29,6 +31,8 @@ async function getStats(tenantId: string) {
     recentSales,
     topProducts,
     topCustomers,
+    salesByStatus,
+    inventoryByWarehouse,
   ] = await Promise.all([
     prisma.salesOrder.aggregate({
       _sum: { total: true },
@@ -76,6 +80,15 @@ async function getStats(tenantId: string) {
       orderBy: { _sum: { total: "desc" } },
       take: 5,
     }),
+    prisma.salesOrder.groupBy({
+      by: ["status"],
+      _count: { id: true },
+      where: { tenantId },
+    }),
+    (prisma.$queryRawUnsafe as any)(
+      `SELECT w.name, COALESCE(SUM(s.quantity),0) as total FROM "InventoryStock" s JOIN "Warehouse" w ON w.id = s."warehouseId" WHERE s."tenantId" = $1 GROUP BY w.name`,
+      tenantId
+    ) as Promise<{ name: string; total: any }[]>,
   ]);
 
   const lowStockList = lowStock
@@ -146,6 +159,14 @@ async function getStats(tenantId: string) {
       total: Number(t._sum.total ?? 0),
     })),
     trend: Object.values(trendMap),
+    salesByStatus: salesByStatus.map((s: any) => ({
+      name: s.status === "DRAFT" ? "草稿" : s.status === "SUBMITTED" ? "已送審" : s.status === "APPROVED" ? "已審核" : s.status === "POSTED" ? "已過帳" : s.status === "VOIDED" ? "已作廢" : s.status,
+      value: s._count.id,
+    })),
+    inventoryByWarehouse: inventoryByWarehouse.map((w: any) => ({
+      name: w.name,
+      value: Number(w.total),
+    })),
   };
 }
 
@@ -217,6 +238,25 @@ export default async function DashboardPage() {
                 <span className="font-medium">{formatMoney(p.subtotal)}</span>
               </div>
             ))}
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Card className="shadow-md border-0">
+          <CardHeader className="bg-gradient-to-r from-slate-50 to-white dark:from-slate-800 dark:to-slate-900 rounded-t-lg">
+            <CardTitle className="text-base flex items-center gap-2"><PieChart className="h-4 w-4 text-purple-500" />銷售單狀態分佈</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <PieChartComponent data={s.salesByStatus} />
+          </CardContent>
+        </Card>
+        <Card className="shadow-md border-0">
+          <CardHeader className="bg-gradient-to-r from-slate-50 to-white dark:from-slate-800 dark:to-slate-900 rounded-t-lg">
+            <CardTitle className="text-base flex items-center gap-2"><Package className="h-4 w-4 text-cyan-500" />庫存分佈（按倉庫）</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <HorizontalBarChart data={s.inventoryByWarehouse} />
           </CardContent>
         </Card>
       </div>
