@@ -457,7 +457,14 @@ function ViewJournalDialog({ entry, onClose, onAct, onEdit }: any) {
             <Printer className="h-4 w-4" />列印
           </Button>
           {entry.status === "DRAFT" && <Button variant="outline" onClick={() => onEdit(entry.id)}><Pencil className="h-4 w-4" />修改</Button>}
-          {entry.status === "DRAFT" && <Button onClick={() => onAct(entry.id, "post")}>過帳</Button>}
+          {entry.status === "DRAFT" && <Button variant="outline" onClick={() => onAct(entry.id, "submit")}>送出</Button>}
+          {entry.status === "SUBMITTED" && (
+            <>
+              <Button variant="outline" onClick={() => onAct(entry.id, "approve")}>審核</Button>
+              <Button variant="destructive" onClick={() => onAct(entry.id, "reject")}>駁回</Button>
+            </>
+          )}
+          {entry.status === "APPROVED" && <Button onClick={() => onAct(entry.id, "post")}>過帳</Button>}
           {entry.status === "POSTED" && <Button variant="destructive" onClick={() => onAct(entry.id, "void")}>作廢</Button>}
           {entry.status === "DRAFT" && <Button variant="destructive" onClick={() => onAct(entry.id, "delete")}>刪除</Button>}
           <Button variant="ghost" onClick={onClose}>關閉</Button>

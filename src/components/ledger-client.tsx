@@ -60,6 +60,22 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
   const fmtNum = (n: number) => formatMoney(n);
   const actionLabel = kind === "ar" ? "收" : "付";
 
+  async function onAct(id: string, action: string) {
+    try {
+      const res = await fetch(`${endpoint}/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || "操作失敗");
+      toast.success("已處理");
+      load();
+      loadSummary();
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+  }
+
   return (
     <div className="space-y-4">
       {/* ─── 收付款方式統計 ─── */}
@@ -191,6 +207,15 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
                       {kind === "ar" ? "收款" : "付款"}
                     </Button>
                   )}
+                  {r.status === "DRAFT" && <Button size="sm" variant="outline" onClick={() => onAct(r.id, "submit")}>送出</Button>}
+                  {r.status === "SUBMITTED" && (
+                    <>
+                      <Button size="sm" variant="outline" onClick={() => onAct(r.id, "approve")}>審核</Button>
+                      <Button size="sm" variant="destructive" onClick={() => onAct(r.id, "reject")}>駁回</Button>
+                    </>
+                  )}
+                  {r.status === "APPROVED" && <Button size="sm" onClick={() => onAct(r.id, "post")}>過帳</Button>}
+                  {r.status === "POSTED" && <Button size="sm" variant="destructive" onClick={() => onAct(r.id, "void")}>作廢</Button>}
                   <Button size="sm" variant="ghost" onClick={() => setEditRow(r)}>
                     編輯
                   </Button>

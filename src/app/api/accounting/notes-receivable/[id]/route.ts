@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { apiHandler, requirePermission, requireTenantId, audit } from "@/lib/api";
+import { apiHandler, requirePermission, requireTenantId, audit, getCurrentUserId } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 
 export const GET = apiHandler(async (_req: NextRequest, { params }: { params: { id: string } }) => {
@@ -16,20 +16,28 @@ export const GET = apiHandler(async (_req: NextRequest, { params }: { params: { 
 export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: { id: string } }) => {
   const session = await requirePermission("notes.edit");
   const tenantId = await requireTenantId();
+  const currentUserId = await getCurrentUserId();
   const body = await req.json();
   const { action, ...patch } = body;
   const n = await prisma.noteReceivable.findUnique({ where: { id: params.id, tenantId } });
   if (!n) throw new Error("找不到票據");
 
   let data: any = {};
-  if (action === "clear") {
-    data = { status: "CLEARED", clearedDate: new Date() };
-  } else if (action === "bounce") {
-    data = { status: "BOUNCED" };
-  } else if (action === "endorse") {
-    data = { status: "ENDORSED" };
+  if (action === "submit") {
+    await requirePermission("notes.submit");
+    data = { status: "SUBMITTED", updatedBy: currentUserId };
+  } else if (action === "approve") {
+    await requirePermission("notes.approve");
+    data = { status: "APPROVED", updatedBy: currentUserId };
+  } else if (action === "reject") {
+    await requirePermission("notes.reject");
+    data = { status: "REJECTED", updatedBy: currentUserId };
+  } else if (action === "post") {
+    await requirePermission("notes.post");
+    data = { status: "POSTED", updatedBy: currentUserId };
   } else if (action === "void") {
-    data = { status: "VOID" };
+    await requirePermission("notes.void");
+    data = { status: "VOIDED", updatedBy: currentUserId };
   } else {
     // 一般更新
     data = {

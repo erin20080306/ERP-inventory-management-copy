@@ -30,6 +30,34 @@ export const DELETE = apiHandler(async (_req: NextRequest, { params }: { params:
   return NextResponse.json({ ok: true });
 });
 
+export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: { id: string } }) => {
+  const session = await requirePermission("receivables.edit");
+  const tenantId = await requireTenantId();
+  const currentUserId = await getCurrentUserId();
+  const body = await req.json();
+  const { action } = body;
+
+  if (action === "submit") {
+    await requirePermission("receivables.submit");
+    await prisma.accountsReceivable.update({ where: { id: params.id, tenantId }, data: { status: "SUBMITTED", updatedBy: currentUserId } });
+  } else if (action === "approve") {
+    await requirePermission("receivables.approve");
+    await prisma.accountsReceivable.update({ where: { id: params.id, tenantId }, data: { status: "APPROVED", updatedBy: currentUserId } });
+  } else if (action === "reject") {
+    await requirePermission("receivables.reject");
+    await prisma.accountsReceivable.update({ where: { id: params.id, tenantId }, data: { status: "REJECTED", updatedBy: currentUserId } });
+  } else if (action === "post") {
+    await requirePermission("receivables.post");
+    await prisma.accountsReceivable.update({ where: { id: params.id, tenantId }, data: { status: "POSTED", updatedBy: currentUserId } });
+  } else if (action === "void") {
+    await requirePermission("receivables.void");
+    await prisma.accountsReceivable.update({ where: { id: params.id, tenantId }, data: { status: "VOIDED", updatedBy: currentUserId } });
+  }
+
+  await audit({ userId: session.user.id, action, module: "receivables", refId: params.id });
+  return NextResponse.json({ ok: true });
+});
+
 export const PUT = apiHandler(async (req: NextRequest, { params }: { params: { id: string } }) => {
   const session = await requirePermission("receivables.edit");
   const tenantId = await requireTenantId();

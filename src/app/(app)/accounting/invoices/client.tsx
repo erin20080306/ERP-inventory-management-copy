@@ -56,6 +56,21 @@ export function InvoiceClient() {
 
   const editableFields = ["remark"];
 
+  async function onAct(id: string, action: string) {
+    try {
+      const res = await fetch(`/api/accounting/invoices/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || "操作失敗");
+      toast.success("已處理");
+      load();
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+  }
+
   function startCellEdit(row: any, colKey: string) {
     if (!inlineEditing[row.id]) {
       const draft: Record<string, any> = {};
@@ -259,18 +274,26 @@ export function InvoiceClient() {
                   <Button variant="ghost" size="icon" onClick={() => setEditId(i.id)} title="編輯">
                     <Pencil className="h-4 w-4" />
                   </Button>
-                  {i.status !== "VOID" && <ConvertToJournalButton sourceType="INVOICE" sourceId={i.id} size="sm" />}
+                  {i.status === "DRAFT" && <Button size="sm" variant="outline" onClick={() => onAct(i.id, "submit")}>送出</Button>}
+                  {i.status === "SUBMITTED" && (
+                    <>
+                      <Button size="sm" variant="outline" onClick={() => onAct(i.id, "approve")}>審核</Button>
+                      <Button size="sm" variant="destructive" onClick={() => onAct(i.id, "reject")}>駁回</Button>
+                    </>
+                  )}
+                  {i.status === "APPROVED" && <Button size="sm" onClick={() => onAct(i.id, "post")}>過帳</Button>}
+                  {i.status === "POSTED" && <ConvertToJournalButton sourceType="INVOICE" sourceId={i.id} size="sm" />}
+                  {i.status !== "VOIDED" && (
+                    <Button variant="ghost" size="icon" onClick={() => voidInvoice(i.id)}>
+                      <Ban className="h-4 w-4 text-red-600" />
+                    </Button>
+                  )}
                   <Button variant="ghost" size="icon" title="一般列印" onClick={() => window.open(`/print/invoice/${i.id}`, "_blank")}>
                     <Printer className="h-4 w-4" />
                   </Button>
                   <Button variant="ghost" size="icon" title="台灣電子發票格式" onClick={() => window.open(`/print/invoice-tw/${i.id}`, "_blank")}>
                     <FileText className="h-4 w-4 text-blue-600" />
                   </Button>
-                  {i.status !== "VOID" && (
-                    <Button variant="ghost" size="icon" onClick={() => voidInvoice(i.id)}>
-                      <Ban className="h-4 w-4 text-red-600" />
-                    </Button>
-                  )}
                 </div>
               </TD>
             </TR>

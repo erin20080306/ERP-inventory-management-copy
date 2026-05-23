@@ -19,18 +19,20 @@ const NOTE_TYPE_LABELS: Record<string, string> = {
   OTHER: "其他",
 };
 const STATUS_LABELS: Record<string, string> = {
-  PENDING: "未到期",
-  CLEARED: "已兌現",
-  BOUNCED: "退票",
-  ENDORSED: "已背書",
-  VOID: "作廢",
+  DRAFT: "草稿",
+  SUBMITTED: "已送審",
+  APPROVED: "已審核",
+  POSTED: "已過帳",
+  VOIDED: "已作廢",
+  REJECTED: "已駁回",
 };
 const STATUS_VARIANTS: Record<string, any> = {
-  PENDING: "info",
-  CLEARED: "success",
-  BOUNCED: "danger",
-  ENDORSED: "warning",
-  VOID: "secondary",
+  DRAFT: "outline",
+  SUBMITTED: "info",
+  APPROVED: "warning",
+  POSTED: "success",
+  VOIDED: "danger",
+  REJECTED: "danger",
 };
 
 export function NotesClient({ kind }: { kind: "receivable" | "payable" }) {
@@ -234,11 +236,12 @@ export function NotesClient({ kind }: { kind: "receivable" | "payable" }) {
           </div>
           <select className="h-10 rounded-md border border-input bg-background px-3 text-sm" value={status} onChange={(e) => { setPage(1); setStatus(e.target.value); }}>
             <option value="">全部狀態</option>
-            <option value="PENDING">未到期</option>
-            <option value="CLEARED">已兌現</option>
-            <option value="BOUNCED">退票</option>
-            <option value="ENDORSED">已背書</option>
-            <option value="VOID">作廢</option>
+            <option value="DRAFT">草稿</option>
+            <option value="SUBMITTED">已送審</option>
+            <option value="APPROVED">已審核</option>
+            <option value="POSTED">已過帳</option>
+            <option value="VOIDED">已作廢</option>
+            <option value="REJECTED">已駁回</option>
           </select>
           <Input type="date" value={fromDate} onChange={(e) => { setPage(1); setFromDate(e.target.value); }} className="w-36" />
           <Input type="date" value={toDate} onChange={(e) => { setPage(1); setToDate(e.target.value); }} className="w-36" />
@@ -339,24 +342,15 @@ export function NotesClient({ kind }: { kind: "receivable" | "payable" }) {
                   <Button size="sm" variant="ghost" title="編輯" onClick={() => setEditId(r.id)}>
                     <Pencil className="h-4 w-4" />
                   </Button>
-                  {r.status === "PENDING" && (
+                  {r.status === "DRAFT" && <Button size="sm" variant="outline" onClick={() => act(r.id, "submit")}>送出</Button>}
+                  {r.status === "SUBMITTED" && (
                     <>
-                      <Button size="sm" variant="ghost" title="兌現" onClick={() => act(r.id, "clear")}>
-                        <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                      </Button>
-                      <Button size="sm" variant="ghost" title="退票" onClick={() => act(r.id, "bounce")}>
-                        <XCircle className="h-4 w-4 text-red-600" />
-                      </Button>
-                      {kind === "receivable" && (
-                        <Button size="sm" variant="ghost" title="背書轉讓" onClick={() => act(r.id, "endorse")}>
-                          <Ban className="h-4 w-4 text-amber-600" />
-                        </Button>
-                      )}
+                      <Button size="sm" variant="outline" onClick={() => act(r.id, "approve")}>審核</Button>
+                      <Button size="sm" variant="destructive" onClick={() => act(r.id, "reject")}>駁回</Button>
                     </>
                   )}
-                  <Button size="sm" variant="ghost" title="作廢" onClick={() => act(r.id, "void")}>
-                    <Trash2 className="h-4 w-4 text-muted-foreground" />
-                  </Button>
+                  {r.status === "APPROVED" && <Button size="sm" onClick={() => act(r.id, "post")}>過帳</Button>}
+                  {r.status === "POSTED" && <Button size="sm" variant="destructive" onClick={() => act(r.id, "void")}>作廢</Button>}
                 </div>
               </TD>
               {customCols.columns.map((cc) => {
