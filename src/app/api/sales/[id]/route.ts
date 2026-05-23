@@ -69,7 +69,24 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: {
     await prisma.salesOrder.update({ where: { id: params.id, tenantId }, data: { status: "REJECTED", updatedBy: currentUserId } });
   } else if (action === "post") {
     await requirePermission("sales.post");
+    const order = await prisma.salesOrder.findUnique({ where: { id: params.id, tenantId } });
+    if (!order) throw new Error("找不到銷售單");
     await prisma.salesOrder.update({ where: { id: params.id, tenantId }, data: { status: "POSTED", updatedBy: currentUserId } });
+    // 過帳時確保應收帳款存在並將狀態改為 POSTED
+    let ar = await prisma.accountsReceivable.findFirst({ where: { salesOrderId: params.id, tenantId } });
+    if (!ar) {
+      ar = await prisma.accountsReceivable.create({
+        data: {
+          tenantId,
+          customerId: order.customerId,
+          salesOrderId: order.id,
+          amount: order.total,
+          status: "POSTED",
+        },
+      });
+    } else {
+      await prisma.accountsReceivable.update({ where: { id: ar.id }, data: { status: "POSTED" } });
+    }
   } else if (action === "ship") {
     if (!warehouseId) throw new Error("請選擇出貨倉庫");
     await shipSalesOrder(params.id, warehouseId);
