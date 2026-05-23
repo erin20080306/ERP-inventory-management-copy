@@ -384,6 +384,15 @@ export default function ReturnsClient() {
                       <Button variant="ghost" size="icon" onClick={() => setEditSalesId(r.id)} title="編輯">
                         <Pencil className="h-4 w-4" />
                       </Button>
+                      <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-700" title="刪除" onClick={async () => {
+                        if (!confirm(`確定刪除 ${r.number}？`)) return;
+                        const res = await fetch(`/api/returns/sales/${r.id}`, { method: "DELETE" });
+                        if (!res.ok) { const e = await res.json(); toast.error(e.error || "刪除失敗"); return; }
+                        toast.success("已刪除");
+                        load();
+                      }}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                       <ConvertToJournalButton sourceType="SALES_RETURN" sourceId={r.id} size="sm" />
                     </TD>
                   </TR>
@@ -432,6 +441,15 @@ export default function ReturnsClient() {
                     <TD className="text-right flex items-center justify-end gap-1">
                       <Button variant="ghost" size="icon" onClick={() => setEditPurchaseId(r.id)} title="編輯">
                         <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-700" title="刪除" onClick={async () => {
+                        if (!confirm(`確定刪除 ${r.number}？`)) return;
+                        const res = await fetch(`/api/returns/purchases/${r.id}`, { method: "DELETE" });
+                        if (!res.ok) { const e = await res.json(); toast.error(e.error || "刪除失敗"); return; }
+                        toast.success("已刪除");
+                        load();
+                      }}>
+                        <Trash2 className="h-4 w-4" />
                       </Button>
                       <ConvertToJournalButton sourceType="PURCHASE_RETURN" sourceId={r.id} size="sm" />
                     </TD>

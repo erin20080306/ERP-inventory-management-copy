@@ -413,6 +413,15 @@ export default function QuotationClient() {
                   <Button variant="ghost" size="icon" onClick={() => setEditId(q.id)} title="編輯">
                     <Pencil className="h-4 w-4" />
                   </Button>
+                  <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-700" title="刪除" onClick={async () => {
+                    if (!confirm(`確定刪除 ${q.number}？`)) return;
+                    const res = await fetch(`/api/quotations/${q.id}`, { method: "DELETE" });
+                    if (!res.ok) { const e = await res.json(); toast.error(e.error || "刪除失敗"); return; }
+                    toast.success("已刪除");
+                    load();
+                  }}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </TD>
               </TR>
             );
