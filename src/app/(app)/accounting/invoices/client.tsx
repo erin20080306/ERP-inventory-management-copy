@@ -7,7 +7,7 @@ import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { Badge, StatusBadge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/layout/page-shell";
 import { toast } from "sonner";
-import { Plus, Trash2, Loader2, Search, Download, FileText, Ban, Printer, FileDown, ScanLine } from "lucide-react";
+import { Plus, Trash2, Loader2, Search, Download, FileText, Ban, Printer, FileDown, ScanLine, Pencil } from "lucide-react";
 import { formatDate, formatMoney } from "@/lib/utils";
 import { downloadCSV, toCSV } from "@/lib/csv";
 import { ConvertToJournalButton } from "@/components/convert-to-journal-button";
@@ -289,7 +289,7 @@ export function InvoiceClient() {
       </div>
 
       <NewInvoiceDialog open={openNew} onClose={() => setOpenNew(false)} onCreated={() => { setOpenNew(false); load(); }} />
-      {editId && <NewInvoiceDialog open={!!editId} row={rows.find((r) => r.id === editId)} onClose={() => setEditId(null)} onSaved={(saved) => { setEditId(null); if (saved) { setRows((prev) => prev.map((r) => r.id === saved.id ? saved : r)); } else { load(); } }} />}
+      {editId && <NewInvoiceDialog open={!!editId} row={rows.find((r) => r.id === editId)} onClose={() => setEditId(null)} onSaved={(saved: any) => { setEditId(null); if (saved) { setRows((prev) => prev.map((r) => r.id === saved.id ? saved : r)); } else { load(); } }} />}
       <FromOrderDialog kind="sales" open={openFromSO} onClose={() => setOpenFromSO(false)} onDone={() => { setOpenFromSO(false); load(); }} />
       <FromOrderDialog kind="purchase" open={openFromPO} onClose={() => setOpenFromPO(false)} onDone={() => { setOpenFromPO(false); load(); }} />
       <CustomColumnDialog module="invoices" columns={customCols.columns} open={customCols.open} onClose={() => customCols.setOpen(false)} onSave={customCols.save} />
