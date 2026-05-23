@@ -8,6 +8,55 @@ import { requireTenantId } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
+// 模組名稱中文映射
+const moduleNames: Record<string, string> = {
+  sales: "銷售管理",
+  purchases: "採購管理",
+  customers: "客戶管理",
+  suppliers: "供應商管理",
+  products: "產品管理",
+  inventory: "庫存管理",
+  returns: "退貨管理",
+  quotations: "報價單",
+  invoices: "發票管理",
+  journals: "傳票管理",
+  receivables: "應收帳款",
+  payables: "應付帳款",
+  "notes-receivable": "應收票據",
+  "notes-payable": "應付票據",
+  roles: "角色權限",
+  users: "使用者管理",
+  warehouses: "倉庫管理",
+  hr: "人事管理",
+  banking: "銀行管理",
+  accounting: "會計管理",
+  settings: "系統設定",
+};
+
+// 動作名稱中文映射
+const actionNames: Record<string, string> = {
+  create: "建立",
+  update: "修改",
+  delete: "刪除",
+  view: "查看",
+  edit: "編輯",
+  receive: "收款",
+  pay: "付款",
+  void: "作廢",
+  approve: "核准",
+  reject: "拒絕",
+  export: "匯出",
+  import: "匯入",
+};
+
+function translateModule(module: string) {
+  return moduleNames[module] || module;
+}
+
+function translateAction(action: string) {
+  return actionNames[action] || action;
+}
+
 export default async function Page() {
   const g = await requirePermissionOrForbidden("audit.view");
   if (g.forbidden) return g.element;
@@ -38,8 +87,8 @@ export default async function Page() {
                 <TR key={l.id}>
                   <TD className="text-xs">{formatDateTime(l.createdAt)}</TD>
                   <TD>{l.user?.name ?? "—"}</TD>
-                  <TD>{l.module}</TD>
-                  <TD>{l.action}</TD>
+                  <TD>{translateModule(l.module)}</TD>
+                  <TD>{translateAction(l.action)}</TD>
                   <TD className="font-mono text-xs">{l.refId ?? "—"}</TD>
                   <TD>{l.detail ?? "—"}</TD>
                   <TD className="text-xs">{l.ip ?? "—"}</TD>
