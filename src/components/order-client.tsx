@@ -95,7 +95,19 @@ export function OrderClient({ kind }: { kind: Kind }) {
         body: JSON.stringify({ action }),
       });
       if (!res.ok) throw new Error((await res.json()).error || "操作失敗");
-      toast.success("已處理");
+      const data = await res.json();
+      if (action === "post" && data.journalId) {
+        toast.success(
+          <div className="flex items-center gap-2">
+            <span>已過帳</span>
+            <a href={`/accounting/journals/${data.journalId}`} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">
+              查看傳票
+            </a>
+          </div>
+        );
+      } else {
+        toast.success(data.message || "已處理");
+      }
       load();
     } catch (e: any) {
       toast.error(e.message);
@@ -384,7 +396,7 @@ export function OrderClient({ kind }: { kind: Kind }) {
                     <Pencil className="h-4 w-4" />
                   </Button>
                   <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-700" title="刪除" onClick={async () => {
-                    if (!confirm(`確定刪除 ${r.number}？`)) return;
+                    if (!confirm(`確定刪除 ${r.number}？\n\n刪除將同時刪除關聯的應收應付記錄與傳票，此操作無法復原。`)) return;
                     const res = await fetch(`${endpoint}/${r.id}`, { method: "DELETE" });
                     if (!res.ok) { const e = await res.json(); toast.error(e.error || "刪除失敗"); return; }
                     toast.success("已刪除");

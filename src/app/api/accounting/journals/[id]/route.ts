@@ -84,24 +84,15 @@ export const DELETE = apiHandler(async (_req: NextRequest, { params }: { params:
   });
   if (!entry) throw new Error("找不到傳票");
   
-  // 檢查是否有相關的應收應付記錄
-  const relatedReceivables = await prisma.accountsReceivable.findMany({
-    where: { invoiceId: params.id },
+  // 刪除關聯的應收應付記錄
+  await prisma.accountsReceivable.deleteMany({
+    where: { invoiceId: params.id, tenantId },
   });
-  const relatedPayables = await prisma.accountsPayable.findMany({
-    where: { invoiceId: params.id },
+  await prisma.accountsPayable.deleteMany({
+    where: { invoiceId: params.id, tenantId },
   });
   
-  const hasRelated = relatedReceivables.length > 0 || relatedPayables.length > 0;
-  
-  if (hasRelated) {
-    const relatedInfo = [];
-    if (relatedReceivables.length > 0) relatedInfo.push(`應收帳款 (${relatedReceivables.length}筆)`);
-    if (relatedPayables.length > 0) relatedInfo.push(`應付帳款 (${relatedPayables.length}筆)`);
-    
-    throw new Error(`此傳票關聯以下記錄，刪除將同時刪除這些記錄：${relatedInfo.join("、")}。請先刪除相關記錄。`);
-  }
-  
+  // 刪除傳票
   await prisma.journalEntry.delete({ where: { id: params.id, tenantId } });
   await audit({ userId: session.user.id, action: "delete", module: "journals", refId: params.id });
   return NextResponse.json({ ok: true });

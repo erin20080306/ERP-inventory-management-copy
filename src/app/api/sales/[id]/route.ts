@@ -87,6 +87,11 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: {
     } else {
       await prisma.accountsReceivable.update({ where: { id: ar.id }, data: { status: "POSTED" } });
     }
+    // 查找關聯的傳票並返回 ID
+    const journal = await prisma.journalEntry.findFirst({ where: { sourceId: params.id, tenantId } });
+    if (journal) {
+      return NextResponse.json({ ok: true, journalId: journal.id });
+    }
   } else if (action === "ship") {
     if (!warehouseId) throw new Error("請選擇出貨倉庫");
     await shipSalesOrder(params.id, warehouseId);
@@ -156,6 +161,8 @@ export const DELETE = apiHandler(async (_req: NextRequest, { params }: { params:
   if (!canDelete) throw new Error("已出貨/已付款狀態無法刪除");
   // 刪除關聯的 AR
   await prisma.accountsReceivable.deleteMany({ where: { salesOrderId: params.id, tenantId } });
+  // 刪除關聯的傳票
+  await prisma.journalEntry.deleteMany({ where: { sourceId: params.id, tenantId } });
   await prisma.salesOrder.delete({ where: { id: params.id, tenantId } });
   await audit({ userId: session.user.id, action: "delete", module: "sales", refId: params.id });
   return NextResponse.json({ ok: true });
