@@ -193,6 +193,9 @@ export default function QuotationClient() {
   const customCols = useCustomColumns("quotations");
   const [editingCells, setEditingCells] = useState<Record<string, any>>({});
   const colDrag = useColumnDrag("quotations", ["number", "customer", "date", "validUntil", "total", "status", "updatedBy"]);
+  const [inlineEditing, setInlineEditing] = useState<Record<string, Record<string, any>>>({});
+  const [inlineSaving, setInlineSaving] = useState<string | null>(null);
+  const [activeCell, setActiveCell] = useState<{ rowId: string; colKey: string } | null>(null);
 
   async function load() {
     setLoading(true);
@@ -209,6 +212,83 @@ export default function QuotationClient() {
     }
   }
   useEffect(() => { load(); }, [q, fromDate, toDate]);
+
+  const editableFields = ["quoteDate", "validUntil"];
+
+  function startCellEdit(row: any, colKey: string) {
+    if (!inlineEditing[row.id]) {
+      const draft: Record<string, any> = {};
+      editableFields.forEach((f) => { draft[f] = (row as any)[f] ?? ""; });
+      setInlineEditing((prev) => ({ ...prev, [row.id]: draft }));
+    }
+    setActiveCell({ rowId: row.id, colKey });
+  }
+
+  function handleCellKeyDown(e: React.KeyboardEvent, row: any, colKey: string) {
+    const rowIdx = items.findIndex((r) => r.id === row.id);
+    const colIdx = editableFields.indexOf(colKey);
+
+    if (e.key === "Enter" || e.key === "ArrowDown") {
+      e.preventDefault();
+      saveCellAndMove(row, rowIdx + 1, colKey);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      saveCellAndMove(row, rowIdx - 1, colKey);
+    } else if (e.key === "Tab") {
+      e.preventDefault();
+      if (e.shiftKey) {
+        if (colIdx > 0) {
+          setActiveCell({ rowId: row.id, colKey: editableFields[colIdx - 1] });
+        } else if (rowIdx > 0) {
+          saveCellAndMove(row, rowIdx - 1, editableFields[editableFields.length - 1]);
+        }
+      } else {
+        if (colIdx < editableFields.length - 1) {
+          setActiveCell({ rowId: row.id, colKey: editableFields[colIdx + 1] });
+        } else if (rowIdx < items.length - 1) {
+          saveCellAndMove(row, rowIdx + 1, editableFields[0]);
+        }
+      }
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      cancelInlineEdit(row.id);
+      setActiveCell(null);
+    }
+  }
+
+  async function saveCellAndMove(currentRow: any, targetRowIdx: number, targetColKey: string) {
+    await saveInlineEdit(currentRow);
+    if (targetRowIdx >= 0 && targetRowIdx < items.length) {
+      const targetRow = items[targetRowIdx];
+      startCellEdit(targetRow, targetColKey);
+    } else {
+      setActiveCell(null);
+    }
+  }
+
+  async function saveInlineEdit(row: any) {
+    const draft = inlineEditing[row.id];
+    if (!draft) return;
+    setInlineSaving(row.id);
+    try {
+      const payload = { ...(row as any), ...draft };
+      const res = await fetch(`/api/quotations/${row.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      if (!res.ok) throw new Error((await res.json()).error || "儲存失敗");
+      const saved = await res.json().catch(() => null);
+      toast.success("已儲存");
+      setInlineEditing((prev) => { const n = { ...prev }; delete n[row.id]; return n; });
+      setItems((prev) => prev.map((r) => r.id === row.id ? (saved && saved.id ? saved : { ...r, ...draft }) : r));
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setInlineSaving(null);
+    }
+  }
+
+  function cancelInlineEdit(rowId: string) {
+    setInlineEditing((prev) => { const n = { ...prev }; delete n[rowId]; return n; });
+    if (activeCell?.rowId === rowId) setActiveCell(null);
+  }
 
   return (
     <div className="space-y-4">
@@ -279,12 +359,47 @@ export default function QuotationClient() {
           </THead>
           <TBody>
             {items.length === 0 && <TR><TD colSpan={8} className="text-center text-muted-foreground">尚無報價單</TD></TR>}
-            {items.map((q) => (
-              <TR key={q.id}>
+            {items.map((q) => {
+              const draft = inlineEditing[q.id];
+              const isRowEditing = !!draft;
+              return (
+              <TR key={q.id} className={isRowEditing ? "bg-blue-50/50 dark:bg-blue-950/20" : ""}>
                 <TD className="font-mono text-xs">{q.number}</TD>
                 <TD>{q.customer?.companyName}</TD>
-                <TD>{formatDate(q.quoteDate)}</TD>
-                <TD>{formatDate(q.validUntil)}</TD>
+                <TD
+                  className={editableFields.includes("quoteDate") ? "cursor-cell hover:bg-blue-50/60 dark:hover:bg-blue-950/30 transition-colors" : ""}
+                  onClick={() => { if (editableFields.includes("quoteDate")) startCellEdit(q, "quoteDate"); }}
+                >
+                  {activeCell?.rowId === q.id && activeCell?.colKey === "quoteDate" ? (
+                    <Input
+                      type="date"
+                      value={draft?.quoteDate ?? q.quoteDate?.slice(0, 10) ?? ""}
+                      autoFocus
+                      onChange={(e) => setInlineEditing((prev) => ({ ...prev, [q.id]: { ...prev[q.id], quoteDate: e.target.value } }))}
+                      className="h-8 text-sm border-0 bg-transparent shadow-none focus-visible:ring-0 px-1"
+                      onKeyDown={(e) => handleCellKeyDown(e, q, "quoteDate")}
+                    />
+                  ) : (
+                    formatDate(q.quoteDate)
+                  )}
+                </TD>
+                <TD
+                  className={editableFields.includes("validUntil") ? "cursor-cell hover:bg-blue-50/60 dark:hover:bg-blue-950/30 transition-colors" : ""}
+                  onClick={() => { if (editableFields.includes("validUntil")) startCellEdit(q, "validUntil"); }}
+                >
+                  {activeCell?.rowId === q.id && activeCell?.colKey === "validUntil" ? (
+                    <Input
+                      type="date"
+                      value={draft?.validUntil ?? q.validUntil?.slice(0, 10) ?? ""}
+                      autoFocus
+                      onChange={(e) => setInlineEditing((prev) => ({ ...prev, [q.id]: { ...prev[q.id], validUntil: e.target.value } }))}
+                      className="h-8 text-sm border-0 bg-transparent shadow-none focus-visible:ring-0 px-1"
+                      onKeyDown={(e) => handleCellKeyDown(e, q, "validUntil")}
+                    />
+                  ) : (
+                    formatDate(q.validUntil)
+                  )}
+                </TD>
                 <TD>{formatMoney(q.total)}</TD>
                 <TD><StatusBadge status={q.status} /></TD>
                 <TD className="text-xs text-gray-500">{q.updatedBy || "-"}</TD>
@@ -300,7 +415,8 @@ export default function QuotationClient() {
                   </Button>
                 </TD>
               </TR>
-            ))}
+            );
+            })}
           </TBody>
         </Table>
       )}

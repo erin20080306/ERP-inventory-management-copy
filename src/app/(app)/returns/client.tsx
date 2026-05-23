@@ -207,6 +207,9 @@ export default function ReturnsClient() {
   const customCols = useCustomColumns("returns");
   const [editingCells, setEditingCells] = useState<Record<string, any>>({});
   const colDrag = useColumnDrag("returns", ["number", "party", "date", "reason", "total", "status", "updatedBy"]);
+  const [inlineEditing, setInlineEditing] = useState<Record<string, Record<string, any>>>({});
+  const [inlineSaving, setInlineSaving] = useState<string | null>(null);
+  const [activeCell, setActiveCell] = useState<{ rowId: string; colKey: string } | null>(null);
 
   async function load() {
     setLoading(true);
@@ -228,6 +231,91 @@ export default function ReturnsClient() {
     }
   }
   useEffect(() => { load(); }, [q, fromDate, toDate]);
+
+  const editableFields = ["reason"];
+
+  function startCellEdit(row: any, colKey: string) {
+    if (!inlineEditing[row.id]) {
+      const draft: Record<string, any> = {};
+      editableFields.forEach((f) => { draft[f] = (row as any)[f] ?? ""; });
+      setInlineEditing((prev) => ({ ...prev, [row.id]: draft }));
+    }
+    setActiveCell({ rowId: row.id, colKey });
+  }
+
+  function handleCellKeyDown(e: React.KeyboardEvent, row: any, colKey: string) {
+    const allRows = [...salesReturns, ...purchaseReturns];
+    const rowIdx = allRows.findIndex((r) => r.id === row.id);
+    const colIdx = editableFields.indexOf(colKey);
+
+    if (e.key === "Enter" || e.key === "ArrowDown") {
+      e.preventDefault();
+      saveCellAndMove(row, rowIdx + 1, colKey);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      saveCellAndMove(row, rowIdx - 1, colKey);
+    } else if (e.key === "Tab") {
+      e.preventDefault();
+      if (e.shiftKey) {
+        if (colIdx > 0) {
+          setActiveCell({ rowId: row.id, colKey: editableFields[colIdx - 1] });
+        } else if (rowIdx > 0) {
+          saveCellAndMove(row, rowIdx - 1, editableFields[editableFields.length - 1]);
+        }
+      } else {
+        if (colIdx < editableFields.length - 1) {
+          setActiveCell({ rowId: row.id, colKey: editableFields[colIdx + 1] });
+        } else if (rowIdx < allRows.length - 1) {
+          saveCellAndMove(row, rowIdx + 1, editableFields[0]);
+        }
+      }
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      cancelInlineEdit(row.id);
+      setActiveCell(null);
+    }
+  }
+
+  async function saveCellAndMove(currentRow: any, targetRowIdx: number, targetColKey: string) {
+    await saveInlineEdit(currentRow);
+    const allRows = [...salesReturns, ...purchaseReturns];
+    if (targetRowIdx >= 0 && targetRowIdx < allRows.length) {
+      const targetRow = allRows[targetRowIdx];
+      startCellEdit(targetRow, targetColKey);
+    } else {
+      setActiveCell(null);
+    }
+  }
+
+  async function saveInlineEdit(row: any) {
+    const draft = inlineEditing[row.id];
+    if (!draft) return;
+    setInlineSaving(row.id);
+    try {
+      const isSales = salesReturns.some((r) => r.id === row.id);
+      const endpoint = isSales ? `/api/returns/sales/${row.id}` : `/api/returns/purchases/${row.id}`;
+      const payload = { ...(row as any), ...draft };
+      const res = await fetch(endpoint, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      if (!res.ok) throw new Error((await res.json()).error || "儲存失敗");
+      const saved = await res.json().catch(() => null);
+      toast.success("已儲存");
+      setInlineEditing((prev) => { const n = { ...prev }; delete n[row.id]; return n; });
+      if (isSales) {
+        setSalesReturns((prev) => prev.map((r) => r.id === row.id ? (saved && saved.id ? saved : { ...r, ...draft }) : r));
+      } else {
+        setPurchaseReturns((prev) => prev.map((r) => r.id === row.id ? (saved && saved.id ? saved : { ...r, ...draft }) : r));
+      }
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setInlineSaving(null);
+    }
+  }
+
+  function cancelInlineEdit(rowId: string) {
+    setInlineEditing((prev) => { const n = { ...prev }; delete n[rowId]; return n; });
+    if (activeCell?.rowId === rowId) setActiveCell(null);
+  }
 
   return (
     <div className="space-y-6">
@@ -264,12 +352,30 @@ export default function ReturnsClient() {
               </THead>
               <TBody>
                 {salesReturns.length === 0 && <TR><TD colSpan={8} className="text-center text-muted-foreground">尚無資料</TD></TR>}
-                {salesReturns.map((r) => (
-                  <TR key={r.id}>
+                {salesReturns.map((r) => {
+                  const draft = inlineEditing[r.id];
+                  const isRowEditing = !!draft;
+                  return (
+                  <TR key={r.id} className={isRowEditing ? "bg-blue-50/50 dark:bg-blue-950/20" : ""}>
                     <TD className="font-mono text-xs">{r.number}</TD>
                     <TD>{r.customer?.companyName}</TD>
                     <TD>{formatDate(r.returnDate)}</TD>
-                    <TD>{r.reason ?? "—"}</TD>
+                    <TD
+                      className={editableFields.includes("reason") ? "cursor-cell hover:bg-blue-50/60 dark:hover:bg-blue-950/30 transition-colors" : ""}
+                      onClick={() => { if (editableFields.includes("reason")) startCellEdit(r, "reason"); }}
+                    >
+                      {activeCell?.rowId === r.id && activeCell?.colKey === "reason" ? (
+                        <Input
+                          value={draft?.reason ?? r.reason ?? ""}
+                          autoFocus
+                          onChange={(e) => setInlineEditing((prev) => ({ ...prev, [r.id]: { ...prev[r.id], reason: e.target.value } }))}
+                          className="h-8 text-sm border-0 bg-transparent shadow-none focus-visible:ring-0 px-1"
+                          onKeyDown={(e) => handleCellKeyDown(e, r, "reason")}
+                        />
+                      ) : (
+                        r.reason ?? "—"
+                      )}
+                    </TD>
                     <TD>{formatMoney(r.total)}</TD>
                     <TD><StatusBadge status={r.status} /></TD>
                     <TD className="text-xs text-gray-500">{r.updatedBy || "-"}</TD>
@@ -281,7 +387,8 @@ export default function ReturnsClient() {
                       <ConvertToJournalButton sourceType="SALES_RETURN" sourceId={r.id} size="sm" />
                     </TD>
                   </TR>
-                ))}
+                );
+                })}
               </TBody>
             </Table>
           </div>
@@ -294,12 +401,30 @@ export default function ReturnsClient() {
               </THead>
               <TBody>
                 {purchaseReturns.length === 0 && <TR><TD colSpan={8} className="text-center text-muted-foreground">尚無資料</TD></TR>}
-                {purchaseReturns.map((r) => (
-                  <TR key={r.id}>
+                {purchaseReturns.map((r) => {
+                  const draft = inlineEditing[r.id];
+                  const isRowEditing = !!draft;
+                  return (
+                  <TR key={r.id} className={isRowEditing ? "bg-blue-50/50 dark:bg-blue-950/20" : ""}>
                     <TD className="font-mono text-xs">{r.number}</TD>
                     <TD>{r.supplier?.companyName}</TD>
                     <TD>{formatDate(r.returnDate)}</TD>
-                    <TD>{r.reason ?? "—"}</TD>
+                    <TD
+                      className={editableFields.includes("reason") ? "cursor-cell hover:bg-blue-50/60 dark:hover:bg-blue-950/30 transition-colors" : ""}
+                      onClick={() => { if (editableFields.includes("reason")) startCellEdit(r, "reason"); }}
+                    >
+                      {activeCell?.rowId === r.id && activeCell?.colKey === "reason" ? (
+                        <Input
+                          value={draft?.reason ?? r.reason ?? ""}
+                          autoFocus
+                          onChange={(e) => setInlineEditing((prev) => ({ ...prev, [r.id]: { ...prev[r.id], reason: e.target.value } }))}
+                          className="h-8 text-sm border-0 bg-transparent shadow-none focus-visible:ring-0 px-1"
+                          onKeyDown={(e) => handleCellKeyDown(e, r, "reason")}
+                        />
+                      ) : (
+                        r.reason ?? "—"
+                      )}
+                    </TD>
                     <TD>{formatMoney(r.total)}</TD>
                     <TD><StatusBadge status={r.status} /></TD>
                     <TD className="text-xs text-gray-500">{r.updatedBy || "-"}</TD>
@@ -311,7 +436,8 @@ export default function ReturnsClient() {
                       <ConvertToJournalButton sourceType="PURCHASE_RETURN" sourceId={r.id} size="sm" />
                     </TD>
                   </TR>
-                ))}
+                );
+                })}
               </TBody>
             </Table>
           </div>

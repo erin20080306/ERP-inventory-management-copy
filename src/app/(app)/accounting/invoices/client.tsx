@@ -30,6 +30,9 @@ export function InvoiceClient() {
   const customCols = useCustomColumns("invoices");
   const [editingCells, setEditingCells] = useState<Record<string, any>>({});
   const colDrag = useColumnDrag("invoices", ["date", "type", "number", "party", "amountExTax", "taxAmount", "totalAmount", "status"]);
+  const [inlineEditing, setInlineEditing] = useState<Record<string, Record<string, any>>>({});
+  const [inlineSaving, setInlineSaving] = useState<string | null>(null);
+  const [activeCell, setActiveCell] = useState<{ rowId: string; colKey: string } | null>(null);
 
   async function load() {
     setLoading(true);
@@ -49,6 +52,83 @@ export function InvoiceClient() {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, q, fromDate, toDate]);
+
+  const editableFields = ["remark"];
+
+  function startCellEdit(row: any, colKey: string) {
+    if (!inlineEditing[row.id]) {
+      const draft: Record<string, any> = {};
+      editableFields.forEach((f) => { draft[f] = (row as any)[f] ?? ""; });
+      setInlineEditing((prev) => ({ ...prev, [row.id]: draft }));
+    }
+    setActiveCell({ rowId: row.id, colKey });
+  }
+
+  function handleCellKeyDown(e: React.KeyboardEvent, row: any, colKey: string) {
+    const rowIdx = rows.findIndex((r) => r.id === row.id);
+    const colIdx = editableFields.indexOf(colKey);
+
+    if (e.key === "Enter" || e.key === "ArrowDown") {
+      e.preventDefault();
+      saveCellAndMove(row, rowIdx + 1, colKey);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      saveCellAndMove(row, rowIdx - 1, colKey);
+    } else if (e.key === "Tab") {
+      e.preventDefault();
+      if (e.shiftKey) {
+        if (colIdx > 0) {
+          setActiveCell({ rowId: row.id, colKey: editableFields[colIdx - 1] });
+        } else if (rowIdx > 0) {
+          saveCellAndMove(row, rowIdx - 1, editableFields[editableFields.length - 1]);
+        }
+      } else {
+        if (colIdx < editableFields.length - 1) {
+          setActiveCell({ rowId: row.id, colKey: editableFields[colIdx + 1] });
+        } else if (rowIdx < rows.length - 1) {
+          saveCellAndMove(row, rowIdx + 1, editableFields[0]);
+        }
+      }
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      cancelInlineEdit(row.id);
+      setActiveCell(null);
+    }
+  }
+
+  async function saveCellAndMove(currentRow: any, targetRowIdx: number, targetColKey: string) {
+    await saveInlineEdit(currentRow);
+    if (targetRowIdx >= 0 && targetRowIdx < rows.length) {
+      const targetRow = rows[targetRowIdx];
+      startCellEdit(targetRow, targetColKey);
+    } else {
+      setActiveCell(null);
+    }
+  }
+
+  async function saveInlineEdit(row: any) {
+    const draft = inlineEditing[row.id];
+    if (!draft) return;
+    setInlineSaving(row.id);
+    try {
+      const payload = { ...(row as any), ...draft };
+      const res = await fetch(`/api/accounting/invoices/${row.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      if (!res.ok) throw new Error((await res.json()).error || "儲存失敗");
+      const saved = await res.json().catch(() => null);
+      toast.success("已儲存");
+      setInlineEditing((prev) => { const n = { ...prev }; delete n[row.id]; return n; });
+      setRows((prev) => prev.map((r) => r.id === row.id ? (saved && saved.id ? saved : { ...r, ...draft }) : r));
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setInlineSaving(null);
+    }
+  }
+
+  function cancelInlineEdit(rowId: string) {
+    setInlineEditing((prev) => { const n = { ...prev }; delete n[rowId]; return n; });
+    if (activeCell?.rowId === rowId) setActiveCell(null);
+  }
 
   async function voidInvoice(id: string) {
     if (!confirm("確定作廢這張發票？")) return;
@@ -137,14 +217,17 @@ export function InvoiceClient() {
       <Table>
         <THead>
           <TR>
-            <TH {...colDrag.thProps("date")}>日期</TH><TH {...colDrag.thProps("type")}>類型</TH><TH {...colDrag.thProps("number")}>發票號碼</TH><TH {...colDrag.thProps("party")}>對象</TH><TH {...colDrag.thProps("amountExTax")}>未稅</TH><TH {...colDrag.thProps("taxAmount")}>稅額</TH><TH {...colDrag.thProps("totalAmount")}>含稅</TH><TH {...colDrag.thProps("status")}>狀態</TH>{customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}<TH className="w-20 text-right">操作</TH>
+            <TH {...colDrag.thProps("date")}>日期</TH><TH {...colDrag.thProps("type")}>類型</TH><TH {...colDrag.thProps("number")}>發票號碼</TH><TH {...colDrag.thProps("party")}>對象</TH><TH {...colDrag.thProps("amountExTax")}>未稅</TH><TH {...colDrag.thProps("taxAmount")}>稅額</TH><TH {...colDrag.thProps("totalAmount")}>含稅</TH><TH {...colDrag.thProps("status")}>狀態</TH><TH {...colDrag.thProps("remark")}>備註</TH>{customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}<TH className="w-20 text-right">操作</TH>
           </TR>
         </THead>
         <TBody>
           {loading && <TR><TD colSpan={9} className="text-center py-10"><Loader2 className="inline h-5 w-5 animate-spin" /></TD></TR>}
           {!loading && rows.length === 0 && <TR><TD colSpan={9}><EmptyState /></TD></TR>}
-          {!loading && rows.map((i) => (
-            <TR key={i.id}>
+          {!loading && rows.map((i) => {
+            const draft = inlineEditing[i.id];
+            const isRowEditing = !!draft;
+            return (
+            <TR key={i.id} className={isRowEditing ? "bg-blue-50/50 dark:bg-blue-950/20" : ""}>
               <TD>{formatDate(i.invoiceDate)}</TD>
               <TD><Badge variant={i.type === "SALES" ? "success" : "info"}>{i.type === "SALES" ? "銷項" : "進項"}</Badge></TD>
               <TD className="font-mono text-xs">{i.number}</TD>
@@ -153,6 +236,22 @@ export function InvoiceClient() {
               <TD>{formatMoney(i.taxAmount)}</TD>
               <TD className="font-medium">{formatMoney(i.totalAmount)}</TD>
               <TD><StatusBadge status={i.status} /></TD>
+              <TD
+                className={editableFields.includes("remark") ? "cursor-cell hover:bg-blue-50/60 dark:hover:bg-blue-950/30 transition-colors" : ""}
+                onClick={() => { if (editableFields.includes("remark")) startCellEdit(i, "remark"); }}
+              >
+                {activeCell?.rowId === i.id && activeCell?.colKey === "remark" ? (
+                  <Input
+                    value={draft?.remark ?? i.remark ?? ""}
+                    autoFocus
+                    onChange={(e) => setInlineEditing((prev) => ({ ...prev, [i.id]: { ...prev[i.id], remark: e.target.value } }))}
+                    className="h-8 text-sm border-0 bg-transparent shadow-none focus-visible:ring-0 px-1"
+                    onKeyDown={(e) => handleCellKeyDown(e, i, "remark")}
+                  />
+                ) : (
+                  i.remark ?? "—"
+                )}
+              </TD>
               {customCols.columns.map((cc) => { const ck = `${i.id}_${cc.id}`; const v = getCustomFieldValues("invoices", i.id); const isE = editingCells[ck]; return <TD key={cc.id}>{isE ? <Input type={cc.type === "number" ? "number" : cc.type === "date" ? "date" : "text"} defaultValue={v[cc.id] ?? ""} autoFocus className="h-7 text-xs" onBlur={(e) => { setCustomFieldValue("invoices", i.id, cc.id, e.target.value); setEditingCells((p) => ({ ...p, [ck]: false })); }} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} /> : <span className="cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950 px-1 py-0.5 rounded min-h-[24px] inline-block min-w-[40px]" onClick={() => setEditingCells((p) => ({ ...p, [ck]: true }))}>{v[cc.id] || "—"}</span>}</TD>; })}
               <TD className="text-right">
                 <div className="flex items-center justify-end gap-1">
@@ -171,7 +270,8 @@ export function InvoiceClient() {
                 </div>
               </TD>
             </TR>
-          ))}
+            );
+            })}
         </TBody>
       </Table>
 
