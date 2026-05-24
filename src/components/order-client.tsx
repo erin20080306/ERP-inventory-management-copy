@@ -468,6 +468,7 @@ function CreateOrderDialog({ kind, open, onClose, onCreated }: any) {
   const [remark, setRemark] = useState("");
   const [isTaxable, setIsTaxable] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [activeCell, setActiveCell] = useState<{ rowIdx: number; colKey: string } | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -478,6 +479,7 @@ function CreateOrderDialog({ kind, open, onClose, onCreated }: any) {
     setItems([]);
     setRemark("");
     setIsTaxable(true);
+    setActiveCell(null);
   }, [open, kind]);
 
   function addItem() {
@@ -495,6 +497,61 @@ function CreateOrderDialog({ kind, open, onClose, onCreated }: any) {
   }
   function removeItem(idx: number) {
     setItems(items.filter((_, i) => i !== idx));
+  }
+
+  function handleItemKeyDown(e: React.KeyboardEvent, rowIdx: number, colKey: string) {
+    const fields = ["productId", "quantity", "unitPrice", "discount", "taxRate"];
+    const colIdx = fields.indexOf(colKey);
+    if (colIdx === -1) return;
+
+    if (e.key === "Enter" || e.key === "ArrowDown") {
+      e.preventDefault();
+      e.stopPropagation();
+      if (rowIdx < items.length - 1) {
+        setActiveCell({ rowIdx: rowIdx + 1, colKey });
+      } else {
+        addItem();
+        setActiveCell({ rowIdx: items.length, colKey });
+      }
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      e.stopPropagation();
+      if (rowIdx > 0) {
+        setActiveCell({ rowIdx: rowIdx - 1, colKey });
+      }
+    } else if (e.key === "ArrowRight") {
+      e.preventDefault();
+      e.stopPropagation();
+      if (colIdx < fields.length - 1) {
+        setActiveCell({ rowIdx, colKey: fields[colIdx + 1] });
+      } else if (rowIdx < items.length - 1) {
+        setActiveCell({ rowIdx: rowIdx + 1, colKey: fields[0] });
+      }
+    } else if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      e.stopPropagation();
+      if (colIdx > 0) {
+        setActiveCell({ rowIdx, colKey: fields[colIdx - 1] });
+      } else if (rowIdx > 0) {
+        setActiveCell({ rowIdx: rowIdx - 1, colKey: fields[fields.length - 1] });
+      }
+    } else if (e.key === "Tab") {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.shiftKey) {
+        if (colIdx > 0) {
+          setActiveCell({ rowIdx, colKey: fields[colIdx - 1] });
+        } else if (rowIdx > 0) {
+          setActiveCell({ rowIdx: rowIdx - 1, colKey: fields[fields.length - 1] });
+        }
+      } else {
+        if (colIdx < fields.length - 1) {
+          setActiveCell({ rowIdx, colKey: fields[colIdx + 1] });
+        } else if (rowIdx < items.length - 1) {
+          setActiveCell({ rowIdx: rowIdx + 1, colKey: fields[0] });
+        }
+      }
+    }
   }
 
   const subtotal = items.reduce((s, i) => s + Math.round(Number(i.quantity)) * Math.round(Number(i.unitPrice)), 0);
@@ -578,7 +635,7 @@ function CreateOrderDialog({ kind, open, onClose, onCreated }: any) {
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">商品</Label>
-                  <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={it.productId} onChange={(e) => updateItem(idx, { productId: e.target.value })}>
+                  <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={it.productId} onChange={(e) => updateItem(idx, { productId: e.target.value })} onKeyDown={(e) => handleItemKeyDown(e, idx, "productId")}>
                     <option value="">選擇商品</option>
                     {products.map((p) => (
                       <option key={p.id} value={p.id}>{p.sku} - {p.name}</option>
@@ -588,19 +645,19 @@ function CreateOrderDialog({ kind, open, onClose, onCreated }: any) {
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
                     <Label className="text-xs">數量</Label>
-                    <Input type="number" value={it.quantity} onChange={(e) => updateItem(idx, { quantity: Number(e.target.value) })} />
+                    <Input type="number" value={it.quantity} onChange={(e) => updateItem(idx, { quantity: Number(e.target.value) })} onKeyDown={(e) => handleItemKeyDown(e, idx, "quantity")} />
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">單價</Label>
-                    <Input type="number" step="1" value={it.unitPrice} onChange={(e) => updateItem(idx, { unitPrice: Number(e.target.value) })} />
+                    <Input type="number" step="1" value={it.unitPrice} onChange={(e) => updateItem(idx, { unitPrice: Number(e.target.value) })} onKeyDown={(e) => handleItemKeyDown(e, idx, "unitPrice")} />
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">折扣</Label>
-                    <Input type="number" step="1" value={it.discount ?? 0} onChange={(e) => updateItem(idx, { discount: Number(e.target.value) })} />
+                    <Input type="number" step="1" value={it.discount ?? 0} onChange={(e) => updateItem(idx, { discount: Number(e.target.value) })} onKeyDown={(e) => handleItemKeyDown(e, idx, "discount")} />
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">稅率</Label>
-                    <Input type="number" step="1" value={it.taxRate ?? 0} onChange={(e) => updateItem(idx, { taxRate: Number(e.target.value) })} />
+                    <Input type="number" step="1" value={it.taxRate ?? 0} onChange={(e) => updateItem(idx, { taxRate: Number(e.target.value) })} onKeyDown={(e) => handleItemKeyDown(e, idx, "taxRate")} />
                   </div>
                 </div>
                 <div className="text-right text-sm font-medium">小計：{formatMoney(line)}</div>
@@ -636,17 +693,17 @@ function CreateOrderDialog({ kind, open, onClose, onCreated }: any) {
                   return (
                     <tr key={idx} className="border-t">
                       <td className="p-2">
-                        <select className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm" value={it.productId} onChange={(e) => updateItem(idx, { productId: e.target.value })}>
+                        <select className={`h-9 w-full rounded-md border border-input bg-background px-2 text-sm ${activeCell?.rowIdx === idx && activeCell?.colKey === "productId" ? "ring-2 ring-ring ring-inset" : ""}`} value={it.productId} onChange={(e) => updateItem(idx, { productId: e.target.value })} onKeyDown={(e) => handleItemKeyDown(e, idx, "productId")} ref={(el) => { if (el && activeCell?.rowIdx === idx && activeCell?.colKey === "productId") el.focus(); }}>
                           <option value="">選擇商品</option>
                           {products.map((p) => (
                             <option key={p.id} value={p.id}>{p.sku} - {p.name}</option>
                           ))}
                         </select>
                       </td>
-                      <td className="p-2"><Input type="number" value={it.quantity} onChange={(e) => updateItem(idx, { quantity: Number(e.target.value) })} /></td>
-                      <td className="p-2"><Input type="number" step="0.01" value={it.unitPrice} onChange={(e) => updateItem(idx, { unitPrice: Number(e.target.value) })} /></td>
-                      <td className="p-2"><Input type="number" step="0.01" value={it.discount ?? 0} onChange={(e) => updateItem(idx, { discount: Number(e.target.value) })} /></td>
-                      <td className="p-2"><Input type="number" step="0.01" value={it.taxRate ?? 0} onChange={(e) => updateItem(idx, { taxRate: Number(e.target.value) })} /></td>
+                      <td className="p-2"><Input type="number" value={it.quantity} onChange={(e) => updateItem(idx, { quantity: Number(e.target.value) })} onKeyDown={(e) => handleItemKeyDown(e, idx, "quantity")} className={activeCell?.rowIdx === idx && activeCell?.colKey === "quantity" ? "ring-2 ring-ring ring-inset" : ""} ref={(el) => { if (el && activeCell?.rowIdx === idx && activeCell?.colKey === "quantity") el.focus(); }} /></td>
+                      <td className="p-2"><Input type="number" step="0.01" value={it.unitPrice} onChange={(e) => updateItem(idx, { unitPrice: Number(e.target.value) })} onKeyDown={(e) => handleItemKeyDown(e, idx, "unitPrice")} className={activeCell?.rowIdx === idx && activeCell?.colKey === "unitPrice" ? "ring-2 ring-ring ring-inset" : ""} ref={(el) => { if (el && activeCell?.rowIdx === idx && activeCell?.colKey === "unitPrice") el.focus(); }} /></td>
+                      <td className="p-2"><Input type="number" step="0.01" value={it.discount ?? 0} onChange={(e) => updateItem(idx, { discount: Number(e.target.value) })} onKeyDown={(e) => handleItemKeyDown(e, idx, "discount")} className={activeCell?.rowIdx === idx && activeCell?.colKey === "discount" ? "ring-2 ring-ring ring-inset" : ""} ref={(el) => { if (el && activeCell?.rowIdx === idx && activeCell?.colKey === "discount") el.focus(); }} /></td>
+                      <td className="p-2"><Input type="number" step="0.01" value={it.taxRate ?? 0} onChange={(e) => updateItem(idx, { taxRate: Number(e.target.value) })} onKeyDown={(e) => handleItemKeyDown(e, idx, "taxRate")} className={activeCell?.rowIdx === idx && activeCell?.colKey === "taxRate" ? "ring-2 ring-ring ring-inset" : ""} ref={(el) => { if (el && activeCell?.rowIdx === idx && activeCell?.colKey === "taxRate") el.focus(); }} /></td>
                       <td className="p-2 text-right">{formatMoney(line)}</td>
                       <td className="p-2">
                         <Button variant="ghost" size="icon" onClick={() => removeItem(idx)}>
