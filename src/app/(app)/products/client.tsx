@@ -241,7 +241,7 @@ export function ProductClient() {
         moduleKey="products"
         searchPlaceholder="搜尋 SKU / 商品名稱 / 條碼"
         enableDateFilter={true}
-        inlineEdit={true}
+        inlineEdit={false}
         enableEnterToCreate={true}
         canEdit={true}
         columns={[
