@@ -283,12 +283,15 @@ export function CrudTable<T extends { id: string }>({
 
     if (e.key === "Enter" || e.key === "ArrowDown") {
       e.preventDefault();
+      e.stopPropagation();
       saveCellAndMove(row, rowIdx + 1, colKey);
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
+      e.stopPropagation();
       saveCellAndMove(row, rowIdx - 1, colKey);
     } else if (e.key === "ArrowRight") {
       e.preventDefault();
+      e.stopPropagation();
       if (colIdx < editableCols.length - 1) {
         setActiveCell({ rowId: row.id, colKey: editableCols[colIdx + 1].key });
       } else if (rowIdx < rows.length - 1) {
@@ -296,6 +299,7 @@ export function CrudTable<T extends { id: string }>({
       }
     } else if (e.key === "ArrowLeft") {
       e.preventDefault();
+      e.stopPropagation();
       if (colIdx > 0) {
         setActiveCell({ rowId: row.id, colKey: editableCols[colIdx - 1].key });
       } else if (rowIdx > 0) {
@@ -303,6 +307,7 @@ export function CrudTable<T extends { id: string }>({
       }
     } else if (e.key === "Tab") {
       e.preventDefault();
+      e.stopPropagation();
       if (e.shiftKey) {
         // Shift+Tab 往左
         if (colIdx > 0) {
@@ -322,6 +327,7 @@ export function CrudTable<T extends { id: string }>({
       }
     } else if (e.key === "Escape") {
       e.preventDefault();
+      e.stopPropagation();
       cancelInlineEdit(row.id);
       setActiveCell(null);
     }
@@ -538,6 +544,7 @@ export function CrudTable<T extends { id: string }>({
                           onKeyDown={(e) => handleCellKeyDown(e, row, c.key)}
                           onBlur={() => { /* 保持焦點管理由 keyboard 處理 */ }}
                           className="h-8 w-full rounded border-0 bg-transparent px-1 text-sm focus:outline-none"
+                          ref={(el) => { if (el) el.focus(); }}
                         >
                           {c.editable!.options?.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                         </select>
@@ -550,6 +557,7 @@ export function CrudTable<T extends { id: string }>({
                           onChange={(e) => setInlineEditing((prev) => ({ ...prev, [row.id]: { ...prev[row.id], [c.key]: e.target.value } }))}
                           className="h-8 text-sm border-0 bg-transparent shadow-none focus-visible:ring-0 px-1"
                           onKeyDown={(e) => handleCellKeyDown(e, row, c.key)}
+                          ref={(el) => { if (el) el.focus(); }}
                         />
                       )
                     ) : isRowEditing && c.editable ? (
