@@ -148,6 +148,20 @@ export const DELETE = apiHandler(async (_req: NextRequest, { params }: { params:
   if (!order) throw new Error("找不到採購單");
   const canDelete = ["DRAFT", "VOIDED", "SUBMITTED", "APPROVED"].includes(order.status);
   if (!canDelete) throw new Error("已入庫/已付款狀態無法刪除");
+  
+  // 刪除關聯的傳票
+  const journal = await prisma.journalEntry.findFirst({
+    where: {
+      tenantId,
+      summary: { contains: `採購核准 ${order.number}` },
+      status: { not: "VOIDED" },
+    },
+  });
+  if (journal) {
+    await prisma.journalEntryLine.deleteMany({ where: { entryId: journal.id } });
+    await prisma.journalEntry.delete({ where: { id: journal.id, tenantId } });
+  }
+  
   // 刪除關聯的 AP
   await prisma.accountsPayable.deleteMany({ where: { purchaseOrderId: params.id, tenantId } });
   await prisma.purchaseOrder.delete({ where: { id: params.id, tenantId } });

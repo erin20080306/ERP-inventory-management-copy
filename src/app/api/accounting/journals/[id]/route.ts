@@ -113,6 +113,44 @@ export const DELETE = apiHandler(async (_req: NextRequest, { params }: { params:
     where: { invoiceId: params.id, tenantId },
   });
   
+  // 刪除關聯的銷貨單
+  const salesOrders = await prisma.salesOrder.findMany({
+    where: { tenantId },
+    include: { items: true },
+  });
+  for (const so of salesOrders) {
+    const journalExists = await prisma.journalEntry.findFirst({
+      where: {
+        tenantId,
+        summary: { contains: `銷售確認 ${so.number}` },
+        status: { not: "VOIDED" },
+      },
+    });
+    if (journalExists && journalExists.id === params.id) {
+      await prisma.salesOrderItem.deleteMany({ where: { orderId: so.id } });
+      await prisma.salesOrder.delete({ where: { id: so.id, tenantId } });
+    }
+  }
+  
+  // 刪除關聯的採購單
+  const purchaseOrders = await prisma.purchaseOrder.findMany({
+    where: { tenantId },
+    include: { items: true },
+  });
+  for (const po of purchaseOrders) {
+    const journalExists = await prisma.journalEntry.findFirst({
+      where: {
+        tenantId,
+        summary: { contains: `採購核准 ${po.number}` },
+        status: { not: "VOIDED" },
+      },
+    });
+    if (journalExists && journalExists.id === params.id) {
+      await prisma.purchaseOrderItem.deleteMany({ where: { orderId: po.id } });
+      await prisma.purchaseOrder.delete({ where: { id: po.id, tenantId } });
+    }
+  }
+  
   // 刪除傳票
   await prisma.journalEntry.delete({ where: { id: params.id, tenantId } });
   await audit({ userId: session.user.id, action: "delete", module: "journals", refId: params.id });

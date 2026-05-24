@@ -200,6 +200,20 @@ export const DELETE = apiHandler(async (_req: NextRequest, { params }: { params:
   if (!o) throw new Error("找不到銷售單");
   const canDelete = ["DRAFT", "VOIDED", "SUBMITTED", "APPROVED"].includes(o.status);
   if (!canDelete) throw new Error("已出貨/已付款狀態無法刪除");
+  
+  // 刪除關聯的傳票
+  const journal = await prisma.journalEntry.findFirst({
+    where: {
+      tenantId,
+      summary: { contains: `銷售確認 ${o.number}` },
+      status: { not: "VOIDED" },
+    },
+  });
+  if (journal) {
+    await prisma.journalEntryLine.deleteMany({ where: { entryId: journal.id } });
+    await prisma.journalEntry.delete({ where: { id: journal.id, tenantId } });
+  }
+  
   // 刪除關聯的 AR
   await prisma.accountsReceivable.deleteMany({ where: { salesOrderId: params.id, tenantId } });
   await prisma.salesOrder.delete({ where: { id: params.id, tenantId } });
