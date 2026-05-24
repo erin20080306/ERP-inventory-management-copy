@@ -14,6 +14,7 @@ type Product = {
   barcode?: string | null;
   name: string;
   spec?: string | null;
+  imageUrl?: string | null;
   costPrice: any;
   salePrice: any;
   safetyStock: any;
