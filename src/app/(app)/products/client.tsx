@@ -255,7 +255,7 @@ export function ProductClient() {
                 className="w-12 h-12 object-cover rounded cursor-pointer hover:ring-2 hover:ring-ring transition-all"
                 onClick={(e) => {
                   e.stopPropagation();
-                  setEnlargedImage(r.imageUrl);
+                  if (r.imageUrl) setEnlargedImage(r.imageUrl);
                 }}
               />
             ) : (
