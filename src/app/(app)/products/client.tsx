@@ -38,6 +38,7 @@ function ProductDialog({ open, onClose, row, onSaved }: any) {
         sku: "",
         name: "",
         spec: "",
+        imageUrl: "",
         costPrice: "",
         salePrice: "",
         safetyStock: "",
