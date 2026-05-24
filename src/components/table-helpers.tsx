@@ -6,9 +6,16 @@ import React, { useEffect, useState } from "react";
  */
 export function TableHint() {
   return (
-    <p className="sr-only">
-      表格支援拖曳欄位排序、點擊儲存格編輯，以及 Enter、方向鍵、Tab、Escape 鍵盤操作。
-    </p>
+    <div className="text-xs text-muted-foreground mb-2 space-y-1">
+      <div className="flex flex-wrap gap-x-4 gap-y-1">
+        <span>🖱️ <strong>拖曳欄位</strong>：拖曳欄位標題調整順序</span>
+        <span>✏️ <strong>點擊編輯</strong>：點擊可編輯欄位進行修改</span>
+        <span>⌨️ <strong>方向鍵</strong>：↑↓ 跳行、←→ 跳欄</span>
+        <span>↵ <strong>Enter</strong>：儲存並跳下一行</span>
+        <span>⇥ <strong>Tab</strong>：跳下一欄 / Shift+Tab 上一欄</span>
+        <span>⎋ <strong>Escape</strong>：取消編輯</span>
+      </div>
+    </div>
   );
 }
 
