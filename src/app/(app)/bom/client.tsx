@@ -361,7 +361,7 @@ export function BomClient() {
               {rows.map((row, idx) => {
                 const isEditing = !!inlineRow[row.id];
                 return (
-                <TR key={row.id ?? idx} className={isEditing ? "bg-blue-50/50 dark:bg-blue-950/20" : ""}>
+                <TR key={row.id ?? idx} className={isEditing ? "bg-accent/5" : ""}>
                   {currentModule.columns.map((col) => (
                     <TD key={col.key}>
                       {isEditing && col.editable ? (
@@ -371,7 +371,7 @@ export function BomClient() {
                       )}
                     </TD>
                   ))}
-                  {customCols.columns.map((cc) => { const ck = `${row.id}_${cc.id}`; const v = getCustomFieldValues(`bom-${selectedModule}`, row.id); const isE = editingCells[ck]; return <TD key={cc.id}>{isE ? <Input type={cc.type === "number" ? "number" : "text"} defaultValue={v[cc.id] ?? ""} autoFocus className="h-7 text-xs" onBlur={(e) => { setCustomFieldValue(`bom-${selectedModule}`, row.id, cc.id, e.target.value); setEditingCells((p) => ({ ...p, [ck]: false })); }} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} /> : <span className="cursor-pointer hover:bg-blue-50 px-1 py-0.5 rounded min-h-[24px] inline-block min-w-[40px]" onClick={() => setEditingCells((p) => ({ ...p, [ck]: true }))}>{v[cc.id] || "—"}</span>}</TD>; })}
+                  {customCols.columns.map((cc) => { const ck = `${row.id}_${cc.id}`; const v = getCustomFieldValues(`bom-${selectedModule}`, row.id); const isE = editingCells[ck]; return <TD key={cc.id}>{isE ? <Input type={cc.type === "number" ? "number" : "text"} defaultValue={v[cc.id] ?? ""} autoFocus className="h-7 text-xs" onBlur={(e) => { setCustomFieldValue(`bom-${selectedModule}`, row.id, cc.id, e.target.value); setEditingCells((p) => ({ ...p, [ck]: false })); }} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} /> : <span className="inline-block min-h-[24px] min-w-[40px] cursor-pointer rounded px-1 py-0.5 transition-colors hover:bg-muted" onClick={() => setEditingCells((p) => ({ ...p, [ck]: true }))}>{v[cc.id] || "—"}</span>}</TD>; })}
                   <TD className="text-right">
                     {isEditing ? (
                       <div className="flex items-center justify-end gap-1">

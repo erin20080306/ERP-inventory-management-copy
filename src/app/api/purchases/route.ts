@@ -31,7 +31,10 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const [items, total] = await Promise.all([
     prisma.purchaseOrder.findMany({
       where,
-      include: { supplier: true, items: { include: { product: true } } },
+      include: {
+        supplier: { select: { companyName: true } },
+        items: { select: { quantity: true, product: { select: { name: true } } } },
+      },
       orderBy: { createdAt: "desc" },
       skip: (page - 1) * pageSize,
       take: pageSize,

@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/layout/page-shell";
 import { Plus, Search, Loader2, Trash2, Download, Printer, FileDown, FileSpreadsheet, Upload, Settings2, Save, X } from "lucide-react";
 import { toast } from "sonner";
 import { downloadCSV, toCSV } from "@/lib/csv";
+import { TableHint, useDebouncedValue } from "@/components/table-helpers";
 import {
   useCustomColumns,
   CustomColumnDialog,
@@ -169,6 +170,7 @@ export function CrudTable<T extends { id: string }>({
   const [page, setPage] = useState(1);
   const pageSize = 20;
   const [q, setQ] = useState("");
+  const debouncedQ = useDebouncedValue(q);
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [loading, setLoading] = useState(true);
@@ -225,7 +227,7 @@ export function CrudTable<T extends { id: string }>({
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ q, page: String(page), pageSize: String(pageSize), ...(initialQuery ?? {}) });
+      const params = new URLSearchParams({ q: debouncedQ, page: String(page), pageSize: String(pageSize), ...(initialQuery ?? {}) });
       if (enableDateFilter && fromDate) params.set("from", fromDate);
       if (enableDateFilter && toDate) params.set("to", toDate);
       const res = await fetch(`${endpoint}?${params.toString()}`);
@@ -238,7 +240,7 @@ export function CrudTable<T extends { id: string }>({
     } finally {
       setLoading(false);
     }
-  }, [endpoint, q, page, initialQuery, enableDateFilter, fromDate, toDate]);
+  }, [endpoint, debouncedQ, page, initialQuery, enableDateFilter, fromDate, toDate]);
 
   useEffect(() => {
     load();
@@ -272,11 +274,12 @@ export function CrudTable<T extends { id: string }>({
     setActiveCell({ rowId: row.id, colKey });
   }
 
-  // 鍵盤導航：Enter/ArrowDown 下移、ArrowUp 上移、Tab 右移、Escape 取消
+  // 鍵盤導航：Enter/下移、上下左右移動、Tab 右移、Escape 取消
   function handleCellKeyDown(e: React.KeyboardEvent, row: T, colKey: string) {
     const editableCols = orderedColumns.filter((c) => c.editable);
     const rowIdx = rows.findIndex((r) => r.id === row.id);
     const colIdx = editableCols.findIndex((c) => c.key === colKey);
+    if (editableCols.length === 0 || colIdx === -1) return;
 
     if (e.key === "Enter" || e.key === "ArrowDown") {
       e.preventDefault();
@@ -284,6 +287,20 @@ export function CrudTable<T extends { id: string }>({
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       saveCellAndMove(row, rowIdx - 1, colKey);
+    } else if (e.key === "ArrowRight") {
+      e.preventDefault();
+      if (colIdx < editableCols.length - 1) {
+        setActiveCell({ rowId: row.id, colKey: editableCols[colIdx + 1].key });
+      } else if (rowIdx < rows.length - 1) {
+        saveCellAndMove(row, rowIdx + 1, editableCols[0].key);
+      }
+    } else if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      if (colIdx > 0) {
+        setActiveCell({ rowId: row.id, colKey: editableCols[colIdx - 1].key });
+      } else if (rowIdx > 0) {
+        saveCellAndMove(row, rowIdx - 1, editableCols[editableCols.length - 1].key);
+      }
     } else if (e.key === "Tab") {
       e.preventDefault();
       if (e.shiftKey) {
@@ -459,16 +476,14 @@ export function CrudTable<T extends { id: string }>({
         </div>
       </div>
 
-      <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-        <span>💡 可拖曳表頭欄位調整順序 ｜ 點擊儲存格直接編輯 ｜ Enter/↓ 下一列 ｜ ↑ 上一列 ｜ Tab 下一欄 ｜ Esc 取消</span>
-      </div>
+      <TableHint />
       <Table>
         <THead>
           <TR>
             {orderedColumns.map((c) => (
               <TH
                 key={c.key}
-                className={`${c.className ?? ""} cursor-grab select-none ${dragCol === c.key ? "opacity-50 bg-blue-100 dark:bg-blue-900" : ""}`}
+                className={`${c.className ?? ""} cursor-grab select-none hover:text-foreground ${dragCol === c.key ? "bg-muted opacity-70" : ""}`}
                 draggable
                 onDragStart={() => handleDragStart(c.key)}
                 onDragOver={handleDragOver}
@@ -504,14 +519,14 @@ export function CrudTable<T extends { id: string }>({
               const draft = inlineEditing[row.id];
               const isRowEditing = !!draft;
               return (
-              <TR key={row.id} className={isRowEditing ? "bg-blue-50/50 dark:bg-blue-950/20" : ""}>
+              <TR key={row.id} className={isRowEditing ? "bg-accent/5" : ""}>
                 {orderedColumns.map((c) => {
                   const isCellActive = activeCell?.rowId === row.id && activeCell?.colKey === c.key;
                   const showInput = isRowEditing && c.editable && isCellActive;
                   return (
                   <TD
                     key={c.key}
-                    className={`${c.className ?? ""} ${c.editable ? "cursor-cell hover:bg-blue-50/60 dark:hover:bg-blue-950/30 transition-colors" : ""} ${isCellActive ? "ring-2 ring-blue-400 ring-inset" : ""}`}
+                    className={`${c.className ?? ""} ${c.editable ? "cursor-cell transition-colors hover:bg-muted/60" : ""} ${isCellActive ? "ring-2 ring-ring ring-inset" : ""}`}
                     onClick={() => { if (c.editable) startCellEdit(row, c.key); }}
                   >
                     {showInput ? (
@@ -567,7 +582,7 @@ export function CrudTable<T extends { id: string }>({
                         />
                       ) : (
                         <span
-                          className="cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950 px-1 py-0.5 rounded min-h-[24px] inline-block min-w-[40px]"
+                          className="inline-block min-h-[24px] min-w-[40px] cursor-pointer rounded px-1 py-0.5 transition-colors hover:bg-muted"
                           onClick={() => setEditingCells((prev) => ({ ...prev, [cellKey]: true }))}
                         >
                           {vals[cc.id] || "—"}
@@ -585,7 +600,7 @@ export function CrudTable<T extends { id: string }>({
                             {inlineSaving === row.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4 text-emerald-600" />}
                           </Button>
                           <Button variant="ghost" size="icon" onClick={() => cancelInlineEdit(row.id)} title="取消 (Esc)">
-                            <X className="h-4 w-4 text-gray-500" />
+                            <X className="h-4 w-4 text-muted-foreground" />
                           </Button>
                         </>
                       ) : (

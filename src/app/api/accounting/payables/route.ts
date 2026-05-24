@@ -30,7 +30,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const [items, total] = await Promise.all([
     prisma.accountsPayable.findMany({
       where,
-      include: { supplier: true, purchaseOrder: true, payments: true },
+      include: { supplier: true, purchaseOrder: true },
       orderBy: { createdAt: "desc" },
       skip: (page - 1) * pageSize,
       take: pageSize,

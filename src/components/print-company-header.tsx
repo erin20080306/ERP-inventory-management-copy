@@ -16,13 +16,21 @@ export function PrintCompanyHeader() {
 
   useEffect(() => {
     if (cached) return;
-    fetch("/api/settings")
-      .then((r) => r.json())
-      .then((d) => {
-        cached = d.company ?? {};
-        setInfo(cached);
-      })
-      .catch(() => {});
+    const load = () => {
+      fetch("/api/settings")
+        .then((r) => r.json())
+        .then((d) => {
+          cached = d.company ?? {};
+          setInfo(cached);
+        })
+        .catch(() => {});
+    };
+    if ("requestIdleCallback" in window) {
+      const id = window.requestIdleCallback(load, { timeout: 2000 });
+      return () => window.cancelIdleCallback(id);
+    }
+    const id = setTimeout(load, 800);
+    return () => clearTimeout(id);
   }, []);
 
   if (!info) return null;

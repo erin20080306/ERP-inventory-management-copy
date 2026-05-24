@@ -31,7 +31,10 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const [items, total] = await Promise.all([
     prisma.salesOrder.findMany({
       where,
-      include: { customer: true, items: { include: { product: true } } },
+      include: {
+        customer: { select: { companyName: true } },
+        items: { select: { quantity: true, product: { select: { name: true } } } },
+      },
       orderBy: { createdAt: "desc" },
       skip: (page - 1) * pageSize,
       take: pageSize,
@@ -100,7 +103,17 @@ export const POST = apiHandler(async (req: NextRequest) => {
             create: { tenantId, productId: item.productId, warehouseId: defaultWh.id, quantity: 0 },
           });
           await tx.inventoryTransaction.create({
-            data: { tenantId, productId: item.productId, warehouseId: defaultWh.id, type: "SALES_OUT", quantity: Number(item.quantity) * -1, unitCost: item.unitPrice, refType: "SALES", refId: order.id, remark: `銷售確認出庫 ${order.number}` },
+            data: {
+              tenantId,
+              productId: item.productId,
+              warehouseId: defaultWh.id,
+              type: "SALES_OUT",
+              quantity: Number(item.quantity) * -1,
+              unitCost: item.product?.costPrice ?? 0,
+              refType: "SALES",
+              refId: order.id,
+              remark: `銷售確認出庫 ${order.number}`,
+            },
           });
         }
       }

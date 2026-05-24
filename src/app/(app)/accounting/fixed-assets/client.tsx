@@ -172,7 +172,7 @@ export function FixedAssetsClient() {
           {!loading && rows.map((r) => {
             const isEditing = !!inlineRow[r.id];
             return (
-            <TR key={r.id} className={isEditing ? "bg-blue-50/50 dark:bg-blue-950/20" : ""}>
+            <TR key={r.id} className={isEditing ? "bg-accent/5" : ""}>
               <TD className="font-mono text-xs">{isEditing ? <Input value={inlineRow[r.id]?.code ?? ""} onChange={(e) => setInlineRow((p) => ({ ...p, [r.id]: { ...p[r.id], code: e.target.value } }))} className="h-8 text-sm w-20" /> : r.code}</TD>
               <TD>{isEditing ? <Input value={inlineRow[r.id]?.name ?? ""} onChange={(e) => setInlineRow((p) => ({ ...p, [r.id]: { ...p[r.id], name: e.target.value } }))} className="h-8 text-sm" onKeyDown={(e) => { if (e.key === "Enter") saveInlineAsset(r); }} /> : r.name}</TD>
               <TD>{isEditing ? <Input value={inlineRow[r.id]?.category ?? ""} onChange={(e) => setInlineRow((p) => ({ ...p, [r.id]: { ...p[r.id], category: e.target.value } }))} className="h-8 text-sm w-20" /> : (r.category ?? "—")}</TD>
@@ -183,7 +183,7 @@ export function FixedAssetsClient() {
               <TD className="text-xs">{METHOD_LABELS[r.method] ?? r.method}</TD>
               <TD><Badge variant={STATUS_VARIANTS[r.status]}>{STATUS_LABELS[r.status] ?? r.status}</Badge></TD>
               <TD className="text-xs text-gray-500">{r.updatedBy || "-"}</TD>
-              {customCols.columns.map((cc) => { const ck = `${r.id}_${cc.id}`; const v = getCustomFieldValues("fixed-assets", r.id); const isE = editingCells[ck]; return <TD key={cc.id}>{isE ? <Input type={cc.type === "number" ? "number" : cc.type === "date" ? "date" : "text"} defaultValue={v[cc.id] ?? ""} autoFocus className="h-7 text-xs" onBlur={(e) => { setCustomFieldValue("fixed-assets", r.id, cc.id, e.target.value); setEditingCells((p) => ({ ...p, [ck]: false })); }} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} /> : <span className="cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950 px-1 py-0.5 rounded min-h-[24px] inline-block min-w-[40px]" onClick={() => setEditingCells((p) => ({ ...p, [ck]: true }))}>{v[cc.id] || "—"}</span>}</TD>; })}
+              {customCols.columns.map((cc) => { const ck = `${r.id}_${cc.id}`; const v = getCustomFieldValues("fixed-assets", r.id); const isE = editingCells[ck]; return <TD key={cc.id}>{isE ? <Input type={cc.type === "number" ? "number" : cc.type === "date" ? "date" : "text"} defaultValue={v[cc.id] ?? ""} autoFocus className="h-7 text-xs" onBlur={(e) => { setCustomFieldValue("fixed-assets", r.id, cc.id, e.target.value); setEditingCells((p) => ({ ...p, [ck]: false })); }} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} /> : <span className="inline-block min-h-[24px] min-w-[40px] cursor-pointer rounded px-1 py-0.5 transition-colors hover:bg-muted" onClick={() => setEditingCells((p) => ({ ...p, [ck]: true }))}>{v[cc.id] || "—"}</span>}</TD>; })}
               <TD className="text-right">
                 <div className="flex items-center justify-end gap-1">
                   {isEditing ? (

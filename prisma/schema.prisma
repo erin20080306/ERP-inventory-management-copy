@@ -189,6 +189,8 @@ model Product {
 
   @@unique([tenantId, sku])
   @@index([tenantId])
+  @@index([tenantId, createdAt])
+  @@index([tenantId, isActive])
 }
 
 // ─────────────────────────── 客戶 / 供應商 ───────────────────────────
@@ -222,6 +224,8 @@ model Customer {
 
   @@unique([tenantId, code])
   @@index([tenantId])
+  @@index([tenantId, createdAt])
+  @@index([tenantId, isActive])
 }
 
 model Supplier {
@@ -252,6 +256,8 @@ model Supplier {
 
   @@unique([tenantId, code])
   @@index([tenantId])
+  @@index([tenantId, createdAt])
+  @@index([tenantId, isActive])
 }
 
 // ─────────────────────────── 倉庫 / 庫存 ───────────────────────────
@@ -275,6 +281,8 @@ model Warehouse {
 
   @@unique([tenantId, code])
   @@index([tenantId])
+  @@index([tenantId, createdAt])
+  @@index([tenantId, isActive])
 }
 
 model InventoryStock {
@@ -290,6 +298,8 @@ model InventoryStock {
 
   @@unique([productId, warehouseId])
   @@index([tenantId])
+  @@index([tenantId, warehouseId])
+  @@index([tenantId, productId])
 }
 
 enum InventoryTxnType {
@@ -321,6 +331,8 @@ model InventoryTransaction {
   warehouse   Warehouse        @relation(fields: [warehouseId], references: [id])
 
   @@index([tenantId])
+  @@index([tenantId, createdAt])
+  @@index([tenantId, productId, createdAt])
   @@index([productId])
   @@index([warehouseId])
   @@index([refType, refId])
@@ -341,6 +353,9 @@ model StockAdjustment {
 
   @@unique([tenantId, number])
   @@index([tenantId])
+  @@index([tenantId, createdAt])
+  @@index([tenantId, status])
+  @@index([tenantId, warehouseId])
 }
 
 model StockAdjustmentItem {
@@ -371,6 +386,10 @@ model StockTransfer {
 
   @@unique([tenantId, number])
   @@index([tenantId])
+  @@index([tenantId, createdAt])
+  @@index([tenantId, status])
+  @@index([tenantId, fromWarehouseId])
+  @@index([tenantId, toWarehouseId])
 }
 
 model StockTransferItem {
@@ -419,6 +438,10 @@ model PurchaseOrder {
 
   @@unique([tenantId, number])
   @@index([tenantId])
+  @@index([tenantId, createdAt])
+  @@index([tenantId, orderDate])
+  @@index([tenantId, status])
+  @@index([tenantId, supplierId])
 }
 
 model PurchaseOrderItem {
@@ -472,6 +495,10 @@ model SalesOrder {
 
   @@unique([tenantId, number])
   @@index([tenantId])
+  @@index([tenantId, createdAt])
+  @@index([tenantId, orderDate])
+  @@index([tenantId, status])
+  @@index([tenantId, customerId])
 }
 
 model SalesOrderItem {
@@ -521,6 +548,10 @@ model Quotation {
 
   @@unique([tenantId, number])
   @@index([tenantId])
+  @@index([tenantId, createdAt])
+  @@index([tenantId, quoteDate])
+  @@index([tenantId, status])
+  @@index([tenantId, customerId])
 }
 
 model QuotationItem {
@@ -567,6 +598,11 @@ model SalesReturn {
 
   @@unique([tenantId, number])
   @@index([tenantId])
+  @@index([tenantId, createdAt])
+  @@index([tenantId, returnDate])
+  @@index([tenantId, status])
+  @@index([tenantId, customerId])
+  @@index([salesOrderId])
 }
 
 model SalesReturnItem {
@@ -603,6 +639,11 @@ model PurchaseReturn {
 
   @@unique([tenantId, number])
   @@index([tenantId])
+  @@index([tenantId, createdAt])
+  @@index([tenantId, returnDate])
+  @@index([tenantId, status])
+  @@index([tenantId, supplierId])
+  @@index([purchaseOrderId])
 }
 
 model PurchaseReturnItem {
@@ -676,6 +717,9 @@ model JournalEntry {
 
   @@unique([tenantId, number])
   @@index([tenantId])
+  @@index([tenantId, createdAt])
+  @@index([tenantId, entryDate])
+  @@index([tenantId, status])
 }
 
 model JournalEntryLine {
@@ -718,6 +762,11 @@ model AccountsReceivable {
   notes        NoteReceivable[]
 
   @@index([tenantId])
+  @@index([tenantId, createdAt])
+  @@index([tenantId, status])
+  @@index([tenantId, customerId])
+  @@index([tenantId, dueDate])
+  @@index([salesOrderId])
 }
 
 model ReceivePayment {
@@ -740,6 +789,10 @@ model ReceivePayment {
 
   @@unique([tenantId, number])
   @@index([tenantId])
+  @@index([tenantId, createdAt])
+  @@index([tenantId, paymentDate])
+  @@index([tenantId, customerId])
+  @@index([receivableId])
 }
 
 enum PayableStatus {
@@ -771,6 +824,11 @@ model AccountsPayable {
   notes           NotePayable[]
 
   @@index([tenantId])
+  @@index([tenantId, createdAt])
+  @@index([tenantId, status])
+  @@index([tenantId, supplierId])
+  @@index([tenantId, dueDate])
+  @@index([purchaseOrderId])
 }
 
 model SupplierPayment {
@@ -793,6 +851,10 @@ model SupplierPayment {
 
   @@unique([tenantId, number])
   @@index([tenantId])
+  @@index([tenantId, createdAt])
+  @@index([tenantId, paymentDate])
+  @@index([tenantId, supplierId])
+  @@index([payableId])
 }
 
 // ─────────────────────────── 折讓單 ───────────────────────────
@@ -815,6 +877,12 @@ model DiscountNote {
 
   @@unique([tenantId, number])
   @@index([tenantId])
+  @@index([tenantId, createdAt])
+  @@index([tenantId, type])
+  @@index([tenantId, customerId])
+  @@index([tenantId, supplierId])
+  @@index([receivableId])
+  @@index([payableId])
 }
 
 // ─────────────────────────── 現金 / 銀行 ───────────────────────────
@@ -933,6 +1001,12 @@ model Invoice {
 
   @@unique([tenantId, number])
   @@index([tenantId])
+  @@index([tenantId, createdAt])
+  @@index([tenantId, invoiceDate])
+  @@index([tenantId, status])
+  @@index([tenantId, type])
+  @@index([tenantId, customerId])
+  @@index([tenantId, supplierId])
 }
 
 model InvoiceItem {
@@ -982,17 +1056,24 @@ model TaxRate {
 
 // ─────────────────────────── 系統 / 公司 / Log / 編號 ───────────────────────────
 model CompanySetting {
-  id        String   @id @default(cuid())
-  tenantId  String
-  name      String
-  taxId     String?
-  address   String?
-  phone     String?
-  email     String?
-  logoUrl   String?
-  currency  String   @default("TWD")
-  updatedAt DateTime @updatedAt
-  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  id            String   @id @default(cuid())
+  tenantId      String
+  name          String
+  taxId         String?
+  address       String?
+  phone         String?
+  email         String?
+  logoUrl       String?
+  currency      String   @default("TWD")
+  smtpHost      String?
+  smtpPort      Int?
+  smtpSecure    Boolean  @default(true)
+  smtpUser      String?
+  smtpPassword  String?
+  smtpFromName  String?
+  smtpFromEmail String?
+  updatedAt     DateTime @updatedAt
+  tenant        Tenant   @relation(fields: [tenantId], references: [id])
 
   @@index([tenantId])
 }
@@ -1377,4 +1458,3 @@ model FixedAsset {
   @@index([category])
   @@index([status])
 }
-

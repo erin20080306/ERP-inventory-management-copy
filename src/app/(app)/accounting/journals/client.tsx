@@ -83,6 +83,7 @@ export function JournalClient() {
   function handleCellKeyDown(e: React.KeyboardEvent, row: any, colKey: string) {
     const rowIdx = rows.findIndex((r) => r.id === row.id);
     const colIdx = editableFields.indexOf(colKey);
+    if (editableFields.length === 0 || colIdx === -1) return;
 
     if (e.key === "Enter" || e.key === "ArrowDown") {
       e.preventDefault();
@@ -90,6 +91,20 @@ export function JournalClient() {
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       saveCellAndMove(row, rowIdx - 1, colKey);
+    } else if (e.key === "ArrowRight") {
+      e.preventDefault();
+      if (colIdx < editableFields.length - 1) {
+        setActiveCell({ rowId: row.id, colKey: editableFields[colIdx + 1] });
+      } else if (rowIdx < rows.length - 1) {
+        saveCellAndMove(row, rowIdx + 1, editableFields[0]);
+      }
+    } else if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      if (colIdx > 0) {
+        setActiveCell({ rowId: row.id, colKey: editableFields[colIdx - 1] });
+      } else if (rowIdx > 0) {
+        saveCellAndMove(row, rowIdx - 1, editableFields[editableFields.length - 1]);
+      }
     } else if (e.key === "Tab") {
       e.preventDefault();
       if (e.shiftKey) {
@@ -284,10 +299,10 @@ export function JournalClient() {
             const draft = inlineEditing[r.id];
             const isRowEditing = !!draft;
             return (
-              <TR key={r.id} className={isRowEditing ? "bg-blue-50/50 dark:bg-blue-950/20" : ""}>
+              <TR key={r.id} className={isRowEditing ? "bg-accent/5" : ""}>
                 <TD className="font-mono text-xs">{r.number}</TD>
                 <TD
-                  className={editableFields.includes("date") ? "cursor-cell hover:bg-blue-50/60 dark:hover:bg-blue-950/30 transition-colors" : ""}
+                  className={editableFields.includes("date") ? "cursor-cell hover:bg-muted/60 transition-colors" : ""}
                   onClick={() => { if (editableFields.includes("date")) startCellEdit(r, "date"); }}
                 >
                   {activeCell?.rowId === r.id && activeCell?.colKey === "date" ? (
@@ -304,7 +319,7 @@ export function JournalClient() {
                   )}
                 </TD>
                 <TD
-                  className={editableFields.includes("summary") ? "cursor-cell hover:bg-blue-50/60 dark:hover:bg-blue-950/30 transition-colors" : ""}
+                  className={editableFields.includes("summary") ? "cursor-cell hover:bg-muted/60 transition-colors" : ""}
                   onClick={() => { if (editableFields.includes("summary")) startCellEdit(r, "summary"); }}
                 >
                   {activeCell?.rowId === r.id && activeCell?.colKey === "summary" ? (
@@ -323,7 +338,7 @@ export function JournalClient() {
                 <TD>{formatMoney(credit)}</TD>
                 <TD><StatusBadge status={r.status} /></TD>
                 <TD className="text-xs text-gray-500">{r.updatedBy || "-"}</TD>
-                {customCols.columns.map((cc) => { const ck = `${r.id}_${cc.id}`; const v = getCustomFieldValues("journals", r.id); const isE = editingCells[ck]; return <TD key={cc.id}>{isE ? <Input type={cc.type === "number" ? "number" : cc.type === "date" ? "date" : "text"} defaultValue={v[cc.id] ?? ""} autoFocus className="h-7 text-xs" onBlur={(e) => { setCustomFieldValue("journals", r.id, cc.id, e.target.value); setEditingCells((p) => ({ ...p, [ck]: false })); }} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} /> : <span className="cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950 px-1 py-0.5 rounded min-h-[24px] inline-block min-w-[40px]" onClick={() => setEditingCells((p) => ({ ...p, [ck]: true }))}>{v[cc.id] || "—"}</span>}</TD>; })}
+                {customCols.columns.map((cc) => { const ck = `${r.id}_${cc.id}`; const v = getCustomFieldValues("journals", r.id); const isE = editingCells[ck]; return <TD key={cc.id}>{isE ? <Input type={cc.type === "number" ? "number" : cc.type === "date" ? "date" : "text"} defaultValue={v[cc.id] ?? ""} autoFocus className="h-7 text-xs" onBlur={(e) => { setCustomFieldValue("journals", r.id, cc.id, e.target.value); setEditingCells((p) => ({ ...p, [ck]: false })); }} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} /> : <span className="inline-block min-h-[24px] min-w-[40px] cursor-pointer rounded px-1 py-0.5 transition-colors hover:bg-muted" onClick={() => setEditingCells((p) => ({ ...p, [ck]: true }))}>{v[cc.id] || "—"}</span>}</TD>; })}
                 <TD className="text-right flex items-center justify-end gap-0">
                   <Button variant="ghost" size="icon" onClick={() => setView(r)} title="查看"><Eye className="h-4 w-4" /></Button>
                   <Button variant="ghost" size="icon" onClick={() => setEditId(r.id)} title="編輯"><Pencil className="h-4 w-4" /></Button>

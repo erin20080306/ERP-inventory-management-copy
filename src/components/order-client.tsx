@@ -12,7 +12,7 @@ import { formatDate, formatMoney } from "@/lib/utils";
 import { downloadCSV, toCSV } from "@/lib/csv";
 import { ConvertToJournalButton } from "@/components/convert-to-journal-button";
 import { useCustomColumns, CustomColumnDialog, CustomColumnButton, getCustomFieldValues, setCustomFieldValue } from "@/components/custom-columns";
-import { TableHint, useColumnDrag } from "@/components/table-helpers";
+import { TableHint, useColumnDrag, useDebouncedValue } from "@/components/table-helpers";
 
 function PDFOrderBtn({ kind }: { kind: string }) {
   const [busy, setBusy] = useState(false);
@@ -53,6 +53,7 @@ export function OrderClient({ kind }: { kind: Kind }) {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [q, setQ] = useState("");
+  const debouncedQ = useDebouncedValue(q);
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [openNew, setOpenNew] = useState(false);
@@ -69,7 +70,7 @@ export function OrderClient({ kind }: { kind: Kind }) {
   async function load() {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ q, page: String(page), pageSize: String(pageSize) });
+      const params = new URLSearchParams({ q: debouncedQ, page: String(page), pageSize: String(pageSize) });
       if (fromDate) params.set("from", fromDate);
       if (toDate) params.set("to", toDate);
       const res = await fetch(`${endpoint}?${params}`);
@@ -83,7 +84,7 @@ export function OrderClient({ kind }: { kind: Kind }) {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, q, fromDate, toDate]);
+  }, [page, debouncedQ, fromDate, toDate]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
@@ -118,6 +119,7 @@ export function OrderClient({ kind }: { kind: Kind }) {
   function handleCellKeyDown(e: React.KeyboardEvent, row: OrderRow, colKey: string) {
     const rowIdx = rows.findIndex((r) => r.id === row.id);
     const colIdx = editableFields.indexOf(colKey);
+    if (editableFields.length === 0 || colIdx === -1) return;
 
     if (e.key === "Enter" || e.key === "ArrowDown") {
       e.preventDefault();
@@ -125,6 +127,20 @@ export function OrderClient({ kind }: { kind: Kind }) {
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       saveCellAndMove(row, rowIdx - 1, colKey);
+    } else if (e.key === "ArrowRight") {
+      e.preventDefault();
+      if (colIdx < editableFields.length - 1) {
+        setActiveCell({ rowId: row.id, colKey: editableFields[colIdx + 1] });
+      } else if (rowIdx < rows.length - 1) {
+        saveCellAndMove(row, rowIdx + 1, editableFields[0]);
+      }
+    } else if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      if (colIdx > 0) {
+        setActiveCell({ rowId: row.id, colKey: editableFields[colIdx - 1] });
+      } else if (rowIdx > 0) {
+        saveCellAndMove(row, rowIdx - 1, editableFields[editableFields.length - 1]);
+      }
     } else if (e.key === "Tab") {
       e.preventDefault();
       if (e.shiftKey) {
@@ -323,11 +339,11 @@ export function OrderClient({ kind }: { kind: Kind }) {
               const draft = inlineEditing[r.id];
               const isRowEditing = !!draft;
               return (
-              <TR key={r.id} className={isRowEditing ? "bg-blue-50/50 dark:bg-blue-950/20" : ""}>
+              <TR key={r.id} className={isRowEditing ? "bg-accent/5" : ""}>
                 <TD className="font-mono text-xs">{r.number}</TD>
                 <TD>{(kind === "purchase" ? r.supplier : r.customer)?.companyName ?? "—"}</TD>
                 <TD
-                  className={editableFields.includes("orderDate") ? "cursor-cell hover:bg-blue-50/60 dark:hover:bg-blue-950/30 transition-colors" : ""}
+                  className={editableFields.includes("orderDate") ? "cursor-cell hover:bg-muted/60 transition-colors" : ""}
                   onClick={() => { if (editableFields.includes("orderDate")) startCellEdit(r, "orderDate"); }}
                 >
                   {activeCell?.rowId === r.id && activeCell?.colKey === "orderDate" ? (
@@ -363,7 +379,7 @@ export function OrderClient({ kind }: { kind: Kind }) {
                       {isEditing ? (
                         <Input type={cc.type === "number" ? "number" : cc.type === "date" ? "date" : "text"} defaultValue={vals[cc.id] ?? ""} autoFocus className="h-7 text-xs" onBlur={(e) => { setCustomFieldValue(kind === "purchase" ? "purchases" : "sales", r.id, cc.id, e.target.value); setEditingCells((p) => ({ ...p, [cellKey]: false })); }} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} />
                       ) : (
-                        <span className="cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950 px-1 py-0.5 rounded min-h-[24px] inline-block min-w-[40px]" onClick={() => setEditingCells((p) => ({ ...p, [cellKey]: true }))}>{vals[cc.id] || "—"}</span>
+                        <span className="inline-block min-h-[24px] min-w-[40px] cursor-pointer rounded px-1 py-0.5 transition-colors hover:bg-muted" onClick={() => setEditingCells((p) => ({ ...p, [cellKey]: true }))}>{vals[cc.id] || "—"}</span>
                       )}
                     </TD>
                   );
@@ -487,7 +503,7 @@ function CreateOrderDialog({ kind, open, onClose, onCreated }: any) {
     setSaving(true);
     try {
       const endpoint = kind === "purchase" ? "/api/purchases" : "/api/sales";
-      const loadingToastId = toast.loading("建立中，同時建立傳票與應收應付...", { duration: 0 });
+      const loadingToastId = toast.loading("建立中...", { duration: 0 });
       const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

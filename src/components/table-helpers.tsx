@@ -1,15 +1,26 @@
 "use client";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 
 /**
  * 表格操作提示
  */
 export function TableHint() {
   return (
-    <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-      <span>💡 可拖曳表頭欄位調整順序 ｜ 點擊儲存格直接編輯 ｜ Enter/↓ 下一列 ｜ ↑ 上一列 ｜ Tab 下一欄 ｜ Esc 取消</span>
-    </div>
+    <p className="sr-only">
+      表格支援拖曳欄位排序、點擊儲存格編輯，以及 Enter、方向鍵、Tab、Escape 鍵盤操作。
+    </p>
   );
+}
+
+export function useDebouncedValue<T>(value: T, delay = 300) {
+  const [debounced, setDebounced] = useState(value);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebounced(value), delay);
+    return () => window.clearTimeout(timer);
+  }, [value, delay]);
+
+  return debounced;
 }
 
 /**
@@ -53,8 +64,8 @@ export function useColumnDrag(moduleKey: string, defaultKeys: string[]) {
       onDragStart: () => handleDragStart(key),
       onDragOver: handleDragOver,
       onDrop: () => handleDrop(key),
-      style: dragCol === key ? { opacity: 0.5, background: "rgba(96, 165, 250, 0.3)" } as React.CSSProperties : undefined,
-      className: "cursor-grab select-none",
+      style: dragCol === key ? { opacity: 0.65, background: "hsl(var(--muted))" } as React.CSSProperties : undefined,
+      className: "cursor-grab select-none hover:text-foreground",
       title: "拖曳調整欄位順序",
     };
   }

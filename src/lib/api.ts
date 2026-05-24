@@ -57,6 +57,9 @@ export function apiHandler<T extends (...args: any[]) => Promise<any>>(fn: T) {
     try {
       return await fn(...args);
     } catch (e: any) {
+      if (e?.digest === "DYNAMIC_SERVER_USAGE" || e?.message?.includes("Dynamic server usage")) {
+        throw e;
+      }
       if (e instanceof ApiError) {
         return NextResponse.json({ error: e.message }, { status: e.status });
       }

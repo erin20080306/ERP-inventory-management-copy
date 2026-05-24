@@ -8,8 +8,8 @@
  *   1103 銀行存款       1131 應收票據     1132 應收帳款
  *   1151 進項稅額       1201 存貨
  *   2102 應付票據       2103 應付帳款     2111 銷項稅額
- *   4101 銷貨收入       4151 銷貨退回     4152 銷貨折讓
- *   5101 銷貨成本       5201 進貨        5301 進貨退出     5302 進貨折讓
+ *   4101 銷貨收入       4102 銷貨退回     4103 銷貨折讓
+ *   5101 銷貨成本       5102 進貨        5104 進貨退出     5105 進貨折讓
  */
 import { prisma } from "./prisma";
 import { nextNumber } from "./api";
@@ -26,12 +26,16 @@ export const DEFAULT_ACCOUNT_CODES = {
   INPUT_TAX: "1151",
   OUTPUT_TAX: "2111",
   SALES_REVENUE: "4101",
-  SALES_RETURN: "4151",
-  SALES_DISCOUNT: "4152",
+  SALES_RETURN: "4102",
+  SALES_DISCOUNT: "4103",
   COGS: "5101",
-  PURCHASE: "5201",
-  PURCHASE_RETURN: "5301",
-  PURCHASE_DISCOUNT: "5302",
+  PURCHASE: "5102",
+  PURCHASE_RETURN: "5104",
+  PURCHASE_DISCOUNT: "5105",
+  INVENTORY_GAIN: "4205",
+  INVENTORY_LOSS: "6130",
+  CURRENT_INCOME: "3402",
+  RETAINED_EARNINGS: "3401",
 } as const;
 
 export type AccountCodeKey = keyof typeof DEFAULT_ACCOUNT_CODES;
@@ -88,6 +92,25 @@ async function line(tenantId: string, code: string, debit: number, credit: numbe
   };
 }
 
+function money(value: unknown) {
+  return Number(Number(value ?? 0).toFixed(2));
+}
+
+function taxableBreakdown(total: number, subtotalHint: number, isTaxable = true) {
+  const subtotal = money(subtotalHint > 0 ? subtotalHint : isTaxable ? total / 1.05 : total);
+  const tax = money(Math.max(total - subtotal, 0));
+  return { subtotal, tax };
+}
+
+function assertBalanced(summary: string, lines: DraftLine[]) {
+  const debit = money(lines.reduce((sum, item) => sum + item.debit, 0));
+  const credit = money(lines.reduce((sum, item) => sum + item.credit, 0));
+  if (Math.abs(debit - credit) > 0.01) {
+    throw new Error(`傳票草稿借貸不平衡：${summary} (借 ${debit} / 貸 ${credit})`);
+  }
+  return lines;
+}
+
 /* ============================================================ */
 /*               採購單進貨 (POSTED)                              */
 /* ============================================================ */
@@ -115,7 +138,7 @@ export async function buildPurchaseReceiveDraft(purchaseOrderId: string): Promis
     sourceId: po.id,
     summary: `採購進貨 ${po.number} ${po.supplier.companyName}`,
     entryDate: (po.receivedAt ?? po.createdAt).toISOString().slice(0, 10),
-    lines,
+    lines: assertBalanced(`採購進貨 ${po.number}`, lines),
   };
 }
 
@@ -154,8 +177,8 @@ export async function buildSalesInvoiceDraft(salesOrderId: string): Promise<Draf
     sourceType: "SALES",
     sourceId: so.id,
     summary: `銷售開票 ${so.number} ${so.customer.companyName}`,
-    entryDate: new Date().toISOString().slice(0, 10),
-    lines,
+    entryDate: (so.shippedAt ?? so.orderDate ?? so.createdAt).toISOString().slice(0, 10),
+    lines: assertBalanced(`銷售開票 ${so.number}`, lines),
   };
 }
 
@@ -170,8 +193,11 @@ export async function buildPurchaseReturnDraft(returnId: string): Promise<DraftE
   if (!pr) throw new Error("找不到進貨退出單");
 
   const total = Number(pr.total);
-  const subtotal = +(total / 1.05).toFixed(2);
-  const tax = +(total - subtotal).toFixed(2);
+  const { subtotal, tax } = taxableBreakdown(
+    total,
+    pr.items.reduce((sum, item) => sum + Number(item.subtotal ?? 0), 0),
+    pr.isTaxable !== false,
+  );
 
   const t = pr.tenantId;
   const lines: DraftLine[] = [
@@ -185,7 +211,7 @@ export async function buildPurchaseReturnDraft(returnId: string): Promise<DraftE
     sourceId: pr.id,
     summary: `進貨退出 ${pr.number} ${pr.supplier.companyName}`,
     entryDate: ((pr as any).returnDate ?? pr.createdAt).toISOString().slice(0, 10),
-    lines,
+    lines: assertBalanced(`進貨退出 ${pr.number}`, lines),
   };
 }
 
@@ -200,8 +226,11 @@ export async function buildSalesReturnDraft(returnId: string): Promise<DraftEntr
   if (!sr) throw new Error("找不到銷貨退回單");
 
   const total = Number(sr.total);
-  const subtotal = +(total / 1.05).toFixed(2);
-  const tax = +(total - subtotal).toFixed(2);
+  const { subtotal, tax } = taxableBreakdown(
+    total,
+    sr.items.reduce((sum, item) => sum + Number(item.subtotal ?? 0), 0),
+    sr.isTaxable !== false,
+  );
 
   const t = sr.tenantId;
   const lines: DraftLine[] = [
@@ -215,7 +244,7 @@ export async function buildSalesReturnDraft(returnId: string): Promise<DraftEntr
     sourceId: sr.id,
     summary: `銷貨退回 ${sr.number} ${sr.customer.companyName}`,
     entryDate: ((sr as any).returnDate ?? sr.createdAt).toISOString().slice(0, 10),
-    lines,
+    lines: assertBalanced(`銷貨退回 ${sr.number}`, lines),
   };
 }
 
@@ -247,8 +276,8 @@ export async function buildReceivePaymentDraft(receivePaymentId: string): Promis
     sourceType: "RECEIVE_PAYMENT",
     sourceId: rp.id,
     summary: `收款 ${rp.number} ${rp.customer.companyName}`,
-    entryDate: rp.createdAt.toISOString().slice(0, 10),
-    lines,
+    entryDate: rp.paymentDate.toISOString().slice(0, 10),
+    lines: assertBalanced(`收款 ${rp.number}`, lines),
   };
 }
 
@@ -279,8 +308,8 @@ export async function buildSupplierPaymentDraft(supplierPaymentId: string): Prom
     sourceType: "SUPPLIER_PAYMENT",
     sourceId: sp.id,
     summary: `付款 ${sp.number} ${sp.supplier.companyName}`,
-    entryDate: sp.createdAt.toISOString().slice(0, 10),
-    lines,
+    entryDate: sp.paymentDate.toISOString().slice(0, 10),
+    lines: assertBalanced(`付款 ${sp.number}`, lines),
   };
 }
 
@@ -342,7 +371,7 @@ export async function buildPayrollPeriodDraft(periodId: string): Promise<DraftEn
     sourceId: period.id,
     summary: `${period.year}/${String(period.month).padStart(2, "0")} 月薪資結算`,
     entryDate: (period.payDate ?? period.periodEnd).toISOString().slice(0, 10),
-    lines,
+    lines: assertBalanced(`${period.year}/${period.month} 月薪資結算`, lines),
   };
 }
 
@@ -379,7 +408,7 @@ export async function buildInvoiceDraft(invoiceId: string): Promise<DraftEntry> 
     sourceId: inv.id,
     summary: `${isSales ? "銷項" : "進項"}發票 ${inv.number}`,
     entryDate: inv.invoiceDate.toISOString().slice(0, 10),
-    lines,
+    lines: assertBalanced(`${isSales ? "銷項" : "進項"}發票 ${inv.number}`, lines),
   };
 }
 
@@ -418,8 +447,8 @@ export async function buildARCreatedDraft(salesOrderId: string): Promise<DraftEn
     sourceType: "SALES_CONFIRM",
     sourceId: so.id,
     summary: `銷售確認 ${so.number} ${so.customer.companyName}`,
-    entryDate: new Date().toISOString().slice(0, 10),
-    lines,
+    entryDate: (so.shippedAt ?? so.orderDate ?? so.createdAt).toISOString().slice(0, 10),
+    lines: assertBalanced(`銷售確認 ${so.number}`, lines),
   };
 }
 
@@ -449,8 +478,8 @@ export async function buildAPCreatedDraft(purchaseOrderId: string): Promise<Draf
     sourceType: "PURCHASE_APPROVE",
     sourceId: po.id,
     summary: `採購核准 ${po.number} ${po.supplier.companyName}`,
-    entryDate: new Date().toISOString().slice(0, 10),
-    lines,
+    entryDate: (po.receivedAt ?? po.orderDate ?? po.createdAt).toISOString().slice(0, 10),
+    lines: assertBalanced(`採購核准 ${po.number}`, lines),
   };
 }
 
@@ -483,7 +512,7 @@ export async function buildDiscountNoteDraft(discountNoteId: string): Promise<Dr
     sourceId: dn.id,
     summary: `${isSales ? "銷貨" : "進貨"}折讓 ${dn.number}`,
     entryDate: dn.createdAt.toISOString().slice(0, 10),
-    lines,
+    lines: assertBalanced(`${isSales ? "銷貨" : "進貨"}折讓 ${dn.number}`, lines),
   };
 }
 
@@ -521,7 +550,13 @@ export async function autoCreateJournalFromOrder(
           await line(tenantId, DEFAULT_ACCOUNT_CODES.INVENTORY, 0, cogs, "結轉存貨"),
         );
       }
-      draft = { sourceType: "SALES_CONFIRM", sourceId: order.id, summary: `銷售確認 ${order.number} ${customerName}`, entryDate: new Date().toISOString().slice(0, 10), lines };
+      draft = {
+        sourceType: "SALES_CONFIRM",
+        sourceId: order.id,
+        summary: `銷售確認 ${order.number} ${customerName}`,
+        entryDate: (order.shippedAt ?? order.orderDate ?? order.createdAt ?? new Date()).toISOString().slice(0, 10),
+        lines: assertBalanced(`銷售確認 ${order.number}`, lines),
+      };
     } else {
       const subtotal = Number(order.subtotal) - Number(order.discount);
       const tax = Number(order.taxAmount);
@@ -533,7 +568,13 @@ export async function autoCreateJournalFromOrder(
         ...(tax > 0 ? [await line(tenantId, DEFAULT_ACCOUNT_CODES.INPUT_TAX, tax, 0, "進項稅額 5%")] : []),
         await line(tenantId, DEFAULT_ACCOUNT_CODES.AP, 0, total, supplierName),
       ];
-      draft = { sourceType: "PURCHASE_APPROVE", sourceId: order.id, summary: `採購核准 ${order.number} ${supplierName}`, entryDate: new Date().toISOString().slice(0, 10), lines };
+      draft = {
+        sourceType: "PURCHASE_APPROVE",
+        sourceId: order.id,
+        summary: `採購核准 ${order.number} ${supplierName}`,
+        entryDate: (order.receivedAt ?? order.orderDate ?? order.createdAt ?? new Date()).toISOString().slice(0, 10),
+        lines: assertBalanced(`採購核准 ${order.number}`, lines),
+      };
     }
 
     return await autoCreateJournal(tenantId, draft, userId);
@@ -574,20 +615,20 @@ export async function buildInventoryAdjustmentDraft(adjustmentId: string): Promi
     const amount = Math.abs(diff) * unitCost;
 
     if (diff > 0) {
-      // 盤盈：借 存貨 / 貸 存貨盤盈
+      // 盤盈：借 存貨 / 貸 其他收入
       lines.push(await line(t, DEFAULT_ACCOUNT_CODES.INVENTORY, amount, 0, `${product?.name || item.productId} 盤盈 +${diff}`));
       totalGain += amount;
     } else if (diff < 0) {
-      // 盤虧：借 存貨盤虧 / 貸 存貨
-      lines.push(await line(t, "6302", amount, 0, `${product?.name || item.productId} 盤虧 ${diff}`));
+      // 盤虧：借 其他費用 / 貸 存貨
+      lines.push(await line(t, DEFAULT_ACCOUNT_CODES.INVENTORY_LOSS, amount, 0, `${product?.name || item.productId} 盤虧 ${diff}`));
       lines.push(await line(t, DEFAULT_ACCOUNT_CODES.INVENTORY, 0, amount, `${product?.name || item.productId} 盤虧 ${diff}`));
       totalLoss += amount;
     }
   }
 
-  // 如果有盤盈，貸方加存貨盤盈科目
+  // 如果有盤盈，貸方加其他收入
   if (totalGain > 0) {
-    lines.push(await line(t, "6301", 0, totalGain, `存貨盤盈 ${adj.number}`));
+    lines.push(await line(t, DEFAULT_ACCOUNT_CODES.INVENTORY_GAIN, 0, totalGain, `存貨盤盈 ${adj.number}`));
   }
 
   return {
@@ -595,7 +636,7 @@ export async function buildInventoryAdjustmentDraft(adjustmentId: string): Promi
     sourceId: adj.id,
     summary: `存貨盤點調整 ${adj.number} ${adj.warehouse.name} 盤盈${totalGain.toFixed(0)} 盤虧${totalLoss.toFixed(0)}`,
     entryDate: adj.createdAt.toISOString().slice(0, 10),
-    lines,
+    lines: assertBalanced(`存貨盤點調整 ${adj.number}`, lines),
   };
 }
 
@@ -635,34 +676,37 @@ export async function buildClosingDraft(tenantId: string, periodEnd: string, isY
   let totalCost = 0;
   let totalExpense = 0;
 
-  // 收入科目（4xxx）：結轉到本期損益貸方
+  // 收入科目（4xxx）：借記收入、貸記本期損益
   for (const [id, bal] of accountBalances) {
     if (bal.type === "REVENUE" && bal.code.startsWith("4")) {
       const net = bal.credit - bal.debit;
       if (net > 0) {
-        lines.push(await line(tenantId, bal.code, 0, net, `結轉收入 ${bal.name}`));
+        lines.push(await line(tenantId, bal.code, net, 0, `結轉收入 ${bal.name}`));
+        lines.push(await line(tenantId, DEFAULT_ACCOUNT_CODES.CURRENT_INCOME, 0, net, `結轉收入 ${bal.name}`));
         totalRevenue += net;
       }
     }
   }
 
-  // 成本科目（5xxx）：結轉到本期損益借方
+  // 成本科目（5xxx）：借記本期損益、貸記成本
   for (const [id, bal] of accountBalances) {
     if (bal.type === "COST" && bal.code.startsWith("5")) {
       const net = bal.debit - bal.credit;
       if (net > 0) {
-        lines.push(await line(tenantId, bal.code, net, 0, `結轉成本 ${bal.name}`));
+        lines.push(await line(tenantId, DEFAULT_ACCOUNT_CODES.CURRENT_INCOME, net, 0, `結轉成本 ${bal.name}`));
+        lines.push(await line(tenantId, bal.code, 0, net, `結轉成本 ${bal.name}`));
         totalCost += net;
       }
     }
   }
 
-  // 費用科目（6xxx）：結轉到本期損益借方
+  // 費用科目（6xxx）：借記本期損益、貸記費用
   for (const [id, bal] of accountBalances) {
     if (bal.type === "EXPENSE" && bal.code.startsWith("6")) {
       const net = bal.debit - bal.credit;
       if (net > 0) {
-        lines.push(await line(tenantId, bal.code, net, 0, `結轉費用 ${bal.name}`));
+        lines.push(await line(tenantId, DEFAULT_ACCOUNT_CODES.CURRENT_INCOME, net, 0, `結轉費用 ${bal.name}`));
+        lines.push(await line(tenantId, bal.code, 0, net, `結轉費用 ${bal.name}`));
         totalExpense += net;
       }
     }
@@ -672,22 +716,15 @@ export async function buildClosingDraft(tenantId: string, periodEnd: string, isY
   const netIncome = totalRevenue - totalCost - totalExpense;
 
   if (isYearEnd) {
-    // 年結：本期損益結轉到保留盈餘
+    // 年結：本期損益結轉到累積盈虧
     if (netIncome > 0) {
-      // 有淨利：借 本期損益 / 貸 保留盈餘
-      lines.push(await line(tenantId, "3102", netIncome, 0, "結轉本期損益"));
-      lines.push(await line(tenantId, "3101", 0, netIncome, "結轉保留盈餘"));
+      // 有淨利：借 本期損益 / 貸 累積盈虧
+      lines.push(await line(tenantId, DEFAULT_ACCOUNT_CODES.CURRENT_INCOME, netIncome, 0, "年結本期淨利"));
+      lines.push(await line(tenantId, DEFAULT_ACCOUNT_CODES.RETAINED_EARNINGS, 0, netIncome, "年結轉入累積盈虧"));
     } else if (netIncome < 0) {
-      // 有淨損：借 保留盈餘 / 貸 本期損益
-      lines.push(await line(tenantId, "3101", Math.abs(netIncome), 0, "結轉保留盈餘"));
-      lines.push(await line(tenantId, "3102", 0, Math.abs(netIncome), "結轉本期損益"));
-    }
-  } else {
-    // 月結：收入/費用結轉到本期損益
-    if (netIncome > 0) {
-      lines.push(await line(tenantId, "3102", netIncome, 0, "結轉本期淨利"));
-    } else if (netIncome < 0) {
-      lines.push(await line(tenantId, "3102", 0, Math.abs(netIncome), "結轉本期淨損"));
+      // 有淨損：借 累積盈虧 / 貸 本期損益
+      lines.push(await line(tenantId, DEFAULT_ACCOUNT_CODES.RETAINED_EARNINGS, Math.abs(netIncome), 0, "年結轉入累積盈虧"));
+      lines.push(await line(tenantId, DEFAULT_ACCOUNT_CODES.CURRENT_INCOME, 0, Math.abs(netIncome), "年結本期淨損"));
     }
   }
 
@@ -698,7 +735,7 @@ export async function buildClosingDraft(tenantId: string, periodEnd: string, isY
       ? `年結 ${periodEnd} 收入${totalRevenue.toFixed(0)} 成本${totalCost.toFixed(0)} 費用${totalExpense.toFixed(0)} 淨利${netIncome.toFixed(0)}`
       : `月結 ${periodEnd} 收入${totalRevenue.toFixed(0)} 成本${totalCost.toFixed(0)} 費用${totalExpense.toFixed(0)} 淨利${netIncome.toFixed(0)}`,
     entryDate: periodEnd,
-    lines,
+    lines: assertBalanced(`${isYearEnd ? "年結" : "月結"} ${periodEnd}`, lines),
   };
 }
 

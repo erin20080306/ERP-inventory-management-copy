@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import { Plus, Search, Loader2, CheckCircle2, XCircle, Ban, Trash2, FileSpreadsheet, Upload, Pencil } from "lucide-react";
 import { formatDate, formatMoney } from "@/lib/utils";
 import { useCustomColumns, CustomColumnDialog, CustomColumnButton, getCustomFieldValues, setCustomFieldValue } from "@/components/custom-columns";
-import { TableHint, useColumnDrag } from "@/components/table-helpers";
+import { TableHint, useColumnDrag, useDebouncedValue } from "@/components/table-helpers";
 
 const NOTE_TYPE_LABELS: Record<string, string> = {
   CHECK: "支票",
@@ -44,6 +44,7 @@ export function NotesClient({ kind }: { kind: "receivable" | "payable" }) {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [q, setQ] = useState("");
+  const debouncedQ = useDebouncedValue(q);
   const [status, setStatus] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
@@ -59,7 +60,7 @@ export function NotesClient({ kind }: { kind: "receivable" | "payable" }) {
 
   async function load() {
     setLoading(true);
-    const sp = new URLSearchParams({ q, status, page: String(page), pageSize: String(pageSize) });
+    const sp = new URLSearchParams({ q: debouncedQ, status, page: String(page), pageSize: String(pageSize) });
     if (fromDate) sp.set("from", fromDate);
     if (toDate) sp.set("to", toDate);
     const res = await fetch(`${endpoint}?${sp}`);
@@ -68,7 +69,7 @@ export function NotesClient({ kind }: { kind: "receivable" | "payable" }) {
     setTotal(d.total);
     setLoading(false);
   }
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [page, q, status, fromDate, toDate]);
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [page, debouncedQ, status, fromDate, toDate]);
 
   const editableFields = ["issueDate", "dueDate", "bank"];
 
@@ -84,6 +85,7 @@ export function NotesClient({ kind }: { kind: "receivable" | "payable" }) {
   function handleCellKeyDown(e: React.KeyboardEvent, row: any, colKey: string) {
     const rowIdx = rows.findIndex((r) => r.id === row.id);
     const colIdx = editableFields.indexOf(colKey);
+    if (editableFields.length === 0 || colIdx === -1) return;
 
     if (e.key === "Enter" || e.key === "ArrowDown") {
       e.preventDefault();
@@ -91,6 +93,20 @@ export function NotesClient({ kind }: { kind: "receivable" | "payable" }) {
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       saveCellAndMove(row, rowIdx - 1, colKey);
+    } else if (e.key === "ArrowRight") {
+      e.preventDefault();
+      if (colIdx < editableFields.length - 1) {
+        setActiveCell({ rowId: row.id, colKey: editableFields[colIdx + 1] });
+      } else if (rowIdx < rows.length - 1) {
+        saveCellAndMove(row, rowIdx + 1, editableFields[0]);
+      }
+    } else if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      if (colIdx > 0) {
+        setActiveCell({ rowId: row.id, colKey: editableFields[colIdx - 1] });
+      } else if (rowIdx > 0) {
+        saveCellAndMove(row, rowIdx - 1, editableFields[editableFields.length - 1]);
+      }
     } else if (e.key === "Tab") {
       e.preventDefault();
       if (e.shiftKey) {
@@ -280,12 +296,12 @@ export function NotesClient({ kind }: { kind: "receivable" | "payable" }) {
             const draft = inlineEditing[r.id];
             const isRowEditing = !!draft;
             return (
-            <TR key={r.id} className={isRowEditing ? "bg-blue-50/50 dark:bg-blue-950/20" : ""}>
+            <TR key={r.id} className={isRowEditing ? "bg-accent/5" : ""}>
               <TD className="font-mono text-xs">{r.noteNumber}</TD>
               <TD>{NOTE_TYPE_LABELS[r.noteType] ?? r.noteType}</TD>
               <TD>{(kind === "receivable" ? r.customer : r.supplier)?.companyName ?? "—"}</TD>
               <TD
-                className={editableFields.includes("bank") ? "cursor-cell hover:bg-blue-50/60 dark:hover:bg-blue-950/30 transition-colors" : ""}
+                className={editableFields.includes("bank") ? "cursor-cell hover:bg-muted/60 transition-colors" : ""}
                 onClick={() => { if (editableFields.includes("bank")) startCellEdit(r, "bank"); }}
               >
                 {activeCell?.rowId === r.id && activeCell?.colKey === "bank" ? (
@@ -301,7 +317,7 @@ export function NotesClient({ kind }: { kind: "receivable" | "payable" }) {
                 )}
               </TD>
               <TD
-                className={editableFields.includes("issueDate") ? "cursor-cell hover:bg-blue-50/60 dark:hover:bg-blue-950/30 transition-colors" : ""}
+                className={editableFields.includes("issueDate") ? "cursor-cell hover:bg-muted/60 transition-colors" : ""}
                 onClick={() => { if (editableFields.includes("issueDate")) startCellEdit(r, "issueDate"); }}
               >
                 {activeCell?.rowId === r.id && activeCell?.colKey === "issueDate" ? (
@@ -318,7 +334,7 @@ export function NotesClient({ kind }: { kind: "receivable" | "payable" }) {
                 )}
               </TD>
               <TD
-                className={editableFields.includes("dueDate") ? "cursor-cell hover:bg-blue-50/60 dark:hover:bg-blue-950/30 transition-colors" : ""}
+                className={editableFields.includes("dueDate") ? "cursor-cell hover:bg-muted/60 transition-colors" : ""}
                 onClick={() => { if (editableFields.includes("dueDate")) startCellEdit(r, "dueDate"); }}
               >
                 {activeCell?.rowId === r.id && activeCell?.colKey === "dueDate" ? (
@@ -373,7 +389,7 @@ export function NotesClient({ kind }: { kind: "receivable" | "payable" }) {
                       />
                     ) : (
                       <span
-                        className="cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950 px-1 py-0.5 rounded min-h-[24px] inline-block min-w-[40px]"
+                        className="inline-block min-h-[24px] min-w-[40px] cursor-pointer rounded px-1 py-0.5 transition-colors hover:bg-muted"
                         onClick={() => setEditingCells((p) => ({ ...p, [cellKey]: true }))}
                       >
                         {vals[cc.id] || "—"}

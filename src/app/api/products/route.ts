@@ -45,18 +45,25 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const [items, total] = await Promise.all([
     prisma.product.findMany({
       where,
-      include: { category: true, unit: true, stocks: true, taxRate: true, salesItems: { select: { quantity: true } } },
+      include: { category: true, unit: true, stocks: true, taxRate: true },
       orderBy: { createdAt: "desc" },
       skip: (page - 1) * pageSize,
       take: pageSize,
     }),
     prisma.product.count({ where }),
   ]);
+  const soldRows = items.length
+    ? await prisma.salesOrderItem.groupBy({
+        by: ["productId"],
+        where: { productId: { in: items.map((p) => p.id) }, order: { tenantId } },
+        _sum: { quantity: true },
+      })
+    : [];
+  const soldByProduct = new Map(soldRows.map((row) => [row.productId, Number(row._sum.quantity ?? 0)]));
   return NextResponse.json({
     items: items.map((p: any) => {
       const stockTotal = p.stocks.reduce((s: number, x: any) => s + Number(x.quantity), 0);
-      const soldTotal = p.salesItems.reduce((s: number, x: any) => s + Number(x.quantity), 0);
-      return { ...p, stockTotal, soldTotal, salesItems: undefined };
+      return { ...p, stockTotal, soldTotal: soldByProduct.get(p.id) ?? 0 };
     }),
     total,
   });

@@ -22,7 +22,10 @@ export const GET = apiHandler(async (req: NextRequest) => {
   
   const txns = await prisma.inventoryTransaction.findMany({
     where,
-    include: { product: true, warehouse: true },
+    include: {
+      product: { select: { sku: true, name: true } },
+      warehouse: { select: { name: true } },
+    },
     orderBy: { createdAt: "desc" },
     take: 50,
   });

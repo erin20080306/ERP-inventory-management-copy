@@ -4,13 +4,20 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input, Label } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Download, Upload, Database, AlertTriangle, Loader2 } from "lucide-react";
+import { Download, Upload, Database, AlertTriangle, Loader2, Mail } from "lucide-react";
 
 export function SettingsClient() {
-  const [form, setForm] = useState<any>({ name: "", currency: "TWD" });
+  const [form, setForm] = useState<any>({ name: "", currency: "TWD", smtpSecure: true, smtpPort: 465 });
   const [saving, setSaving] = useState(false);
   useEffect(() => {
-    fetch("/api/settings").then((r) => r.json()).then((d) => setForm(d.company ?? { name: "", currency: "TWD" }));
+    fetch("/api/settings").then((r) => r.json()).then((d) => setForm({
+      name: "",
+      currency: "TWD",
+      smtpSecure: true,
+      smtpPort: 465,
+      ...(d.company ?? {}),
+      smtpPassword: "",
+    }));
   }, []);
   async function save() {
     setSaving(true);
@@ -33,6 +40,77 @@ export function SettingsClient() {
           <div className="space-y-1"><Label>幣別</Label><Input value={form.currency ?? "TWD"} onChange={(e) => setForm({ ...form, currency: e.target.value })} /></div>
           <div className="space-y-1"><Label>Logo 網址</Label><Input value={form.logoUrl ?? ""} onChange={(e) => setForm({ ...form, logoUrl: e.target.value })} /></div>
           <div className="col-span-2"><Button onClick={save} disabled={saving}>{saving ? "儲存中..." : "儲存"}</Button></div>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Mail className="h-5 w-5" />SMTP 寄件設定</CardTitle>
+          <CardDescription>AI 助手寄送 Excel、Word、PDF 報表時，會使用此租戶自己的寄件信箱。</CardDescription>
+        </CardHeader>
+        <CardContent className="grid grid-cols-2 gap-4 max-w-3xl">
+          <div className="space-y-1 col-span-2 md:col-span-1">
+            <Label>SMTP 主機</Label>
+            <Input placeholder="smtp.gmail.com" value={form.smtpHost ?? ""} onChange={(e) => setForm({ ...form, smtpHost: e.target.value })} />
+          </div>
+          <div className="space-y-1 col-span-2 md:col-span-1">
+            <Label>SMTP Port</Label>
+            <Input type="number" placeholder="465 或 587" value={form.smtpPort ?? ""} onChange={(e) => setForm({ ...form, smtpPort: e.target.value })} />
+          </div>
+          <div className="space-y-1 col-span-2 md:col-span-1">
+            <Label>SMTP 帳號</Label>
+            <Input value={form.smtpUser ?? ""} onChange={(e) => setForm({ ...form, smtpUser: e.target.value })} />
+          </div>
+          <div className="space-y-1 col-span-2 md:col-span-1">
+            <Label>SMTP 密碼 / 應用程式密碼</Label>
+            <Input
+              type="password"
+              placeholder={form.hasSmtpPassword ? "已設定，留空則不變更" : "請輸入密碼"}
+              value={form.smtpPassword ?? ""}
+              onChange={(e) => setForm({ ...form, smtpPassword: e.target.value })}
+            />
+          </div>
+          <div className="space-y-1 col-span-2 md:col-span-1">
+            <Label>寄件者名稱</Label>
+            <Input placeholder={form.name || "ERP AI 資料助手"} value={form.smtpFromName ?? ""} onChange={(e) => setForm({ ...form, smtpFromName: e.target.value })} />
+          </div>
+          <div className="space-y-1 col-span-2 md:col-span-1">
+            <Label>寄件者 Email</Label>
+            <Input type="email" placeholder={form.email || "sender@example.com"} value={form.smtpFromEmail ?? ""} onChange={(e) => setForm({ ...form, smtpFromEmail: e.target.value })} />
+          </div>
+          <label className="col-span-2 flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={form.smtpSecure !== false}
+              onChange={(e) => setForm({ ...form, smtpSecure: e.target.checked })}
+              className="h-4 w-4 rounded border-input"
+            />
+            使用 SSL/TLS 安全連線
+          </label>
+          <div className="col-span-2 space-y-3 rounded-md border bg-muted/30 p-4 text-xs text-muted-foreground">
+            <div className="font-semibold text-foreground">操作指引</div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="space-y-1">
+                <div className="font-medium text-foreground">1. 先準備寄件信箱</div>
+                <p>可使用公司網域信箱、Gmail、Outlook / Microsoft 365，或另外申請一個專門寄 ERP 報表的信箱。寄件者 Email 建議與 SMTP 帳號相同，避免被收件端判定為冒用。</p>
+              </div>
+              <div className="space-y-1">
+                <div className="font-medium text-foreground">2. Gmail 常用填法</div>
+                <p>Google 帳戶需先開啟兩步驟驗證，再產生「應用程式密碼」。SMTP 主機填 smtp.gmail.com，Port 465 勾選 SSL/TLS；或 Port 587 不勾選 SSL/TLS。</p>
+              </div>
+              <div className="space-y-1">
+                <div className="font-medium text-foreground">3. Outlook / Microsoft 365 常用填法</div>
+                <p>SMTP 主機通常為 smtp.office365.com，Port 587，不勾選 SSL/TLS。若公司停用 SMTP AUTH，需請管理員到 Microsoft 365 管理中心開啟。</p>
+              </div>
+              <div className="space-y-1">
+                <div className="font-medium text-foreground">4. 公司網域信箱</div>
+                <p>請向主機商或資訊人員取得 SMTP 主機、Port、安全連線方式、帳號與密碼。若提供 Port 465 通常勾選 SSL/TLS；Port 587 通常不勾選。</p>
+              </div>
+            </div>
+            <div className="rounded border bg-background px-3 py-2">
+              沒有設定 SMTP 時，AI 助手不會用共用 Gmail 代寄；每個租戶都需要設定自己的寄件信箱或應用程式密碼。
+            </div>
+          </div>
+          <div className="col-span-2"><Button onClick={save} disabled={saving}>{saving ? "儲存中..." : "儲存 SMTP 設定"}</Button></div>
         </CardContent>
       </Card>
       <BackupCard />

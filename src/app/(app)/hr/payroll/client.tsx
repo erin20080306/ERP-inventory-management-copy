@@ -215,7 +215,7 @@ export function PayrollClient() {
                           />
                         ) : (
                           <span
-                            className="cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950 px-1 py-0.5 rounded min-h-[24px] inline-block min-w-[40px]"
+                            className="inline-block min-h-[24px] min-w-[40px] cursor-pointer rounded px-1 py-0.5 transition-colors hover:bg-muted"
                             onClick={() => setEditingCells((p) => ({ ...p, [cellKey]: true }))}
                           >
                             {vals[cc.id] || "—"}

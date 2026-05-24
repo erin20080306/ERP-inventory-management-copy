@@ -243,6 +243,7 @@ export default function QuotationClient() {
   function handleCellKeyDown(e: React.KeyboardEvent, row: any, colKey: string) {
     const rowIdx = items.findIndex((r) => r.id === row.id);
     const colIdx = editableFields.indexOf(colKey);
+    if (editableFields.length === 0 || colIdx === -1) return;
 
     if (e.key === "Enter" || e.key === "ArrowDown") {
       e.preventDefault();
@@ -250,6 +251,20 @@ export default function QuotationClient() {
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       saveCellAndMove(row, rowIdx - 1, colKey);
+    } else if (e.key === "ArrowRight") {
+      e.preventDefault();
+      if (colIdx < editableFields.length - 1) {
+        setActiveCell({ rowId: row.id, colKey: editableFields[colIdx + 1] });
+      } else if (rowIdx < items.length - 1) {
+        saveCellAndMove(row, rowIdx + 1, editableFields[0]);
+      }
+    } else if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      if (colIdx > 0) {
+        setActiveCell({ rowId: row.id, colKey: editableFields[colIdx - 1] });
+      } else if (rowIdx > 0) {
+        saveCellAndMove(row, rowIdx - 1, editableFields[editableFields.length - 1]);
+      }
     } else if (e.key === "Tab") {
       e.preventDefault();
       if (e.shiftKey) {
@@ -379,11 +394,11 @@ export default function QuotationClient() {
               const draft = inlineEditing[q.id];
               const isRowEditing = !!draft;
               return (
-              <TR key={q.id} className={isRowEditing ? "bg-blue-50/50 dark:bg-blue-950/20" : ""}>
+              <TR key={q.id} className={isRowEditing ? "bg-accent/5" : ""}>
                 <TD className="font-mono text-xs">{q.number}</TD>
                 <TD>{q.customer?.companyName}</TD>
                 <TD
-                  className={editableFields.includes("quoteDate") ? "cursor-cell hover:bg-blue-50/60 dark:hover:bg-blue-950/30 transition-colors" : ""}
+                  className={editableFields.includes("quoteDate") ? "cursor-cell hover:bg-muted/60 transition-colors" : ""}
                   onClick={() => { if (editableFields.includes("quoteDate")) startCellEdit(q, "quoteDate"); }}
                 >
                   {activeCell?.rowId === q.id && activeCell?.colKey === "quoteDate" ? (
@@ -400,7 +415,7 @@ export default function QuotationClient() {
                   )}
                 </TD>
                 <TD
-                  className={editableFields.includes("validUntil") ? "cursor-cell hover:bg-blue-50/60 dark:hover:bg-blue-950/30 transition-colors" : ""}
+                  className={editableFields.includes("validUntil") ? "cursor-cell hover:bg-muted/60 transition-colors" : ""}
                   onClick={() => { if (editableFields.includes("validUntil")) startCellEdit(q, "validUntil"); }}
                 >
                   {activeCell?.rowId === q.id && activeCell?.colKey === "validUntil" ? (
@@ -423,7 +438,7 @@ export default function QuotationClient() {
                   const cellKey = `${q.id}_${cc.id}`;
                   const vals = getCustomFieldValues("quotations", q.id);
                   const isE = editingCells[cellKey];
-                  return <TD key={cc.id}>{isE ? <Input type={cc.type === "number" ? "number" : cc.type === "date" ? "date" : "text"} defaultValue={vals[cc.id] ?? ""} autoFocus className="h-7 text-xs" onBlur={(e) => { setCustomFieldValue("quotations", q.id, cc.id, e.target.value); setEditingCells((p) => ({ ...p, [cellKey]: false })); }} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} /> : <span className="cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950 px-1 py-0.5 rounded min-h-[24px] inline-block min-w-[40px]" onClick={() => setEditingCells((p) => ({ ...p, [cellKey]: true }))}>{vals[cc.id] || "—"}</span>}</TD>;
+                  return <TD key={cc.id}>{isE ? <Input type={cc.type === "number" ? "number" : cc.type === "date" ? "date" : "text"} defaultValue={vals[cc.id] ?? ""} autoFocus className="h-7 text-xs" onBlur={(e) => { setCustomFieldValue("quotations", q.id, cc.id, e.target.value); setEditingCells((p) => ({ ...p, [cellKey]: false })); }} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} /> : <span className="inline-block min-h-[24px] min-w-[40px] cursor-pointer rounded px-1 py-0.5 transition-colors hover:bg-muted" onClick={() => setEditingCells((p) => ({ ...p, [cellKey]: true }))}>{vals[cc.id] || "—"}</span>}</TD>;
                 })}
                 <TD className="text-right">
                   {q.status === "DRAFT" && <Button size="sm" variant="outline" onClick={() => onAct(q.id, "submit")}>送出</Button>}

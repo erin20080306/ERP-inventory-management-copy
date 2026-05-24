@@ -63,7 +63,10 @@ export const GET = apiHandler(async (req: NextRequest) => {
   
   const stocks = await prisma.inventoryStock.findMany({
     where,
-    include: { product: true, warehouse: true },
+    include: {
+      product: { select: { sku: true, name: true, safetyStock: true, costPrice: true } },
+      warehouse: { select: { name: true, code: true } },
+    },
     orderBy: [{ warehouse: { code: "asc" } }, { product: { sku: "asc" } }],
   });
   

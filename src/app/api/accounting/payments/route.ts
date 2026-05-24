@@ -12,6 +12,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const pageSize = Number(sp.get("pageSize") ?? 20);
   const fromDate = sp.get("from") ?? "";
   const toDate = sp.get("to") ?? "";
+  const takeSize = kind === "all" ? Math.min(page * pageSize, 200) : pageSize;
 
   let receivePayments: any[] = [];
   let supplierPayments: any[] = [];
@@ -31,10 +32,13 @@ export const GET = apiHandler(async (req: NextRequest) => {
     [receivePayments, totalReceive] = await Promise.all([
       prisma.receivePayment.findMany({
         where,
-        include: { customer: true, receivable: { include: { salesOrder: true } } },
+        include: {
+          customer: { select: { companyName: true } },
+          receivable: { select: { salesOrder: { select: { number: true } } } },
+        },
         orderBy: { createdAt: "desc" },
         skip: kind === "all" ? 0 : (page - 1) * pageSize,
-        take: kind === "all" ? 500 : pageSize,
+        take: takeSize,
       }),
       prisma.receivePayment.count({ where }),
     ]);
@@ -51,10 +55,13 @@ export const GET = apiHandler(async (req: NextRequest) => {
     [supplierPayments, totalSupplier] = await Promise.all([
       prisma.supplierPayment.findMany({
         where,
-        include: { supplier: true, payable: { include: { purchaseOrder: true } } },
+        include: {
+          supplier: { select: { companyName: true } },
+          payable: { select: { purchaseOrder: { select: { number: true } } } },
+        },
         orderBy: { createdAt: "desc" },
         skip: kind === "all" ? 0 : (page - 1) * pageSize,
-        take: kind === "all" ? 500 : pageSize,
+        take: takeSize,
       }),
       prisma.supplierPayment.count({ where }),
     ]);
@@ -78,10 +85,10 @@ export const GET = apiHandler(async (req: NextRequest) => {
   [discountNotes, totalDiscount] = await Promise.all([
     prisma.discountNote.findMany({
       where: dnWhere,
-      include: { customer: true, supplier: true },
+      include: { customer: { select: { companyName: true } }, supplier: { select: { companyName: true } } },
       orderBy: { createdAt: "desc" },
       skip: kind === "all" ? 0 : (page - 1) * pageSize,
-      take: kind === "all" ? 500 : pageSize,
+      take: takeSize,
     }),
     prisma.discountNote.count({ where: dnWhere }),
   ]);
@@ -124,7 +131,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
   ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   // 分頁
-  const total = items.length;
+  const total = totalReceive + totalSupplier + totalDiscount;
   const paged = items.slice((page - 1) * pageSize, page * pageSize);
 
   return NextResponse.json({ items: paged, total });

@@ -12,7 +12,7 @@ import { formatDate, formatMoney } from "@/lib/utils";
 import { downloadCSV, toCSV } from "@/lib/csv";
 import { ConvertToJournalButton } from "@/components/convert-to-journal-button";
 import { useCustomColumns, CustomColumnDialog, CustomColumnButton, getCustomFieldValues, setCustomFieldValue } from "@/components/custom-columns";
-import { TableHint, useColumnDrag } from "@/components/table-helpers";
+import { TableHint, useColumnDrag, useDebouncedValue } from "@/components/table-helpers";
 
 export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
   const endpoint = kind === "ar" ? "/api/accounting/receivables" : "/api/accounting/payables";
@@ -22,6 +22,7 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [q, setQ] = useState("");
+  const debouncedQ = useDebouncedValue(q);
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [pay, setPay] = useState<any>(null);
@@ -36,7 +37,7 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
 
   async function load() {
     setLoading(true);
-    const params = new URLSearchParams({ q, page: String(page), pageSize: String(pageSize) });
+    const params = new URLSearchParams({ q: debouncedQ, page: String(page), pageSize: String(pageSize) });
     if (fromDate) params.set("from", fromDate);
     if (toDate) params.set("to", toDate);
     const res = await fetch(`${endpoint}?${params.toString()}`);
@@ -53,7 +54,7 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
     load();
     loadSummary();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, q, fromDate, toDate]);
+  }, [page, debouncedQ, fromDate, toDate]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
@@ -252,7 +253,7 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
                         />
                       ) : (
                         <span
-                          className="cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950 px-1 py-0.5 rounded min-h-[24px] inline-block min-w-[40px]"
+                          className="inline-block min-h-[24px] min-w-[40px] cursor-pointer rounded px-1 py-0.5 transition-colors hover:bg-muted"
                           onClick={() => setEditingCells((p) => ({ ...p, [cellKey]: true }))}
                         >
                           {vals[cc.id] || "—"}

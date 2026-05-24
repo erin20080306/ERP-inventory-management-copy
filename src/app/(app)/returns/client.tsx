@@ -267,6 +267,7 @@ export default function ReturnsClient() {
     const allRows = [...salesReturns, ...purchaseReturns];
     const rowIdx = allRows.findIndex((r) => r.id === row.id);
     const colIdx = editableFields.indexOf(colKey);
+    if (editableFields.length === 0 || colIdx === -1) return;
 
     if (e.key === "Enter" || e.key === "ArrowDown") {
       e.preventDefault();
@@ -274,6 +275,20 @@ export default function ReturnsClient() {
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       saveCellAndMove(row, rowIdx - 1, colKey);
+    } else if (e.key === "ArrowRight") {
+      e.preventDefault();
+      if (colIdx < editableFields.length - 1) {
+        setActiveCell({ rowId: row.id, colKey: editableFields[colIdx + 1] });
+      } else if (rowIdx < allRows.length - 1) {
+        saveCellAndMove(row, rowIdx + 1, editableFields[0]);
+      }
+    } else if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      if (colIdx > 0) {
+        setActiveCell({ rowId: row.id, colKey: editableFields[colIdx - 1] });
+      } else if (rowIdx > 0) {
+        saveCellAndMove(row, rowIdx - 1, editableFields[editableFields.length - 1]);
+      }
     } else if (e.key === "Tab") {
       e.preventDefault();
       if (e.shiftKey) {
@@ -376,12 +391,12 @@ export default function ReturnsClient() {
                   const draft = inlineEditing[r.id];
                   const isRowEditing = !!draft;
                   return (
-                  <TR key={r.id} className={isRowEditing ? "bg-blue-50/50 dark:bg-blue-950/20" : ""}>
+                  <TR key={r.id} className={isRowEditing ? "bg-accent/5" : ""}>
                     <TD className="font-mono text-xs">{r.number}</TD>
                     <TD>{r.customer?.companyName}</TD>
                     <TD>{formatDate(r.returnDate)}</TD>
                     <TD
-                      className={editableFields.includes("reason") ? "cursor-cell hover:bg-blue-50/60 dark:hover:bg-blue-950/30 transition-colors" : ""}
+                      className={editableFields.includes("reason") ? "cursor-cell hover:bg-muted/60 transition-colors" : ""}
                       onClick={() => { if (editableFields.includes("reason")) startCellEdit(r, "reason"); }}
                     >
                       {activeCell?.rowId === r.id && activeCell?.colKey === "reason" ? (
@@ -399,7 +414,7 @@ export default function ReturnsClient() {
                     <TD>{formatMoney(r.total)}</TD>
                     <TD><StatusBadge status={r.status} /></TD>
                     <TD className="text-xs text-gray-500">{r.updatedBy || "-"}</TD>
-                    {customCols.columns.map((cc) => { const ck = `${r.id}_${cc.id}`; const v = getCustomFieldValues("returns", r.id); const isE = editingCells[ck]; return <TD key={cc.id}>{isE ? <Input type={cc.type === "number" ? "number" : cc.type === "date" ? "date" : "text"} defaultValue={v[cc.id] ?? ""} autoFocus className="h-7 text-xs" onBlur={(e) => { setCustomFieldValue("returns", r.id, cc.id, e.target.value); setEditingCells((p) => ({ ...p, [ck]: false })); }} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} /> : <span className="cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950 px-1 py-0.5 rounded min-h-[24px] inline-block min-w-[40px]" onClick={() => setEditingCells((p) => ({ ...p, [ck]: true }))}>{v[cc.id] || "—"}</span>}</TD>; })}
+                    {customCols.columns.map((cc) => { const ck = `${r.id}_${cc.id}`; const v = getCustomFieldValues("returns", r.id); const isE = editingCells[ck]; return <TD key={cc.id}>{isE ? <Input type={cc.type === "number" ? "number" : cc.type === "date" ? "date" : "text"} defaultValue={v[cc.id] ?? ""} autoFocus className="h-7 text-xs" onBlur={(e) => { setCustomFieldValue("returns", r.id, cc.id, e.target.value); setEditingCells((p) => ({ ...p, [ck]: false })); }} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} /> : <span className="inline-block min-h-[24px] min-w-[40px] cursor-pointer rounded px-1 py-0.5 transition-colors hover:bg-muted" onClick={() => setEditingCells((p) => ({ ...p, [ck]: true }))}>{v[cc.id] || "—"}</span>}</TD>; })}
                     <TD className="text-right flex items-center justify-end gap-1">
                       {r.status === "DRAFT" && <Button size="sm" variant="outline" onClick={() => onAct(r.id, "submit", true)}>送出</Button>}
                       {r.status === "SUBMITTED" && (
@@ -443,12 +458,12 @@ export default function ReturnsClient() {
                   const draft = inlineEditing[r.id];
                   const isRowEditing = !!draft;
                   return (
-                  <TR key={r.id} className={isRowEditing ? "bg-blue-50/50 dark:bg-blue-950/20" : ""}>
+                  <TR key={r.id} className={isRowEditing ? "bg-accent/5" : ""}>
                     <TD className="font-mono text-xs">{r.number}</TD>
                     <TD>{r.supplier?.companyName}</TD>
                     <TD>{formatDate(r.returnDate)}</TD>
                     <TD
-                      className={editableFields.includes("reason") ? "cursor-cell hover:bg-blue-50/60 dark:hover:bg-blue-950/30 transition-colors" : ""}
+                      className={editableFields.includes("reason") ? "cursor-cell hover:bg-muted/60 transition-colors" : ""}
                       onClick={() => { if (editableFields.includes("reason")) startCellEdit(r, "reason"); }}
                     >
                       {activeCell?.rowId === r.id && activeCell?.colKey === "reason" ? (
@@ -466,7 +481,7 @@ export default function ReturnsClient() {
                     <TD>{formatMoney(r.total)}</TD>
                     <TD><StatusBadge status={r.status} /></TD>
                     <TD className="text-xs text-gray-500">{r.updatedBy || "-"}</TD>
-                    {customCols.columns.map((cc) => { const ck = `${r.id}_${cc.id}`; const v = getCustomFieldValues("returns", r.id); const isE = editingCells[ck]; return <TD key={cc.id}>{isE ? <Input type={cc.type === "number" ? "number" : cc.type === "date" ? "date" : "text"} defaultValue={v[cc.id] ?? ""} autoFocus className="h-7 text-xs" onBlur={(e) => { setCustomFieldValue("returns", r.id, cc.id, e.target.value); setEditingCells((p) => ({ ...p, [ck]: false })); }} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} /> : <span className="cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950 px-1 py-0.5 rounded min-h-[24px] inline-block min-w-[40px]" onClick={() => setEditingCells((p) => ({ ...p, [ck]: true }))}>{v[cc.id] || "—"}</span>}</TD>; })}
+                    {customCols.columns.map((cc) => { const ck = `${r.id}_${cc.id}`; const v = getCustomFieldValues("returns", r.id); const isE = editingCells[ck]; return <TD key={cc.id}>{isE ? <Input type={cc.type === "number" ? "number" : cc.type === "date" ? "date" : "text"} defaultValue={v[cc.id] ?? ""} autoFocus className="h-7 text-xs" onBlur={(e) => { setCustomFieldValue("returns", r.id, cc.id, e.target.value); setEditingCells((p) => ({ ...p, [ck]: false })); }} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} /> : <span className="inline-block min-h-[24px] min-w-[40px] cursor-pointer rounded px-1 py-0.5 transition-colors hover:bg-muted" onClick={() => setEditingCells((p) => ({ ...p, [ck]: true }))}>{v[cc.id] || "—"}</span>}</TD>; })}
                     <TD className="text-right flex items-center justify-end gap-1">
                       {r.status === "DRAFT" && <Button size="sm" variant="outline" onClick={() => onAct(r.id, "submit", false)}>送出</Button>}
                       {r.status === "SUBMITTED" && (

@@ -9,13 +9,14 @@ import { ExportButton } from "@/components/export-button";
 import { PrintListButton, PDFExportButton } from "@/components/print-list-button";
 import { Loader2, Search } from "lucide-react";
 import { useCustomColumns, CustomColumnDialog, CustomColumnButton, getCustomFieldValues, setCustomFieldValue } from "@/components/custom-columns";
-import { TableHint, useColumnDrag } from "@/components/table-helpers";
+import { TableHint, useColumnDrag, useDebouncedValue } from "@/components/table-helpers";
 
 export default function InventoryClient() {
   const [stocks, setStocks] = useState<any[]>([]);
   const [txns, setTxns] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
+  const debouncedQ = useDebouncedValue(q);
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const customCols = useCustomColumns("inventory");
@@ -26,7 +27,7 @@ export default function InventoryClient() {
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      if (q) params.set("q", q);
+      if (debouncedQ) params.set("q", debouncedQ);
       if (fromDate) params.set("from", fromDate);
       if (toDate) params.set("to", toDate);
       
@@ -42,7 +43,7 @@ export default function InventoryClient() {
       setLoading(false);
     }
   }
-  useEffect(() => { load(); }, [q, fromDate, toDate]);
+  useEffect(() => { load(); }, [debouncedQ, fromDate, toDate]);
 
   const txnLabel: Record<string, string> = {
     PURCHASE_IN: "採購入庫",
@@ -135,7 +136,7 @@ export default function InventoryClient() {
                         <TD>{formatMoney(s.product.costPrice)}</TD>
                         <TD>{formatMoney(qty * Number(s.product.costPrice))}</TD>
                         <TD>{qty < safe ? <Badge variant="warning">低庫存</Badge> : <Badge variant="success">正常</Badge>}</TD>
-                        {customCols.columns.map((cc) => { const ck = `${s.id}_${cc.id}`; const v = getCustomFieldValues("inventory", s.id); const isE = editingCells[ck]; return <TD key={cc.id}>{isE ? <Input type={cc.type === "number" ? "number" : cc.type === "date" ? "date" : "text"} defaultValue={v[cc.id] ?? ""} autoFocus className="h-7 text-xs" onBlur={(e) => { setCustomFieldValue("inventory", s.id, cc.id, e.target.value); setEditingCells((p) => ({ ...p, [ck]: false })); }} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} /> : <span className="cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950 px-1 py-0.5 rounded min-h-[24px] inline-block min-w-[40px]" onClick={() => setEditingCells((p) => ({ ...p, [ck]: true }))}>{v[cc.id] || "—"}</span>}</TD>; })}
+                        {customCols.columns.map((cc) => { const ck = `${s.id}_${cc.id}`; const v = getCustomFieldValues("inventory", s.id); const isE = editingCells[ck]; return <TD key={cc.id}>{isE ? <Input type={cc.type === "number" ? "number" : cc.type === "date" ? "date" : "text"} defaultValue={v[cc.id] ?? ""} autoFocus className="h-7 text-xs" onBlur={(e) => { setCustomFieldValue("inventory", s.id, cc.id, e.target.value); setEditingCells((p) => ({ ...p, [ck]: false })); }} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} /> : <span className="inline-block min-h-[24px] min-w-[40px] cursor-pointer rounded px-1 py-0.5 transition-colors hover:bg-muted" onClick={() => setEditingCells((p) => ({ ...p, [ck]: true }))}>{v[cc.id] || "—"}</span>}</TD>; })}
                       </TR>
                     );
                   })}

@@ -83,6 +83,7 @@ export function InvoiceClient() {
   function handleCellKeyDown(e: React.KeyboardEvent, row: any, colKey: string) {
     const rowIdx = rows.findIndex((r) => r.id === row.id);
     const colIdx = editableFields.indexOf(colKey);
+    if (editableFields.length === 0 || colIdx === -1) return;
 
     if (e.key === "Enter" || e.key === "ArrowDown") {
       e.preventDefault();
@@ -90,6 +91,20 @@ export function InvoiceClient() {
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       saveCellAndMove(row, rowIdx - 1, colKey);
+    } else if (e.key === "ArrowRight") {
+      e.preventDefault();
+      if (colIdx < editableFields.length - 1) {
+        setActiveCell({ rowId: row.id, colKey: editableFields[colIdx + 1] });
+      } else if (rowIdx < rows.length - 1) {
+        saveCellAndMove(row, rowIdx + 1, editableFields[0]);
+      }
+    } else if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      if (colIdx > 0) {
+        setActiveCell({ rowId: row.id, colKey: editableFields[colIdx - 1] });
+      } else if (rowIdx > 0) {
+        saveCellAndMove(row, rowIdx - 1, editableFields[editableFields.length - 1]);
+      }
     } else if (e.key === "Tab") {
       e.preventDefault();
       if (e.shiftKey) {
@@ -243,7 +258,7 @@ export function InvoiceClient() {
             const draft = inlineEditing[i.id];
             const isRowEditing = !!draft;
             return (
-            <TR key={i.id} className={isRowEditing ? "bg-blue-50/50 dark:bg-blue-950/20" : ""}>
+            <TR key={i.id} className={isRowEditing ? "bg-accent/5" : ""}>
               <TD>{formatDate(i.invoiceDate)}</TD>
               <TD><Badge variant={i.type === "SALES" ? "success" : "info"}>{i.type === "SALES" ? "銷項" : "進項"}</Badge></TD>
               <TD className="font-mono text-xs">{i.number}</TD>
@@ -253,7 +268,7 @@ export function InvoiceClient() {
               <TD className="font-medium">{formatMoney(i.totalAmount)}</TD>
               <TD><StatusBadge status={i.status} /></TD>
               <TD
-                className={editableFields.includes("remark") ? "cursor-cell hover:bg-blue-50/60 dark:hover:bg-blue-950/30 transition-colors" : ""}
+                className={editableFields.includes("remark") ? "cursor-cell hover:bg-muted/60 transition-colors" : ""}
                 onClick={() => { if (editableFields.includes("remark")) startCellEdit(i, "remark"); }}
               >
                 {activeCell?.rowId === i.id && activeCell?.colKey === "remark" ? (
@@ -268,7 +283,7 @@ export function InvoiceClient() {
                   i.remark ?? "—"
                 )}
               </TD>
-              {customCols.columns.map((cc) => { const ck = `${i.id}_${cc.id}`; const v = getCustomFieldValues("invoices", i.id); const isE = editingCells[ck]; return <TD key={cc.id}>{isE ? <Input type={cc.type === "number" ? "number" : cc.type === "date" ? "date" : "text"} defaultValue={v[cc.id] ?? ""} autoFocus className="h-7 text-xs" onBlur={(e) => { setCustomFieldValue("invoices", i.id, cc.id, e.target.value); setEditingCells((p) => ({ ...p, [ck]: false })); }} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} /> : <span className="cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950 px-1 py-0.5 rounded min-h-[24px] inline-block min-w-[40px]" onClick={() => setEditingCells((p) => ({ ...p, [ck]: true }))}>{v[cc.id] || "—"}</span>}</TD>; })}
+              {customCols.columns.map((cc) => { const ck = `${i.id}_${cc.id}`; const v = getCustomFieldValues("invoices", i.id); const isE = editingCells[ck]; return <TD key={cc.id}>{isE ? <Input type={cc.type === "number" ? "number" : cc.type === "date" ? "date" : "text"} defaultValue={v[cc.id] ?? ""} autoFocus className="h-7 text-xs" onBlur={(e) => { setCustomFieldValue("invoices", i.id, cc.id, e.target.value); setEditingCells((p) => ({ ...p, [ck]: false })); }} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} /> : <span className="inline-block min-h-[24px] min-w-[40px] cursor-pointer rounded px-1 py-0.5 transition-colors hover:bg-muted" onClick={() => setEditingCells((p) => ({ ...p, [ck]: true }))}>{v[cc.id] || "—"}</span>}</TD>; })}
               <TD className="text-right">
                 <div className="flex items-center justify-end gap-1">
                   <Button variant="ghost" size="icon" onClick={() => setEditId(i.id)} title="編輯">
