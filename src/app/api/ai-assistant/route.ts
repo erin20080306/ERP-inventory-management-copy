@@ -4,7 +4,8 @@ import { getAssistantPermissionCode, runAssistantQuery } from "@/lib/ai-assistan
 
 export const POST = apiHandler(async (req: NextRequest) => {
   const { question } = await req.json();
-  await requirePermission(getAssistantPermissionCode(question));
+  const requiredPermission = getAssistantPermissionCode(question);
+  await requirePermission(requiredPermission);
   const tenantId = await requireTenantId();
   const result = await runAssistantQuery(tenantId, question);
   return NextResponse.json(result);

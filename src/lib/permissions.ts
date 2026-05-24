@@ -123,6 +123,14 @@ export const DEFAULT_ROLES = {
       ["dashboard", "products", "inventory", "warehouses", "returns"].includes(p.module)
     ).map((p) => p.code),
   },
+  HR: {
+    name: "HR 專員",
+    permissions: ALL_PERMISSIONS.filter((p) =>
+      ["dashboard", "hr", "payroll", "attendance", "reports"].includes(p.module)
+    )
+      .filter((p) => !["delete", "approve", "manage"].includes(p.action))
+      .map((p) => p.code),
+  },
   VIEWER: {
     name: "一般查詢人員",
     permissions: ALL_PERMISSIONS.filter((p) => p.action === "view").map((p) => p.code),

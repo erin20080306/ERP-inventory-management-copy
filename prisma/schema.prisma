@@ -50,6 +50,8 @@ model Tenant {
   fixedAssets        FixedAsset[]
   discountNotes      DiscountNote[]
   invoiceTracks      InvoiceTrack[]
+  salaryStructures   SalaryStructure[]
+  salaryChanges      SalaryChange[]
 }
 
 // ─────────────────────────── 使用者 / 權限 (RBAC) ───────────────────────────
@@ -1295,6 +1297,8 @@ model Employee {
   department           Department?        @relation(fields: [departmentId], references: [id])
   payrolls             Payroll[]
   attendances          AttendanceRecord[]
+  salaryStructures     EmployeeSalaryStructure[]
+  salaryChanges        SalaryChange[]
 
   @@unique([tenantId, employeeNo])
   @@index([tenantId])
@@ -1408,6 +1412,131 @@ model AttendanceRecord {
 
   @@index([employeeId, date])
   @@index([date])
+}
+
+// ─────────────────────────── 薪資結構設計 ───────────────────────────
+enum SalaryStructureType {
+  BASE // 底薪
+  PERFORMANCE // 績效獎金
+  OVERTIME // 加班費
+  ALLOWANCE // 津貼
+  BONUS // 獎金
+  COMMISSION // 佣金
+  DEDUCTION // 扣款
+}
+
+enum SalaryCalculationMethod {
+  FIXED // 固定金額
+  PERCENTAGE // 百分比
+  HOURLY // 時薪
+  DAILY // 日薪
+  MONTHLY // 月薪
+}
+
+/// 薪資結構模板
+model SalaryStructure {
+  id              String                  @id @default(cuid())
+  tenantId        String
+  code            String                  // 結構代碼 e.g. SAL-001
+  name            String                  // 結構名稱 e.g. 標準薪資結構
+  type            SalaryStructureType
+  calculationMethod SalaryCalculationMethod
+  amount          Decimal                 @default(0) @db.Decimal(18, 2)
+  rate            Decimal?                @db.Decimal(6, 4) // 百分比或時薪率
+  isTaxable       Boolean                 @default(true) // 是否計入所得稅
+  isInsuranceBase Boolean                 @default(true) // 是否計入勞健保投保薪資
+  isPensionBase   Boolean                 @default(true) // 是否計入勞退投保薪資
+  description     String?
+  isActive        Boolean                 @default(true)
+  updatedBy       String?
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+  tenant          Tenant                  @relation(fields: [tenantId], references: [id])
+  employeeStructures EmployeeSalaryStructure[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@index([type])
+  @@index([isActive])
+}
+
+/// 員工薪資結構關聯
+model EmployeeSalaryStructure {
+  id                String            @id @default(cuid())
+  employeeId        String
+  structureId       String
+  effectiveDate     DateTime          // 生效日期
+  amount            Decimal           @default(0) @db.Decimal(18, 2) // 個別化金額
+  rate              Decimal?          @db.Decimal(6, 4) // 個別化比率
+  isActive          Boolean           @default(true)
+  expiredAt         DateTime?
+  createdAt         DateTime          @default(now())
+  employee          Employee          @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  structure         SalaryStructure   @relation(fields: [structureId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, structureId, effectiveDate])
+  @@index([employeeId])
+  @@index([structureId])
+  @@index([effectiveDate])
+  @@index([isActive])
+}
+
+// ─────────────────────────── 薪資異動管理 ───────────────────────────
+enum SalaryChangeType {
+  HIRED // 入職
+  PROMOTION // 升職
+  DEMOTION // 降職
+  RAISE // 調薪
+  TRANSFER // 調動
+  RESIGNATION // 離職
+  RETIREMENT // 退休
+  OTHER // 其他
+}
+
+enum SalaryChangeStatus {
+  DRAFT // 草稿
+  SUBMITTED // 已提交
+  APPROVED // 已核准
+  REJECTED // 已駁回
+  EFFECTIVE // 已生效
+}
+
+/// 薪資異動記錄
+model SalaryChange {
+  id              String              @id @default(cuid())
+  tenantId        String
+  number          String              // 異動單號 e.g. SC-202601-0001
+  employeeId      String
+  type            SalaryChangeType
+  status          SalaryChangeStatus  @default(DRAFT)
+  effectiveDate   DateTime           // 生效日期
+  // 異動前資訊
+  oldDepartmentId String?
+  oldPosition     String?
+  oldBaseSalary   Decimal?            @db.Decimal(18, 2)
+  oldTotalSalary  Decimal?            @db.Decimal(18, 2)
+  // 異動後資訊
+  newDepartmentId String?
+  newPosition     String?
+  newBaseSalary   Decimal?            @db.Decimal(18, 2)
+  newTotalSalary  Decimal?            @db.Decimal(18, 2)
+  // 異動原因
+  reason          String?
+  approvedBy      String?             // 核准人
+  approvedAt      DateTime?
+  remark          String?
+  updatedBy       String?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  tenant          Tenant              @relation(fields: [tenantId], references: [id])
+  employee        Employee            @relation(fields: [employeeId], references: [id])
+
+  @@unique([tenantId, number])
+  @@index([tenantId])
+  @@index([employeeId])
+  @@index([effectiveDate])
+  @@index([status])
+  @@index([type])
 }
 
 // ─────────────────────────── 固定資產 ───────────────────────────

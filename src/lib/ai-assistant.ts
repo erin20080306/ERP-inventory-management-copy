@@ -35,7 +35,15 @@ export type ReportResult = {
     | "monthly-summary"
     | "journal-account-review"
     | "financial-anomalies"
-    | "price-variance";
+    | "price-variance"
+    | "payables-payment"
+    | "notes-overview"
+    | "bank-accounts"
+    | "warehouse-overview"
+    | "employee-payroll"
+    | "purchase-summary"
+    | "return-summary"
+    | "product-detail";
   title: string;
   description: string;
   criteria?: Record<string, string | number | undefined>;
@@ -203,7 +211,7 @@ async function findCustomer(tenantId: string, question: string) {
 async function findProduct(tenantId: string, question: string) {
   const products = await prisma.product.findMany({
     where: { tenantId },
-    select: { id: true, sku: true, name: true },
+    select: { id: true, sku: true, name: true, costPrice: true, salePrice: true },
     orderBy: { name: "asc" },
   });
   const ranked = products
@@ -259,6 +267,11 @@ export function getAssistantPermissionCode(question: string) {
   if (/庫存低|安全量|安全庫存|庫存警示|低於安全|零庫存|bom|BOM|成本分析|商品成本|庫存成本/i.test(text)) return "inventory.view";
   if (/採購建議|補貨|請購|供應商|缺貨/i.test(text)) return "purchases.view";
   if (/營運摘要|月報|老闆|主管摘要|經營摘要/i.test(text)) return "reports.view";
+  if (/票據|支票|匯票|應收票據|應付票據/i.test(text)) return "notes.view";
+  if (/銀行|帳戶|存款|支票存款|活期/i.test(text)) return "cash.view";
+  if (/倉庫|庫位|盤點/i.test(text)) return "inventory.view";
+  if (/員工|薪資|人事|payroll|調薪|升職|異動|薪資結構|薪資歷史|薪資報表|薪資單|出勤/i.test(text)) return "payroll.view";
+  if (/退貨|銷退|採退/i.test(text)) return "sales.view";
   return "sales.view";
 }
 
@@ -279,6 +292,14 @@ function emptyHelp(): HelpResult {
       "財報異常分析",
       "商品單價異動",
       "本月營運摘要寄給老闆",
+      "應付帳款付款清單",
+      "票據總覽",
+      "銀行帳戶總覽",
+      "倉庫庫存總覽",
+      "採購統計",
+      "退貨統計",
+      "牙膏",
+      "商品牙膏",
     ],
   };
 }
@@ -947,23 +968,50 @@ function hasAccountKeyword(lines: Array<{ account: { name: string; type: string 
 
 async function buildJournalAccountReview(tenantId: string, question: string): Promise<ReportResult> {
   const period = parsePeriod(question, "last-30");
+  const dateMatch = question.match(/(\d{1,2})\/(\d{1,2})/);
+  let specificDate: Date | null = null;
+  if (dateMatch) {
+    const month = Number(dateMatch[1]);
+    const day = Number(dateMatch[2]);
+    const year = new Date().getFullYear();
+    specificDate = new Date(year, month - 1, day);
+  }
+
+  const numberMatch = question.match(/傳票\s*([A-Z0-9]+)/i);
+  const specificNumber = numberMatch ? numberMatch[1] : null;
+
+  const isPayableJournal = /應付|付款|供應商/i.test(question);
+  const isReceivableJournal = /應收|收款|客戶/i.test(question);
+
   const entries = await prisma.journalEntry.findMany({
     where: {
       tenantId,
       status: { notIn: ["VOIDED", "REJECTED"] },
-      ...periodWhere(period, "entryDate"),
+      ...(specificNumber ? { number: specificNumber } : specificDate ? { entryDate: specificDate } : periodWhere(period, "entryDate")),
     },
     include: { lines: { include: { account: true } } },
     orderBy: { entryDate: "desc" },
     take: 250,
   });
 
+  let filteredEntries = entries;
+  if (isPayableJournal) {
+    filteredEntries = entries.filter((entry) =>
+      entry.lines.some((line) => line.account.name.includes("應付") || line.account.name.includes("供應商"))
+    );
+  }
+  if (isReceivableJournal) {
+    filteredEntries = entries.filter((entry) =>
+      entry.lines.some((line) => line.account.name.includes("應收") || line.account.name.includes("客戶"))
+    );
+  }
+
   const issueRows: Array<Record<string, TableValue>> = [];
   let unbalancedCount = 0;
   let accountDirectionCount = 0;
   let keywordRuleCount = 0;
 
-  for (const entry of entries) {
+  for (const entry of filteredEntries) {
     const totalDebit = entry.lines.reduce((sum, line) => sum + toNumber(line.debit), 0);
     const totalCredit = entry.lines.reduce((sum, line) => sum + toNumber(line.credit), 0);
     const summaryText = `${entry.summary} ${entry.lines.map((line) => line.memo ?? "").join(" ")}`;
@@ -1063,10 +1111,10 @@ async function buildJournalAccountReview(tenantId: string, question: string): Pr
 
   return {
     kind: "journal-account-review",
-    title: `${period.label}傳票科目異常檢查`,
-    description: "依借貸平衡、科目方向、摘要關鍵字與常見會計規則檢查傳票，結果為複核建議。",
+    title: specificNumber ? `傳票 ${specificNumber} 科目異常檢查` : specificDate ? `${specificDate.toLocaleDateString("zh-TW", { month: "2-digit", day: "2-digit" })}傳票科目異常檢查` : `${period.label}傳票科目異常檢查`,
+    description: specificNumber ? `查詢傳票號碼 ${specificNumber}，依借貸平衡、科目方向、摘要關鍵字與常見會計規則檢查傳票，結果為複核建議。` : specificDate ? `查詢 ${specificDate.toLocaleDateString("zh-TW", { month: "2-digit", day: "2-digit" })} 的傳票，依借貸平衡、科目方向、摘要關鍵字與常見會計規則檢查傳票，結果為複核建議。` : "依借貸平衡、科目方向、摘要關鍵字與常見會計規則檢查傳票，結果為複核建議。",
     cards: [
-      { label: "檢查傳票", value: `${entries.length} 筆` },
+      { label: "檢查傳票", value: `${filteredEntries.length} 筆` },
       { label: "異常建議", value: `${issueRows.length} 筆` },
       { label: "借貸不平", value: `${unbalancedCount} 筆` },
       { label: "科目/摘要規則", value: `${accountDirectionCount + keywordRuleCount} 筆` },
@@ -1251,6 +1299,433 @@ async function buildPriceVarianceReport(tenantId: string, question: string): Pro
   };
 }
 
+async function buildPayablesPayment(tenantId: string, question: string): Promise<ReportResult> {
+  const period = parsePeriod(question);
+  const payables = await prisma.accountsPayable.findMany({
+    where: {
+      tenantId,
+      status: { notIn: ["VOIDED", "REJECTED"] },
+      ...periodWhere(period, "createdAt"),
+    },
+    include: {
+      supplier: { select: { companyName: true, contactName: true, phone: true, email: true } },
+      purchaseOrder: { select: { number: true } },
+    },
+    orderBy: [{ dueDate: "asc" }, { createdAt: "asc" }],
+  });
+  const rows = payables
+    .map((item) => {
+      const amount = toNumber(item.amount);
+      const paid = toNumber(item.paidAmount);
+      const balance = Math.max(amount - paid, 0);
+      const overdueDays = item.dueDate && item.dueDate < new Date() ? dateDiffDays(item.dueDate) : 0;
+      return { item, amount, paid, balance, overdueDays };
+    })
+    .sort((a, b) => b.overdueDays - a.overdueDays || b.balance - a.balance);
+  const overdueRows = rows.filter((row) => row.overdueDays > 0);
+  const supplierRows = Array.from(
+    rows.reduce((map, row) => {
+      const key = row.item.supplier.companyName;
+      const current = map.get(key) ?? { amount: 0, paid: 0, balance: 0, overdue: 0, count: 0 };
+      current.amount += row.amount;
+      current.paid += row.paid;
+      current.balance += row.balance;
+      current.overdue += row.overdueDays > 0 ? row.balance : 0;
+      current.count += 1;
+      map.set(key, current);
+      return map;
+    }, new Map<string, { amount: number; paid: number; balance: number; overdue: number; count: number }>())
+  )
+    .map(([supplierName, row]) => ({
+      供應商: supplierName,
+      筆數: row.count,
+      應付總額: fmtMoney(row.amount),
+      已付: fmtMoney(row.paid),
+      未付: fmtMoney(row.balance),
+      逾期未付: fmtMoney(row.overdue),
+    }))
+    .sort((a, b) => Number(String(b.未付).replace(/[^0-9.-]/g, "")) - Number(String(a.未付).replace(/[^0-9.-]/g, "")));
+
+  return {
+    kind: "payables-payment",
+    title: `${period.label}應付帳款付款清單`,
+    description: "列出尚未付款的應付帳款，優先排序逾期天數與未付金額。",
+    cards: [
+      { label: "應付總額", value: fmtMoney(rows.reduce((sum, row) => sum + row.amount, 0)) },
+      { label: "已付總額", value: fmtMoney(rows.reduce((sum, row) => sum + row.paid, 0)) },
+      { label: "待付總額", value: fmtMoney(rows.reduce((sum, row) => sum + row.balance, 0)) },
+      { label: "逾期總額", value: fmtMoney(overdueRows.reduce((sum, row) => sum + row.balance, 0)) },
+      { label: "涉及供應商", value: `${new Set(rows.map((row) => row.item.supplierId)).size} 家` },
+    ],
+    tables: [
+      table("供應商彙總", ["供應商", "筆數", "應付總額", "已付", "未付", "逾期未付"], supplierRows),
+      table(
+        "付款清單",
+        ["供應商", "採購單", "到期日", "應付", "已付", "未付", "逾期天數", "聯絡方式", "狀態"],
+        rows.map((row) => ({
+          供應商: row.item.supplier.companyName,
+          採購單: row.item.purchaseOrder?.number ?? "—",
+          到期日: fmtDate(row.item.dueDate),
+          應付: fmtMoney(row.amount),
+          已付: fmtMoney(row.paid),
+          未付: fmtMoney(row.balance),
+          逾期天數: row.overdueDays,
+          聯絡方式: [row.item.supplier.contactName, row.item.supplier.phone, row.item.supplier.email].filter(Boolean).join(" / ") || "—",
+          狀態: STATUS_LABELS[row.item.status] ?? row.item.status,
+        }))
+      ),
+    ],
+  };
+}
+
+async function buildNotesOverview(tenantId: string, question: string): Promise<ReportResult> {
+  const period = parsePeriod(question);
+  const [notesReceivable, notesPayable] = await Promise.all([
+    prisma.noteReceivable.findMany({
+      where: { tenantId, status: { notIn: ["VOIDED", "REJECTED"] }, ...periodWhere(period, "dueDate") },
+      include: { customer: { select: { companyName: true } } },
+      orderBy: { dueDate: "asc" },
+    }),
+    prisma.notePayable.findMany({
+      where: { tenantId, status: { notIn: ["VOIDED", "REJECTED"] }, ...periodWhere(period, "dueDate") },
+      include: { supplier: { select: { companyName: true } } },
+      orderBy: { dueDate: "asc" },
+    }),
+  ]);
+
+  const nrRows = notesReceivable.map((item) => ({
+    類型: "應收票據",
+    票據號碼: item.noteNumber,
+    相對人: item.customer.companyName,
+    到期日: fmtDate(item.dueDate),
+    金額: fmtMoney(toNumber(item.amount)),
+    狀態: STATUS_LABELS[item.status] ?? item.status,
+  }));
+
+  const npRows = notesPayable.map((item) => ({
+    類型: "應付票據",
+    票據號碼: item.noteNumber,
+    相對人: item.supplier.companyName,
+    到期日: fmtDate(item.dueDate),
+    金額: fmtMoney(toNumber(item.amount)),
+    狀態: STATUS_LABELS[item.status] ?? item.status,
+  }));
+
+  return {
+    kind: "notes-overview",
+    title: `${period.label}票據總覽`,
+    description: "彙整應收票據與應付票據，包含到期日、金額與狀態。",
+    cards: [
+      { label: "應收票據", value: `${notesReceivable.length} 筆` },
+      { label: "應付票據", value: `${notesPayable.length} 筆` },
+      { label: "應收金額", value: fmtMoney(notesReceivable.reduce((sum, item) => sum + toNumber(item.amount), 0)) },
+      { label: "應付金額", value: fmtMoney(notesPayable.reduce((sum, item) => sum + toNumber(item.amount), 0)) },
+    ],
+    tables: [
+      table("票據明細", ["類型", "票據號碼", "相對人", "到期日", "金額", "狀態"], [...nrRows, ...npRows].sort((a, b) => {
+        const dateA = new Date(a.到期日 === "未設定" ? "2099-12-31" : a.到期日);
+        const dateB = new Date(b.到期日 === "未設定" ? "2099-12-31" : b.到期日);
+        return dateA.getTime() - dateB.getTime();
+      })),
+    ],
+  };
+}
+
+async function buildBankAccountsOverview(tenantId: string, question: string): Promise<ReportResult> {
+  const bankAccounts = await prisma.bankAccount.findMany({
+    where: { tenantId, isActive: true },
+    orderBy: { code: "asc" },
+  });
+  const cashAccounts = await prisma.cashAccount.findMany({
+    where: { tenantId, isActive: true },
+    orderBy: { code: "asc" },
+  });
+
+  const bankRows = bankAccounts.map((item) => ({
+    類型: "銀行帳戶",
+    編號: item.code,
+    名稱: item.name,
+    銀行: item.bankName ?? "—",
+    帳號: item.accountNumber ?? "—",
+    帳戶類型: item.accountType,
+    餘額: fmtMoney(toNumber(item.balance)),
+  }));
+
+  const cashRows = cashAccounts.map((item) => ({
+    類型: "現金帳戶",
+    編號: item.code,
+    名稱: item.name,
+    銀行: "—",
+    帳號: "—",
+    帳戶類型: "CASH",
+    餘額: fmtMoney(toNumber(item.balance)),
+  }));
+
+  return {
+    kind: "bank-accounts",
+    title: "銀行帳戶與現金帳戶總覽",
+    description: "列出所有啟用的銀行帳戶與現金帳戶及其餘額。",
+    cards: [
+      { label: "銀行帳戶", value: `${bankAccounts.length} 個` },
+      { label: "現金帳戶", value: `${cashAccounts.length} 個` },
+      { label: "銀行總餘額", value: fmtMoney(bankAccounts.reduce((sum, item) => sum + toNumber(item.balance), 0)) },
+      { label: "現金總餘額", value: fmtMoney(cashAccounts.reduce((sum, item) => sum + toNumber(item.balance), 0)) },
+    ],
+    tables: [
+      table("帳戶明細", ["類型", "編號", "名稱", "銀行", "帳號", "帳戶類型", "餘額"], [...bankRows, ...cashRows]),
+    ],
+  };
+}
+
+async function buildWarehouseOverview(tenantId: string, question: string): Promise<ReportResult> {
+  const warehouses = await prisma.warehouse.findMany({
+    where: { tenantId, isActive: true },
+    include: { stocks: { include: { product: true } } },
+    orderBy: { code: "asc" },
+  });
+
+  const rows = warehouses.map((warehouse) => {
+    const totalStock = warehouse.stocks.reduce((sum, stock) => sum + toNumber(stock.quantity), 0);
+    const stockValue = warehouse.stocks.reduce((sum, stock) => sum + toNumber(stock.quantity) * toNumber(stock.product.costPrice), 0);
+    return {
+      倉庫編號: warehouse.code,
+      倉庫名稱: warehouse.name,
+      庫存品項: warehouse.stocks.length,
+      總庫存量: fmtDecimal(totalStock),
+      庫存成本: fmtMoney(stockValue),
+      地址: warehouse.address ?? "—",
+    };
+  });
+
+  return {
+    kind: "warehouse-overview",
+    title: "倉庫庫存總覽",
+    description: "列出所有倉庫的庫存品項數量與成本。",
+    cards: [
+      { label: "倉庫數", value: `${warehouses.length} 個` },
+      { label: "總庫存品項", value: `${rows.reduce((sum, row) => sum + Number(row.庫存品項), 0)} 項` },
+      { label: "總庫存量", value: fmtDecimal(rows.reduce((sum, row) => sum + Number(row.總庫存量.replace(/,/g, "")), 0)) },
+      { label: "總庫存成本", value: fmtMoney(rows.reduce((sum, row) => sum + Number(row.庫存成本.replace(/[^0-9.-]/g, "")), 0)) },
+    ],
+    tables: [
+      table("倉庫明細", ["倉庫編號", "倉庫名稱", "庫存品項", "總庫存量", "庫存成本", "地址"], rows),
+    ],
+  };
+}
+
+async function buildPurchaseSummary(tenantId: string, question: string): Promise<ReportResult> {
+  const period = parsePeriod(question);
+  const orders = await prisma.purchaseOrder.findMany({
+    where: {
+      tenantId,
+      status: { notIn: ["VOIDED", "REJECTED"] },
+      ...periodWhere(period, "orderDate"),
+    },
+    include: {
+      supplier: { select: { companyName: true } },
+      items: { include: { product: { select: { sku: true, name: true } } } },
+    },
+    orderBy: { orderDate: "asc" },
+  });
+
+  const statusMap = new Map<string, { status: string; count: number; total: number }>();
+  const supplierMap = new Map<string, { count: number; total: number }>();
+  let subtotal = 0;
+  let taxAmount = 0;
+  let total = 0;
+
+  for (const order of orders) {
+    subtotal += toNumber(order.subtotal);
+    taxAmount += toNumber(order.taxAmount);
+    total += toNumber(order.total);
+
+    const status = statusMap.get(order.status) ?? { status: STATUS_LABELS[order.status] ?? order.status, count: 0, total: 0 };
+    status.count += 1;
+    status.total += toNumber(order.total);
+    statusMap.set(order.status, status);
+
+    const supplier = supplierMap.get(order.supplier.companyName) ?? { count: 0, total: 0 };
+    supplier.count += 1;
+    supplier.total += toNumber(order.total);
+    supplierMap.set(order.supplier.companyName, supplier);
+  }
+
+  return {
+    kind: "purchase-summary",
+    title: `${period.label}採購統計`,
+    description: "依採購單日期統計，金額以採購單總計為準。",
+    cards: [
+      { label: "訂單數", value: `${orders.length} 筆` },
+      { label: "採購總額", value: fmtMoney(total) },
+      { label: "未稅小計", value: fmtMoney(subtotal) },
+      { label: "平均單價", value: orders.length ? fmtMoney(total / orders.length) : "NT$ 0" },
+    ],
+    tables: [
+      table(
+        "供應商彙總",
+        ["供應商", "訂單數", "採購額"],
+        Array.from(supplierMap.entries())
+          .map(([supplierName, row]) => ({ 供應商: supplierName, 訂單數: row.count, 採購額: fmtMoney(row.total) }))
+          .sort((a, b) => Number(String(b.採購額).replace(/[^0-9.-]/g, "")) - Number(String(a.採購額).replace(/[^0-9.-]/g, "")))
+      ),
+      table(
+        "狀態統計",
+        ["狀態", "筆數", "金額"],
+        Array.from(statusMap.values()).map((row) => ({ 狀態: row.status, 筆數: row.count, 金額: fmtMoney(row.total) }))
+      ),
+      table(
+        "訂單明細",
+        ["日期", "單號", "供應商", "狀態", "總計"],
+        orders.map((order) => ({
+          日期: fmtDate(order.orderDate),
+          單號: order.number,
+          供應商: order.supplier.companyName,
+          狀態: STATUS_LABELS[order.status] ?? order.status,
+          總計: fmtMoney(toNumber(order.total)),
+        }))
+      ),
+    ],
+  };
+}
+
+async function buildReturnSummary(tenantId: string, question: string): Promise<ReportResult> {
+  const period = parsePeriod(question);
+  const [salesReturns, purchaseReturns] = await Promise.all([
+    prisma.salesReturn.findMany({
+      where: { tenantId, status: { notIn: ["VOIDED", "REJECTED"] }, ...periodWhere(period, "returnDate") },
+      include: { customer: { select: { companyName: true } } },
+      orderBy: { returnDate: "asc" },
+    }),
+    prisma.purchaseReturn.findMany({
+      where: { tenantId, status: { notIn: ["VOIDED", "REJECTED"] }, ...periodWhere(period, "returnDate") },
+      include: { supplier: { select: { companyName: true } } },
+      orderBy: { returnDate: "asc" },
+    }),
+  ]);
+
+  const srRows = salesReturns.map((item) => ({
+    類型: "銷貨退回",
+    日期: fmtDate(item.returnDate),
+    單號: item.number,
+    相對人: item.customer.companyName,
+    金額: fmtMoney(toNumber(item.total)),
+    狀態: STATUS_LABELS[item.status] ?? item.status,
+  }));
+
+  const prRows = purchaseReturns.map((item) => ({
+    類型: "採購退回",
+    日期: fmtDate(item.returnDate),
+    單號: item.number,
+    相對人: item.supplier.companyName,
+    金額: fmtMoney(toNumber(item.total)),
+    狀態: STATUS_LABELS[item.status] ?? item.status,
+  }));
+
+  return {
+    kind: "return-summary",
+    title: `${period.label}退貨統計`,
+    description: "彙整銷貨退回與採購退回，包含日期、金額與狀態。",
+    cards: [
+      { label: "銷貨退回", value: `${salesReturns.length} 筆` },
+      { label: "採購退回", value: `${purchaseReturns.length} 筆` },
+      { label: "銷退金額", value: fmtMoney(salesReturns.reduce((sum, item) => sum + toNumber(item.total), 0)) },
+      { label: "採退金額", value: fmtMoney(purchaseReturns.reduce((sum, item) => sum + toNumber(item.total), 0)) },
+    ],
+    tables: [
+      table("退貨明細", ["類型", "日期", "單號", "相對人", "金額", "狀態"], [...srRows, ...prRows]),
+    ],
+  };
+}
+
+async function buildProductDetail(tenantId: string, question: string): Promise<ReportResult> {
+  const period = parsePeriod(question, "last-30");
+  const product = await findProduct(tenantId, question);
+  if (!product) {
+    return {
+      kind: "product-detail",
+      title: "商品查詢",
+      description: "找不到符合的商品，請嘗試使用商品名稱或 SKU 查詢。",
+      cards: [],
+      tables: [],
+    };
+  }
+
+  const [stocks, salesItems, purchaseItems] = await Promise.all([
+    prisma.inventoryStock.findMany({
+      where: { tenantId, productId: product.id },
+      include: { warehouse: true },
+    }),
+    prisma.salesOrderItem.findMany({
+      where: {
+        productId: product.id,
+        order: { tenantId, status: { notIn: ["VOIDED", "REJECTED"] }, ...periodWhere(period, "orderDate") },
+      },
+      include: { order: { select: { orderDate: true, customer: { select: { companyName: true } } } } },
+    }),
+    prisma.purchaseOrderItem.findMany({
+      where: {
+        productId: product.id,
+        order: { tenantId, status: { notIn: ["VOIDED", "REJECTED"] }, ...periodWhere(period, "orderDate") },
+      },
+      include: { order: { select: { orderDate: true, supplier: { select: { companyName: true } } } } },
+    }),
+  ]);
+
+  const totalStock = stocks.reduce((sum, stock) => sum + toNumber(stock.quantity), 0);
+  const stockValue = totalStock * toNumber(product.costPrice);
+  const stockRows = stocks.map((stock) => ({
+    倉庫: stock.warehouse.name,
+    庫存量: fmtDecimal(toNumber(stock.quantity)),
+    庫存成本: fmtMoney(toNumber(stock.quantity) * toNumber(product.costPrice)),
+  }));
+
+  const totalSoldQty = salesItems.reduce((sum, item) => sum + toNumber(item.quantity), 0);
+  const totalSoldAmount = salesItems.reduce((sum, item) => sum + toNumber(item.subtotal), 0);
+  const avgSoldPrice = totalSoldQty > 0 ? totalSoldAmount / totalSoldQty : 0;
+  const salesRows = salesItems.map((item) => ({
+    日期: fmtDate(item.order.orderDate),
+    客戶: item.order.customer.companyName,
+    數量: fmtDecimal(toNumber(item.quantity)),
+    單價: fmtMoney(toNumber(item.unitPrice)),
+    金額: fmtMoney(toNumber(item.subtotal)),
+  }));
+
+  const totalPurchasedQty = purchaseItems.reduce((sum, item) => sum + toNumber(item.quantity), 0);
+  const totalPurchasedAmount = purchaseItems.reduce((sum, item) => sum + toNumber(item.subtotal), 0);
+  const avgPurchasedPrice = totalPurchasedQty > 0 ? totalPurchasedAmount / totalPurchasedQty : 0;
+  const purchaseRows = purchaseItems.map((item) => ({
+    日期: fmtDate(item.order.orderDate),
+    供應商: item.order.supplier.companyName,
+    數量: fmtDecimal(toNumber(item.quantity)),
+    單價: fmtMoney(toNumber(item.unitPrice)),
+    金額: fmtMoney(toNumber(item.subtotal)),
+  }));
+
+  return {
+    kind: "product-detail",
+    title: `${product.name} 商品詳情`,
+    description: `查詢商品 ${product.name} (${product.sku}) 的庫存、銷售與採購資訊。`,
+    cards: [
+      { label: "SKU", value: product.sku },
+      { label: "成本", value: fmtMoney(toNumber(product.costPrice)) },
+      { label: "售價", value: fmtMoney(toNumber(product.salePrice)) },
+      { label: "總庫存量", value: fmtDecimal(totalStock) },
+      { label: "庫存成本", value: fmtMoney(stockValue) },
+      { label: "期間銷售量", value: fmtDecimal(totalSoldQty) },
+      { label: "期間銷售額", value: fmtMoney(totalSoldAmount) },
+      { label: "平均銷售單價", value: fmtMoney(avgSoldPrice) },
+      { label: "期間採購量", value: fmtDecimal(totalPurchasedQty) },
+      { label: "期間採購額", value: fmtMoney(totalPurchasedAmount) },
+      { label: "平均採購單價", value: fmtMoney(avgPurchasedPrice) },
+    ],
+    tables: [
+      table("庫存明細", ["倉庫", "庫存量", "庫存成本"], stockRows),
+      table("銷售明細", ["日期", "客戶", "數量", "單價", "金額"], salesRows.slice(0, 50)),
+      table("採購明細", ["日期", "供應商", "數量", "單價", "金額"], purchaseRows.slice(0, 50)),
+    ],
+  };
+}
+
 export async function runAssistantQuery(tenantId: string, question: string): Promise<AssistantResult> {
   const text = String(question ?? "").trim();
   if (!text) throw new Error("請輸入想查詢的問題。");
@@ -1266,6 +1741,13 @@ export async function runAssistantQuery(tenantId: string, question: string): Pro
   if (/應收|催收|逾期|收款|未收/i.test(text)) return buildReceivablesCollection(tenantId, text);
   if (/庫存低|安全量|安全庫存|庫存警示|低於安全|零庫存/i.test(text)) return buildInventoryAlerts(tenantId, text);
   if (/銷售|業績|營收|sales|sale/i.test(text)) return buildSalesReport(tenantId, text);
+  if (/應付|付款|未付|供應商/i.test(text)) return buildPayablesPayment(tenantId, text);
+  if (/票據|支票|匯票|應收票據|應付票據/i.test(text)) return buildNotesOverview(tenantId, text);
+  if (/銀行|帳戶|存款|支票存款|活期/i.test(text)) return buildBankAccountsOverview(tenantId, text);
+  if (/倉庫|庫位|盤點/i.test(text)) return buildWarehouseOverview(tenantId, text);
+  if (/採購|進貨|purchase/i.test(text)) return buildPurchaseSummary(tenantId, text);
+  if (/退貨|銷退|採退/i.test(text)) return buildReturnSummary(tenantId, text);
+  if (/商品|產品|貨品|品項/i.test(text)) return buildProductDetail(tenantId, text);
 
   return emptyHelp();
 }
