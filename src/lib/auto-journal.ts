@@ -18,6 +18,7 @@ import { nextNumber } from "./api";
 export const DEFAULT_ACCOUNT_CODES = {
   CASH: "1101",
   BANK: "1103",
+  CHECK_ACCOUNT: "1106", // 支票存款
   AR: "1132", // 應收帳款
   AR_NOTE: "1131", // 應收票據
   AP: "2103", // 應付帳款
@@ -262,7 +263,7 @@ export async function buildReceivePaymentDraft(receivePaymentId: string): Promis
   // method: CASH / BANK / CHECK / CHEQUE / OTHER
   const debitCode =
     rp.method === "CASH" ? DEFAULT_ACCOUNT_CODES.CASH :
-    (rp.method === "CHECK" || rp.method === "CHEQUE") ? DEFAULT_ACCOUNT_CODES.AR_NOTE :
+    (rp.method === "CHECK" || rp.method === "CHEQUE") ? DEFAULT_ACCOUNT_CODES.CHECK_ACCOUNT :
     DEFAULT_ACCOUNT_CODES.BANK;
 
   const t = rp.tenantId;
@@ -294,7 +295,7 @@ export async function buildSupplierPaymentDraft(supplierPaymentId: string): Prom
   const amount = Number(sp.amount);
   const creditCode =
     sp.method === "CASH" ? DEFAULT_ACCOUNT_CODES.CASH :
-    (sp.method === "CHECK" || sp.method === "CHEQUE") ? DEFAULT_ACCOUNT_CODES.AP_NOTE :
+    (sp.method === "CHECK" || sp.method === "CHEQUE") ? DEFAULT_ACCOUNT_CODES.CHECK_ACCOUNT :
     DEFAULT_ACCOUNT_CODES.BANK;
 
   const t = (sp as any).tenantId;

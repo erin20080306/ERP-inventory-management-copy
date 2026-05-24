@@ -48,3 +48,36 @@ export const POST = apiHandler(async (req: NextRequest) => {
   await audit({ userId: session.user.id, action: "create", module: "bank-accounts", refId: created.id });
   return NextResponse.json(created);
 });
+
+export const PUT = apiHandler(async (req: NextRequest) => {
+  const session = await requirePermission("cash.edit");
+  const tenantId = await requireTenantId();
+  const body = await req.json();
+  if (!body.id) throw new Error("缺少帳戶 ID");
+  const updated = await prisma.bankAccount.update({
+    where: { id: body.id, tenantId },
+    data: {
+      code: body.code,
+      name: body.name,
+      bankName: body.bankName,
+      accountNumber: body.accountNumber,
+      accountType: body.accountType,
+      branchName: body.branchName,
+      swift: body.swift,
+      balance: Number(body.balance),
+      isActive: body.isActive,
+    },
+  });
+  await audit({ userId: session.user.id, action: "update", module: "bank-accounts", refId: updated.id });
+  return NextResponse.json(updated);
+});
+
+export const DELETE = apiHandler(async (req: NextRequest) => {
+  const session = await requirePermission("cash.delete");
+  const tenantId = await requireTenantId();
+  const id = req.nextUrl.pathname.split("/").pop();
+  if (!id) throw new Error("缺少帳戶 ID");
+  await prisma.bankAccount.delete({ where: { id, tenantId } });
+  await audit({ userId: session.user.id, action: "delete", module: "bank-accounts", refId: id });
+  return NextResponse.json({ success: true });
+});
