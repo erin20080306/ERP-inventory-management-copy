@@ -89,12 +89,15 @@ export function NotesClient({ kind }: { kind: "receivable" | "payable" }) {
 
     if (e.key === "Enter" || e.key === "ArrowDown") {
       e.preventDefault();
+      e.stopPropagation();
       saveCellAndMove(row, rowIdx + 1, colKey);
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
+      e.stopPropagation();
       saveCellAndMove(row, rowIdx - 1, colKey);
     } else if (e.key === "ArrowRight") {
       e.preventDefault();
+      e.stopPropagation();
       if (colIdx < editableFields.length - 1) {
         setActiveCell({ rowId: row.id, colKey: editableFields[colIdx + 1] });
       } else if (rowIdx < rows.length - 1) {
@@ -102,6 +105,7 @@ export function NotesClient({ kind }: { kind: "receivable" | "payable" }) {
       }
     } else if (e.key === "ArrowLeft") {
       e.preventDefault();
+      e.stopPropagation();
       if (colIdx > 0) {
         setActiveCell({ rowId: row.id, colKey: editableFields[colIdx - 1] });
       } else if (rowIdx > 0) {
@@ -109,6 +113,7 @@ export function NotesClient({ kind }: { kind: "receivable" | "payable" }) {
       }
     } else if (e.key === "Tab") {
       e.preventDefault();
+      e.stopPropagation();
       if (e.shiftKey) {
         if (colIdx > 0) {
           setActiveCell({ rowId: row.id, colKey: editableFields[colIdx - 1] });
@@ -124,6 +129,7 @@ export function NotesClient({ kind }: { kind: "receivable" | "payable" }) {
       }
     } else if (e.key === "Escape") {
       e.preventDefault();
+      e.stopPropagation();
       cancelInlineEdit(row.id);
       setActiveCell(null);
     }
@@ -142,6 +148,25 @@ export function NotesClient({ kind }: { kind: "receivable" | "payable" }) {
   async function saveInlineEdit(row: any) {
     const draft = inlineEditing[row.id];
     if (!draft) return;
+    
+    // 連貫性確認：如果狀態改為 VOIDED（作廢）
+    if (draft.status === "VOIDED" && row.status !== "VOIDED") {
+      const confirmed = confirm("注意：將票據狀態改為「已作廢」會影響相關的應收應付記錄。\n\n確定要繼續嗎？");
+      if (!confirmed) {
+        cancelInlineEdit(row.id);
+        return;
+      }
+    }
+    
+    // 連貫性確認：如果狀態改為 POSTED（過帳）
+    if (draft.status === "POSTED" && row.status !== "POSTED") {
+      const confirmed = confirm("注意：將票據狀態改為「已過帳」會影響相關的應收應付記錄。\n\n確定要繼續嗎？");
+      if (!confirmed) {
+        cancelInlineEdit(row.id);
+        return;
+      }
+    }
+    
     setInlineSaving(row.id);
     try {
       const payload = { ...(row as any), ...draft };

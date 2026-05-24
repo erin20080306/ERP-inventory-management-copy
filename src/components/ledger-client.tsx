@@ -7,7 +7,7 @@ import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { StatusBadge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/layout/page-shell";
 import { toast } from "sonner";
-import { Loader2, Search, CreditCard, Download, Printer, FileDown, ListChecks, Trash2 } from "lucide-react";
+import { Loader2, Search, CreditCard, Download, Printer, FileDown, ListChecks, Trash2, Save, X } from "lucide-react";
 import { formatDate, formatMoney } from "@/lib/utils";
 import { downloadCSV, toCSV } from "@/lib/csv";
 import { ConvertToJournalButton } from "@/components/convert-to-journal-button";
@@ -34,6 +34,10 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
   const customCols = useCustomColumns(kind === "ar" ? "receivables" : "payables");
   const [editingCells, setEditingCells] = useState<Record<string, any>>({});
   const colDrag = useColumnDrag(kind === "ar" ? "receivables" : "payables", ["party", "relNumber", "date", "amount", "paid", "balance", "status", "updatedBy"]);
+  const [inlineEditing, setInlineEditing] = useState<Record<string, Record<string, any>>>({});
+  const [inlineSaving, setInlineSaving] = useState<string | null>(null);
+  const [activeCell, setActiveCell] = useState<{ rowId: string; colKey: string } | null>(null);
+  const editableFields = ["dueDate", "status"];
 
   async function load() {
     setLoading(true);
@@ -75,6 +79,113 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
     } catch (e: any) {
       toast.error(e.message);
     }
+  }
+
+  function startCellEdit(row: any, colKey: string) {
+    if (!inlineEditing[row.id]) {
+      const draft: Record<string, any> = {};
+      editableFields.forEach((f) => { draft[f] = (row as any)[f] ?? ""; });
+      setInlineEditing((prev) => ({ ...prev, [row.id]: draft }));
+    }
+    setActiveCell({ rowId: row.id, colKey });
+  }
+
+  function handleCellKeyDown(e: React.KeyboardEvent, row: any, colKey: string) {
+    const rowIdx = rows.findIndex((r) => r.id === row.id);
+    const colIdx = editableFields.indexOf(colKey);
+    if (editableFields.length === 0 || colIdx === -1) return;
+
+    if (e.key === "Enter" || e.key === "ArrowDown") {
+      e.preventDefault();
+      e.stopPropagation();
+      saveCellAndMove(row, rowIdx + 1, colKey);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      e.stopPropagation();
+      saveCellAndMove(row, rowIdx - 1, colKey);
+    } else if (e.key === "ArrowRight") {
+      e.preventDefault();
+      e.stopPropagation();
+      if (colIdx < editableFields.length - 1) {
+        setActiveCell({ rowId: row.id, colKey: editableFields[colIdx + 1] });
+      } else if (rowIdx < rows.length - 1) {
+        saveCellAndMove(row, rowIdx + 1, editableFields[0]);
+      }
+    } else if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      e.stopPropagation();
+      if (colIdx > 0) {
+        setActiveCell({ rowId: row.id, colKey: editableFields[colIdx - 1] });
+      } else if (rowIdx > 0) {
+        saveCellAndMove(row, rowIdx - 1, editableFields[editableFields.length - 1]);
+      }
+    } else if (e.key === "Tab") {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.shiftKey) {
+        if (colIdx > 0) {
+          setActiveCell({ rowId: row.id, colKey: editableFields[colIdx - 1] });
+        } else if (rowIdx > 0) {
+          saveCellAndMove(row, rowIdx - 1, editableFields[editableFields.length - 1]);
+        }
+      } else {
+        if (colIdx < editableFields.length - 1) {
+          setActiveCell({ rowId: row.id, colKey: editableFields[colIdx + 1] });
+        } else if (rowIdx < rows.length - 1) {
+          saveCellAndMove(row, rowIdx + 1, editableFields[0]);
+        }
+      }
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      e.stopPropagation();
+      cancelInlineEdit(row.id);
+      setActiveCell(null);
+    }
+  }
+
+  async function saveCellAndMove(currentRow: any, targetRowIdx: number, targetColKey: string) {
+    await saveInlineEdit(currentRow);
+    if (targetRowIdx >= 0 && targetRowIdx < rows.length) {
+      const targetRow = rows[targetRowIdx];
+      startCellEdit(targetRow, targetColKey);
+    } else {
+      setActiveCell(null);
+    }
+  }
+
+  async function saveInlineEdit(row: any) {
+    const draft = inlineEditing[row.id];
+    if (!draft) return;
+    
+    // 連貫性確認：如果狀態改為 OPEN 且已有收款/付款記錄
+    if (draft.status === "OPEN" && row.status !== "OPEN" && Number(row.paidAmount) > 0) {
+      const confirmed = confirm("注意：將狀態改為「未收」會重置已收款金額並刪除相關收款紀錄。\n\n確定要繼續嗎？");
+      if (!confirmed) {
+        cancelInlineEdit(row.id);
+        return;
+      }
+    }
+    
+    setInlineSaving(row.id);
+    try {
+      const payload = { ...(row as any), ...draft };
+      const res = await fetch(`${endpoint}/${row.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      if (!res.ok) throw new Error((await res.json()).error || "儲存失敗");
+      const saved = await res.json().catch(() => null);
+      toast.success("已儲存");
+      setInlineEditing((prev) => { const n = { ...prev }; delete n[row.id]; return n; });
+      setRows((prev) => prev.map((r) => r.id === row.id ? (saved && saved.id ? saved : { ...r, ...draft }) : r));
+      loadSummary();
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setInlineSaving(null);
+    }
+  }
+
+  function cancelInlineEdit(rowId: string) {
+    setInlineEditing((prev) => { const n = { ...prev }; delete n[rowId]; return n; });
+    if (activeCell?.rowId === rowId) setActiveCell(null);
   }
 
   return (
@@ -191,18 +302,52 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
             const party = kind === "ar" ? r.customer : r.supplier;
             const rel = kind === "ar" ? r.salesOrder : r.purchaseOrder;
             const balance = Number(r.amount) - Number(r.paidAmount);
+            const draft = inlineEditing[r.id];
+            const isRowEditing = !!draft;
             return (
-              <TR key={r.id}>
+              <TR key={r.id} className={isRowEditing ? "bg-accent/5" : ""}>
                 <TD>{party?.companyName ?? "—"}</TD>
                 <TD className="font-mono text-xs">{rel?.number ?? "—"}</TD>
                 <TD>{formatDate(r.createdAt)}</TD>
                 <TD>{formatMoney(r.amount)}</TD>
                 <TD>{formatMoney(r.paidAmount)}</TD>
                 <TD className={balance > 0 ? "text-red-600 font-medium" : ""}>{formatMoney(balance)}</TD>
-                <TD><StatusBadge status={r.status} /></TD>
+                <TD
+                  className={editableFields.includes("status") ? "cursor-cell hover:bg-muted/60 transition-colors" : ""}
+                  onClick={() => { if (editableFields.includes("status")) startCellEdit(r, "status"); }}
+                >
+                  {activeCell?.rowId === r.id && activeCell?.colKey === "status" ? (
+                    <select
+                      value={draft?.status ?? r.status ?? ""}
+                      autoFocus
+                      onChange={(e) => setInlineEditing((prev) => ({ ...prev, [r.id]: { ...prev[r.id], status: e.target.value } }))}
+                      className="h-8 w-full rounded border-0 bg-transparent px-1 text-sm focus:outline-none"
+                      onKeyDown={(e) => handleCellKeyDown(e, r, "status")}
+                      ref={(el) => { if (el) el.focus(); }}
+                    >
+                      <option value="OPEN">未收</option>
+                      <option value="PARTIAL">部分收款</option>
+                      <option value="PAID">已收</option>
+                      <option value="OVERDUE">逾期</option>
+                    </select>
+                  ) : (
+                    <StatusBadge status={r.status} />
+                  )}
+                </TD>
                 <TD className="text-xs text-gray-500">{r.updatedBy || "-"}</TD>
                 <TD className="text-right flex items-center justify-end gap-1">
-                  {balance > 0 && (
+                  {isRowEditing ? (
+                    <>
+                      <Button variant="ghost" size="icon" onClick={() => { saveInlineEdit(r); setActiveCell(null); }} disabled={inlineSaving === r.id} title="儲存 (Enter)">
+                        {inlineSaving === r.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4 text-emerald-600" />}
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => cancelInlineEdit(r.id)} title="取消 (Esc)">
+                        <X className="h-4 w-4 text-muted-foreground" />
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      {balance > 0 && (
                     <Button size="sm" variant="outline" onClick={() => setPay(r)}>
                       <CreditCard className="h-4 w-4" />
                       {kind === "ar" ? "收款" : "付款"}

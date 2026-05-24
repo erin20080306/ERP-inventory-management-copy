@@ -247,12 +247,15 @@ export default function QuotationClient() {
 
     if (e.key === "Enter" || e.key === "ArrowDown") {
       e.preventDefault();
+      e.stopPropagation();
       saveCellAndMove(row, rowIdx + 1, colKey);
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
+      e.stopPropagation();
       saveCellAndMove(row, rowIdx - 1, colKey);
     } else if (e.key === "ArrowRight") {
       e.preventDefault();
+      e.stopPropagation();
       if (colIdx < editableFields.length - 1) {
         setActiveCell({ rowId: row.id, colKey: editableFields[colIdx + 1] });
       } else if (rowIdx < items.length - 1) {
@@ -260,6 +263,7 @@ export default function QuotationClient() {
       }
     } else if (e.key === "ArrowLeft") {
       e.preventDefault();
+      e.stopPropagation();
       if (colIdx > 0) {
         setActiveCell({ rowId: row.id, colKey: editableFields[colIdx - 1] });
       } else if (rowIdx > 0) {
@@ -267,6 +271,7 @@ export default function QuotationClient() {
       }
     } else if (e.key === "Tab") {
       e.preventDefault();
+      e.stopPropagation();
       if (e.shiftKey) {
         if (colIdx > 0) {
           setActiveCell({ rowId: row.id, colKey: editableFields[colIdx - 1] });
@@ -282,6 +287,7 @@ export default function QuotationClient() {
       }
     } else if (e.key === "Escape") {
       e.preventDefault();
+      e.stopPropagation();
       cancelInlineEdit(row.id);
       setActiveCell(null);
     }
