@@ -414,7 +414,7 @@ export default function QuotationClient() {
               <TR key={q.id} className={isRowEditing ? "bg-accent/5" : ""}>
                 <TD>
                   {(q.items?.[0]?.product as any)?.imageUrl ? (
-                    <img src={(q.items[0].product as any).imageUrl} alt="" className="w-10 h-10 object-cover rounded" />
+                    <img src={(q.items?.[0]?.product as any)?.imageUrl} alt="" className="w-10 h-10 object-cover rounded" />
                   ) : (
                     <div className="w-10 h-10 rounded bg-muted/20 flex items-center justify-center text-xs text-muted-foreground">-</div>
                   )}
