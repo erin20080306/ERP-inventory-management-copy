@@ -33,7 +33,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
       where,
       include: {
         supplier: { select: { companyName: true } },
-        items: { select: { quantity: true, product: { select: { name: true } } } },
+        items: { select: { quantity: true, product: { select: { name: true, imageUrl: true } } } },
       },
       orderBy: { createdAt: "desc" },
       skip: (page - 1) * pageSize,
