@@ -135,6 +135,11 @@ export function PayrollClient() {
             <div className="flex items-center gap-2 text-sm">
               <span className="font-medium">{selectedPeriod.year}/{String(selectedPeriod.month).padStart(2, "0")}</span>
               <Badge variant={STATUS_VARIANTS[selectedPeriod.status]}>{STATUS_LABELS[selectedPeriod.status]}</Badge>
+              {selectedPeriod.periodStart && selectedPeriod.periodEnd && (
+                <span className="text-muted-foreground">
+                  期間：{formatDate(selectedPeriod.periodStart)} ~ {formatDate(selectedPeriod.periodEnd)}
+                </span>
+              )}
               {selectedPeriod.payDate && <span className="text-muted-foreground">發薪日：{formatDate(selectedPeriod.payDate)}</span>}
             </div>
             <div className="flex items-center gap-2 flex-wrap">
@@ -243,15 +248,33 @@ function NewPeriodDialog({ onClose, onCreated }: any) {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [payDate, setPayDate] = useState("");
   const [saving, setSaving] = useState(false);
+
+  // 當年月變化時，自動計算預設的開始和結束日期
+  useEffect(() => {
+    if (year && month) {
+      const start = new Date(year, month - 1, 1);
+      const end = new Date(year, month, 0);
+      setStartDate(start.toISOString().split('T')[0]);
+      setEndDate(end.toISOString().split('T')[0]);
+    }
+  }, [year, month]);
 
   async function save() {
     setSaving(true);
     try {
       const res = await fetch("/api/hr/payroll-periods", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ year, month, payDate: payDate || undefined }),
+        body: JSON.stringify({ 
+          year, 
+          month, 
+          periodStart: startDate || undefined, 
+          periodEnd: endDate || undefined,
+          payDate: payDate || undefined 
+        }),
       });
       if (!res.ok) throw new Error((await res.json()).error || "失敗");
       toast.success("已新增"); onCreated();
@@ -265,6 +288,8 @@ function NewPeriodDialog({ onClose, onCreated }: any) {
         <div className="grid grid-cols-2 gap-3">
           <div><Label>年</Label><Input type="number" value={year} onChange={(e) => setYear(Number(e.target.value))} /></div>
           <div><Label>月</Label><Input type="number" min="1" max="12" value={month} onChange={(e) => setMonth(Number(e.target.value))} /></div>
+          <div><Label>開始日期</Label><Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} /></div>
+          <div><Label>結束日期</Label><Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} /></div>
           <div className="col-span-2"><Label>發薪日</Label><Input type="date" value={payDate} onChange={(e) => setPayDate(e.target.value)} /></div>
         </div>
         <DialogFooter>
