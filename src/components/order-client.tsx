@@ -360,6 +360,7 @@ export function OrderClient({ kind }: { kind: Kind }) {
                       onChange={(e) => setInlineEditing((prev) => ({ ...prev, [r.id]: { ...prev[r.id], orderDate: e.target.value } }))}
                       className="h-8 text-sm border-0 bg-transparent shadow-none focus-visible:ring-0 px-1"
                       onKeyDown={(e) => handleCellKeyDown(e, r, "orderDate")}
+                      ref={(el) => { if (el) el.focus(); }}
                     />
                   ) : (
                     formatDate(r.orderDate)

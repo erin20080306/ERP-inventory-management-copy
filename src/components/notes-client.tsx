@@ -340,6 +340,7 @@ export function NotesClient({ kind }: { kind: "receivable" | "payable" }) {
                     onChange={(e) => setInlineEditing((prev) => ({ ...prev, [r.id]: { ...prev[r.id], bank: e.target.value } }))}
                     className="h-8 text-sm border-0 bg-transparent shadow-none focus-visible:ring-0 px-1"
                     onKeyDown={(e) => handleCellKeyDown(e, r, "bank")}
+                    ref={(el) => { if (el) el.focus(); }}
                   />
                 ) : (
                   kind === "receivable" ? (r.bankName ?? "—") : (r.bankAccount?.bankName ?? r.bankAccount?.name ?? "—")
@@ -357,6 +358,7 @@ export function NotesClient({ kind }: { kind: "receivable" | "payable" }) {
                     onChange={(e) => setInlineEditing((prev) => ({ ...prev, [r.id]: { ...prev[r.id], issueDate: e.target.value } }))}
                     className="h-8 text-sm border-0 bg-transparent shadow-none focus-visible:ring-0 px-1"
                     onKeyDown={(e) => handleCellKeyDown(e, r, "issueDate")}
+                    ref={(el) => { if (el) el.focus(); }}
                   />
                 ) : (
                   formatDate(r.issueDate)
@@ -374,6 +376,7 @@ export function NotesClient({ kind }: { kind: "receivable" | "payable" }) {
                     onChange={(e) => setInlineEditing((prev) => ({ ...prev, [r.id]: { ...prev[r.id], dueDate: e.target.value } }))}
                     className="h-8 text-sm border-0 bg-transparent shadow-none focus-visible:ring-0 px-1"
                     onKeyDown={(e) => handleCellKeyDown(e, r, "dueDate")}
+                    ref={(el) => { if (el) el.focus(); }}
                   />
                 ) : (
                   formatDate(r.dueDate)

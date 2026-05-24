@@ -294,7 +294,7 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
       <Table>
         <THead>
           <TR>
-            <TH {...colDrag.thProps("party")}>{partyLabel}</TH><TH {...colDrag.thProps("relNumber")}>關聯單號</TH><TH {...colDrag.thProps("date")}>日期</TH><TH {...colDrag.thProps("amount")}>金額</TH><TH {...colDrag.thProps("paid")}>已{kind === "ar" ? "收" : "付"}</TH><TH {...colDrag.thProps("balance")}>未結</TH><TH {...colDrag.thProps("status")}>狀態</TH><TH {...colDrag.thProps("updatedBy")}>操作人員</TH>{customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}<TH className="w-24 text-right">操作</TH>
+            <TH {...colDrag.thProps("party")}>{partyLabel}</TH><TH {...colDrag.thProps("relNumber")}>關聯單號</TH><TH {...colDrag.thProps("date")}>日期</TH><TH {...colDrag.thProps("dueDate")}>到期日</TH><TH {...colDrag.thProps("amount")}>金額</TH><TH {...colDrag.thProps("paid")}>已{kind === "ar" ? "收" : "付"}</TH><TH {...colDrag.thProps("balance")}>未結</TH><TH {...colDrag.thProps("status")}>狀態</TH><TH {...colDrag.thProps("updatedBy")}>操作人員</TH>{customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}<TH className="w-24 text-right">操作</TH>
           </TR>
         </THead>
         <TBody>
@@ -311,6 +311,24 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
                 <TD>{party?.companyName ?? "—"}</TD>
                 <TD className="font-mono text-xs">{rel?.number ?? "—"}</TD>
                 <TD>{formatDate(r.createdAt)}</TD>
+                <TD
+                  className={editableFields.includes("dueDate") ? "cursor-cell hover:bg-muted/60 transition-colors" : ""}
+                  onClick={() => { if (editableFields.includes("dueDate")) startCellEdit(r, "dueDate"); }}
+                >
+                  {activeCell?.rowId === r.id && activeCell?.colKey === "dueDate" ? (
+                    <Input
+                      type="date"
+                      value={draft?.dueDate ?? r.dueDate?.slice(0, 10) ?? ""}
+                      autoFocus
+                      onChange={(e) => setInlineEditing((prev) => ({ ...prev, [r.id]: { ...prev[r.id], dueDate: e.target.value } }))}
+                      className="h-8 text-sm border-0 bg-transparent shadow-none focus-visible:ring-0 px-1"
+                      onKeyDown={(e) => handleCellKeyDown(e, r, "dueDate")}
+                      ref={(el) => { if (el) el.focus(); }}
+                    />
+                  ) : (
+                    formatDate(r.dueDate)
+                  )}
+                </TD>
                 <TD>{formatMoney(r.amount)}</TD>
                 <TD>{formatMoney(r.paidAmount)}</TD>
                 <TD className={balance > 0 ? "text-red-600 font-medium" : ""}>{formatMoney(balance)}</TD>

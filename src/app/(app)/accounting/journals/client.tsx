@@ -342,6 +342,7 @@ export function JournalClient() {
                       onChange={(e) => setInlineEditing((prev) => ({ ...prev, [r.id]: { ...prev[r.id], date: e.target.value } }))}
                       className="h-8 text-sm border-0 bg-transparent shadow-none focus-visible:ring-0 px-1"
                       onKeyDown={(e) => handleCellKeyDown(e, r, "date")}
+                      ref={(el) => { if (el) el.focus(); }}
                     />
                   ) : (
                     formatDate(r.entryDate)
@@ -358,6 +359,7 @@ export function JournalClient() {
                       onChange={(e) => setInlineEditing((prev) => ({ ...prev, [r.id]: { ...prev[r.id], summary: e.target.value } }))}
                       className="h-8 text-sm border-0 bg-transparent shadow-none focus-visible:ring-0 px-1"
                       onKeyDown={(e) => handleCellKeyDown(e, r, "summary")}
+                      ref={(el) => { if (el) el.focus(); }}
                     />
                   ) : (
                     r.summary

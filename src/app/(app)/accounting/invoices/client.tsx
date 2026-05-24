@@ -284,6 +284,7 @@ export function InvoiceClient() {
                     onChange={(e) => setInlineEditing((prev) => ({ ...prev, [i.id]: { ...prev[i.id], remark: e.target.value } }))}
                     className="h-8 text-sm border-0 bg-transparent shadow-none focus-visible:ring-0 px-1"
                     onKeyDown={(e) => handleCellKeyDown(e, i, "remark")}
+                    ref={(el) => { if (el) el.focus(); }}
                   />
                 ) : (
                   i.remark ?? "—"
