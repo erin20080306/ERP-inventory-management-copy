@@ -159,10 +159,12 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
     
     // 連貫性確認：如果狀態改為 OPEN 且已有收款/付款記錄
     if (draft.status === "OPEN" && row.status !== "OPEN" && Number(row.paidAmount) > 0) {
-      const confirmed = confirm("注意：將狀態改為「未收」會重置已收款金額並刪除相關收款紀錄。\n\n確定要繼續嗎？");
-      if (!confirmed) {
-        cancelInlineEdit(row.id);
-        return;
+      if (typeof window !== "undefined") {
+        const confirmed = confirm("注意：將狀態改為「未收」會重置已收款金額並刪除相關收款紀錄。\n\n確定要繼續嗎？");
+        if (!confirmed) {
+          cancelInlineEdit(row.id);
+          return;
+        }
       }
     }
     

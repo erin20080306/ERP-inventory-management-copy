@@ -151,19 +151,23 @@ export function NotesClient({ kind }: { kind: "receivable" | "payable" }) {
     
     // 連貫性確認：如果狀態改為 VOIDED（作廢）
     if (draft.status === "VOIDED" && row.status !== "VOIDED") {
-      const confirmed = confirm("注意：將票據狀態改為「已作廢」會影響相關的應收應付記錄。\n\n確定要繼續嗎？");
-      if (!confirmed) {
-        cancelInlineEdit(row.id);
-        return;
+      if (typeof window !== "undefined") {
+        const confirmed = confirm("注意：將票據狀態改為「已作廢」會影響相關的應收應付記錄。\n\n確定要繼續嗎？");
+        if (!confirmed) {
+          cancelInlineEdit(row.id);
+          return;
+        }
       }
     }
     
     // 連貫性確認：如果狀態改為 POSTED（過帳）
     if (draft.status === "POSTED" && row.status !== "POSTED") {
-      const confirmed = confirm("注意：將票據狀態改為「已過帳」會影響相關的應收應付記錄。\n\n確定要繼續嗎？");
-      if (!confirmed) {
-        cancelInlineEdit(row.id);
-        return;
+      if (typeof window !== "undefined") {
+        const confirmed = confirm("注意：將票據狀態改為「已過帳」會影響相關的應收應付記錄。\n\n確定要繼續嗎？");
+        if (!confirmed) {
+          cancelInlineEdit(row.id);
+          return;
+        }
       }
     }
     
