@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { CrudTable } from "@/components/crud-table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input, Label } from "@/components/ui/input";
@@ -29,6 +29,8 @@ function ProductDialog({ open, onClose, row, onSaved }: any) {
   const [form, setForm] = useState<any>({});
   const [saving, setSaving] = useState(false);
   const [autofillHint, setAutofillHint] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
     setForm(
       row ?? {
@@ -91,6 +93,39 @@ function ProductDialog({ open, onClose, row, onSaved }: any) {
     }
   }
 
+  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!res.ok) throw new Error((await res.json()).error || "上傳失敗");
+
+      const data = await res.json();
+      setForm({ ...form, imageUrl: data.url });
+      toast.success("圖片上傳成功");
+    } catch (e: any) {
+      toast.error(e.message || "上傳失敗");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  function handleRemoveImage() {
+    setForm({ ...form, imageUrl: "" });
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }
+
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-xl">
@@ -127,9 +162,45 @@ function ProductDialog({ open, onClose, row, onSaved }: any) {
             <Label>安全庫存</Label>
             <Input type="number" step="1" value={form.safetyStock ?? 0} onChange={(e) => setForm({ ...form, safetyStock: e.target.value })} />
           </div>
-          <div className="space-y-1">
-            <Label>圖片網址</Label>
-            <Input value={form.imageUrl ?? ""} onChange={(e) => setForm({ ...form, imageUrl: e.target.value })} />
+          <div className="space-y-1 col-span-2">
+            <Label>商品圖片</Label>
+            <div className="flex items-start gap-3">
+              {form.imageUrl ? (
+                <div className="relative w-24 h-24 rounded-lg overflow-hidden border border-border">
+                  <img src={form.imageUrl} alt="商品圖片" className="w-full h-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={handleRemoveImage}
+                    className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 text-xs hover:bg-red-600"
+                  >
+                    ×
+                  </button>
+                </div>
+              ) : (
+                <div className="w-24 h-24 rounded-lg border-2 border-dashed border-border flex items-center justify-center bg-muted/20">
+                  <span className="text-xs text-muted-foreground">無圖片</span>
+                </div>
+              )}
+              <div className="flex-1 space-y-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  className="hidden"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                >
+                  {uploading ? "上傳中..." : "上傳圖片"}
+                </Button>
+                <p className="text-xs text-muted-foreground">支援 JPG、PNG、WebP、GIF 格式，最大 5MB</p>
+              </div>
+            </div>
           </div>
           <div className="space-y-1 col-span-2">
             <Label>備註</Label>
@@ -167,6 +238,23 @@ export function ProductClient() {
       inlineEdit={true}
       enableEnterToCreate={true}
       columns={[
+        { 
+          key: "imageUrl", 
+          title: "圖片", 
+          render: (r) => r.imageUrl ? (
+            <img 
+              src={r.imageUrl} 
+              alt={r.name} 
+              className="w-12 h-12 object-cover rounded cursor-pointer hover:ring-2 hover:ring-ring transition-all"
+              onClick={(e) => {
+                e.stopPropagation();
+                window.open(r.imageUrl, "_blank");
+              }}
+            />
+          ) : (
+            <div className="w-12 h-12 rounded bg-muted/20 flex items-center justify-center text-xs text-muted-foreground">無</div>
+          )
+        },
         { key: "sku", title: "SKU", render: (r) => <span className="font-mono text-xs">{r.sku}</span>, editable: { type: "text" } },
         { key: "name", title: "商品名稱", editable: { type: "text" } },
         { key: "spec", title: "規格", editable: { type: "text" } },
