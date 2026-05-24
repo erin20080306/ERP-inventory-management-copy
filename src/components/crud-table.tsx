@@ -120,6 +120,7 @@ export type Column<T> = {
   render?: (row: T) => React.ReactNode;
   className?: string;
   csv?: (row: T) => any; // CSV 匯出值 (若未提供則用 row[key])
+  isImage?: boolean; // 標記此欄位為圖片欄位（用於 Excel 匯出）
   /** 欄位可行內編輯; type: text|number|select; options: select 選項 */
   editable?: { type: "text" | "number" | "select"; options?: { value: string; label: string }[] };
 };
@@ -435,7 +436,7 @@ export function CrudTable<T extends { id: string }>({
                       exportName,
                       pdfTitle || exportName,
                       data.items,
-                      orderedColumns.map((c) => ({ key: c.key, title: c.title, get: c.csv })) as any
+                      orderedColumns.map((c) => ({ key: c.key, title: c.title, get: c.csv, isImage: c.isImage })) as any
                     );
                     toast.success("已匯出 Excel");
                   } catch (e: any) {

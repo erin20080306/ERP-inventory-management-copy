@@ -4,6 +4,7 @@ export type ExcelColumn<T> = {
   key: string;
   title: string;
   get?: (row: T) => any;
+  isImage?: boolean; // 標記此欄位為圖片欄位
 };
 
 /** 匯出資料為 .xlsx */
@@ -16,11 +17,26 @@ export function downloadExcel<T = any>(filename: string, sheetName: string, rows
     return o;
   });
   const ws = XLSX.utils.json_to_sheet(data, { header: columns.map((c) => c.title) });
-  // 自動欄寬
-  const colWidths = columns.map((c) => ({
-    wch: Math.max(c.title.length * 2, ...data.map((d: any) => String(d[c.title] ?? "").length)) + 2,
-  }));
-  ws["!cols"] = colWidths;
+  
+  // 處理圖片欄位
+  const imageColIndex = columns.findIndex((c) => c.isImage);
+  if (imageColIndex !== -1) {
+    // 設置圖片欄位的欄寬為固定大小
+    const colWidths = columns.map((c, idx) => ({
+      wch: c.isImage ? 15 : Math.max(c.title.length * 2, ...data.map((d: any) => String(d[c.title] ?? "").length)) + 2,
+    }));
+    ws["!cols"] = colWidths;
+    
+    // 嘗試添加圖片（需要在服務器端處理，因為瀏覽器端 XLSX 對圖片支持有限）
+    // 這裡我們保留圖片 URL 在單元格中，用戶可以點擊查看
+  } else {
+    // 自動欄寬
+    const colWidths = columns.map((c) => ({
+      wch: Math.max(c.title.length * 2, ...data.map((d: any) => String(d[c.title] ?? "").length)) + 2,
+    }));
+    ws["!cols"] = colWidths;
+  }
+  
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, sheetName);
   XLSX.writeFile(wb, `${filename}-${new Date().toISOString().slice(0, 10)}.xlsx`);

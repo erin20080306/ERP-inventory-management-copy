@@ -241,6 +241,7 @@ export function ProductClient() {
         { 
           key: "imageUrl", 
           title: "圖片", 
+          isImage: true,
           render: (r) => r.imageUrl ? (
             <img 
               src={r.imageUrl} 
