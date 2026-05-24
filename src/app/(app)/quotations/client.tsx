@@ -140,6 +140,7 @@ function QuotationDialog({ open, onClose, row, onSaved }: any) {
               <Table>
                 <THead>
                   <TR>
+                    <TH>圖片</TH>
                     <TH>商品</TH>
                     <TH>數量</TH>
                     <TH>單價</TH>
@@ -150,8 +151,17 @@ function QuotationDialog({ open, onClose, row, onSaved }: any) {
                   </TR>
                 </THead>
                 <TBody>
-                  {items.map((item, idx) => (
+                  {items.map((item, idx) => {
+                    const product = products.find((p: any) => p.id === item.productId);
+                    return (
                     <TR key={idx}>
+                      <TD>
+                        {product?.imageUrl ? (
+                          <img src={product.imageUrl} alt="" className="w-10 h-10 object-cover rounded" />
+                        ) : (
+                          <div className="w-10 h-10 rounded bg-muted/20 flex items-center justify-center text-xs text-muted-foreground">-</div>
+                        )}
+                      </TD>
                       <TD>
                         <select value={item.productId} onChange={(e) => updateItem(idx, "productId", e.target.value)} className="w-full px-2 py-1 border rounded">
                           <option value="">請選擇</option>
@@ -165,7 +175,8 @@ function QuotationDialog({ open, onClose, row, onSaved }: any) {
                       <TD>{formatMoney(item.subtotal)}</TD>
                       <TD><Button size="sm" variant="ghost" onClick={() => removeItem(idx)}><Trash2 className="h-4 w-4 text-red-600" /></Button></TD>
                     </TR>
-                  ))}
+                    );
+                  })}
                 </TBody>
               </Table>
             </div>
