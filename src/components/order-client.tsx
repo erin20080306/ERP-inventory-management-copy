@@ -348,8 +348,8 @@ export function OrderClient({ kind }: { kind: Kind }) {
               return (
               <TR key={r.id} className={isRowEditing ? "bg-accent/5" : ""}>
                 <TD>
-                  {r.items?.[0]?.product?.imageUrl ? (
-                    <img src={r.items[0].product.imageUrl} alt="" className="w-10 h-10 object-cover rounded" />
+                  {(r.items?.[0]?.product as any)?.imageUrl ? (
+                    <img src={(r.items[0].product as any).imageUrl} alt="" className="w-10 h-10 object-cover rounded" />
                   ) : (
                     <div className="w-10 h-10 rounded bg-muted/20 flex items-center justify-center text-xs text-muted-foreground">-</div>
                   )}
