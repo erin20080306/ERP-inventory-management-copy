@@ -200,7 +200,7 @@ function ProductDialog({ open, onClose, row, onSaved }: any) {
                 >
                   {uploading ? "上傳中..." : "上傳圖片"}
                 </Button>
-                <p className="text-xs text-muted-foreground">支援 JPG、PNG、WebP、GIF 格式，最大 5MB</p>
+                <p className="text-xs text-muted-foreground">支援 JPG、PNG、WebP、GIF 格式，最大 2MB</p>
               </div>
             </div>
           </div>
