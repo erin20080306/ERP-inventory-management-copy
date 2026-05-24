@@ -141,6 +141,8 @@ export function CrudTable<T extends { id: string }>({
   templateHeaders,
   enableDateFilter = false,
   moduleKey,
+  inlineEdit = false,
+  enableEnterToCreate = false,
 }: {
   endpoint: string;
   columns: Column<T>[];
@@ -164,6 +166,8 @@ export function CrudTable<T extends { id: string }>({
   moduleKey?: string;
   /** 啟用行內編輯模式（不跳出 Dialog） */
   inlineEdit?: boolean;
+  /** 啟用 Enter 在最後一行時新增一行 */
+  enableEnterToCreate?: boolean;
 }) {
   const [rows, setRows] = useState<T[]>([]);
   const [total, setTotal] = useState(0);
@@ -284,7 +288,12 @@ export function CrudTable<T extends { id: string }>({
     if (e.key === "Enter" || e.key === "ArrowDown") {
       e.preventDefault();
       e.stopPropagation();
-      saveCellAndMove(row, rowIdx + 1, colKey);
+      if (enableEnterToCreate && rowIdx === rows.length - 1 && e.key === "Enter") {
+        // 在最後一行按 Enter，新增一行
+        createNewRow(colKey);
+      } else {
+        saveCellAndMove(row, rowIdx + 1, colKey);
+      }
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       e.stopPropagation();
@@ -331,6 +340,15 @@ export function CrudTable<T extends { id: string }>({
       cancelInlineEdit(row.id);
       setActiveCell(null);
     }
+  }
+
+  async function createNewRow(startColKey: string) {
+    if (!canCreate) return;
+    // 先儲存當前行
+    await saveInlineEdit(rows[rows.length - 1]);
+    // 開啟新增對話框
+    setEditing(null);
+    setOpen(true);
   }
 
   async function saveCellAndMove(currentRow: T, targetRowIdx: number, targetColKey: string) {

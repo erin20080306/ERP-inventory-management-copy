@@ -165,6 +165,7 @@ export function ProductClient() {
       searchPlaceholder="搜尋 SKU / 商品名稱 / 條碼"
       enableDateFilter={true}
       inlineEdit={true}
+      enableEnterToCreate={true}
       columns={[
         { key: "sku", title: "SKU", render: (r) => <span className="font-mono text-xs">{r.sku}</span>, editable: { type: "text" } },
         { key: "name", title: "商品名稱", editable: { type: "text" } },
