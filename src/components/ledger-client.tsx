@@ -350,35 +350,37 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
                   ) : (
                     <>
                       {balance > 0 && (
-                    <Button size="sm" variant="outline" onClick={() => setPay(r)}>
-                      <CreditCard className="h-4 w-4" />
-                      {kind === "ar" ? "收款" : "付款"}
-                    </Button>
-                  )}
-                  {r.status === "DRAFT" && <Button size="sm" variant="outline" onClick={() => onAct(r.id, "submit")}>送出</Button>}
-                  {r.status === "SUBMITTED" && (
-                    <>
-                      <Button size="sm" variant="outline" onClick={() => onAct(r.id, "approve")}>審核</Button>
-                      <Button size="sm" variant="destructive" onClick={() => onAct(r.id, "reject")}>駁回</Button>
+                        <Button size="sm" variant="outline" onClick={() => setPay(r)}>
+                          <CreditCard className="h-4 w-4" />
+                          {kind === "ar" ? "收款" : "付款"}
+                        </Button>
+                      )}
+                      {r.status === "DRAFT" && <Button size="sm" variant="outline" onClick={() => onAct(r.id, "submit")}>送出</Button>}
+                      {r.status === "SUBMITTED" && (
+                        <>
+                          <Button size="sm" variant="outline" onClick={() => onAct(r.id, "approve")}>審核</Button>
+                          <Button size="sm" variant="destructive" onClick={() => onAct(r.id, "reject")}>駁回</Button>
+                        </>
+                      )}
+                      {r.status === "APPROVED" && <Button size="sm" onClick={() => onAct(r.id, "post")}>過帳</Button>}
+                      {r.status === "POSTED" && <Button size="sm" variant="destructive" onClick={() => onAct(r.id, "void")}>作廢</Button>}
+                      <Button size="sm" variant="ghost" onClick={() => setEditRow(r)}>
+                        編輯
+                      </Button>
+                      <Button size="sm" variant="ghost" className="text-red-500 hover:text-red-700" onClick={async () => {
+                        const warning = Number(r.paidAmount) > 0 
+                          ? "此筆帳款已有收款紀錄，刪除將同時刪除相關收款紀錄和票據。確定要刪除嗎？"
+                          : "確定刪除此筆帳款？";
+                        if (!confirm(warning)) return;
+                        const res = await fetch(`${endpoint}/${r.id}`, { method: "DELETE" });
+                        if (!res.ok) { const e = await res.json(); toast.error(e.error || "刪除失敗"); return; }
+                        toast.success("已刪除");
+                        load(); loadSummary();
+                      }}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </>
                   )}
-                  {r.status === "APPROVED" && <Button size="sm" onClick={() => onAct(r.id, "post")}>過帳</Button>}
-                  {r.status === "POSTED" && <Button size="sm" variant="destructive" onClick={() => onAct(r.id, "void")}>作廢</Button>}
-                  <Button size="sm" variant="ghost" onClick={() => setEditRow(r)}>
-                    編輯
-                  </Button>
-                  <Button size="sm" variant="ghost" className="text-red-500 hover:text-red-700" onClick={async () => {
-                    const warning = Number(r.paidAmount) > 0 
-                      ? "此筆帳款已有收款紀錄，刪除將同時刪除相關收款紀錄和票據。確定要刪除嗎？"
-                      : "確定刪除此筆帳款？";
-                    if (!confirm(warning)) return;
-                    const res = await fetch(`${endpoint}/${r.id}`, { method: "DELETE" });
-                    if (!res.ok) { const e = await res.json(); toast.error(e.error || "刪除失敗"); return; }
-                    toast.success("已刪除");
-                    load(); loadSummary();
-                  }}>
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
                 </TD>
                 {customCols.columns.map((cc) => {
                   const cellKey = `${r.id}_${cc.id}`;
