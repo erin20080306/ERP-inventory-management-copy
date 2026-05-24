@@ -632,7 +632,7 @@ export function CrudTable<T extends { id: string }>({
                         </>
                       ) : (
                         <>
-                          {canEdit && FormDialog && (
+                          {canEdit && (
                             <Button variant="ghost" size="icon" onClick={() => setEditing(row)}>
                               <Settings2 className="h-4 w-4 text-blue-600" />
                             </Button>
