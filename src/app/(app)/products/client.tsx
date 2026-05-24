@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { formatMoney, formatNumber } from "@/lib/utils";
+import { X } from "lucide-react";
 
 type Product = {
   id: string;
@@ -231,33 +232,36 @@ function ProductDialog({ open, onClose, row, onSaved }: any) {
 }
 
 export function ProductClient() {
+  const [enlargedImage, setEnlargedImage] = useState<string | null>(null);
+  
   return (
-    <CrudTable<Product>
-      endpoint="/api/products"
-      moduleKey="products"
-      searchPlaceholder="搜尋 SKU / 商品名稱 / 條碼"
-      enableDateFilter={true}
-      inlineEdit={true}
-      enableEnterToCreate={true}
-      columns={[
-        { 
-          key: "imageUrl", 
-          title: "圖片", 
-          isImage: true,
-          render: (r) => r.imageUrl ? (
-            <img 
-              src={r.imageUrl} 
-              alt={r.name} 
-              className="w-12 h-12 object-cover rounded cursor-pointer hover:ring-2 hover:ring-ring transition-all"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (r.imageUrl) window.open(r.imageUrl, "_blank");
-              }}
-            />
-          ) : (
-            <div className="w-12 h-12 rounded bg-muted/20 flex items-center justify-center text-xs text-muted-foreground">無</div>
-          )
-        },
+    <>
+      <CrudTable<Product>
+        endpoint="/api/products"
+        moduleKey="products"
+        searchPlaceholder="搜尋 SKU / 商品名稱 / 條碼"
+        enableDateFilter={true}
+        inlineEdit={true}
+        enableEnterToCreate={true}
+        columns={[
+          { 
+            key: "imageUrl", 
+            title: "圖片", 
+            isImage: true,
+            render: (r) => r.imageUrl ? (
+              <img 
+                src={r.imageUrl} 
+                alt={r.name} 
+                className="w-12 h-12 object-cover rounded cursor-pointer hover:ring-2 hover:ring-ring transition-all"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setEnlargedImage(r.imageUrl);
+                }}
+              />
+            ) : (
+              <div className="w-12 h-12 rounded bg-muted/20 flex items-center justify-center text-xs text-muted-foreground">無</div>
+            )
+          },
         { key: "sku", title: "SKU", render: (r) => <span className="font-mono text-xs">{r.sku}</span>, editable: { type: "text" } },
         { key: "name", title: "商品名稱", editable: { type: "text" } },
         { key: "spec", title: "規格", editable: { type: "text" } },
@@ -312,5 +316,22 @@ export function ProductClient() {
         barcode: String(r["條碼"] ?? r.barcode ?? "").trim() || undefined,
       })}
     />
+      {/* 圖片放大模態框 */}
+      <Dialog open={!!enlargedImage} onOpenChange={() => setEnlargedImage(null)}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>商品圖片</DialogTitle>
+          </DialogHeader>
+          {enlargedImage && (
+            <div className="flex items-center justify-center">
+              <img src={enlargedImage} alt="放大圖片" className="max-w-full max-h-[70vh] object-contain" />
+            </div>
+          )}
+          <DialogFooter>
+            <Button onClick={() => setEnlargedImage(null)}>關閉</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
