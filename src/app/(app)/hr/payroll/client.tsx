@@ -8,7 +8,7 @@ import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/layout/page-shell";
 import { toast } from "sonner";
-import { Plus, Loader2, Calculator, FileSpreadsheet, Printer, Eye, CheckCircle2, DollarSign, Ban, BookOpen } from "lucide-react";
+import { Plus, Loader2, Calculator, FileSpreadsheet, Printer, Eye, CheckCircle2, DollarSign, Ban, BookOpen, Edit } from "lucide-react";
 import { formatMoney, formatDate } from "@/lib/utils";
 import { useCustomColumns, CustomColumnDialog, CustomColumnButton, getCustomFieldValues, setCustomFieldValue } from "@/components/custom-columns";
 import { TableHint, useColumnDrag } from "@/components/table-helpers";
@@ -188,6 +188,7 @@ export function PayrollClient() {
                   <TD><Badge variant={STATUS_VARIANTS[p.status]}>{STATUS_LABELS[p.status]}</Badge></TD>
                   <TD className="text-right">
                     <div className="flex items-center justify-end gap-1">
+                      <Button size="sm" variant="ghost" title="編輯" onClick={() => setViewPayroll(p)}><Edit className="h-4 w-4" /></Button>
                       <Button size="sm" variant="ghost" title="檢視" onClick={() => setViewPayroll(p)}><Eye className="h-4 w-4" /></Button>
                       <Button size="sm" variant="ghost" title="列印薪資單" onClick={() => window.open(`/print/payroll/${p.id}`, "_blank")}><Printer className="h-4 w-4" /></Button>
                       {p.status === "DRAFT" && <Button size="sm" variant="ghost" title="確認" onClick={() => act(p.id, "confirm")}><CheckCircle2 className="h-4 w-4 text-emerald-600" /></Button>}
