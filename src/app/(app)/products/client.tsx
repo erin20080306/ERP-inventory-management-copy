@@ -250,7 +250,7 @@ export function ProductClient() {
               className="w-12 h-12 object-cover rounded cursor-pointer hover:ring-2 hover:ring-ring transition-all"
               onClick={(e) => {
                 e.stopPropagation();
-                window.open(r.imageUrl, "_blank");
+                if (r.imageUrl) window.open(r.imageUrl, "_blank");
               }}
             />
           ) : (
