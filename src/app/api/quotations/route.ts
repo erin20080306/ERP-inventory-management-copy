@@ -26,7 +26,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const [items, total] = await Promise.all([
     prisma.quotation.findMany({
       where,
-      include: { customer: true, items: true },
+      include: { customer: true, items: { include: { product: { select: { name: true, imageUrl: true } } } } },
       orderBy: { createdAt: "desc" },
       skip: (page - 1) * pageSize,
       take: pageSize,
