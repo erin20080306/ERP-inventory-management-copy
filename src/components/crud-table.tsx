@@ -632,6 +632,11 @@ export function CrudTable<T extends { id: string }>({
                         </>
                       ) : (
                         <>
+                          {canEdit && FormDialog && (
+                            <Button variant="ghost" size="icon" onClick={() => setEditing(row)}>
+                              <Settings2 className="h-4 w-4 text-blue-600" />
+                            </Button>
+                          )}
                           {canDelete && (
                             <Button variant="ghost" size="icon" onClick={() => onDelete(row)}>
                               <Trash2 className="h-4 w-4 text-red-600" />
