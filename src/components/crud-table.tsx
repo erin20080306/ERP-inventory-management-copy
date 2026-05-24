@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { EmptyState } from "@/components/layout/page-shell";
-import { Plus, Search, Loader2, Trash2, Download, Printer, FileDown, FileSpreadsheet, Upload, Settings2, Save, X } from "lucide-react";
+import { Plus, Search, Loader2, Trash2, Download, Printer, FileDown, FileSpreadsheet, Upload, Settings2, Save, X, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { downloadCSV, toCSV } from "@/lib/csv";
 import { TableHint, useDebouncedValue } from "@/components/table-helpers";
@@ -633,8 +633,8 @@ export function CrudTable<T extends { id: string }>({
                       ) : (
                         <>
                           {canEdit && (
-                            <Button variant="ghost" size="icon" onClick={() => { setEditing(row); setOpen(true); }}>
-                              <Settings2 className="h-4 w-4 text-blue-600" />
+                            <Button variant="ghost" size="icon" onClick={() => { setEditing(row); setOpen(true); }} title="編輯">
+                              <Pencil className="h-4 w-4 text-blue-600" />
                             </Button>
                           )}
                           {canDelete && (
