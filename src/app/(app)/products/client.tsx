@@ -243,6 +243,7 @@ export function ProductClient() {
         enableDateFilter={true}
         inlineEdit={true}
         enableEnterToCreate={true}
+        canEdit={true}
         columns={[
           { 
             key: "imageUrl", 

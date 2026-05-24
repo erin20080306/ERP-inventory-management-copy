@@ -403,15 +403,22 @@ export default function QuotationClient() {
       ) : (
         <Table>
           <THead>
-            <TR><TH {...colDrag.thProps("number")}>單號</TH><TH {...colDrag.thProps("customer")}>客戶</TH><TH {...colDrag.thProps("date")}>日期</TH><TH {...colDrag.thProps("validUntil")}>有效期限</TH><TH {...colDrag.thProps("total")}>總計</TH><TH {...colDrag.thProps("status")}>狀態</TH><TH {...colDrag.thProps("updatedBy")}>操作人員</TH>{customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}<TH className="text-right">操作</TH></TR>
+            <TR><TH>圖片</TH><TH {...colDrag.thProps("number")}>單號</TH><TH {...colDrag.thProps("customer")}>客戶</TH><TH {...colDrag.thProps("date")}>日期</TH><TH {...colDrag.thProps("validUntil")}>有效期限</TH><TH {...colDrag.thProps("total")}>總計</TH><TH {...colDrag.thProps("status")}>狀態</TH><TH {...colDrag.thProps("updatedBy")}>操作人員</TH>{customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}<TH className="text-right">操作</TH></TR>
           </THead>
           <TBody>
-            {items.length === 0 && <TR><TD colSpan={8} className="text-center text-muted-foreground">尚無報價單</TD></TR>}
+            {items.length === 0 && <TR><TD colSpan={9} className="text-center text-muted-foreground">尚無報價單</TD></TR>}
             {items.map((q) => {
               const draft = inlineEditing[q.id];
               const isRowEditing = !!draft;
               return (
               <TR key={q.id} className={isRowEditing ? "bg-accent/5" : ""}>
+                <TD>
+                  {q.items?.[0]?.product?.imageUrl ? (
+                    <img src={q.items[0].product.imageUrl} alt="" className="w-10 h-10 object-cover rounded" />
+                  ) : (
+                    <div className="w-10 h-10 rounded bg-muted/20 flex items-center justify-center text-xs text-muted-foreground">-</div>
+                  )}
+                </TD>
                 <TD className="font-mono text-xs">{q.number}</TD>
                 <TD>{q.customer?.companyName}</TD>
                 <TD

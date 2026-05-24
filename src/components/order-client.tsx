@@ -313,6 +313,7 @@ export function OrderClient({ kind }: { kind: Kind }) {
       <Table>
         <THead>
           <TR>
+            <TH>圖片</TH>
             <TH {...colDrag.thProps("number")}>單號</TH>
             <TH {...colDrag.thProps("party")}>{partyLabel}</TH>
             <TH {...colDrag.thProps("date")}>日期</TH>
@@ -328,14 +329,14 @@ export function OrderClient({ kind }: { kind: Kind }) {
         <TBody>
           {loading && (
             <TR>
-              <TD colSpan={9} className="text-center py-10">
+              <TD colSpan={10} className="text-center py-10">
                 <Loader2 className="h-5 w-5 animate-spin inline-block" />
               </TD>
             </TR>
           )}
           {!loading && rows.length === 0 && (
             <TR>
-              <TD colSpan={9}>
+              <TD colSpan={10}>
                 <EmptyState />
               </TD>
             </TR>
@@ -346,6 +347,13 @@ export function OrderClient({ kind }: { kind: Kind }) {
               const isRowEditing = !!draft;
               return (
               <TR key={r.id} className={isRowEditing ? "bg-accent/5" : ""}>
+                <TD>
+                  {r.items?.[0]?.product?.imageUrl ? (
+                    <img src={r.items[0].product.imageUrl} alt="" className="w-10 h-10 object-cover rounded" />
+                  ) : (
+                    <div className="w-10 h-10 rounded bg-muted/20 flex items-center justify-center text-xs text-muted-foreground">-</div>
+                  )}
+                </TD>
                 <TD className="font-mono text-xs">{r.number}</TD>
                 <TD>{(kind === "purchase" ? r.supplier : r.customer)?.companyName ?? "—"}</TD>
                 <TD
