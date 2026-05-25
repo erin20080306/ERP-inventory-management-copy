@@ -267,7 +267,7 @@ export function OrderClient({ kind }: { kind: Kind }) {
                     小計: Number(item.subtotal),
                     折扣: Number(item.discount || 0),
                     稅率: Number(item.taxRate || 0),
-                    圖片URL: (item.product?.imageUrl ?? "").slice(0, 1000),
+                    圖片URL: (item.product?.imageUrl && !item.product.imageUrl.startsWith("data:")) ? item.product.imageUrl : "",
                   });
                 });
               });
