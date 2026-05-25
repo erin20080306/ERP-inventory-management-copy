@@ -5,6 +5,7 @@ export type ExcelColumn<T> = {
   title: string;
   get?: (row: T) => any;
   isImage?: boolean; // 標記此欄位為圖片欄位
+  isUrl?: boolean; // 標記此欄位為 URL 欄位，創建超連結
 };
 
 /** 匯出資料為 .xlsx */
@@ -17,6 +18,20 @@ export function downloadExcel<T = any>(filename: string, sheetName: string, rows
     return o;
   });
   const ws = XLSX.utils.json_to_sheet(data, { header: columns.map((c) => c.title) });
+  
+  // 處理 URL 欄位，創建超連結
+  columns.forEach((c, colIndex) => {
+    if (c.isUrl) {
+      const colLetter = XLSX.utils.encode_col(colIndex);
+      data.forEach((row: any, rowIndex) => {
+        const cellAddress = `${colLetter}${rowIndex + 2}`; // +2 因為有標題行
+        const cell = ws[cellAddress];
+        if (cell && cell.v) {
+          cell.l = { Target: cell.v, Tooltip: "點擊查看圖片" };
+        }
+      });
+    }
+  });
   
   // 處理圖片欄位
   const imageColIndex = columns.findIndex((c) => c.isImage);

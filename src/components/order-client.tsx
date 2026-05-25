@@ -284,7 +284,7 @@ export function OrderClient({ kind }: { kind: Kind }) {
                 { key: "小計", title: "小計" },
                 { key: "折扣", title: "折扣" },
                 { key: "稅率", title: "稅率" },
-                { key: "圖片URL", title: "圖片URL" },
+                { key: "圖片URL", title: "圖片URL", isUrl: true },
               ]);
               toast.success("已匯出 Excel");
             } catch (e: any) {
