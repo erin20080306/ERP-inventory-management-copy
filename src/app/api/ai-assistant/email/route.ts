@@ -48,6 +48,9 @@ export const POST = apiHandler(async (req: NextRequest) => {
   if (result.kind === "help") {
     return NextResponse.json({ error: "目前問題還沒有產生可寄送的報表，請先查詢銷售、庫存、應收、排行、採購、成本、異常或營運摘要。" }, { status: 400 });
   }
+  if (result.kind === "followup") {
+    return NextResponse.json({ error: "目前查詢需要進一步確認，請先在 AI 助手介面中選擇選項後再寄送報表。" }, { status: 400 });
+  }
 
   const filenameBase = cleanFilename(result.title);
   const html = buildAssistantHtmlReport(result);
