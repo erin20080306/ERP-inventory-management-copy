@@ -51,8 +51,10 @@ export async function POST(req: NextRequest) {
     const filepath = path.join(uploadDir, filename);
     await writeFile(filepath, buffer);
     
-    // 返回可訪問的 URL
-    const url = `/uploads/${filename}`;
+    // 返回可訪問的 URL（包含完整域名）
+    const host = req.headers.get("host") || "";
+    const protocol = host.includes("localhost") ? "http" : "https";
+    const url = `${protocol}://${host}/uploads/${filename}`;
     
     return NextResponse.json({ url });
   } catch (error: any) {
