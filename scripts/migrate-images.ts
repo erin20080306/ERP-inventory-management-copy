@@ -10,16 +10,31 @@ async function migrateImages() {
   
   try {
     // 獲取所有有 imageUrl 的商品
-    const products = await prisma.product.findMany({
+    const allProducts = await prisma.product.findMany({
       where: {
         imageUrl: {
           not: null,
-          startsWith: "data:image",
         },
+      },
+      select: {
+        id: true,
+        sku: true,
+        name: true,
+        imageUrl: true,
       },
     });
     
-    console.log(`找到 ${products.length} 個需要遷移的商品`);
+    console.log(`找到 ${allProducts.length} 個有 imageUrl 的商品`);
+    
+    // 顯示前 5 個商品的 imageUrl 情況
+    console.log("\n前 5 個商品的 imageUrl 情況：");
+    allProducts.slice(0, 5).forEach(p => {
+      console.log(`- ${p.sku}: ${p.imageUrl?.substring(0, 80)}...`);
+    });
+    
+    // 篩選出需要遷移的（base64 格式）
+    const products = allProducts.filter(p => p.imageUrl?.startsWith("data:image"));
+    console.log(`\n其中 ${products.length} 個需要遷移（base64 格式）`);
     
     // 確保 uploads 目錄存在
     const uploadDir = path.join(process.cwd(), "public", "uploads");
