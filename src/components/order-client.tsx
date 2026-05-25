@@ -266,7 +266,7 @@ export function OrderClient({ kind }: { kind: Kind }) {
                     單價: Number(item.unitPrice),
                     小計: Number(item.subtotal),
                     折扣: Number(item.discount || 0),
-                    稅金: Number(item.subtotal || 0) * Number(item.taxRate || 0),
+                    稅金: Math.round(Number(item.subtotal || 0) * Number(item.taxRate || 0)),
                     圖片URL: (item.product?.imageUrl && !item.product.imageUrl.startsWith("data:")) ? item.product.imageUrl : "",
                   });
                 });
@@ -418,11 +418,13 @@ export function OrderClient({ kind }: { kind: Kind }) {
                 <TD>{formatMoney(r.total)}</TD>
                 <TD className="text-xs">
                   {formatMoney(
-                    (r as any).items?.reduce((sum: number, i: any) => {
-                      const subtotal = Number(i.subtotal || 0);
-                      const taxRate = Number(i.taxRate || 0);
-                      return sum + (subtotal * taxRate);
-                    }, 0) || 0
+                    Math.round(
+                      (r as any).items?.reduce((sum: number, i: any) => {
+                        const subtotal = Number(i.subtotal || 0);
+                        const taxRate = Number(i.taxRate || 0);
+                        return sum + (subtotal * taxRate);
+                      }, 0) || 0
+                    )
                   )}
                 </TD>
                 <TD>
