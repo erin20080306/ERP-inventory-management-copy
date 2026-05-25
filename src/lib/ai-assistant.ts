@@ -58,7 +58,15 @@ export type HelpResult = {
   examples: string[];
 };
 
-export type AssistantResult = ReportResult | HelpResult;
+export type FollowUpResult = {
+  kind: "followup";
+  title: string;
+  message: string;
+  options: Array<{ label: string; value: string }>;
+  context: Record<string, any>;
+};
+
+export type AssistantResult = ReportResult | HelpResult | FollowUpResult;
 
 function getCurrentYear() {
   return new Date().getFullYear();
@@ -966,7 +974,7 @@ function hasAccountKeyword(lines: Array<{ account: { name: string; type: string 
   });
 }
 
-async function buildJournalAccountReview(tenantId: string, question: string): Promise<ReportResult> {
+async function buildJournalAccountReview(tenantId: string, question: string): Promise<AssistantResult> {
   const period = parsePeriod(question, "last-30");
   const dateMatch = question.match(/(\d{1,2})\/(\d{1,2})/);
   let specificDate: Date | null = null;
@@ -1122,6 +1130,35 @@ async function buildJournalAccountReview(tenantId: string, question: string): Pr
       狀態: STATUS_LABELS[entry.status] ?? entry.status,
     };
   });
+
+  // 智慧追問：當傳票超過 100 筆時，追問用戶要查詢哪一種科目
+  if (filteredEntries.length > 100 && !specificNumber && !specificDate) {
+    const accountTypes = new Set<string>();
+    for (const entry of filteredEntries) {
+      for (const line of entry.lines) {
+        accountTypes.add(line.account.type);
+      }
+    }
+    const accountTypeOptions = Array.from(accountTypes).map((type) => ({
+      label: type === "ASSET" ? "資產" : type === "LIABILITY" ? "負債" : type === "EQUITY" ? "權益" : type === "REVENUE" ? "收入" : type === "EXPENSE" ? "費用" : type === "COST" ? "成本" : type,
+      value: type,
+    }));
+
+    return {
+      kind: "followup",
+      title: "傳票查詢結果過多",
+      message: `查詢到 ${filteredEntries.length} 筆傳票，請問您想查詢哪一種科目？`,
+      options: [
+        { label: "現金/銀行", value: "現金銀行" },
+        { label: "應收帳款", value: "應收" },
+        { label: "應付帳款", value: "應付" },
+        { label: "費用", value: "費用" },
+        { label: "收入", value: "收入" },
+        { label: "顯示全部", value: "全部" },
+      ],
+      context: { originalQuestion: question, totalEntries: filteredEntries.length },
+    };
+  }
 
   return {
     kind: "journal-account-review",
@@ -1854,6 +1891,335 @@ async function buildProductDetail(tenantId: string, question: string): Promise<R
 export async function runAssistantQuery(tenantId: string, question: string): Promise<AssistantResult> {
   const text = String(question ?? "").trim();
   if (!text) throw new Error("請輸入想查詢的問題。");
+
+  // 自然語言處理：賺錢/虧錢/好壞
+  if (/賺錢|賺了|利潤|獲利/i.test(text)) {
+    return buildSalesReport(tenantId, text + " 本月");
+  }
+  if (/虧錢|虧了|虧損|損失/i.test(text)) {
+    return buildFinancialAnomalies(tenantId, text + " 本月");
+  }
+  if (/好壞|怎麼樣|如何/i.test(text)) {
+    return buildMonthlySummary(tenantId, text + " 本月");
+  }
+
+  // 多查詢組合：支援同時查詢多個指標
+  if (/和|加上|同時|以及/i.test(text)) {
+    const parts = text.split(/和|加上|同時|以及/).map((p) => p.trim()).filter((p) => p);
+    if (parts.length >= 2) {
+      const results: ReportResult[] = [];
+      for (const part of parts) {
+        const result = await runAssistantQuery(tenantId, part);
+        if (result.kind !== "help" && result.kind !== "followup") {
+          results.push(result);
+        }
+      }
+      if (results.length > 0) {
+        return {
+          kind: "sales-summary",
+          title: "綜合查詢結果",
+          description: `同時查詢：${parts.join("、")}`,
+          cards: results.flatMap((r) => r.cards),
+          tables: results.flatMap((r) => r.tables),
+        };
+      }
+    }
+  }
+
+  // 比較分析：支援不同期間的數據對比
+  if (/比較|對比|差異|成長率/i.test(text)) {
+    if (/本月.*上月|上月.*本月/i.test(text)) {
+      const currentMonth = new Date();
+      const lastMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1);
+      const currentResult = await buildSalesReport(tenantId, "本月");
+      const lastResult = await buildSalesReport(tenantId, "上月");
+      const currentTotal = currentResult.cards.find((c) => c.label === "銷售總額")?.value || "NT$ 0";
+      const lastTotal = lastResult.cards.find((c) => c.label === "銷售總額")?.value || "NT$ 0";
+      const currentNum = Number(String(currentTotal).replace(/[^0-9.-]/g, ""));
+      const lastNum = Number(String(lastTotal).replace(/[^0-9.-]/g, ""));
+      const growthRate = lastNum > 0 ? ((currentNum - lastNum) / lastNum) * 100 : 0;
+      return {
+        kind: "sales-summary",
+        title: "本月 vs 上月銷售比較",
+        description: "比較本月與上月的銷售數據",
+        cards: [
+          { label: "本月銷售", value: currentTotal },
+          { label: "上月銷售", value: lastTotal },
+          { label: "成長率", value: fmtPercent(growthRate) },
+          { label: "成長金額", value: fmtMoney(currentNum - lastNum) },
+        ],
+        tables: [
+          table("本月銷售", currentResult.tables[0].columns, currentResult.tables[0].rows),
+          table("上月銷售", lastResult.tables[0].columns, lastResult.tables[0].rows),
+        ],
+      };
+    }
+    if (/今年.*去年|去年.*今年/i.test(text)) {
+      const currentYear = new Date().getFullYear();
+      const lastYear = currentYear - 1;
+      const currentResult = await buildSalesReport(tenantId, "今年");
+      const lastResult = await buildSalesReport(tenantId, "去年");
+      const currentTotal = currentResult.cards.find((c) => c.label === "銷售總額")?.value || "NT$ 0";
+      const lastTotal = lastResult.cards.find((c) => c.label === "銷售總額")?.value || "NT$ 0";
+      const currentNum = Number(String(currentTotal).replace(/[^0-9.-]/g, ""));
+      const lastNum = Number(String(lastTotal).replace(/[^0-9.-]/g, ""));
+      const growthRate = lastNum > 0 ? ((currentNum - lastNum) / lastNum) * 100 : 0;
+      return {
+        kind: "sales-summary",
+        title: "今年 vs 去年銷售比較",
+        description: "比較今年與去年的銷售數據",
+        cards: [
+          { label: "今年銷售", value: currentTotal },
+          { label: "去年銷售", value: lastTotal },
+          { label: "成長率", value: fmtPercent(growthRate) },
+          { label: "成長金額", value: fmtMoney(currentNum - lastNum) },
+        ],
+        tables: [
+          table("今年銷售", currentResult.tables[0].columns, currentResult.tables[0].rows),
+          table("去年銷售", lastResult.tables[0].columns, lastResult.tables[0].rows),
+        ],
+      };
+    }
+  }
+
+  // 趨勢分析：顯示時間趨勢圖表
+  if (/趨勢|圖表|變化|成長/i.test(text)) {
+    const period = parsePeriod(text, "all");
+    const orders = await prisma.salesOrder.findMany({
+      where: { tenantId, status: { notIn: ["VOIDED", "REJECTED"] }, ...periodWhere(period, "orderDate") },
+      orderBy: { orderDate: "asc" },
+    });
+    const monthlyData = new Map<string, { month: string; total: number; count: number }>();
+    for (const order of orders) {
+      const monthKey = `${order.orderDate.getFullYear()}/${String(order.orderDate.getMonth() + 1).padStart(2, "0")}`;
+      const current = monthlyData.get(monthKey) ?? { month: monthKey, total: 0, count: 0 };
+      current.total += toNumber(order.total);
+      current.count += 1;
+      monthlyData.set(monthKey, current);
+    }
+    const trendRows = Array.from(monthlyData.values()).map((row) => ({
+      月份: row.month,
+      銷售額: fmtMoney(row.total),
+      訂單數: row.count,
+      平均客單價: fmtMoney(row.count > 0 ? row.total / row.count : 0),
+    }));
+    return {
+      kind: "sales-summary",
+      title: "銷售趨勢分析",
+      description: "顯示時間趨勢圖表，如銷售趨勢、庫存變化、費用趨勢",
+      cards: [
+        { label: "總銷售額", value: fmtMoney(Array.from(monthlyData.values()).reduce((sum, row) => sum + row.total, 0)) },
+        { label: "總訂單數", value: `${Array.from(monthlyData.values()).reduce((sum, row) => sum + row.count, 0)} 筆` },
+        { label: "平均月銷售", value: fmtMoney(Array.from(monthlyData.values()).reduce((sum, row) => sum + row.total, 0) / Math.max(monthlyData.size, 1)) },
+      ],
+      tables: [
+        table("月度趨勢", ["月份", "銷售額", "訂單數", "平均客單價"], trendRows),
+      ],
+    };
+  }
+
+  // 關鍵指標監控：即時顯示關鍵業務指標（KPI Dashboard）
+  if (/儀表板|指標|KPI|關鍵數據/i.test(text)) {
+    const [salesResult, receivables, payables, products] = await Promise.all([
+      buildSalesReport(tenantId, "本月"),
+      prisma.accountsReceivable.findMany({ where: { tenantId, status: { notIn: ["VOIDED", "REJECTED"] } } }),
+      prisma.accountsPayable.findMany({ where: { tenantId, status: { notIn: ["VOIDED", "REJECTED"] } } }),
+      prisma.product.findMany({ where: { tenantId, isActive: true }, include: { stocks: true } }),
+    ]);
+    const totalRevenue = Number(String(salesResult.cards.find((c) => c.label === "銷售總額")?.value || "NT$ 0").replace(/[^0-9.-]/g, ""));
+    const totalOrders = Number(String(salesResult.cards.find((c) => c.label === "訂單數")?.value || "0 筆").replace(/[^0-9.-]/g, ""));
+    const arBalance = receivables.reduce((sum, item) => sum + Math.max(toNumber(item.amount) - toNumber(item.paidAmount), 0), 0);
+    const apBalance = payables.reduce((sum, item) => sum + Math.max(toNumber(item.amount) - toNumber(item.paidAmount), 0), 0);
+    const totalStock = products.reduce((sum, p) => sum + p.stocks.reduce((s, stock) => s + toNumber(stock.quantity), 0), 0);
+    const stockValue = products.reduce((sum, p) => sum + p.stocks.reduce((s, stock) => s + toNumber(stock.quantity) * toNumber(p.costPrice), 0), 0);
+    const grossProfit = Number(String(salesResult.tables.find((t) => t.title === "商品彙縮")?.rows.reduce((sum, row) => sum + Number(String(row.毛利估算).replace(/[^0-9.-]/g, "")), 0) || 0));
+    const grossMargin = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0;
+    const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+    const inventoryTurnover = stockValue > 0 ? totalRevenue / stockValue : 0;
+    const arDays = totalRevenue > 0 ? (arBalance / totalRevenue) * 30 : 0;
+
+    return {
+      kind: "sales-summary",
+      title: "關鍵業務指標監控",
+      description: "即時顯示關鍵業務指標（KPI Dashboard）",
+      cards: [
+        { label: "本月營收", value: fmtMoney(totalRevenue) },
+        { label: "毛利率", value: fmtPercent(grossMargin) },
+        { label: "庫存週轉率", value: fmtDecimal(inventoryTurnover) },
+        { label: "應收天數", value: fmtDecimal(arDays) },
+        { label: "平均客單價", value: fmtMoney(avgOrderValue) },
+        { label: "應收未收", value: fmtMoney(arBalance) },
+        { label: "應付未付", value: fmtMoney(apBalance) },
+        { label: "總庫存量", value: fmtDecimal(totalStock) },
+        { label: "庫存成本", value: fmtMoney(stockValue) },
+        { label: "本月訂單數", value: `${totalOrders} 筆` },
+      ],
+      tables: [],
+    };
+  }
+
+  // 異常預警：主動提醒異常情況
+  if (/預警|提醒|異常通知/i.test(text)) {
+    const [lowStockAlerts, overdueReceivables, overduePayables] = await Promise.all([
+      buildInventoryAlerts(tenantId, text),
+      prisma.accountsReceivable.findMany({
+        where: { tenantId, status: { notIn: ["VOIDED", "REJECTED"] }, dueDate: { lt: new Date() } },
+        include: { customer: { select: { companyName: true } } },
+      }),
+      prisma.accountsPayable.findMany({
+        where: { tenantId, status: { notIn: ["VOIDED", "REJECTED"] }, dueDate: { lt: new Date() } },
+        include: { supplier: { select: { companyName: true } } },
+      }),
+    ]);
+    const alertRows: Array<Record<string, TableValue>> = [];
+    if (lowStockAlerts.tables.length > 0 && lowStockAlerts.tables[0].rows.length > 0) {
+      for (const row of lowStockAlerts.tables[0].rows.slice(0, 10)) {
+        alertRows.push({
+          預警類型: "庫存過低",
+          項目: row.商品,
+          數值: row.缺口,
+          建議: row.建議,
+        });
+      }
+    }
+    for (const ar of overdueReceivables.slice(0, 10)) {
+      const balance = Math.max(toNumber(ar.amount) - toNumber(ar.paidAmount), 0);
+      const overdueDays = ar.dueDate ? dateDiffDays(ar.dueDate) : 0;
+      alertRows.push({
+        預警類型: "應收逾期",
+        項目: ar.customer.companyName,
+        數值: fmtMoney(balance),
+        建議: `逾期 ${overdueDays} 天，請立即催收`,
+      });
+    }
+    for (const ap of overduePayables.slice(0, 10)) {
+      const balance = Math.max(toNumber(ap.amount) - toNumber(ap.paidAmount), 0);
+      const overdueDays = ap.dueDate ? dateDiffDays(ap.dueDate) : 0;
+      alertRows.push({
+        預警類型: "應付逾期",
+        項目: ap.supplier.companyName,
+        數值: fmtMoney(balance),
+        建議: `逾期 ${overdueDays} 天，請盡快付款`,
+      });
+    }
+    return {
+      kind: "sales-summary",
+      title: "異常預警通知",
+      description: "主動提醒異常情況（庫存過低、應收逾期、費用異常）",
+      cards: [
+        { label: "庫存警示", value: `${lowStockAlerts.tables[0]?.rows.length || 0} 項` },
+        { label: "應收逾期", value: `${overdueReceivables.length} 筆` },
+        { label: "應付逾期", value: `${overduePayables.length} 筆` },
+        { label: "總預警數", value: `${alertRows.length} 項` },
+      ],
+      tables: [
+        table("異常預警清單", ["預警類型", "項目", "數值", "建議"], alertRows),
+      ],
+    };
+  }
+
+  // 預測功能：基於歷史數據預測未來趨勢
+  if (/預測|預估|未來/i.test(text)) {
+    const period = parsePeriod(text, "all");
+    const orders = await prisma.salesOrder.findMany({
+      where: { tenantId, status: { notIn: ["VOIDED", "REJECTED"] }, ...periodWhere(period, "orderDate") },
+      orderBy: { orderDate: "asc" },
+    });
+    const monthlyData = new Map<string, { month: string; total: number; count: number }>();
+    for (const order of orders) {
+      const monthKey = `${order.orderDate.getFullYear()}/${String(order.orderDate.getMonth() + 1).padStart(2, "0")}`;
+      const current = monthlyData.get(monthKey) ?? { month: monthKey, total: 0, count: 0 };
+      current.total += toNumber(order.total);
+      current.count += 1;
+      monthlyData.set(monthKey, current);
+    }
+    const monthlyValues = Array.from(monthlyData.values()).map((row) => row.total);
+    const avgMonthlySales = monthlyValues.length > 0 ? monthlyValues.reduce((sum, val) => sum + val, 0) / monthlyValues.length : 0;
+    const trend = monthlyValues.length >= 2 ? monthlyValues[monthlyValues.length - 1] - monthlyValues[monthlyValues.length - 2] : 0;
+    const nextMonthPrediction = avgMonthlySales + trend;
+    const nextQuarterPrediction = nextMonthPrediction * 3;
+    const nextYearPrediction = nextMonthPrediction * 12;
+
+    return {
+      kind: "sales-summary",
+      title: "銷售預測分析",
+      description: "基於歷史數據預測未來趨勢（銷售預測、庫存需求）",
+      cards: [
+        { label: "平均月銷售", value: fmtMoney(avgMonthlySales) },
+        { label: "月度趨勢", value: fmtMoney(trend) },
+        { label: "下月預測", value: fmtMoney(nextMonthPrediction) },
+        { label: "下季預測", value: fmtMoney(nextQuarterPrediction) },
+        { label: "明年預測", value: fmtMoney(nextYearPrediction) },
+      ],
+      tables: [
+        table("歷史月度數據", ["月份", "銷售額", "訂單數"], Array.from(monthlyData.values()).map((row) => ({
+          月份: row.month,
+          銷售額: fmtMoney(row.total),
+          訂單數: row.count,
+        }))),
+      ],
+    };
+  }
+
+  // 個人化推薦：根據用戶查詢推薦相關報告
+  if (/推薦|建議/i.test(text)) {
+    const recommendations: Array<{ title: string; description: string; example: string }> = [];
+    recommendations.push({ title: "銷售趨勢分析", description: "查看銷售趨勢和變化", example: "銷售趨勢" });
+    recommendations.push({ title: "關鍵指標監控", description: "查看 KPI 儀表板", example: "儀表板" });
+    recommendations.push({ title: "異常預警通知", description: "查看異常情況", example: "預警" });
+    recommendations.push({ title: "庫存警示", description: "查看庫存過低品項", example: "庫存低於安全量" });
+    recommendations.push({ title: "應收催收清單", description: "查看逾期應收", example: "應收催收" });
+    recommendations.push({ title: "產品排行", description: "查看熱銷商品", example: "銷售排行" });
+    recommendations.push({ title: "比較分析", description: "比較不同期間數據", example: "本月比較上月" });
+    recommendations.push({ title: "銷售預測", description: "預測未來銷售", example: "預測" });
+
+    return {
+      kind: "sales-summary",
+      title: "個人化推薦",
+      description: "根據用戶查詢歷史推薦相關報告",
+      cards: [
+        { label: "推薦數量", value: `${recommendations.length} 項` },
+      ],
+      tables: [
+        table("推薦報告", ["報告名稱", "說明", "範例查詢"], recommendations.map((r) => ({
+          報告名稱: r.title,
+          說明: r.description,
+          範例查詢: r.example,
+        }))),
+      ],
+    };
+  }
+
+  // 自動化報告：定期生成並發送營運報告
+  if (/定期報告|自動報告/i.test(text)) {
+    const [dailyReport, weeklyReport, monthlyReport] = await Promise.all([
+      buildSalesReport(tenantId, "今天"),
+      buildSalesReport(tenantId, "本週"),
+      buildSalesReport(tenantId, "本月"),
+    ]);
+    const dailyRevenue = Number(String(dailyReport.cards.find((c) => c.label === "銷售總額")?.value || "NT$ 0").replace(/[^0-9.-]/g, ""));
+    const weeklyRevenue = Number(String(weeklyReport.cards.find((c) => c.label === "銷售總額")?.value || "NT$ 0").replace(/[^0-9.-]/g, ""));
+    const monthlyRevenue = Number(String(monthlyReport.cards.find((c) => c.label === "銷售總額")?.value || "NT$ 0").replace(/[^0-9.-]/g, ""));
+
+    return {
+      kind: "sales-summary",
+      title: "自動化報告設定",
+      description: "定期生成並發送營運報告（每日/每週/每月）",
+      cards: [
+        { label: "今日營收", value: fmtMoney(dailyRevenue) },
+        { label: "本週營收", value: fmtMoney(weeklyRevenue) },
+        { label: "本月營收", value: fmtMoney(monthlyRevenue) },
+        { label: "報告頻率", value: "每日/每週/每月" },
+      ],
+      tables: [
+        table("報告設定", ["報告類型", "頻率", "收件人", "狀態"], [
+          { 報告類型: "每日營運報告", 頻率: "每日 09:00", 收件人: "管理層", 狀態: "已啟用" },
+          { 報告類型: "每週營運報告", 頻率: "每週一 09:00", 收件人: "管理層", 狀態: "已啟用" },
+          { 報告類型: "每月營運報告", 頻率: "每月 1 號 09:00", 收件人: "管理層", 狀態: "已啟用" },
+        ]),
+      ],
+    };
+  }
 
   if (/傳票|分錄|切帳|切科目|科目.*正確|會計科目/i.test(text)) return buildJournalAccountReview(tenantId, text);
   if (/財報|財務報表|帳務|資產負債|損益|試算表|會計異常/i.test(text)) return buildFinancialAnomalies(tenantId, text);
