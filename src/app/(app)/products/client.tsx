@@ -263,12 +263,14 @@ export function ProductClient() {
               <div className="w-12 h-12 rounded bg-muted/20 flex items-center justify-center text-xs text-muted-foreground">無</div>
             )
           },
-        { key: "sku", title: "SKU", render: (r) => <span className="font-mono text-xs">{r.sku}</span>, editable: { type: "text" } },
-        { key: "name", title: "商品名稱", editable: { type: "text" } },
-        { key: "spec", title: "規格", editable: { type: "text" } },
-        { key: "costPrice", title: "成本", render: (r) => formatMoney(r.costPrice), editable: { type: "number" } },
-        { key: "salePrice", title: "售價", render: (r) => formatMoney(r.salePrice), editable: { type: "number" } },
-        { key: "safetyStock", title: "安全庫存", render: (r) => formatNumber(Number(r.safetyStock)), editable: { type: "number" } },
+        { key: "sku", title: "SKU", render: (r) => <span className="font-mono text-xs">{r.sku}</span>, editable: { type: "text" }, csv: (r) => r.sku },
+        { key: "name", title: "商品名稱", editable: { type: "text" }, csv: (r) => r.name },
+        { key: "spec", title: "規格", editable: { type: "text" }, csv: (r) => r.spec ?? "" },
+        { key: "barcode", title: "條碼", csv: (r) => r.barcode ?? "" },
+        { key: "costPrice", title: "成本", render: (r) => formatMoney(r.costPrice), editable: { type: "number" }, csv: (r) => Number(r.costPrice) },
+        { key: "salePrice", title: "售價", render: (r) => formatMoney(r.salePrice), editable: { type: "number" }, csv: (r) => Number(r.salePrice) },
+        { key: "safetyStock", title: "安全庫存", render: (r) => formatNumber(Number(r.safetyStock)), editable: { type: "number" }, csv: (r) => Number(r.safetyStock) },
+        { key: "imageUrl", title: "圖片URL", csv: (r) => r.imageUrl ?? "" },
         {
           key: "stockTotal",
           title: "剩餘庫存",
@@ -303,8 +305,8 @@ export function ProductClient() {
       ]}
       FormDialog={ProductDialog}
       pdfTitle="商品管理"
-      exportName="products"
-      templateHeaders={["SKU", "商品名稱", "規格", "單位", "成本", "售價", "庫存", "安全庫存", "條碼"]}
+      exportName="商品管理"
+      templateHeaders={["SKU", "商品名稱", "規格", "條碼", "單位", "成本", "售價", "庫存", "安全庫存", "圖片URL"]}
       importMap={(r) => ({
         sku: String(r["SKU"] ?? r.sku ?? "").trim(),
         name: String(r["商品名稱"] ?? r.name ?? "").trim(),
@@ -315,6 +317,7 @@ export function ProductClient() {
         stockQty: r["庫存"] != null ? Number(r["庫存"]) : undefined,
         safetyStock: Number(r["安全庫存"] ?? r.safetyStock ?? 0),
         barcode: String(r["條碼"] ?? r.barcode ?? "").trim() || undefined,
+        imageUrl: String(r["圖片URL"] ?? r.imageUrl ?? "").trim() || undefined,
       })}
     />
       {/* 圖片放大模態框 */}

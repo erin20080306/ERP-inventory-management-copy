@@ -248,12 +248,42 @@ export function OrderClient({ kind }: { kind: Kind }) {
             const res = await fetch(`${endpoint}?${params}`);
             const d = await res.json();
             const { downloadExcel } = await import("@/lib/excel");
-            downloadExcel(`${kind}-orders`, kind === "purchase" ? "採購單" : "銷售單", d.items, [
-              { key: "number", title: "單號" },
-              { key: "party", title: kind === "purchase" ? "供應商" : "客戶", get: (r: any) => (kind === "purchase" ? r.supplier : r.customer)?.companyName ?? "" },
-              { key: "orderDate", title: "日期", get: (r: any) => formatDate(r.orderDate) },
-              { key: "total", title: "總計", get: (r: any) => Number(r.total) },
-              { key: "status", title: "狀態" },
+            // 展開商品明細
+            const flatData: any[] = [];
+            d.items.forEach((order: any) => {
+              const party = kind === "purchase" ? order.supplier : order.customer;
+              order.items.forEach((item: any) => {
+                flatData.push({
+                  單號: order.number,
+                  [kind === "purchase" ? "供應商" : "客戶"]: party?.companyName ?? "",
+                  日期: formatDate(order.orderDate),
+                  狀態: order.status,
+                  商品SKU: item.product?.sku ?? "",
+                  商品名稱: item.product?.name ?? "",
+                  規格: item.product?.spec ?? "",
+                  數量: item.quantity,
+                  單價: Number(item.unitPrice),
+                  小計: Number(item.subtotal),
+                  折扣: Number(item.discount || 0),
+                  稅率: Number(item.taxRate || 0),
+                  圖片URL: item.product?.imageUrl ?? "",
+                });
+              });
+            });
+            downloadExcel(kind === "purchase" ? "採購單" : "銷售單", kind === "purchase" ? "採購單" : "銷售單", flatData, [
+              { key: "單號", title: "單號" },
+              { key: kind === "purchase" ? "供應商" : "客戶", title: kind === "purchase" ? "供應商" : "客戶" },
+              { key: "日期", title: "日期" },
+              { key: "狀態", title: "狀態" },
+              { key: "商品SKU", title: "商品SKU" },
+              { key: "商品名稱", title: "商品名稱" },
+              { key: "規格", title: "規格" },
+              { key: "數量", title: "數量" },
+              { key: "單價", title: "單價" },
+              { key: "小計", title: "小計" },
+              { key: "折扣", title: "折扣" },
+              { key: "稅率", title: "稅率" },
+              { key: "圖片URL", title: "圖片URL" },
             ]);
             toast.success("已匯出 Excel");
           }}>
