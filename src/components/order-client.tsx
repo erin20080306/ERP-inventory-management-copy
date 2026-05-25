@@ -62,7 +62,7 @@ export function OrderClient({ kind }: { kind: Kind }) {
   const pageSize = 20;
   const customCols = useCustomColumns(kind === "purchase" ? "purchases" : "sales");
   const [editingCells, setEditingCells] = useState<Record<string, any>>({});
-  const colDrag = useColumnDrag(kind === "purchase" ? "purchases" : "sales", ["number", "party", "date", "products", "quantity", "amount", "taxRate", "status", "updatedBy"]);
+  const colDrag = useColumnDrag(kind === "purchase" ? "purchases" : "sales", ["number", "party", "date", "products", "quantity", "amount", "taxAmount", "status", "updatedBy"]);
   const [inlineEditing, setInlineEditing] = useState<Record<string, Record<string, any>>>({});
   const [inlineSaving, setInlineSaving] = useState<string | null>(null);
   const [activeCell, setActiveCell] = useState<{ rowId: string; colKey: string } | null>(null);
@@ -266,7 +266,7 @@ export function OrderClient({ kind }: { kind: Kind }) {
                     單價: Number(item.unitPrice),
                     小計: Number(item.subtotal),
                     折扣: Number(item.discount || 0),
-                    稅率: Number(item.taxRate || 0),
+                    稅金: Number(order.taxAmount || 0),
                     圖片URL: (item.product?.imageUrl && !item.product.imageUrl.startsWith("data:")) ? item.product.imageUrl : "",
                   });
                 });
@@ -283,7 +283,7 @@ export function OrderClient({ kind }: { kind: Kind }) {
                 { key: "單價", title: "單價" },
                 { key: "小計", title: "小計" },
                 { key: "折扣", title: "折扣" },
-                { key: "稅率", title: "稅率" },
+                { key: "稅金", title: "稅金" },
                 { key: "圖片URL", title: "圖片URL", isUrl: true, get: (r: any) => r.圖片URL ? "查看圖片" : "", urlGet: (r: any) => r.圖片URL || "" },
               ]);
               toast.success("已匯出 Excel");
@@ -354,7 +354,7 @@ export function OrderClient({ kind }: { kind: Kind }) {
             <TH {...colDrag.thProps("products")}>商品</TH>
             <TH {...colDrag.thProps("quantity")}>數量</TH>
             <TH {...colDrag.thProps("amount")}>金額</TH>
-            <TH {...colDrag.thProps("taxRate")}>稅率</TH>
+            <TH {...colDrag.thProps("taxAmount")}>稅金</TH>
             <TH {...colDrag.thProps("status")}>狀態</TH>
             <TH {...colDrag.thProps("updatedBy")}>操作人員</TH>
             {customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}
@@ -417,7 +417,7 @@ export function OrderClient({ kind }: { kind: Kind }) {
                 </TD>
                 <TD>{formatMoney(r.total)}</TD>
                 <TD className="text-xs">
-                  {(r as any).items?.[0]?.taxRate ? `${Number((r as any).items[0].taxRate * 100).toFixed(1)}%` : "—"}
+                  {formatMoney((r as any).taxAmount || 0)}
                 </TD>
                 <TD>
                   <StatusBadge status={r.status} />
