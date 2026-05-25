@@ -6,6 +6,7 @@ export type ExcelColumn<T> = {
   get?: (row: T) => any;
   isImage?: boolean; // 標記此欄位為圖片欄位
   isUrl?: boolean; // 標記此欄位為 URL 欄位，創建超連結
+  urlGet?: (row: T) => string; // 獲取實際 URL（與顯示文字分開）
 };
 
 /** 匯出資料為 .xlsx */
@@ -27,7 +28,11 @@ export function downloadExcel<T = any>(filename: string, sheetName: string, rows
         const cellAddress = `${colLetter}${rowIndex + 2}`; // +2 因為有標題行
         const cell = ws[cellAddress];
         if (cell && cell.v) {
-          cell.l = { Target: cell.v, Tooltip: "點擊查看圖片" };
+          // 如果有 urlGet，使用它作為超連結目標，否則使用單元格值
+          const targetUrl = c.urlGet ? c.urlGet(rows[rowIndex]) : cell.v;
+          if (targetUrl) {
+            cell.l = { Target: targetUrl, Tooltip: "點擊查看圖片" };
+          }
         }
       });
     }
