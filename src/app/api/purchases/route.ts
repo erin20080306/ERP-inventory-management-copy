@@ -37,9 +37,24 @@ export const GET = apiHandler(async (req: NextRequest) => {
         status: true,
         total: true,
         orderDate: true,
-        updatedBy: true,
         supplier: { select: { companyName: true } },
-        items: { select: { quantity: true, product: { select: { name: true, imageUrl: true } } } },
+        items: {
+          select: {
+            quantity: true,
+            unitPrice: true,
+            subtotal: true,
+            discount: true,
+            taxRate: true,
+            product: {
+              select: {
+                sku: true,
+                name: true,
+                spec: true,
+                imageUrl: true,
+              },
+            },
+          },
+        },
       },
       orderBy: { createdAt: "desc" },
       skip: (page - 1) * pageSize,
