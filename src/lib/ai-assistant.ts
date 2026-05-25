@@ -997,9 +997,9 @@ async function buildJournalAccountReview(tenantId: string, question: string): Pr
       status: { notIn: ["VOIDED", "REJECTED"] },
       ...(specificNumber ? { number: specificNumber } : specificDate ? { entryDate: specificDate } : periodWhere(period, "entryDate")),
     },
-    include: { lines: { include: { account: true } } },
+    include: { lines: { include: { account: { select: { code: true, name: true, type: true } } } } },
     orderBy: { entryDate: "desc" },
-    take: 250,
+    take: 100,
   });
 
   let filteredEntries = entries;
@@ -2022,9 +2022,18 @@ export async function runAssistantQuery(tenantId: string, question: string): Pro
   if (/儀表板|指標|KPI|關鍵數據/i.test(text)) {
     const [salesResult, receivables, payables, products] = await Promise.all([
       buildSalesReport(tenantId, "本月"),
-      prisma.accountsReceivable.findMany({ where: { tenantId, status: { notIn: ["VOIDED", "REJECTED"] } } }),
-      prisma.accountsPayable.findMany({ where: { tenantId, status: { notIn: ["VOIDED", "REJECTED"] } } }),
-      prisma.product.findMany({ where: { tenantId, isActive: true }, include: { stocks: true } }),
+      prisma.accountsReceivable.findMany({
+        where: { tenantId, status: { notIn: ["VOIDED", "REJECTED"] } },
+        select: { amount: true, paidAmount: true }
+      }),
+      prisma.accountsPayable.findMany({
+        where: { tenantId, status: { notIn: ["VOIDED", "REJECTED"] } },
+        select: { amount: true, paidAmount: true }
+      }),
+      prisma.product.findMany({
+        where: { tenantId, isActive: true },
+        include: { stocks: { select: { quantity: true } }, _count: { select: { stocks: true } } },
+      }),
     ]);
     const totalRevenue = Number(String(salesResult.cards.find((c) => c.label === "銷售總額")?.value || "NT$ 0").replace(/[^0-9.-]/g, ""));
     const totalOrders = Number(String(salesResult.cards.find((c) => c.label === "訂單數")?.value || "0 筆").replace(/[^0-9.-]/g, ""));
@@ -2032,7 +2041,7 @@ export async function runAssistantQuery(tenantId: string, question: string): Pro
     const apBalance = payables.reduce((sum, item) => sum + Math.max(toNumber(item.amount) - toNumber(item.paidAmount), 0), 0);
     const totalStock = products.reduce((sum, p) => sum + p.stocks.reduce((s, stock) => s + toNumber(stock.quantity), 0), 0);
     const stockValue = products.reduce((sum, p) => sum + p.stocks.reduce((s, stock) => s + toNumber(stock.quantity) * toNumber(p.costPrice), 0), 0);
-    const grossProfit = Number(String(salesResult.tables.find((t) => t.title === "商品彙縮")?.rows.reduce((sum, row) => sum + Number(String(row.毛利估算).replace(/[^0-9.-]/g, "")), 0) || 0));
+    const grossProfit = Number(String(salesResult.tables.find((t) => t.title === "商品彙總")?.rows.reduce((sum, row) => sum + Number(String(row.毛利估算).replace(/[^0-9.-]/g, "")), 0) || 0));
     const grossMargin = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0;
     const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
     const inventoryTurnover = stockValue > 0 ? totalRevenue / stockValue : 0;
