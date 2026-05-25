@@ -23,7 +23,21 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const [items, total] = await Promise.all([
     prisma.journalEntry.findMany({
       where,
-      include: { lines: { include: { account: true } } },
+      select: {
+        id: true,
+        number: true,
+        summary: true,
+        entryDate: true,
+        status: true,
+        updatedBy: true,
+        lines: {
+          select: {
+            debit: true,
+            credit: true,
+            account: { select: { code: true, name: true } },
+          },
+        },
+      },
       orderBy: { entryDate: "desc" },
       skip: (page - 1) * pageSize,
       take: pageSize,

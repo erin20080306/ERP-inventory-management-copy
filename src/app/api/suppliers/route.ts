@@ -24,7 +24,22 @@ export const GET = apiHandler(async (req: NextRequest) => {
     }
   }
   const [items, total] = await Promise.all([
-    prisma.supplier.findMany({ where, orderBy: { createdAt: "desc" }, skip: (page - 1) * pageSize, take: pageSize }),
+    prisma.supplier.findMany({
+      where,
+      select: {
+        id: true,
+        code: true,
+        companyName: true,
+        taxId: true,
+        phone: true,
+        email: true,
+        address: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    }),
     prisma.supplier.count({ where }),
   ]);
   return NextResponse.json({ items, total });

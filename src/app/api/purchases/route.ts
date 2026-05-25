@@ -31,7 +31,13 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const [items, total] = await Promise.all([
     prisma.purchaseOrder.findMany({
       where,
-      include: {
+      select: {
+        id: true,
+        number: true,
+        status: true,
+        total: true,
+        orderDate: true,
+        updatedBy: true,
         supplier: { select: { companyName: true } },
         items: { select: { quantity: true, product: { select: { name: true, imageUrl: true } } } },
       },
