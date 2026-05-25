@@ -388,7 +388,7 @@ export function JournalClient() {
           <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>下一頁</Button>
         </div>
       </div>
-      <CreateJournalDialog open={openNew} onClose={() => { setOpenNew(false); setPrefillDraft(null); }} onCreated={() => { setOpenNew(false); setPrefillDraft(null); load(); }} prefillDraft={prefillDraft} />
+      <CreateJournalDialog open={openNew} onClose={() => { setOpenNew(false); setPrefillDraft(null); }} onCreated={(newJournal) => { setOpenNew(false); setPrefillDraft(null); if (newJournal) { setRows((prev) => [newJournal, ...prev]); setTotal((prev) => prev + 1); } else { load(); } }} prefillDraft={prefillDraft} />
       {view && <ViewJournalDialog entry={view} onClose={() => setView(null)} onAct={act} onEdit={(id: string) => { setView(null); setEditId(id); }} />}
       {editId && <EditJournalDialog id={editId} onClose={() => setEditId(null)} onSaved={(updated) => { setEditId(null); if (updated) { setRows((prev) => prev.map((r) => r.id === updated.id ? updated : r)); } else { load(); } }} />}
       <CustomColumnDialog module="journals" columns={customCols.columns} open={customCols.open} onClose={() => customCols.setOpen(false)} onSave={customCols.save} />
@@ -396,7 +396,7 @@ export function JournalClient() {
   );
 }
 
-function CreateJournalDialog({ open, onClose, onCreated, prefillDraft }: any) {
+function CreateJournalDialog({ open, onClose, onCreated, prefillDraft }: { open: boolean; onClose: () => void; onCreated: (newJournal: any | null) => void; prefillDraft: any }) {
   const [accounts, setAccounts] = useState<any[]>([]);
   const [summary, setSummary] = useState("");
   const [entryDate, setEntryDate] = useState(new Date().toISOString().slice(0, 10));
@@ -435,8 +435,9 @@ function CreateJournalDialog({ open, onClose, onCreated, prefillDraft }: any) {
         body: JSON.stringify({ summary, entryDate, lines }),
       });
       if (!res.ok) throw new Error((await res.json()).error || "儲存失敗");
+      const data = await res.json();
       toast.success("已建立");
-      onCreated();
+      onCreated(data);
     } catch (e: any) { toast.error(e.message); } finally { setSaving(false); }
   }
 

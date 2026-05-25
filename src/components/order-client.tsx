@@ -446,9 +446,14 @@ export function OrderClient({ kind }: { kind: Kind }) {
         kind={kind}
         open={openNew}
         onClose={() => setOpenNew(false)}
-        onCreated={() => {
+        onCreated={(newOrder) => {
           setOpenNew(false);
-          load();
+          if (newOrder) {
+            setRows((prev) => [newOrder, ...prev]);
+            setTotal((prev) => prev + 1);
+          } else {
+            load();
+          }
         }}
       />
       {openView && (
@@ -468,7 +473,7 @@ export function OrderClient({ kind }: { kind: Kind }) {
   );
 }
 
-function CreateOrderDialog({ kind, open, onClose, onCreated }: any) {
+function CreateOrderDialog({ kind, open, onClose, onCreated }: { kind: Kind; open: boolean; onClose: () => void; onCreated: (newOrder: OrderRow | null) => void }) {
   const [parties, setParties] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
   const [partyId, setPartyId] = useState("");
@@ -593,7 +598,7 @@ function CreateOrderDialog({ kind, open, onClose, onCreated }: any) {
       } else {
         toast.success("已建立");
       }
-      onCreated();
+      onCreated(data);
     } catch (e: any) {
       toast.error(e.message);
     } finally {
