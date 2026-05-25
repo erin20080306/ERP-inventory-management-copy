@@ -270,7 +270,7 @@ export function ProductClient() {
         { key: "costPrice", title: "成本", render: (r) => formatMoney(r.costPrice), editable: { type: "number" }, csv: (r) => Number(r.costPrice) },
         { key: "salePrice", title: "售價", render: (r) => formatMoney(r.salePrice), editable: { type: "number" }, csv: (r) => Number(r.salePrice) },
         { key: "safetyStock", title: "安全庫存", render: (r) => formatNumber(Number(r.safetyStock)), editable: { type: "number" }, csv: (r) => Number(r.safetyStock) },
-        { key: "imageUrl", title: "圖片URL", csv: (r) => r.imageUrl ?? "" },
+        { key: "imageUrl", title: "圖片URL", csv: (r) => (r.imageUrl ?? "").slice(0, 1000) },
         {
           key: "stockTotal",
           title: "剩餘庫存",
