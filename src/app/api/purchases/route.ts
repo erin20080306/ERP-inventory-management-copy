@@ -36,6 +36,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
         number: true,
         status: true,
         total: true,
+        taxAmount: true,
         orderDate: true,
         supplier: { select: { companyName: true } },
         items: {
