@@ -62,7 +62,7 @@ export function OrderClient({ kind }: { kind: Kind }) {
   const pageSize = 20;
   const customCols = useCustomColumns(kind === "purchase" ? "purchases" : "sales");
   const [editingCells, setEditingCells] = useState<Record<string, any>>({});
-  const colDrag = useColumnDrag(kind === "purchase" ? "purchases" : "sales", ["number", "party", "date", "products", "quantity", "amount", "status", "updatedBy"]);
+  const colDrag = useColumnDrag(kind === "purchase" ? "purchases" : "sales", ["number", "party", "date", "products", "quantity", "amount", "taxRate", "status", "updatedBy"]);
   const [inlineEditing, setInlineEditing] = useState<Record<string, Record<string, any>>>({});
   const [inlineSaving, setInlineSaving] = useState<string | null>(null);
   const [activeCell, setActiveCell] = useState<{ rowId: string; colKey: string } | null>(null);
@@ -354,6 +354,7 @@ export function OrderClient({ kind }: { kind: Kind }) {
             <TH {...colDrag.thProps("products")}>商品</TH>
             <TH {...colDrag.thProps("quantity")}>數量</TH>
             <TH {...colDrag.thProps("amount")}>金額</TH>
+            <TH {...colDrag.thProps("taxRate")}>稅率</TH>
             <TH {...colDrag.thProps("status")}>狀態</TH>
             <TH {...colDrag.thProps("updatedBy")}>操作人員</TH>
             {customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}
@@ -415,6 +416,9 @@ export function OrderClient({ kind }: { kind: Kind }) {
                   {r.items?.reduce((sum: number, i: any) => sum + Number(i.quantity || 0), 0) || 0}
                 </TD>
                 <TD>{formatMoney(r.total)}</TD>
+                <TD className="text-xs">
+                  {(r as any).items?.[0]?.taxRate ? `${Number((r as any).items[0].taxRate * 100).toFixed(1)}%` : "—"}
+                </TD>
                 <TD>
                   <StatusBadge status={r.status} />
                 </TD>
