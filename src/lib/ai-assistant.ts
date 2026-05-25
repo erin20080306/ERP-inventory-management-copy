@@ -1109,6 +1109,20 @@ async function buildJournalAccountReview(tenantId: string, question: string): Pr
     }
   }
 
+  const journalRows = filteredEntries.map((entry) => {
+    const totalDebit = entry.lines.reduce((sum, line) => sum + toNumber(line.debit), 0);
+    const totalCredit = entry.lines.reduce((sum, line) => sum + toNumber(line.credit), 0);
+    return {
+      日期: fmtDate(entry.entryDate),
+      傳票號: entry.number,
+      摘要: entry.summary,
+      借方合計: fmtMoney(totalDebit),
+      貸方合計: fmtMoney(totalCredit),
+      科目數: entry.lines.length,
+      狀態: STATUS_LABELS[entry.status] ?? entry.status,
+    };
+  });
+
   return {
     kind: "journal-account-review",
     title: specificNumber ? `傳票 ${specificNumber} 科目異常檢查` : specificDate ? `${specificDate.toLocaleDateString("zh-TW", { month: "2-digit", day: "2-digit" })}傳票科目異常檢查` : `${period.label}傳票科目異常檢查`,
@@ -1120,6 +1134,7 @@ async function buildJournalAccountReview(tenantId: string, question: string): Pr
       { label: "科目/摘要規則", value: `${accountDirectionCount + keywordRuleCount} 筆` },
     ],
     tables: [
+      table("傳票清單", ["日期", "傳票號", "摘要", "借方合計", "貸方合計", "科目數", "狀態"], journalRows.slice(0, 200)),
       table("傳票異常清單", ["日期", "傳票號", "摘要", "異常類型", "科目分錄", "金額", "建議"], issueRows.slice(0, 120)),
     ],
   };
@@ -1637,6 +1652,116 @@ async function buildReturnSummary(tenantId: string, question: string): Promise<R
   };
 }
 
+async function buildEmployeePayroll(tenantId: string, question: string): Promise<ReportResult> {
+  const period = parsePeriod(question, "current-month");
+  const payrolls = await prisma.payroll.findMany({
+    where: {
+      employee: { tenantId },
+      status: { notIn: ["VOID"] },
+      period: {
+        year: period.year,
+        month: period.month,
+      },
+    },
+    include: {
+      period: true,
+      employee: {
+        select: {
+          employeeNo: true,
+          name: true,
+          department: { select: { name: true } },
+          position: true,
+        },
+      },
+    },
+  });
+
+  const statusMap = new Map<string, { status: string; count: number; total: number }>();
+  const departmentMap = new Map<string, { count: number; totalEarnings: number; totalNetPay: number }>();
+  let totalEarnings = 0;
+  let totalDeductions = 0;
+  let totalNetPay = 0;
+  let totalEmployerCost = 0;
+  let totalWorkDays = 0;
+  let totalOvertimeHours = 0;
+
+  for (const payroll of payrolls) {
+    totalEarnings += toNumber(payroll.earnings);
+    totalDeductions += toNumber(payroll.deductions);
+    totalNetPay += toNumber(payroll.netPay);
+    totalEmployerCost += toNumber(payroll.employerCost);
+    totalWorkDays += toNumber(payroll.workDays);
+    totalOvertimeHours += toNumber(payroll.overtimeHours);
+
+    const status = statusMap.get(payroll.status) ?? { status: STATUS_LABELS[payroll.status] ?? payroll.status, count: 0, total: 0 };
+    status.count += 1;
+    status.total += toNumber(payroll.netPay);
+    statusMap.set(payroll.status, status);
+
+    const deptName = payroll.employee.department?.name ?? "未分類";
+    const dept = departmentMap.get(deptName) ?? { count: 0, totalEarnings: 0, totalNetPay: 0 };
+    dept.count += 1;
+    dept.totalEarnings += toNumber(payroll.earnings);
+    dept.totalNetPay += toNumber(payroll.netPay);
+    departmentMap.set(deptName, dept);
+  }
+
+  const rows = payrolls.map((payroll) => ({
+    員工編號: payroll.employee.employeeNo,
+    姓名: payroll.employee.name,
+    部門: payroll.employee.department?.name ?? "—",
+    職稱: payroll.employee.position ?? "—",
+    工作天數: fmtDecimal(toNumber(payroll.workDays)),
+    加班時數: fmtDecimal(toNumber(payroll.overtimeHours)),
+    應發合計: fmtMoney(toNumber(payroll.earnings)),
+    應扣合計: fmtMoney(toNumber(payroll.deductions)),
+    實領金額: fmtMoney(toNumber(payroll.netPay)),
+    雇主負擔: fmtMoney(toNumber(payroll.employerCost)),
+    狀態: STATUS_LABELS[payroll.status] ?? payroll.status,
+  }));
+
+  return {
+    kind: "employee-payroll",
+    title: `${period.year}/${String(period.month).padStart(2, "0")} 薪資發放明細`,
+    description: "查詢指定月份的薪資發放明細，包含應發、應扣、實領金額與雇主負擔。",
+    criteria: { year: period.year, month: period.month },
+    cards: [
+      { label: "員工數", value: `${payrolls.length} 人` },
+      { label: "應發合計", value: fmtMoney(totalEarnings) },
+      { label: "應扣合計", value: fmtMoney(totalDeductions) },
+      { label: "實領合計", value: fmtMoney(totalNetPay) },
+      { label: "雇主負擔", value: fmtMoney(totalEmployerCost) },
+      { label: "總工作天數", value: fmtDecimal(totalWorkDays) },
+      { label: "總加班時數", value: fmtDecimal(totalOvertimeHours) },
+      { label: "平均實領", value: payrolls.length ? fmtMoney(totalNetPay / payrolls.length) : "NT$ 0" },
+    ],
+    tables: [
+      table(
+        "部門彙總",
+        ["部門", "人數", "應發合計", "實領合計"],
+        Array.from(departmentMap.entries())
+          .map(([deptName, row]) => ({
+            部門: deptName,
+            人數: row.count,
+            應發合計: fmtMoney(row.totalEarnings),
+            實領合計: fmtMoney(row.totalNetPay),
+          }))
+          .sort((a, b) => Number(String(b.實領合計).replace(/[^0-9.-]/g, "")) - Number(String(a.實領合計).replace(/[^0-9.-]/g, "")))
+      ),
+      table(
+        "狀態統計",
+        ["狀態", "筆數", "實領合計"],
+        Array.from(statusMap.values()).map((row) => ({ 狀態: row.status, 筆數: row.count, 實領合計: fmtMoney(row.total) }))
+      ),
+      table(
+        "薪資明細",
+        ["員工編號", "姓名", "部門", "職稱", "工作天數", "加班時數", "應發合計", "應扣合計", "實領金額", "雇主負擔", "狀態"],
+        rows
+      ),
+    ],
+  };
+}
+
 async function buildProductDetail(tenantId: string, question: string): Promise<ReportResult> {
   const period = parsePeriod(question, "last-30");
   const product = await findProduct(tenantId, question);
@@ -1747,6 +1872,7 @@ export async function runAssistantQuery(tenantId: string, question: string): Pro
   if (/倉庫|庫位|盤點/i.test(text)) return buildWarehouseOverview(tenantId, text);
   if (/採購|進貨|purchase/i.test(text)) return buildPurchaseSummary(tenantId, text);
   if (/退貨|銷退|採退/i.test(text)) return buildReturnSummary(tenantId, text);
+  if (/員工|薪資|人事|payroll|調薪|升職|異動|薪資結構|薪資歷史|薪資報表|薪資單|出勤/i.test(text)) return buildEmployeePayroll(tenantId, text);
   if (/商品|產品|貨品|品項/i.test(text)) return buildProductDetail(tenantId, text);
 
   return emptyHelp();
