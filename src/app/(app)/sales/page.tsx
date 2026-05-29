@@ -7,7 +7,7 @@ export default async function Page() {
   if (g.forbidden) return g.element;
   return (
     <PageShell title="銷售管理" description="銷售訂單建立、出貨扣庫與應收帳款">
-      <OrderClient kind="sales" />
+      <OrderClient kind="sales" serverExcelExport="/api/sales/export" />
     </PageShell>
   );
 }

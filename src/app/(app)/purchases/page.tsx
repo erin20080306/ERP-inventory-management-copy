@@ -7,7 +7,7 @@ export default async function Page() {
   if (g.forbidden) return g.element;
   return (
     <PageShell title="採購管理" description="採購單建立、核准、進貨入庫與應付帳款">
-      <OrderClient kind="purchase" />
+      <OrderClient kind="purchase" serverExcelExport="/api/purchases/export" />
     </PageShell>
   );
 }

@@ -46,7 +46,7 @@ type OrderRow = {
   }>;
 };
 
-export function OrderClient({ kind }: { kind: Kind }) {
+export function OrderClient({ kind, serverExcelExport }: { kind: Kind; serverExcelExport?: string }) {
   const endpoint = kind === "purchase" ? "/api/purchases" : "/api/sales";
   const partyLabel = kind === "purchase" ? "供應商" : "客戶";
   const [page, setPage] = useState(1);
@@ -248,6 +248,27 @@ export function OrderClient({ kind }: { kind: Kind }) {
           <PDFOrderBtn kind={kind} />
           <Button variant="outline" onClick={async () => {
             try {
+              if (serverExcelExport) {
+                const params = new URLSearchParams({ q });
+                if (fromDate) params.set("from", fromDate);
+                if (toDate) params.set("to", toDate);
+                const res = await fetch(`${serverExcelExport}?${params.toString()}`);
+                if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.error || "匯出失敗");
+                const blob = await res.blob();
+                const cd = res.headers.get("Content-Disposition") || "";
+                const m = cd.match(/filename\*=UTF-8''([^;]+)/);
+                const filename = m ? decodeURIComponent(m[1]) : `${kind === "purchase" ? "採購單" : "銷售單"}-${new Date().toISOString().slice(0, 10)}.xlsx`;
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                URL.revokeObjectURL(url);
+                toast.success("已匯出 Excel");
+                return;
+              }
               const params = new URLSearchParams({ q, pageSize: "10000" });
               const res = await fetch(`${endpoint}?${params}`);
               const d = await res.json();

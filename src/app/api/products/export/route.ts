@@ -89,7 +89,6 @@ export const GET = apiHandler(async (req: NextRequest) => {
     { header: "安全庫存", get: (r) => Number(r.safetyStock), width: 12 },
     { header: "剩餘庫存", get: (r) => r.stockTotal, width: 12 },
     { header: "狀態", get: (r) => (r.isActive ? "啟用" : "停用"), width: 10 },
-    { header: "圖片URL", get: (r) => r.imageUrl ?? "", width: 40 },
   ];
 
   const buffer = await buildExcelWithImages("商品管理", rows, columns);
