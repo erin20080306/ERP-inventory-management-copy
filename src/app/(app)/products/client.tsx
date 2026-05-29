@@ -239,6 +239,7 @@ export function ProductClient() {
       <CrudTable<Product>
         endpoint="/api/products"
         moduleKey="products"
+        serverExcelExport="/api/products/export"
         searchPlaceholder="搜尋 SKU / 商品名稱 / 條碼"
         enableDateFilter={true}
         inlineEdit={false}

@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
+import useSWR, { mutate } from "swr";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
@@ -145,6 +146,7 @@ export function CrudTable<T extends { id: string }>({
   moduleKey,
   inlineEdit = false,
   enableEnterToCreate = false,
+  serverExcelExport,
 }: {
   endpoint: string;
   columns: Column<T>[];
@@ -170,16 +172,15 @@ export function CrudTable<T extends { id: string }>({
   inlineEdit?: boolean;
   /** 啟用 Enter 在最後一行時新增一行 */
   enableEnterToCreate?: boolean;
+  /** 若提供，Excel 匯出改用此 server 端 endpoint（可真正嵌入圖片）。會帶上 q/from/to 查詢參數 */
+  serverExcelExport?: string;
 }) {
-  const [rows, setRows] = useState<T[]>([]);
-  const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const pageSize = 20;
   const [q, setQ] = useState("");
   const debouncedQ = useDebouncedValue(q);
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
-  const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<T | null>(null);
   const [open, setOpen] = useState(false);
   const customCols = useCustomColumns(moduleKey || exportName);
@@ -230,27 +231,29 @@ export function CrudTable<T extends { id: string }>({
   // 依據 colOrder 排序 columns
   const orderedColumns = [...columns].sort((a, b) => colOrder.indexOf(a.key) - colOrder.indexOf(b.key));
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams({ q: debouncedQ, page: String(page), pageSize: String(pageSize), ...(initialQuery ?? {}) });
-      if (enableDateFilter && fromDate) params.set("from", fromDate);
-      if (enableDateFilter && toDate) params.set("to", toDate);
-      const res = await fetch(`${endpoint}?${params.toString()}`);
-      if (!res.ok) throw new Error((await res.json()).error || "載入失敗");
-      const data = await res.json();
-      setRows(data.items);
-      setTotal(data.total);
-    } catch (e: any) {
-      toast.error(e.message);
-    } finally {
-      setLoading(false);
-    }
+  // SWR fetcher
+  const fetcher = useCallback(async (url: string) => {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error((await res.json()).error || "載入失敗");
+    return res.json();
+  }, []);
+
+  // 構建 SWR key
+  const swrKey = useCallback(() => {
+    const params = new URLSearchParams({ q: debouncedQ, page: String(page), pageSize: String(pageSize), ...(initialQuery ?? {}) });
+    if (enableDateFilter && fromDate) params.set("from", fromDate);
+    if (enableDateFilter && toDate) params.set("to", toDate);
+    return `${endpoint}?${params.toString()}`;
   }, [endpoint, debouncedQ, page, initialQuery, enableDateFilter, fromDate, toDate]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  const { data, error, isLoading } = useSWR(swrKey(), fetcher, {
+    revalidateOnFocus: false,
+    revalidateOnReconnect: true,
+    dedupingInterval: 5000,
+  });
+
+  const rows = data?.items ?? [];
+  const total = data?.total ?? 0;
 
   async function onDelete(row: T) {
     if (!confirm("確定要刪除？")) return;
@@ -258,7 +261,7 @@ export function CrudTable<T extends { id: string }>({
       const res = await fetch(`${endpoint}/${row.id}`, { method: "DELETE" });
       if (!res.ok) throw new Error((await res.json()).error || "刪除失敗");
       toast.success("已刪除");
-      load();
+      mutate(swrKey());
     } catch (e: any) {
       toast.error(e.message);
     }
@@ -283,7 +286,7 @@ export function CrudTable<T extends { id: string }>({
   // 鍵盤導航：Enter/下移、上下左右移動、Tab 右移、Escape 取消
   function handleCellKeyDown(e: React.KeyboardEvent, row: T, colKey: string) {
     const editableCols = orderedColumns.filter((c) => c.editable);
-    const rowIdx = rows.findIndex((r) => r.id === row.id);
+    const rowIdx = rows.findIndex((r: T) => r.id === row.id);
     const colIdx = editableCols.findIndex((c) => c.key === colKey);
     if (editableCols.length === 0 || colIdx === -1) return;
 
@@ -376,8 +379,8 @@ export function CrudTable<T extends { id: string }>({
       const saved = await res.json().catch(() => null);
       toast.success("已儲存");
       setInlineEditing((prev) => { const n = { ...prev }; delete n[row.id]; return n; });
-      // 本地更新而非全部重整
-      setRows((prev) => prev.map((r) => r.id === row.id ? (saved && saved.id ? saved : { ...r, ...draft } as T) : r));
+      // 使用 mutate 重新驗證資料
+      mutate(swrKey());
     } catch (e: any) {
       toast.error(e.message);
     } finally {
@@ -427,6 +430,29 @@ export function CrudTable<T extends { id: string }>({
                 variant="outline"
                 onClick={async () => {
                   try {
+                    if (serverExcelExport) {
+                      // server 端匯出（可真正嵌入圖片），透過 blob 觸發下載
+                      const params = new URLSearchParams({ ...(initialQuery ?? {}) });
+                      if (q) params.set("q", q);
+                      if (enableDateFilter && fromDate) params.set("from", fromDate);
+                      if (enableDateFilter && toDate) params.set("to", toDate);
+                      const res = await fetch(`${serverExcelExport}?${params.toString()}`);
+                      if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.error || "匯出失敗");
+                      const blob = await res.blob();
+                      const cd = res.headers.get("Content-Disposition") || "";
+                      const m = cd.match(/filename\*=UTF-8''([^;]+)/);
+                      const filename = m ? decodeURIComponent(m[1]) : `${exportName}-${new Date().toISOString().slice(0, 10)}.xlsx`;
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href = url;
+                      a.download = filename;
+                      document.body.appendChild(a);
+                      a.click();
+                      a.remove();
+                      URL.revokeObjectURL(url);
+                      toast.success("已匯出 Excel");
+                      return;
+                    }
                     const params = new URLSearchParams({ q, page: "1", pageSize: "10000", ...(initialQuery ?? {}) });
                     if (enableDateFilter && fromDate) params.set("from", fromDate);
                     if (enableDateFilter && toDate) params.set("to", toDate);
@@ -479,7 +505,7 @@ export function CrudTable<T extends { id: string }>({
               importMap={importMap}
               templateHeaders={templateHeaders}
               templateName={exportName}
-              onDone={load}
+              onDone={() => mutate(swrKey())}
             />
           )}
           {moduleKey && (
@@ -526,22 +552,22 @@ export function CrudTable<T extends { id: string }>({
           </TR>
         </THead>
         <TBody>
-          {loading && (
+          {isLoading && (
             <TR>
               <TD colSpan={orderedColumns.length + customCols.columns.length + 2} className="text-center py-10">
                 <Loader2 className="h-5 w-5 animate-spin inline-block" />
               </TD>
             </TR>
           )}
-          {!loading && rows.length === 0 && (
+          {!isLoading && rows.length === 0 && (
             <TR>
               <TD colSpan={orderedColumns.length + customCols.columns.length + 2}>
                 <EmptyState />
               </TD>
             </TR>
           )}
-          {!loading &&
-            rows.map((row) => {
+          {!isLoading &&
+            rows.map((row: T) => {
               const draft = inlineEditing[row.id];
               const isRowEditing = !!draft;
               return (
@@ -669,7 +695,7 @@ export function CrudTable<T extends { id: string }>({
         </div>
       </div>
 
-      <FormDialog open={open} onClose={() => setOpen(false)} row={editing} onSaved={load} />
+      <FormDialog open={open} onClose={() => setOpen(false)} row={editing} onSaved={() => mutate(swrKey())} />
       {moduleKey && (
         <CustomColumnDialog
           module={moduleKey || exportName}

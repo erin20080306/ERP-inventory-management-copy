@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
+import useSWR, { mutate } from "swr";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Textarea } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -48,9 +49,6 @@ type OrderRow = {
 export function OrderClient({ kind }: { kind: Kind }) {
   const endpoint = kind === "purchase" ? "/api/purchases" : "/api/sales";
   const partyLabel = kind === "purchase" ? "供應商" : "客戶";
-  const [rows, setRows] = useState<OrderRow[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [q, setQ] = useState("");
   const debouncedQ = useDebouncedValue(q);
@@ -67,24 +65,29 @@ export function OrderClient({ kind }: { kind: Kind }) {
   const [inlineSaving, setInlineSaving] = useState<string | null>(null);
   const [activeCell, setActiveCell] = useState<{ rowId: string; colKey: string } | null>(null);
 
-  async function load() {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams({ q: debouncedQ, page: String(page), pageSize: String(pageSize) });
-      if (fromDate) params.set("from", fromDate);
-      if (toDate) params.set("to", toDate);
-      const res = await fetch(`${endpoint}?${params}`);
-      const data = await res.json();
-      setRows(data.items);
-      setTotal(data.total);
-    } finally {
-      setLoading(false);
-    }
-  }
-  useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, debouncedQ, fromDate, toDate]);
+  // SWR fetcher
+  const fetcher = useCallback(async (url: string) => {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error((await res.json()).error || "載入失敗");
+    return res.json();
+  }, []);
+
+  // 構建 SWR key
+  const swrKey = useCallback(() => {
+    const params = new URLSearchParams({ q: debouncedQ, page: String(page), pageSize: String(pageSize) });
+    if (fromDate) params.set("from", fromDate);
+    if (toDate) params.set("to", toDate);
+    return `${endpoint}?${params.toString()}`;
+  }, [endpoint, debouncedQ, page, fromDate, toDate]);
+
+  const { data, error, isLoading } = useSWR(swrKey(), fetcher, {
+    revalidateOnFocus: false,
+    revalidateOnReconnect: true,
+    dedupingInterval: 5000,
+  });
+
+  const rows = data?.items ?? [];
+  const total = data?.total ?? 0;
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
@@ -98,7 +101,7 @@ export function OrderClient({ kind }: { kind: Kind }) {
       if (!res.ok) throw new Error((await res.json()).error || "操作失敗");
       const data = await res.json();
       toast.success(data.message || "已處理");
-      load();
+      mutate(swrKey());
     } catch (e: any) {
       toast.error(e.message);
     }
@@ -117,7 +120,7 @@ export function OrderClient({ kind }: { kind: Kind }) {
   }
 
   function handleCellKeyDown(e: React.KeyboardEvent, row: OrderRow, colKey: string) {
-    const rowIdx = rows.findIndex((r) => r.id === row.id);
+    const rowIdx = rows.findIndex((r: OrderRow) => r.id === row.id);
     const colIdx = editableFields.indexOf(colKey);
     if (editableFields.length === 0 || colIdx === -1) return;
 
@@ -190,7 +193,7 @@ export function OrderClient({ kind }: { kind: Kind }) {
       const saved = await res.json().catch(() => null);
       toast.success("已儲存");
       setInlineEditing((prev) => { const n = { ...prev }; delete n[row.id]; return n; });
-      setRows((prev) => prev.map((r) => r.id === row.id ? (saved && saved.id ? saved : { ...r, ...draft } as OrderRow) : r));
+      mutate(swrKey());
     } catch (e: any) {
       toast.error(e.message);
     } finally {
@@ -362,21 +365,21 @@ export function OrderClient({ kind }: { kind: Kind }) {
           </TR>
         </THead>
         <TBody>
-          {loading && (
+          {isLoading && (
             <TR>
               <TD colSpan={10} className="text-center py-10">
                 <Loader2 className="h-5 w-5 animate-spin inline-block" />
               </TD>
             </TR>
           )}
-          {!loading && rows.length === 0 && (
+          {!isLoading && rows.length === 0 && (
             <TR>
               <TD colSpan={10}>
                 <EmptyState />
               </TD>
             </TR>
           )}
-          {!loading &&
+          {!isLoading &&
             rows.map((r) => {
               const draft = inlineEditing[r.id];
               const isRowEditing = !!draft;
@@ -466,7 +469,7 @@ export function OrderClient({ kind }: { kind: Kind }) {
                     const res = await fetch(`${endpoint}/${r.id}`, { method: "DELETE" });
                     if (!res.ok) { const e = await res.json(); toast.error(e.error || "刪除失敗"); return; }
                     toast.success("已刪除");
-                    load();
+                    mutate(swrKey());
                   }}>
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -494,19 +497,14 @@ export function OrderClient({ kind }: { kind: Kind }) {
         onClose={() => setOpenNew(false)}
         onCreated={(newOrder) => {
           setOpenNew(false);
-          if (newOrder) {
-            setRows((prev) => [newOrder, ...prev]);
-            setTotal((prev) => prev + 1);
-          } else {
-            load();
-          }
+          mutate(swrKey());
         }}
       />
       {openView && (
-        <ViewOrderDialog kind={kind} id={openView} onClose={() => setOpenView(null)} onChanged={load} />
+        <ViewOrderDialog kind={kind} id={openView} onClose={() => setOpenView(null)} onChanged={() => mutate(swrKey())} />
       )}
       {openEdit && (
-        <EditOrderDialog kind={kind} id={openEdit} onClose={() => setOpenEdit(null)} onSaved={(updated) => { setOpenEdit(null); if (updated) { setRows((prev) => prev.map((r) => r.id === updated.id ? updated : r)); } else { load(); } }} />
+        <EditOrderDialog kind={kind} id={openEdit} onClose={() => setOpenEdit(null)} onSaved={(updated) => { setOpenEdit(null); mutate(swrKey()); }} />
       )}
       <CustomColumnDialog
         module={kind === "purchase" ? "purchases" : "sales"}
