@@ -380,7 +380,7 @@ export function OrderClient({ kind }: { kind: Kind }) {
             </TR>
           )}
           {!isLoading &&
-            rows.map((r) => {
+            rows.map((r: OrderRow) => {
               const draft = inlineEditing[r.id];
               const isRowEditing = !!draft;
               return (
