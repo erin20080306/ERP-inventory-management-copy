@@ -9,6 +9,7 @@ import { Search, Loader2, Save, FileSpreadsheet, Upload, RotateCcw, Printer, Fil
 import { formatMoney } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useCustomColumns, CustomColumnDialog, CustomColumnButton, getCustomFieldValues, setCustomFieldValue } from "@/components/custom-columns";
+import { readSessionCache, TableSkeletonRows, writeSessionCache } from "@/components/table-helpers";
 
 type Product = {
   id: string;
@@ -44,16 +45,29 @@ export function CostManagementClient() {
   }, [searchInput]);
 
   async function load() {
-    setLoading(true);
     const params = new URLSearchParams({ q, page: String(page), pageSize: String(pageSize) });
     if (fromDate) params.set("from", fromDate);
     if (toDate) params.set("to", toDate);
-    const res = await fetch(`/api/products?${params.toString()}`);
-    const d = await res.json();
-    setRows(d.items);
-    setTotal(d.total);
-    setDrafts({});
-    setLoading(false);
+    const cacheKey = `costs:${params.toString()}`;
+    const cached = readSessionCache<{ items: Product[]; total: number }>(cacheKey);
+    if (cached) {
+      setRows(cached.items ?? []);
+      setTotal(cached.total ?? 0);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
+    try {
+      const res = await fetch(`/api/products?${params.toString()}`);
+      const d = await res.json();
+      const next = { items: d.items ?? [], total: d.total ?? 0 };
+      setRows(next.items);
+      setTotal(next.total);
+      writeSessionCache(cacheKey, next);
+      setDrafts({});
+    } finally {
+      setLoading(false);
+    }
   }
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [page, q, fromDate, toDate]);
 
@@ -257,9 +271,9 @@ export function CostManagementClient() {
           </TR>
         </THead>
         <TBody>
-          {loading && <TR><TD colSpan={7} className="text-center py-10"><Loader2 className="inline h-5 w-5 animate-spin" /></TD></TR>}
-          {!loading && rows.length === 0 && <TR><TD colSpan={7}><EmptyState /></TD></TR>}
-          {!loading && rows.map((r) => {
+          {loading && rows.length === 0 && <TableSkeletonRows columns={7 + customCols.columns.length} />}
+          {!loading && rows.length === 0 && <TR><TD colSpan={7 + customCols.columns.length}><EmptyState /></TD></TR>}
+          {rows.length > 0 && rows.map((r) => {
             const draft = drafts[r.id];
             const cost = draft?.costPrice ?? Number(r.costPrice);
             const sale = draft?.salePrice ?? Number(r.salePrice);

@@ -6,12 +6,11 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { StatusBadge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Plus, Loader2, Trash2, Search, Download, FileDown, Printer, Pencil } from "lucide-react";
+import { Plus, Loader2, Trash2, Search, Printer, Pencil } from "lucide-react";
 import { formatDate, formatMoney } from "@/lib/utils";
-import { downloadCSV, toCSV } from "@/lib/csv";
 import { ConvertToJournalButton } from "@/components/convert-to-journal-button";
 import { useCustomColumns, CustomColumnDialog, CustomColumnButton, getCustomFieldValues, setCustomFieldValue } from "@/components/custom-columns";
-import { TableHint, useColumnDrag } from "@/components/table-helpers";
+import { readSessionCache, TableHint, TableSkeletonRows, useColumnDrag, useDebouncedValue, writeSessionCache } from "@/components/table-helpers";
 
 type ReturnItem = {
   productId: string;
@@ -199,8 +198,10 @@ function ReturnDialog({ open, onClose, row, onSaved, type }: any) {
 export default function ReturnsClient() {
   const [salesReturns, setSalesReturns] = useState<any[]>([]);
   const [purchaseReturns, setPurchaseReturns] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [salesLoading, setSalesLoading] = useState(true);
+  const [purchaseLoading, setPurchaseLoading] = useState(true);
   const [q, setQ] = useState("");
+  const debouncedQ = useDebouncedValue(q);
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [openSales, setOpenSales] = useState(false);
@@ -215,26 +216,61 @@ export default function ReturnsClient() {
   const [inlineSaving, setInlineSaving] = useState<string | null>(null);
   const [activeCell, setActiveCell] = useState<{ rowId: string; colKey: string } | null>(null);
 
-  async function load() {
-    setLoading(true);
+  function buildParams() {
+    const params = new URLSearchParams({ q: debouncedQ });
+    if (fromDate) params.set("from", fromDate);
+    if (toDate) params.set("to", toDate);
+    return params;
+  }
+
+  async function loadSalesReturns() {
+    const params = buildParams();
+    const cacheKey = `returns:sales:${params.toString()}`;
+    const cached = readSessionCache<any[]>(cacheKey);
+    if (cached) {
+      setSalesReturns(cached);
+      setSalesLoading(false);
+    } else {
+      setSalesLoading(true);
+    }
     try {
-      const params = new URLSearchParams({ q });
-      if (fromDate) params.set("from", fromDate);
-      if (toDate) params.set("to", toDate);
-      
-      const [sRes, pRes] = await Promise.all([
-        fetch(`/api/returns/sales?${params}`),
-        fetch(`/api/returns/purchases?${params}`),
-      ]);
-      const sData = await sRes.json();
-      const pData = await pRes.json();
-      setSalesReturns(sData.items || []);
-      setPurchaseReturns(pData.items || []);
+      const res = await fetch(`/api/returns/sales?${params}`);
+      const data = await res.json();
+      const items = data.items || [];
+      setSalesReturns(items);
+      writeSessionCache(cacheKey, items);
     } finally {
-      setLoading(false);
+      setSalesLoading(false);
     }
   }
-  useEffect(() => { load(); }, [q, fromDate, toDate]);
+
+  async function loadPurchaseReturns() {
+    const params = buildParams();
+    const cacheKey = `returns:purchases:${params.toString()}`;
+    const cached = readSessionCache<any[]>(cacheKey);
+    if (cached) {
+      setPurchaseReturns(cached);
+      setPurchaseLoading(false);
+    } else {
+      setPurchaseLoading(true);
+    }
+    try {
+      const res = await fetch(`/api/returns/purchases?${params}`);
+      const data = await res.json();
+      const items = data.items || [];
+      setPurchaseReturns(items);
+      writeSessionCache(cacheKey, items);
+    } finally {
+      setPurchaseLoading(false);
+    }
+  }
+
+  function load() {
+    loadSalesReturns();
+    loadPurchaseReturns();
+  }
+
+  useEffect(() => { load(); }, [debouncedQ, fromDate, toDate]);
 
   const editableFields = ["reason"];
 
@@ -375,18 +411,15 @@ export default function ReturnsClient() {
 
       <TableHint />
 
-      {loading ? (
-        <div className="flex justify-center py-8"><Loader2 className="h-8 w-8 animate-spin" /></div>
-      ) : (
-        <>
-          <div>
+      <div>
             <h3 className="text-lg font-semibold mb-3">銷售退貨</h3>
             <Table>
               <THead>
                 <TR><TH {...colDrag.thProps("number")}>單號</TH><TH {...colDrag.thProps("party")}>客戶</TH><TH {...colDrag.thProps("date")}>日期</TH><TH {...colDrag.thProps("reason")}>原因</TH><TH {...colDrag.thProps("total")}>總計</TH><TH {...colDrag.thProps("status")}>狀態</TH><TH {...colDrag.thProps("updatedBy")}>操作人員</TH>{customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}<TH className="text-right">操作</TH></TR>
               </THead>
               <TBody>
-                {salesReturns.length === 0 && <TR><TD colSpan={8} className="text-center text-muted-foreground">尚無資料</TD></TR>}
+                {salesLoading && salesReturns.length === 0 && <TableSkeletonRows columns={8 + customCols.columns.length} />}
+                {!salesLoading && salesReturns.length === 0 && <TR><TD colSpan={8 + customCols.columns.length} className="text-center text-muted-foreground">尚無資料</TD></TR>}
                 {salesReturns.map((r) => {
                   const draft = inlineEditing[r.id];
                   const isRowEditing = !!draft;
@@ -453,7 +486,8 @@ export default function ReturnsClient() {
                 <TR><TH {...colDrag.thProps("number")}>單號</TH><TH {...colDrag.thProps("party")}>供應商</TH><TH {...colDrag.thProps("date")}>日期</TH><TH {...colDrag.thProps("reason")}>原因</TH><TH {...colDrag.thProps("total")}>總計</TH><TH {...colDrag.thProps("status")}>狀態</TH><TH {...colDrag.thProps("updatedBy")}>操作人員</TH>{customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}<TH className="text-right">操作</TH></TR>
               </THead>
               <TBody>
-                {purchaseReturns.length === 0 && <TR><TD colSpan={8} className="text-center text-muted-foreground">尚無資料</TD></TR>}
+                {purchaseLoading && purchaseReturns.length === 0 && <TableSkeletonRows columns={8 + customCols.columns.length} />}
+                {!purchaseLoading && purchaseReturns.length === 0 && <TR><TD colSpan={8 + customCols.columns.length} className="text-center text-muted-foreground">尚無資料</TD></TR>}
                 {purchaseReturns.map((r) => {
                   const draft = inlineEditing[r.id];
                   const isRowEditing = !!draft;
@@ -512,8 +546,6 @@ export default function ReturnsClient() {
               </TBody>
             </Table>
           </div>
-        </>
-      )}
 
       <ReturnDialog open={openSales} onClose={() => setOpenSales(false)} onSaved={(saved: any) => { setOpenSales(false); if (saved) { setSalesReturns((prev) => prev.map((r) => r.id === saved.id ? saved : r)); } else { load(); } }} type="sales" />
       {editSalesId && <ReturnDialog open={!!editSalesId} row={salesReturns.find((r) => r.id === editSalesId)} onClose={() => setEditSalesId(null)} onSaved={(saved: any) => { setEditSalesId(null); if (saved) { setSalesReturns((prev) => prev.map((r) => r.id === saved.id ? saved : r)); } else { load(); } }} type="sales" />}

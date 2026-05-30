@@ -7,14 +7,15 @@ import { formatNumber, formatMoney, formatDateTime } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ExportButton } from "@/components/export-button";
 import { PrintListButton, PDFExportButton } from "@/components/print-list-button";
-import { Loader2, Search } from "lucide-react";
+import { Search } from "lucide-react";
 import { useCustomColumns, CustomColumnDialog, CustomColumnButton, getCustomFieldValues, setCustomFieldValue } from "@/components/custom-columns";
-import { TableHint, useColumnDrag, useDebouncedValue } from "@/components/table-helpers";
+import { readSessionCache, TableHint, TableSkeletonRows, useColumnDrag, useDebouncedValue, writeSessionCache } from "@/components/table-helpers";
 
 export default function InventoryClient() {
   const [stocks, setStocks] = useState<any[]>([]);
   const [txns, setTxns] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [stocksLoading, setStocksLoading] = useState(true);
+  const [txnsLoading, setTxnsLoading] = useState(true);
   const [q, setQ] = useState("");
   const debouncedQ = useDebouncedValue(q);
   const [fromDate, setFromDate] = useState("");
@@ -23,27 +24,56 @@ export default function InventoryClient() {
   const [editingCells, setEditingCells] = useState<Record<string, any>>({});
   const colDrag = useColumnDrag("inventory", ["warehouse", "sku", "product", "quantity", "safetyStock", "cost", "value", "stockStatus"]);
 
-  async function load() {
-    setLoading(true);
+  function buildParams() {
+    const params = new URLSearchParams();
+    if (debouncedQ) params.set("q", debouncedQ);
+    if (fromDate) params.set("from", fromDate);
+    if (toDate) params.set("to", toDate);
+    return params;
+  }
+
+  async function loadStocks() {
+    const params = buildParams();
+    const cacheKey = `inventory:stocks:${params.toString()}`;
+    const cached = readSessionCache<any[]>(cacheKey);
+    if (cached) {
+      setStocks(cached);
+      setStocksLoading(false);
+    } else {
+      setStocksLoading(true);
+    }
     try {
-      const params = new URLSearchParams();
-      if (debouncedQ) params.set("q", debouncedQ);
-      if (fromDate) params.set("from", fromDate);
-      if (toDate) params.set("to", toDate);
-      
-      const [sRes, tRes] = await Promise.all([
-        fetch(`/api/inventory/stocks?${params}`),
-        fetch(`/api/inventory/transactions?${params}`),
-      ]);
-      const sData = await sRes.json();
-      const tData = await tRes.json();
-      setStocks(sData.items || []);
-      setTxns(tData.items || []);
+      const res = await fetch(`/api/inventory/stocks?${params}`);
+      const data = await res.json();
+      const items = data.items || [];
+      setStocks(items);
+      writeSessionCache(cacheKey, items);
     } finally {
-      setLoading(false);
+      setStocksLoading(false);
     }
   }
-  useEffect(() => { load(); }, [debouncedQ, fromDate, toDate]);
+
+  async function loadTxns() {
+    const params = buildParams();
+    const cacheKey = `inventory:txns:${params.toString()}`;
+    const cached = readSessionCache<any[]>(cacheKey);
+    if (cached) {
+      setTxns(cached);
+      setTxnsLoading(false);
+    } else {
+      setTxnsLoading(true);
+    }
+    try {
+      const res = await fetch(`/api/inventory/transactions?${params}`);
+      const data = await res.json();
+      const items = data.items || [];
+      setTxns(items);
+      writeSessionCache(cacheKey, items);
+    } finally {
+      setTxnsLoading(false);
+    }
+  }
+  useEffect(() => { loadStocks(); loadTxns(); }, [debouncedQ, fromDate, toDate]);
 
   const txnLabel: Record<string, string> = {
     PURCHASE_IN: "採購入庫",
@@ -73,11 +103,7 @@ export default function InventoryClient() {
 
       <TableHint />
 
-      {loading ? (
-        <div className="flex justify-center py-8"><Loader2 className="h-8 w-8 animate-spin" /></div>
-      ) : (
-        <>
-          <Card>
+      <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0">
               <CardTitle>即時庫存</CardTitle>
               <ExportButton
@@ -118,9 +144,10 @@ export default function InventoryClient() {
                   </TR>
                 </THead>
                 <TBody>
-                  {stocks.length === 0 && (
+                  {stocksLoading && stocks.length === 0 && <TableSkeletonRows columns={8 + customCols.columns.length} />}
+                  {!stocksLoading && stocks.length === 0 && (
                     <TR>
-                      <TD colSpan={8} className="text-center text-muted-foreground">尚無庫存</TD>
+                      <TD colSpan={8 + customCols.columns.length} className="text-center text-muted-foreground">尚無庫存</TD>
                     </TR>
                   )}
                   {stocks.map((s: any) => {
@@ -163,7 +190,8 @@ export default function InventoryClient() {
                   </TR>
                 </THead>
                 <TBody>
-                  {txns.length === 0 && (
+                  {txnsLoading && txns.length === 0 && <TableSkeletonRows columns={7} />}
+                  {!txnsLoading && txns.length === 0 && (
                     <TR>
                       <TD colSpan={7} className="text-center text-muted-foreground">尚無資料</TD>
                     </TR>
@@ -186,8 +214,6 @@ export default function InventoryClient() {
               </Table>
             </CardContent>
           </Card>
-        </>
-      )}
       <CustomColumnDialog module="inventory" columns={customCols.columns} open={customCols.open} onClose={() => customCols.setOpen(false)} onSave={customCols.save} />
     </div>
   );

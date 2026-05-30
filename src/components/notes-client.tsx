@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import { Plus, Search, Loader2, CheckCircle2, XCircle, Ban, Trash2, FileSpreadsheet, Upload, Pencil } from "lucide-react";
 import { formatDate, formatMoney } from "@/lib/utils";
 import { useCustomColumns, CustomColumnDialog, CustomColumnButton, getCustomFieldValues, setCustomFieldValue } from "@/components/custom-columns";
-import { TableHint, useColumnDrag, useDebouncedValue } from "@/components/table-helpers";
+import { readSessionCache, TableHint, TableSkeletonRows, useColumnDrag, useDebouncedValue, writeSessionCache } from "@/components/table-helpers";
 
 const NOTE_TYPE_LABELS: Record<string, string> = {
   CHECK: "支票",
@@ -59,15 +59,28 @@ export function NotesClient({ kind }: { kind: "receivable" | "payable" }) {
   const [activeCell, setActiveCell] = useState<{ rowId: string; colKey: string } | null>(null);
 
   async function load() {
-    setLoading(true);
     const sp = new URLSearchParams({ q: debouncedQ, status, page: String(page), pageSize: String(pageSize) });
     if (fromDate) sp.set("from", fromDate);
     if (toDate) sp.set("to", toDate);
-    const res = await fetch(`${endpoint}?${sp}`);
-    const d = await res.json();
-    setRows(d.items);
-    setTotal(d.total);
-    setLoading(false);
+    const cacheKey = `notes:${kind}:${sp.toString()}`;
+    const cached = readSessionCache<{ items: any[]; total: number }>(cacheKey);
+    if (cached) {
+      setRows(cached.items ?? []);
+      setTotal(cached.total ?? 0);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
+    try {
+      const res = await fetch(`${endpoint}?${sp}`);
+      const d = await res.json();
+      const next = { items: d.items ?? [], total: d.total ?? 0 };
+      setRows(next.items);
+      setTotal(next.total);
+      writeSessionCache(cacheKey, next);
+    } finally {
+      setLoading(false);
+    }
   }
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [page, debouncedQ, status, fromDate, toDate]);
 
@@ -319,9 +332,9 @@ export function NotesClient({ kind }: { kind: "receivable" | "payable" }) {
           </TR>
         </THead>
         <TBody>
-          {loading && <TR><TD colSpan={10} className="text-center py-10"><Loader2 className="inline h-5 w-5 animate-spin" /></TD></TR>}
-          {!loading && rows.length === 0 && <TR><TD colSpan={10}><EmptyState /></TD></TR>}
-          {!loading && rows.map((r) => {
+          {loading && rows.length === 0 && <TableSkeletonRows columns={10 + customCols.columns.length} />}
+          {!loading && rows.length === 0 && <TR><TD colSpan={10 + customCols.columns.length}><EmptyState /></TD></TR>}
+          {rows.length > 0 && rows.map((r) => {
             const draft = inlineEditing[r.id];
             const isRowEditing = !!draft;
             return (

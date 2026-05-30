@@ -11,6 +11,7 @@ import { formatDate, formatMoney, formatNumber } from "@/lib/utils";
 import { downloadCSV, toCSV } from "@/lib/csv";
 import { toast } from "sonner";
 import { useCustomColumns, CustomColumnDialog, CustomColumnButton, getCustomFieldValues, setCustomFieldValue } from "@/components/custom-columns";
+import { readSessionCache, TableSkeletonRows, useDebouncedValue, writeSessionCache } from "@/components/table-helpers";
 
 type Module = {
   key: string;
@@ -188,6 +189,7 @@ export function BomClient() {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [q, setQ] = useState("");
+  const debouncedQ = useDebouncedValue(q);
   const [page, setPage] = useState(1);
   const pageSize = 50;
   const customCols = useCustomColumns(`bom-${selectedModule}`);
@@ -208,15 +210,25 @@ export function BomClient() {
   const currentModule = MODULES.find((m) => m.key === selectedModule)!;
 
   async function load() {
-    setLoading(true);
+    const params = new URLSearchParams({ q: debouncedQ, page: String(page), pageSize: String(pageSize) });
+    if (fromDate) params.set("from", fromDate);
+    if (toDate) params.set("to", toDate);
+    const cacheKey = `bom:${selectedModule}:${params.toString()}`;
+    const cached = readSessionCache<{ items: any[]; total: number }>(cacheKey);
+    if (cached) {
+      setRows(cached.items ?? []);
+      setTotal(cached.total ?? 0);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
     try {
-      const params = new URLSearchParams({ q, page: String(page), pageSize: String(pageSize) });
-      if (fromDate) params.set("from", fromDate);
-      if (toDate) params.set("to", toDate);
       const res = await fetch(`${currentModule.endpoint}?${params.toString()}`);
       const d = await res.json();
-      setRows(d.items ?? []);
-      setTotal(d.total ?? 0);
+      const next = { items: d.items ?? [], total: d.total ?? 0 };
+      setRows(next.items);
+      setTotal(next.total);
+      writeSessionCache(cacheKey, next);
     } finally {
       setLoading(false);
     }
@@ -225,7 +237,7 @@ export function BomClient() {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedModule, page, q, fromDate, toDate]);
+  }, [selectedModule, page, debouncedQ, fromDate, toDate]);
 
   useEffect(() => {
     setPage(1);
@@ -233,6 +245,7 @@ export function BomClient() {
   }, [selectedModule]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const tableColumnCount = currentModule.columns.length + customCols.columns.length + 1;
 
   async function fetchAll() {
     const params = new URLSearchParams({ q, pageSize: "10000" });
@@ -341,9 +354,7 @@ export function BomClient() {
       </div>
 
       {/* 資料表格 */}
-      {loading ? (
-        <div className="flex justify-center py-10"><Loader2 className="h-8 w-8 animate-spin" /></div>
-      ) : rows.length === 0 ? (
+      {!loading && rows.length === 0 ? (
         <EmptyState />
       ) : (
         <div className="overflow-x-auto">
@@ -358,6 +369,7 @@ export function BomClient() {
               </TR>
             </THead>
             <TBody>
+              {loading && rows.length === 0 && <TableSkeletonRows columns={tableColumnCount} />}
               {rows.map((row, idx) => {
                 const isEditing = !!inlineRow[row.id];
                 return (

@@ -24,6 +24,26 @@ export function writeSessionCache<T>(key: string, data: T) {
   } catch {}
 }
 
+export function TableSkeletonRows({ rows = 6, columns }: { rows?: number; columns: number }) {
+  return (
+    <>
+      {Array.from({ length: rows }).map((_, rowIndex) => (
+        <tr key={rowIndex} className="border-b transition-colors">
+          {Array.from({ length: columns }).map((__, columnIndex) => (
+            <td key={columnIndex} className="p-3 align-middle">
+              <div
+                className={`h-4 animate-pulse rounded-md bg-muted ${
+                  columnIndex % 4 === 0 ? "w-20" : columnIndex % 3 === 0 ? "w-32" : "w-full"
+                }`}
+              />
+            </td>
+          ))}
+        </tr>
+      ))}
+    </>
+  );
+}
+
 /**
  * 表格操作提示
  */

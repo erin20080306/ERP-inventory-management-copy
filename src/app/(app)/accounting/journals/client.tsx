@@ -11,7 +11,7 @@ import { Plus, Trash2, Loader2, Search, Eye, Download, Printer, FileDown, Pencil
 import { formatDate, formatMoney } from "@/lib/utils";
 import { downloadCSV, toCSV } from "@/lib/csv";
 import { useCustomColumns, CustomColumnDialog, CustomColumnButton, getCustomFieldValues, setCustomFieldValue } from "@/components/custom-columns";
-import { TableHint, useColumnDrag } from "@/components/table-helpers";
+import { readSessionCache, TableHint, TableSkeletonRows, useColumnDrag, useDebouncedValue, writeSessionCache } from "@/components/table-helpers";
 
 export function JournalClient() {
   const [rows, setRows] = useState<any[]>([]);
@@ -19,6 +19,7 @@ export function JournalClient() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [q, setQ] = useState("");
+  const debouncedQ = useDebouncedValue(q);
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [openNew, setOpenNew] = useState(false);
@@ -54,20 +55,33 @@ export function JournalClient() {
   const pageSize = 20;
 
   async function load() {
-    setLoading(true);
-    const params = new URLSearchParams({ q, page: String(page), pageSize: String(pageSize) });
+    const params = new URLSearchParams({ q: debouncedQ, page: String(page), pageSize: String(pageSize) });
     if (fromDate) params.set("from", fromDate);
     if (toDate) params.set("to", toDate);
-    const res = await fetch(`/api/accounting/journals?${params}`);
-    const d = await res.json();
-    setRows(d.items);
-    setTotal(d.total);
-    setLoading(false);
+    const cacheKey = `journals:${params.toString()}`;
+    const cached = readSessionCache<{ items: any[]; total: number }>(cacheKey);
+    if (cached) {
+      setRows(cached.items ?? []);
+      setTotal(cached.total ?? 0);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
+    try {
+      const res = await fetch(`/api/accounting/journals?${params}`);
+      const d = await res.json();
+      const next = { items: d.items ?? [], total: d.total ?? 0 };
+      setRows(next.items);
+      setTotal(next.total);
+      writeSessionCache(cacheKey, next);
+    } finally {
+      setLoading(false);
+    }
   }
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, q, fromDate, toDate]);
+  }, [page, debouncedQ, fromDate, toDate]);
 
   const editableFields = ["date", "summary"];
 
@@ -320,9 +334,9 @@ export function JournalClient() {
           </TR>
         </THead>
         <TBody>
-          {loading && <TR><TD colSpan={8} className="text-center py-10"><Loader2 className="inline h-5 w-5 animate-spin" /></TD></TR>}
-          {!loading && rows.length === 0 && <TR><TD colSpan={8}><EmptyState /></TD></TR>}
-          {!loading && rows.map((r) => {
+          {loading && rows.length === 0 && <TableSkeletonRows columns={8 + customCols.columns.length} />}
+          {!loading && rows.length === 0 && <TR><TD colSpan={8 + customCols.columns.length}><EmptyState /></TD></TR>}
+          {rows.length > 0 && rows.map((r) => {
             const debit = r.lines.reduce((s: number, l: any) => s + Number(l.debit), 0);
             const credit = r.lines.reduce((s: number, l: any) => s + Number(l.credit), 0);
             const draft = inlineEditing[r.id];

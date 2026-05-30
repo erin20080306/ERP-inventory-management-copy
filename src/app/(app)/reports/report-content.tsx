@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import useSWR from "swr";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
+import { readSessionCache, writeSessionCache } from "@/components/table-helpers";
 import { formatMoney } from "@/lib/utils";
 
 type TrialBalanceRow = {
@@ -91,10 +92,14 @@ export function ReportContent() {
     const query = params.toString();
     return query ? `/api/reports/summary?${query}` : "/api/reports/summary";
   }, [searchParams]);
+  const cacheKey = `reports:${reportUrl}`;
+  const cachedData = useMemo(() => readSessionCache<ReportData>(cacheKey), [cacheKey]);
 
   const { data, error, isLoading } = useSWR<ReportData>(reportUrl, fetchReportData, {
     dedupingInterval: 15_000,
+    fallbackData: cachedData,
     keepPreviousData: true,
+    onSuccess: (nextData) => writeSessionCache(cacheKey, nextData),
     revalidateOnFocus: false,
   });
 

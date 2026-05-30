@@ -12,7 +12,20 @@ import { formatDate, formatMoney } from "@/lib/utils";
 import { downloadCSV, toCSV } from "@/lib/csv";
 import { ConvertToJournalButton } from "@/components/convert-to-journal-button";
 import { useCustomColumns, CustomColumnDialog, CustomColumnButton, getCustomFieldValues, setCustomFieldValue } from "@/components/custom-columns";
-import { TableHint, useColumnDrag, useDebouncedValue } from "@/components/table-helpers";
+import { readSessionCache, TableHint, TableSkeletonRows, useColumnDrag, useDebouncedValue, writeSessionCache } from "@/components/table-helpers";
+
+function LedgerSummarySkeleton() {
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+      {Array.from({ length: 6 }).map((_, index) => (
+        <div key={index} className="rounded-lg border bg-card p-3 shadow-sm">
+          <div className="h-3 w-16 animate-pulse rounded bg-muted" />
+          <div className="mt-2 h-5 w-24 animate-pulse rounded bg-muted" />
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
   const endpoint = kind === "ar" ? "/api/accounting/receivables" : "/api/accounting/payables";
@@ -30,6 +43,7 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
   const [batchOpen, setBatchOpen] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
   const [summary, setSummary] = useState<any>(null);
+  const [summaryLoading, setSummaryLoading] = useState(true);
   const pageSize = 20;
   const customCols = useCustomColumns(kind === "ar" ? "receivables" : "payables");
   const [editingCells, setEditingCells] = useState<Record<string, any>>({});
@@ -40,19 +54,48 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
   const editableFields = ["dueDate", "status"];
 
   async function load() {
-    setLoading(true);
     const params = new URLSearchParams({ q: debouncedQ, page: String(page), pageSize: String(pageSize) });
     if (fromDate) params.set("from", fromDate);
     if (toDate) params.set("to", toDate);
-    const res = await fetch(`${endpoint}?${params.toString()}`);
-    const d = await res.json();
-    setRows(d.items);
-    setTotal(d.total);
-    setLoading(false);
+    const cacheKey = `ledger:${kind}:${params.toString()}`;
+    const cached = readSessionCache<{ items: any[]; total: number }>(cacheKey);
+    if (cached) {
+      setRows(cached.items ?? []);
+      setTotal(cached.total ?? 0);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
+    try {
+      const res = await fetch(`${endpoint}?${params.toString()}`);
+      const d = await res.json();
+      const next = { items: d.items ?? [], total: d.total ?? 0 };
+      setRows(next.items);
+      setTotal(next.total);
+      writeSessionCache(cacheKey, next);
+    } finally {
+      setLoading(false);
+    }
   }
   async function loadSummary() {
-    const res = await fetch(`/api/accounting/collection-summary?type=${kind}`);
-    if (res.ok) setSummary(await res.json());
+    const cacheKey = `ledger-summary:${kind}`;
+    const cached = readSessionCache<any>(cacheKey);
+    if (cached) {
+      setSummary(cached);
+      setSummaryLoading(false);
+    } else {
+      setSummaryLoading(true);
+    }
+    try {
+      const res = await fetch(`/api/accounting/collection-summary?type=${kind}`);
+      if (res.ok) {
+        const data = await res.json();
+        setSummary(data);
+        writeSessionCache(cacheKey, data);
+      }
+    } finally {
+      setSummaryLoading(false);
+    }
   }
   useEffect(() => {
     load();
@@ -193,6 +236,7 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
   return (
     <div className="space-y-4">
       {/* ─── 收付款方式統計 ─── */}
+      {!summary && summaryLoading && <LedgerSummarySkeleton />}
       {summary && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           <div className="rounded-lg border bg-card p-3 shadow-sm">
@@ -298,9 +342,9 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
           </TR>
         </THead>
         <TBody>
-          {loading && <TR><TD colSpan={9} className="text-center py-10"><Loader2 className="inline h-5 w-5 animate-spin" /></TD></TR>}
-          {!loading && rows.length === 0 && <TR><TD colSpan={9}><EmptyState /></TD></TR>}
-          {!loading && rows.map((r) => {
+          {loading && rows.length === 0 && <TableSkeletonRows columns={10 + customCols.columns.length} />}
+          {!loading && rows.length === 0 && <TR><TD colSpan={10 + customCols.columns.length}><EmptyState /></TD></TR>}
+          {rows.length > 0 && rows.map((r) => {
             const party = kind === "ar" ? r.customer : r.supplier;
             const rel = kind === "ar" ? r.salesOrder : r.purchaseOrder;
             const balance = Number(r.amount) - Number(r.paidAmount);

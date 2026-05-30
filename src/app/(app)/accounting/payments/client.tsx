@@ -10,7 +10,7 @@ import { Loader2, Search, Download, Printer, FileDown } from "lucide-react";
 import { formatDate, formatMoney } from "@/lib/utils";
 import { downloadCSV, toCSV } from "@/lib/csv";
 import { useCustomColumns, CustomColumnDialog, CustomColumnButton, getCustomFieldValues, setCustomFieldValue } from "@/components/custom-columns";
-import { TableHint, useColumnDrag, useDebouncedValue } from "@/components/table-helpers";
+import { readSessionCache, TableHint, TableSkeletonRows, useColumnDrag, useDebouncedValue, writeSessionCache } from "@/components/table-helpers";
 
 export function PaymentHistoryClient() {
   const [rows, setRows] = useState<any[]>([]);
@@ -29,15 +29,28 @@ export function PaymentHistoryClient() {
   const colDrag = useColumnDrag("payments", ["type", "number", "party", "relNumber", "amount", "method", "date", "remark"]);
 
   async function load() {
-    setLoading(true);
     const params = new URLSearchParams({ kind, q: debouncedQ, page: String(page), pageSize: String(pageSize) });
     if (fromDate) params.set("from", fromDate);
     if (toDate) params.set("to", toDate);
-    const res = await fetch(`/api/accounting/payments?${params.toString()}`);
-    const d = await res.json();
-    setRows(d.items ?? []);
-    setTotal(d.total ?? 0);
-    setLoading(false);
+    const cacheKey = `payments:${params.toString()}`;
+    const cached = readSessionCache<{ items: any[]; total: number }>(cacheKey);
+    if (cached) {
+      setRows(cached.items ?? []);
+      setTotal(cached.total ?? 0);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
+    try {
+      const res = await fetch(`/api/accounting/payments?${params.toString()}`);
+      const d = await res.json();
+      const next = { items: d.items ?? [], total: d.total ?? 0 };
+      setRows(next.items);
+      setTotal(next.total);
+      writeSessionCache(cacheKey, next);
+    } finally {
+      setLoading(false);
+    }
   }
   useEffect(() => {
     load();
@@ -145,9 +158,9 @@ export function PaymentHistoryClient() {
           </TR>
         </THead>
         <TBody>
-          {loading && <TR><TD colSpan={8} className="text-center py-10"><Loader2 className="inline h-5 w-5 animate-spin" /></TD></TR>}
-          {!loading && rows.length === 0 && <TR><TD colSpan={8}><EmptyState /></TD></TR>}
-          {!loading && rows.map((r) => (
+          {loading && rows.length === 0 && <TableSkeletonRows columns={8 + customCols.columns.length} />}
+          {!loading && rows.length === 0 && <TR><TD colSpan={8 + customCols.columns.length}><EmptyState /></TD></TR>}
+          {rows.length > 0 && rows.map((r) => (
             <TR key={r.id}>
               <TD>{typeBadge(r.type)}</TD>
               <TD className="font-mono text-xs">{r.number}</TD>
