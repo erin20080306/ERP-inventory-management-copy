@@ -335,8 +335,7 @@ model InventoryTransaction {
   @@index([tenantId])
   @@index([tenantId, createdAt])
   @@index([tenantId, productId, createdAt])
-  @@index([productId])
-  @@index([warehouseId])
+  @@index([tenantId, warehouseId, createdAt])
   @@index([refType, refId])
 }
 
@@ -443,6 +442,7 @@ model PurchaseOrder {
   @@index([tenantId, createdAt])
   @@index([tenantId, orderDate])
   @@index([tenantId, status])
+  @@index([tenantId, status, createdAt])
   @@index([tenantId, supplierId])
 }
 
@@ -500,6 +500,7 @@ model SalesOrder {
   @@index([tenantId, createdAt])
   @@index([tenantId, orderDate])
   @@index([tenantId, status])
+  @@index([tenantId, status, createdAt])
   @@index([tenantId, customerId])
 }
 
@@ -553,6 +554,7 @@ model Quotation {
   @@index([tenantId, createdAt])
   @@index([tenantId, quoteDate])
   @@index([tenantId, status])
+  @@index([tenantId, status, createdAt])
   @@index([tenantId, customerId])
 }
 

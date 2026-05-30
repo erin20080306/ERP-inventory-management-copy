@@ -9,7 +9,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const sp = req.nextUrl.searchParams;
   const q = sp.get("q") ?? "";
   const page = Number(sp.get("page") ?? 1);
-  const pageSize = Number(sp.get("pageSize") ?? 20);
+  const pageSize = Math.min(Number(sp.get("pageSize") ?? 20), 200);
   const where: any = q ? { tenantId, OR: [{ username: { contains: q } }, { name: { contains: q } }, { email: { contains: q } }] } : { tenantId };
   const [items, total] = await Promise.all([
     prisma.user.findMany({

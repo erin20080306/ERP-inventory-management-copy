@@ -9,7 +9,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const kind = sp.get("kind") ?? "all"; // ar | ap | all
   const q = sp.get("q") ?? "";
   const page = Number(sp.get("page") ?? 1);
-  const pageSize = Number(sp.get("pageSize") ?? 20);
+  const pageSize = Math.min(Number(sp.get("pageSize") ?? 20), 200);
   const fromDate = sp.get("from") ?? "";
   const toDate = sp.get("to") ?? "";
   const takeSize = kind === "all" ? Math.min(page * pageSize, 200) : pageSize;

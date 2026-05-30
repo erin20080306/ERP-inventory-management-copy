@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import useSWR, { mutate } from "swr";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -229,7 +229,7 @@ export function CrudTable<T extends { id: string }>({
   }
 
   // 依據 colOrder 排序 columns
-  const orderedColumns = [...columns].sort((a, b) => colOrder.indexOf(a.key) - colOrder.indexOf(b.key));
+  const orderedColumns = useMemo(() => [...columns].sort((a, b) => colOrder.indexOf(a.key) - colOrder.indexOf(b.key)), [columns, colOrder]);
 
   // SWR fetcher
   const fetcher = useCallback(async (url: string) => {
@@ -379,7 +379,10 @@ export function CrudTable<T extends { id: string }>({
       const saved = await res.json().catch(() => null);
       toast.success("已儲存");
       setInlineEditing((prev) => { const n = { ...prev }; delete n[row.id]; return n; });
+<<<<<<< HEAD
       // 使用 mutate 重新驗證資料
+=======
+>>>>>>> 08cb50f (Performance optimization: add pageSize limits, pagination, and database indexes)
       mutate(swrKey());
     } catch (e: any) {
       toast.error(e.message);

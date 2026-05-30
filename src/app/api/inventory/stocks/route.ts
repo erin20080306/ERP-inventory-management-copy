@@ -7,6 +7,8 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const tenantId = await requireTenantId();
   const sp = req.nextUrl.searchParams;
   const q = sp.get("q") ?? "";
+  const page = Number(sp.get("page") ?? 1);
+  const pageSize = Math.min(Number(sp.get("pageSize") ?? 20), 200);
   
   const fromDate = sp.get("from") ?? "";
   const toDate = sp.get("to") ?? "";
@@ -61,14 +63,19 @@ export const GET = apiHandler(async (req: NextRequest) => {
     }
   }
   
-  const stocks = await prisma.inventoryStock.findMany({
-    where,
-    include: {
-      product: { select: { sku: true, name: true, safetyStock: true, costPrice: true } },
-      warehouse: { select: { name: true, code: true } },
-    },
-    orderBy: [{ warehouse: { code: "asc" } }, { product: { sku: "asc" } }],
-  });
+  const [stocks, total] = await Promise.all([
+    prisma.inventoryStock.findMany({
+      where,
+      include: {
+        product: { select: { sku: true, name: true, safetyStock: true, costPrice: true } },
+        warehouse: { select: { name: true, code: true } },
+      },
+      orderBy: [{ warehouse: { code: "asc" } }, { product: { sku: "asc" } }],
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    }),
+    prisma.inventoryStock.count({ where }),
+  ]);
   
-  return NextResponse.json({ items: stocks, total: stocks.length });
+  return NextResponse.json({ items: stocks, total });
 });

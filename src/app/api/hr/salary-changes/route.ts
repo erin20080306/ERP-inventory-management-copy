@@ -10,7 +10,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const status = sp.get("status") ?? "";
   const employeeId = sp.get("employeeId") ?? "";
   const page = Number(sp.get("page") ?? 1);
-  const pageSize = Number(sp.get("pageSize") ?? 50);
+  const pageSize = Math.min(Number(sp.get("pageSize") ?? 50), 200);
   const tenantId = await requireTenantId();
   const where: any = { tenantId };
   if (q) where.OR = [
