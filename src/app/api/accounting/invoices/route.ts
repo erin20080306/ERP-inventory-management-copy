@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiHandler, requirePermission, requireTenantId, audit, nextNumber } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
+import { calculateInvoiceTotals } from "@/lib/invoice-totals";
 
 export const GET = apiHandler(async (req: NextRequest) => {
   await requirePermission("invoices.view");
@@ -54,22 +55,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
   if (type === "PURCHASE" && !supplierId) throw new Error("進項發票必須選擇供應商");
   if (!items?.length) throw new Error("請至少新增一項明細");
 
-  let amountExTax = 0;
-  let taxAmount = 0;
-  const computed = items.map((i: any) => {
-    const line = Number(i.quantity) * Number(i.unitPrice);
-    const tax = line * Number(i.taxRate ?? 0);
-    amountExTax += line;
-    taxAmount += tax;
-    return {
-      description: i.description,
-      quantity: Number(i.quantity),
-      unitPrice: Number(i.unitPrice),
-      taxRate: Number(i.taxRate ?? 0),
-      subtotal: +line.toFixed(2),
-    };
-  });
-  const totalAmount = +(amountExTax + taxAmount).toFixed(2);
+  const totals = calculateInvoiceTotals(items);
 
   // 嘗試從字軌取號
   let number = inNumber;
@@ -98,12 +84,12 @@ export const POST = apiHandler(async (req: NextRequest) => {
       invoiceDate: invoiceDate ? new Date(invoiceDate) : new Date(),
       customerId: type === "SALES" ? customerId : null,
       supplierId: type === "PURCHASE" ? supplierId : null,
-      amountExTax: +amountExTax.toFixed(2),
-      taxAmount: +taxAmount.toFixed(2),
-      totalAmount,
+      amountExTax: totals.amountExTax,
+      taxAmount: totals.taxAmount,
+      totalAmount: totals.totalAmount,
       remark,
       status: "POSTED",
-      items: { create: computed },
+      items: { create: totals.computed },
     },
     include: { items: true, customer: true, supplier: true },
   });

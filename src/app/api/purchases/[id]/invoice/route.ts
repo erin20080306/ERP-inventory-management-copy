@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiHandler, requirePermission, requireTenantId, audit, nextNumber } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
+import { roundInvoiceTax } from "@/lib/invoice-totals";
 
 export const POST = apiHandler(async (_req: NextRequest, { params }: { params: { id: string } }) => {
   const session = await requirePermission("invoices.create");
@@ -14,6 +15,10 @@ export const POST = apiHandler(async (_req: NextRequest, { params }: { params: {
     throw new Error("草稿或已作廢採購單無法開立發票");
   }
   const number = await nextNumber("INV", tenantId);
+  const amountExTax = +(Number(order.subtotal) - Number(order.discount)).toFixed(2);
+  const taxAmount = roundInvoiceTax(order.taxAmount);
+  const totalAmount = +(amountExTax + taxAmount).toFixed(2);
+
   const invoice = await prisma.invoice.create({
     data: {
       tenantId,
@@ -21,9 +26,9 @@ export const POST = apiHandler(async (_req: NextRequest, { params }: { params: {
       type: "PURCHASE",
       invoiceDate: new Date(),
       supplierId: order.supplierId,
-      amountExTax: +(Number(order.subtotal) - Number(order.discount)).toFixed(2),
-      taxAmount: +Number(order.taxAmount).toFixed(2),
-      totalAmount: +Number(order.total).toFixed(2),
+      amountExTax,
+      taxAmount,
+      totalAmount,
       status: "POSTED",
       remark: `由採購單 ${order.number} 自動開立`,
       items: {

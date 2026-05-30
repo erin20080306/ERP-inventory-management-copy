@@ -181,6 +181,8 @@ const MODULES: Module[] = [
   },
 ];
 
+const BOM_OVERVIEW_ENDPOINT = "/api/bom/overview";
+
 export function BomClient() {
   const [selectedModule, setSelectedModule] = useState<string>("products");
   const [rows, setRows] = useState<any[]>([]);
@@ -225,7 +227,6 @@ export function BomClient() {
   async function load() {
     const seq = ++requestSeq.current;
     const cacheKey = `bom:${activeDataKey}`;
-    const endpoint = currentModule.endpoint;
     const cached = readSessionCache<{ items: any[]; total: number }>(cacheKey);
     if (cached) {
       setRows(cached.items ?? []);
@@ -239,7 +240,9 @@ export function BomClient() {
       setLoading(true);
     }
     try {
-      const res = await fetch(`${endpoint}?${queryString}`);
+      const params = new URLSearchParams(queryString);
+      params.set("module", selectedModule);
+      const res = await fetch(`${BOM_OVERVIEW_ENDPOINT}?${params.toString()}`);
       const d = await res.json();
       const next = { items: d.items ?? [], total: d.total ?? 0 };
       if (seq !== requestSeq.current) return;

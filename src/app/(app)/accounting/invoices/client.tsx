@@ -13,6 +13,7 @@ import { downloadCSV, toCSV } from "@/lib/csv";
 import { ConvertToJournalButton } from "@/components/convert-to-journal-button";
 import { useCustomColumns, CustomColumnDialog, CustomColumnButton, getCustomFieldValues, setCustomFieldValue } from "@/components/custom-columns";
 import { TableHint, useColumnDrag } from "@/components/table-helpers";
+import { calculateInvoiceTotals, roundInvoiceTax } from "@/lib/invoice-totals";
 
 export function InvoiceClient() {
   const [rows, setRows] = useState<any[]>([]);
@@ -270,7 +271,7 @@ export function InvoiceClient() {
               <TD className="font-mono text-xs">{i.number}</TD>
               <TD>{(i.customer ?? i.supplier)?.companyName ?? "—"}</TD>
               <TD>{formatMoney(i.amountExTax)}</TD>
-              <TD>{formatMoney(i.taxAmount)}</TD>
+              <TD>{formatMoney(roundInvoiceTax(i.taxAmount))}</TD>
               <TD className="font-medium">{formatMoney(i.totalAmount)}</TD>
               <TD><StatusBadge status={i.status} /></TD>
               <TD
@@ -374,9 +375,10 @@ function NewInvoiceDialog({ open, onClose, onCreated, row, onSaved }: any) {
     setPartyId("");
   }, [type, open]);
 
-  const amountExTax = items.reduce((s, i) => s + Number(i.quantity) * Number(i.unitPrice), 0);
-  const taxAmount = items.reduce((s, i) => s + Number(i.quantity) * Number(i.unitPrice) * Number(i.taxRate ?? 0), 0);
-  const total = amountExTax + taxAmount;
+  const totals = calculateInvoiceTotals(items);
+  const amountExTax = totals.amountExTax;
+  const taxAmount = totals.taxAmount;
+  const total = totals.totalAmount;
 
   function update(idx: number, patch: any) { const n = [...items]; n[idx] = { ...n[idx], ...patch }; setItems(n); }
   function add() { setItems([...items, { description: "", quantity: "", unitPrice: "", taxRate: 0.05 }]); }
