@@ -8,7 +8,7 @@ import { EmptyState } from "@/components/layout/page-shell";
 import { Plus, Search, Loader2, Trash2, Download, Printer, FileDown, FileSpreadsheet, Upload, Settings2, Save, X, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { downloadCSV, toCSV } from "@/lib/csv";
-import { TableHint, useDebouncedValue } from "@/components/table-helpers";
+import { readSessionCache, TableHint, useDebouncedValue, writeSessionCache } from "@/components/table-helpers";
 import {
   useCustomColumns,
   CustomColumnDialog,
@@ -126,6 +126,22 @@ export type Column<T> = {
   /** 欄位可行內編輯; type: text|number|select; options: select 選項 */
   editable?: { type: "text" | "number" | "select"; options?: { value: string; label: string }[] };
 };
+
+function TableSkeletonRows({ columns, rows = 6 }: { columns: number; rows?: number }) {
+  return (
+    <>
+      {Array.from({ length: rows }).map((_, rowIndex) => (
+        <TR key={rowIndex}>
+          {Array.from({ length: columns }).map((_, colIndex) => (
+            <TD key={colIndex}>
+              <div className={`h-4 animate-pulse rounded bg-muted ${colIndex === 0 ? "w-16" : colIndex === columns - 1 ? "ml-auto w-20" : "w-full"}`} />
+            </TD>
+          ))}
+        </TR>
+      ))}
+    </>
+  );
+}
 
 export function CrudTable<T extends { id: string }>({
   endpoint,
@@ -246,17 +262,23 @@ export function CrudTable<T extends { id: string }>({
     return `${endpoint}?${params.toString()}`;
   }, [endpoint, debouncedQ, page, initialQuery, enableDateFilter, fromDate, toDate]);
 
-  const { data, error, isLoading } = useSWR(swrKey(), fetcher, {
+  const tableKey = swrKey();
+  const cachedData = useMemo(() => readSessionCache<any>(tableKey), [tableKey]);
+  const { data, error, isLoading, isValidating } = useSWR(tableKey, fetcher, {
+    fallbackData: cachedData,
     revalidateOnFocus: false,
     revalidateOnReconnect: true,
     keepPreviousData: true,
     dedupingInterval: 15000,
     focusThrottleInterval: 30000,
+    onSuccess: (nextData) => writeSessionCache(tableKey, nextData),
   });
 
   const rows = data?.items ?? [];
   const total = data?.total ?? 0;
-  const showInitialLoading = isLoading && rows.length === 0;
+  const tableColumnCount = orderedColumns.length + customCols.columns.length + ((canEdit || canDelete) ? 1 : 0);
+  const showInitialLoading = isLoading && !data;
+  const showRefreshing = isValidating && !!data && !isLoading;
 
   async function onDelete(row: T) {
     if (!confirm("確定要刪除？")) return;
@@ -554,16 +576,17 @@ export function CrudTable<T extends { id: string }>({
           </TR>
         </THead>
         <TBody>
-          {showInitialLoading && (
+          {showInitialLoading && <TableSkeletonRows columns={tableColumnCount} />}
+          {error && !showInitialLoading && rows.length === 0 && (
             <TR>
-              <TD colSpan={orderedColumns.length + customCols.columns.length + 2} className="text-center py-10">
-                <Loader2 className="h-5 w-5 animate-spin inline-block" />
+              <TD colSpan={tableColumnCount} className="py-8 text-center text-sm text-destructive">
+                {error.message || "資料載入失敗"}
               </TD>
             </TR>
           )}
-          {!showInitialLoading && rows.length === 0 && (
+          {!showInitialLoading && !error && rows.length === 0 && (
             <TR>
-              <TD colSpan={orderedColumns.length + customCols.columns.length + 2}>
+              <TD colSpan={tableColumnCount}>
                 <EmptyState />
               </TD>
             </TR>
@@ -683,7 +706,10 @@ export function CrudTable<T extends { id: string }>({
       </Table>
 
       <div className="flex items-center justify-between text-sm text-muted-foreground">
-        <div>共 {total} 筆</div>
+        <div>
+          共 {total} 筆
+          {showRefreshing && <span className="ml-2 text-xs text-muted-foreground">更新中...</span>}
+        </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
             上一頁

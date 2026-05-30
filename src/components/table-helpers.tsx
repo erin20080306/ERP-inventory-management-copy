@@ -1,6 +1,29 @@
 "use client";
 import React, { useEffect, useState } from "react";
 
+const SESSION_CACHE_PREFIX = "erp_table_cache:";
+const DEFAULT_CACHE_MAX_AGE_MS = 5 * 60 * 1000;
+
+export function readSessionCache<T>(key: string, maxAgeMs = DEFAULT_CACHE_MAX_AGE_MS): T | undefined {
+  if (typeof window === "undefined") return undefined;
+  try {
+    const raw = sessionStorage.getItem(`${SESSION_CACHE_PREFIX}${key}`);
+    if (!raw) return undefined;
+    const parsed = JSON.parse(raw) as { at: number; data: T };
+    if (!parsed?.at || Date.now() - parsed.at > maxAgeMs) return undefined;
+    return parsed.data;
+  } catch {
+    return undefined;
+  }
+}
+
+export function writeSessionCache<T>(key: string, data: T) {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(`${SESSION_CACHE_PREFIX}${key}`, JSON.stringify({ at: Date.now(), data }));
+  } catch {}
+}
+
 /**
  * 表格操作提示
  */

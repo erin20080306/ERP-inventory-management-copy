@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import useSWR from "swr";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -10,7 +11,7 @@ import { Plus, Loader2, Trash2, Search, Download, FileDown, Printer, Pencil } fr
 import { formatDate, formatMoney } from "@/lib/utils";
 import { downloadCSV, toCSV } from "@/lib/csv";
 import { useCustomColumns, CustomColumnDialog, CustomColumnButton, getCustomFieldValues, setCustomFieldValue } from "@/components/custom-columns";
-import { TableHint, useColumnDrag } from "@/components/table-helpers";
+import { readSessionCache, TableHint, useColumnDrag, useDebouncedValue, writeSessionCache } from "@/components/table-helpers";
 
 type QuotationItem = {
   productId: string;
@@ -20,6 +21,29 @@ type QuotationItem = {
   taxRate: number | string;
   subtotal: number;
 };
+
+async function fetchQuotationList(url: string) {
+  const res = await fetch(url);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "報價單載入失敗");
+  return data;
+}
+
+function TableSkeletonRows({ columns, rows = 6 }: { columns: number; rows?: number }) {
+  return (
+    <>
+      {Array.from({ length: rows }).map((_, rowIndex) => (
+        <TR key={rowIndex}>
+          {Array.from({ length: columns }).map((_, colIndex) => (
+            <TD key={colIndex}>
+              <div className={`h-4 animate-pulse rounded bg-muted ${colIndex === 0 ? "h-10 w-10" : colIndex === columns - 1 ? "ml-auto w-20" : "w-full"}`} />
+            </TD>
+          ))}
+        </TR>
+      ))}
+    </>
+  );
+}
 
 function QuotationDialog({ open, onClose, row, onSaved }: any) {
   const [form, setForm] = useState<any>({});
@@ -193,10 +217,8 @@ function QuotationDialog({ open, onClose, row, onSaved }: any) {
 }
 
 export default function QuotationClient() {
-  const [items, setItems] = useState<any[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
+  const debouncedQ = useDebouncedValue(q);
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [openNew, setOpenNew] = useState(false);
@@ -209,21 +231,30 @@ export default function QuotationClient() {
   const [inlineSaving, setInlineSaving] = useState<string | null>(null);
   const [activeCell, setActiveCell] = useState<{ rowId: string; colKey: string } | null>(null);
 
-  async function load() {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams({ q });
-      if (fromDate) params.set("from", fromDate);
-      if (toDate) params.set("to", toDate);
-      const res = await fetch(`/api/quotations?${params}`);
-      const data = await res.json();
-      setItems(data.items);
-      setTotal(data.total);
-    } finally {
-      setLoading(false);
-    }
+  const tableKey = useMemo(() => {
+    const params = new URLSearchParams({ q: debouncedQ, page: "1", pageSize: "20" });
+    if (fromDate) params.set("from", fromDate);
+    if (toDate) params.set("to", toDate);
+    return `/api/quotations?${params.toString()}`;
+  }, [debouncedQ, fromDate, toDate]);
+  const cachedData = useMemo(() => readSessionCache<any>(tableKey), [tableKey]);
+  const { data, error, isLoading, isValidating, mutate: mutateList } = useSWR(tableKey, fetchQuotationList, {
+    fallbackData: cachedData,
+    revalidateOnFocus: false,
+    revalidateOnReconnect: true,
+    keepPreviousData: true,
+    dedupingInterval: 15000,
+    focusThrottleInterval: 30000,
+    onSuccess: (nextData) => writeSessionCache(tableKey, nextData),
+  });
+  const items: any[] = data?.items ?? [];
+  const total = data?.total ?? 0;
+  const tableColumnCount = 9 + customCols.columns.length;
+  const showInitialLoading = isLoading && !data;
+  const showRefreshing = isValidating && !!data && !isLoading;
+  function load() {
+    void mutateList();
   }
-  useEffect(() => { load(); }, [q, fromDate, toDate]);
 
   const editableFields = ["quoteDate", "validUntil"];
 
@@ -325,7 +356,14 @@ export default function QuotationClient() {
       const saved = await res.json().catch(() => null);
       toast.success("已儲存");
       setInlineEditing((prev) => { const n = { ...prev }; delete n[row.id]; return n; });
-      setItems((prev) => prev.map((r) => r.id === row.id ? (saved && saved.id ? saved : { ...r, ...draft }) : r));
+      mutateList((current: any) => {
+        if (!current?.items) return current;
+        return {
+          ...current,
+          items: current.items.map((r: any) => r.id === row.id ? (saved && saved.id ? saved : { ...r, ...draft }) : r),
+        };
+      }, { revalidate: false });
+      void mutateList();
     } catch (e: any) {
       toast.error(e.message);
     } finally {
@@ -398,16 +436,15 @@ export default function QuotationClient() {
 
       <TableHint />
 
-      {loading ? (
-        <div className="flex justify-center py-8"><Loader2 className="h-8 w-8 animate-spin" /></div>
-      ) : (
-        <Table>
-          <THead>
-            <TR><TH>圖片</TH><TH {...colDrag.thProps("number")}>單號</TH><TH {...colDrag.thProps("customer")}>客戶</TH><TH {...colDrag.thProps("date")}>日期</TH><TH {...colDrag.thProps("validUntil")}>有效期限</TH><TH {...colDrag.thProps("total")}>總計</TH><TH {...colDrag.thProps("status")}>狀態</TH><TH {...colDrag.thProps("updatedBy")}>操作人員</TH>{customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}<TH className="text-right">操作</TH></TR>
-          </THead>
-          <TBody>
-            {items.length === 0 && <TR><TD colSpan={9} className="text-center text-muted-foreground">尚無報價單</TD></TR>}
-            {items.map((q) => {
+      <Table>
+        <THead>
+          <TR><TH>圖片</TH><TH {...colDrag.thProps("number")}>單號</TH><TH {...colDrag.thProps("customer")}>客戶</TH><TH {...colDrag.thProps("date")}>日期</TH><TH {...colDrag.thProps("validUntil")}>有效期限</TH><TH {...colDrag.thProps("total")}>總計</TH><TH {...colDrag.thProps("status")}>狀態</TH><TH {...colDrag.thProps("updatedBy")}>操作人員</TH>{customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}<TH className="text-right">操作</TH></TR>
+        </THead>
+        <TBody>
+            {showInitialLoading && <TableSkeletonRows columns={tableColumnCount} />}
+            {error && !showInitialLoading && items.length === 0 && <TR><TD colSpan={tableColumnCount} className="py-8 text-center text-sm text-destructive">{error.message || "資料載入失敗"}</TD></TR>}
+            {!showInitialLoading && !error && items.length === 0 && <TR><TD colSpan={tableColumnCount} className="text-center text-muted-foreground">尚無報價單</TD></TR>}
+            {!showInitialLoading && items.map((q) => {
               const draft = inlineEditing[q.id];
               const isRowEditing = !!draft;
               return (
@@ -492,12 +529,18 @@ export default function QuotationClient() {
               </TR>
             );
             })}
-          </TBody>
-        </Table>
-      )}
+        </TBody>
+      </Table>
 
-      <QuotationDialog open={openNew} onClose={() => setOpenNew(false)} onSaved={(saved: any) => { setOpenNew(false); if (saved) { setItems((prev) => prev.map((q) => q.id === saved.id ? saved : q)); } else { load(); } }} />
-      {editId && <QuotationDialog open={!!editId} row={items.find((q) => q.id === editId)} onClose={() => setEditId(null)} onSaved={(saved: any) => { setEditId(null); if (saved) { setItems((prev) => prev.map((q) => q.id === saved.id ? saved : q)); } else { load(); } }} />}
+      <div className="flex items-center justify-between text-sm text-muted-foreground">
+        <div>
+          共 {total} 筆
+          {showRefreshing && <span className="ml-2 text-xs text-muted-foreground">更新中...</span>}
+        </div>
+      </div>
+
+      <QuotationDialog open={openNew} onClose={() => setOpenNew(false)} onSaved={() => { setOpenNew(false); load(); }} />
+      {editId && <QuotationDialog open={!!editId} row={items.find((q) => q.id === editId)} onClose={() => setEditId(null)} onSaved={() => { setEditId(null); load(); }} />}
       <CustomColumnDialog module="quotations" columns={customCols.columns} open={customCols.open} onClose={() => customCols.setOpen(false)} onSave={customCols.save} />
     </div>
   );

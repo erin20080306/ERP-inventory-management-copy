@@ -128,12 +128,12 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   const perms = data?.user?.permissions ?? [];
   const permKey = perms.join("|");
 
-  const warmRoute = useCallback((href: string) => {
+  const warmRoute = useCallback((href: string, options?: { data?: boolean }) => {
     if (!warmedRoutes.has(href)) {
       warmedRoutes.add(href);
       router.prefetch(href);
     }
-    prefetchDataForRoute(href);
+    if (options?.data) prefetchDataForRoute(href);
   }, [router]);
 
   useEffect(() => {
@@ -168,10 +168,13 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
                   <li key={i.href}>
                     <Link
                       href={i.href}
-                      onClick={onNavigate}
-                      onMouseEnter={() => warmRoute(i.href)}
-                      onFocus={() => warmRoute(i.href)}
-                      onTouchStart={() => warmRoute(i.href)}
+                      onClick={() => {
+                        warmRoute(i.href, { data: true });
+                        onNavigate?.();
+                      }}
+                      onMouseEnter={() => warmRoute(i.href, { data: true })}
+                      onFocus={() => warmRoute(i.href, { data: true })}
+                      onTouchStart={() => warmRoute(i.href, { data: true })}
                       className={cn(
                         "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
                         active
