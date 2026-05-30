@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
@@ -185,7 +185,8 @@ export function BomClient() {
   const [selectedModule, setSelectedModule] = useState<string>("products");
   const [rows, setRows] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadedKey, setLoadedKey] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [q, setQ] = useState("");
@@ -196,6 +197,7 @@ export function BomClient() {
   const [editingCells, setEditingCells] = useState<Record<string, any>>({});
   const [inlineRow, setInlineRow] = useState<Record<string, any>>({});
   const [inlineSaving, setInlineSaving] = useState<string | null>(null);
+  const requestSeq = useRef(0);
 
   async function saveInlineRow(row: any) {
     const draft = inlineRow[row.id]; if (!draft) return;
@@ -208,44 +210,62 @@ export function BomClient() {
   }
 
   const currentModule = MODULES.find((m) => m.key === selectedModule)!;
-
-  async function load() {
+  const queryString = useMemo(() => {
     const params = new URLSearchParams({ q: debouncedQ, page: String(page), pageSize: String(pageSize) });
     if (fromDate) params.set("from", fromDate);
     if (toDate) params.set("to", toDate);
-    const cacheKey = `bom:${selectedModule}:${params.toString()}`;
+    return params.toString();
+  }, [debouncedQ, fromDate, page, toDate]);
+  const activeDataKey = `${selectedModule}:${queryString}`;
+  const hasCurrentData = loadedKey === activeDataKey;
+  const displayRows = hasCurrentData ? rows : [];
+  const displayTotal = hasCurrentData ? total : 0;
+  const waitingForData = (loading || !hasCurrentData) && displayRows.length === 0;
+
+  async function load() {
+    const seq = ++requestSeq.current;
+    const cacheKey = `bom:${activeDataKey}`;
+    const endpoint = currentModule.endpoint;
     const cached = readSessionCache<{ items: any[]; total: number }>(cacheKey);
     if (cached) {
       setRows(cached.items ?? []);
       setTotal(cached.total ?? 0);
+      setLoadedKey(activeDataKey);
       setLoading(false);
     } else {
+      setRows([]);
+      setTotal(0);
+      setLoadedKey("");
       setLoading(true);
     }
     try {
-      const res = await fetch(`${currentModule.endpoint}?${params.toString()}`);
+      const res = await fetch(`${endpoint}?${queryString}`);
       const d = await res.json();
       const next = { items: d.items ?? [], total: d.total ?? 0 };
+      if (seq !== requestSeq.current) return;
       setRows(next.items);
       setTotal(next.total);
+      setLoadedKey(activeDataKey);
       writeSessionCache(cacheKey, next);
     } finally {
-      setLoading(false);
+      if (seq === requestSeq.current) setLoading(false);
     }
   }
 
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedModule, page, debouncedQ, fromDate, toDate]);
+  }, [activeDataKey]);
 
-  useEffect(() => {
-    setPage(1);
-    setRows([]);
-  }, [selectedModule]);
-
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const totalPages = Math.max(1, Math.ceil(displayTotal / pageSize));
   const tableColumnCount = currentModule.columns.length + customCols.columns.length + 1;
+
+  function selectModule(key: string) {
+    if (key === selectedModule) return;
+    setLoading(true);
+    setPage(1);
+    setSelectedModule(key);
+  }
 
   async function fetchAll() {
     const params = new URLSearchParams({ q, pageSize: "10000" });
@@ -324,7 +344,7 @@ export function BomClient() {
         {MODULES.map((m) => (
           <button
             key={m.key}
-            onClick={() => setSelectedModule(m.key)}
+            onClick={() => selectModule(m.key)}
             className={`px-3 py-1.5 rounded-md border text-sm transition-colors ${
               selectedModule === m.key
                 ? "border-primary bg-primary/10 font-medium text-primary"
@@ -350,11 +370,11 @@ export function BomClient() {
         <Button variant="outline" onClick={() => document.getElementById("bom-import")?.click()}><Upload className="h-4 w-4 mr-1" />匯入</Button>
         <input id="bom-import" type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={importFile} />
         <CustomColumnButton onClick={() => customCols.setOpen(true)} />
-        <span className="text-sm text-muted-foreground ml-auto">共 {total} 筆</span>
+        <span className="text-sm text-muted-foreground ml-auto">{waitingForData ? "載入中..." : `共 ${displayTotal} 筆`}</span>
       </div>
 
       {/* 資料表格 */}
-      {!loading && rows.length === 0 ? (
+      {!loading && hasCurrentData && displayRows.length === 0 ? (
         <EmptyState />
       ) : (
         <div className="overflow-x-auto">
@@ -369,8 +389,8 @@ export function BomClient() {
               </TR>
             </THead>
             <TBody>
-              {loading && rows.length === 0 && <TableSkeletonRows columns={tableColumnCount} />}
-              {rows.map((row, idx) => {
+              {waitingForData && <TableSkeletonRows columns={tableColumnCount} />}
+              {displayRows.map((row, idx) => {
                 const isEditing = !!inlineRow[row.id];
                 return (
                 <TR key={row.id ?? idx} className={isEditing ? "bg-accent/5" : ""}>
