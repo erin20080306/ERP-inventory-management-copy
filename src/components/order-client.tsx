@@ -83,11 +83,14 @@ export function OrderClient({ kind, serverExcelExport }: { kind: Kind; serverExc
   const { data, error, isLoading } = useSWR(swrKey(), fetcher, {
     revalidateOnFocus: false,
     revalidateOnReconnect: true,
-    dedupingInterval: 5000,
+    keepPreviousData: true,
+    dedupingInterval: 15000,
+    focusThrottleInterval: 30000,
   });
 
   const rows = data?.items ?? [];
   const total = data?.total ?? 0;
+  const showInitialLoading = isLoading && rows.length === 0;
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
@@ -386,21 +389,21 @@ export function OrderClient({ kind, serverExcelExport }: { kind: Kind; serverExc
           </TR>
         </THead>
         <TBody>
-          {isLoading && (
+          {showInitialLoading && (
             <TR>
               <TD colSpan={10} className="text-center py-10">
                 <Loader2 className="h-5 w-5 animate-spin inline-block" />
               </TD>
             </TR>
           )}
-          {!isLoading && rows.length === 0 && (
+          {!showInitialLoading && rows.length === 0 && (
             <TR>
               <TD colSpan={10}>
                 <EmptyState />
               </TD>
             </TR>
           )}
-          {!isLoading &&
+          {!showInitialLoading &&
             rows.map((r: OrderRow) => {
               const draft = inlineEditing[r.id];
               const isRowEditing = !!draft;

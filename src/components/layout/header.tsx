@@ -1,12 +1,11 @@
 "use client";
 import { useSession, signOut } from "next-auth/react";
-import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { Moon, Sun, LogOut, UserCircle2, Shield } from "lucide-react";
 import { useEffect, useState } from "react";
 import { MobileSidebar } from "./mobile-sidebar";
-import { AIAssistant } from "@/components/ai-assistant";
+import { AIAssistantLauncher } from "@/components/ai-assistant-launcher";
 
 export function Header() {
   const { data } = useSession();
@@ -23,7 +22,7 @@ export function Header() {
           {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
         </Button>
       )}
-      <AIAssistant />
+      <AIAssistantLauncher />
       <div className="flex items-center gap-2 text-sm">
         <UserCircle2 className="h-5 w-5 text-muted-foreground" />
         <div className="hidden sm:flex flex-col">

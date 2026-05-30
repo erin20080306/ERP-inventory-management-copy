@@ -1,7 +1,9 @@
 "use client";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { useCallback, useEffect } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { mutate } from "swr";
 import { cn } from "@/lib/utils";
 import { hasPermission } from "@/lib/auth";
 import {
@@ -13,6 +15,43 @@ import {
 
 type NavItem = { title: string; href: string; icon: any; perm?: string };
 type NavSection = { label: string; items: NavItem[] };
+
+const DATA_PREFETCH_BY_HREF: Record<string, string[]> = {
+  "/products": ["/api/products?q=&page=1&pageSize=20"],
+  "/products/costs": ["/api/products?q=&page=1&pageSize=20"],
+  "/customers": ["/api/customers?q=&page=1&pageSize=20"],
+  "/suppliers": ["/api/suppliers?q=&page=1&pageSize=20"],
+  "/purchases": ["/api/purchases?q=&page=1&pageSize=20"],
+  "/sales": ["/api/sales?q=&page=1&pageSize=20"],
+  "/quotations": ["/api/quotations?q=&page=1&pageSize=20"],
+  "/inventory": ["/api/inventory/stocks?q=", "/api/inventory/transactions?q="],
+  "/accounting/accounts": ["/api/accounting/accounts?q=&page=1&pageSize=20"],
+  "/accounting/journals": ["/api/accounting/journals?q=&page=1&pageSize=20"],
+  "/accounting/receivables": ["/api/accounting/receivables?q=&page=1&pageSize=20"],
+  "/accounting/payables": ["/api/accounting/payables?q=&page=1&pageSize=20"],
+  "/accounting/invoices": ["/api/accounting/invoices?q=&page=1&pageSize=20"],
+  "/accounting/fixed-assets": ["/api/accounting/fixed-assets?q=&page=1&pageSize=20"],
+  "/warehouses": ["/api/warehouses?q=&page=1&pageSize=20"],
+  "/users": ["/api/users?q=&page=1&pageSize=20"],
+  "/roles": ["/api/roles"],
+};
+
+const warmedRoutes = new Set<string>();
+const warmedData = new Set<string>();
+
+async function fetchJson(url: string) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("prefetch failed");
+  return res.json();
+}
+
+function prefetchDataForRoute(href: string) {
+  for (const key of DATA_PREFETCH_BY_HREF[href] ?? []) {
+    if (warmedData.has(key)) continue;
+    warmedData.add(key);
+    void mutate(key, fetchJson(key), { populateCache: true, revalidate: false });
+  }
+}
 
 const sections: NavSection[] = [
   { label: "總覽", items: [{ title: "儀表板", href: "/dashboard", icon: LayoutDashboard, perm: "dashboard.view" }] },
@@ -84,8 +123,32 @@ export function SidebarBrand() {
 
 export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { data } = useSession();
   const perms = data?.user?.permissions ?? [];
+  const permKey = perms.join("|");
+
+  const warmRoute = useCallback((href: string) => {
+    if (!warmedRoutes.has(href)) {
+      warmedRoutes.add(href);
+      router.prefetch(href);
+    }
+    prefetchDataForRoute(href);
+  }, [router]);
+
+  useEffect(() => {
+    const visibleHrefs = sections
+      .flatMap((section) => section.items)
+      .filter((item) => !item.perm || hasPermission(perms, item.perm))
+      .map((item) => item.href);
+    const warmCommonRoutes = () => visibleHrefs.slice(0, 8).forEach((href) => warmRoute(href));
+    if ("requestIdleCallback" in window) {
+      const id = window.requestIdleCallback(warmCommonRoutes, { timeout: 2500 });
+      return () => window.cancelIdleCallback(id);
+    }
+    const id = setTimeout(warmCommonRoutes, 1200);
+    return () => clearTimeout(id);
+  }, [permKey, warmRoute]);
 
   return (
     <nav className="flex-1 overflow-y-auto py-4">
@@ -106,6 +169,9 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
                     <Link
                       href={i.href}
                       onClick={onNavigate}
+                      onMouseEnter={() => warmRoute(i.href)}
+                      onFocus={() => warmRoute(i.href)}
+                      onTouchStart={() => warmRoute(i.href)}
                       className={cn(
                         "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
                         active

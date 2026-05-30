@@ -3,6 +3,9 @@ import { getServerSession } from "next-auth";
 import { authOptions, hasPermission } from "./auth";
 import { prisma } from "./prisma";
 
+const TENANT_EXISTS_TTL_MS = 60_000;
+const tenantExistsCache = new Map<string, { exists: boolean; expiresAt: number }>();
+
 export async function getSession() {
   return await getServerSession(authOptions);
 }
@@ -21,14 +24,19 @@ export async function requirePermission(code: string) {
   return session;
 }
 
-export async function requireTenantId() {
-  const session = await requireAuth();
+export async function requireTenantId(activeSession?: Awaited<ReturnType<typeof requireAuth>>) {
+  const session = activeSession ?? await requireAuth();
   const tenantId = (session.user as any).tenantId;
   if (!tenantId) throw new ApiError(401, "無租戶資訊");
   
   // 驗證租戶是否存在
-  const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } });
-  if (!tenant) throw new ApiError(401, "租戶不存在或已被刪除");
+  const cached = tenantExistsCache.get(tenantId);
+  const now = Date.now();
+  if (!cached || cached.expiresAt <= now) {
+    const tenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { id: true } });
+    tenantExistsCache.set(tenantId, { exists: Boolean(tenant), expiresAt: now + TENANT_EXISTS_TTL_MS });
+  }
+  if (!tenantExistsCache.get(tenantId)?.exists) throw new ApiError(401, "租戶不存在或已被刪除");
   
   return tenantId as string;
 }

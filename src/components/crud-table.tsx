@@ -249,11 +249,14 @@ export function CrudTable<T extends { id: string }>({
   const { data, error, isLoading } = useSWR(swrKey(), fetcher, {
     revalidateOnFocus: false,
     revalidateOnReconnect: true,
-    dedupingInterval: 5000,
+    keepPreviousData: true,
+    dedupingInterval: 15000,
+    focusThrottleInterval: 30000,
   });
 
   const rows = data?.items ?? [];
   const total = data?.total ?? 0;
+  const showInitialLoading = isLoading && rows.length === 0;
 
   async function onDelete(row: T) {
     if (!confirm("確定要刪除？")) return;
@@ -551,21 +554,21 @@ export function CrudTable<T extends { id: string }>({
           </TR>
         </THead>
         <TBody>
-          {isLoading && (
+          {showInitialLoading && (
             <TR>
               <TD colSpan={orderedColumns.length + customCols.columns.length + 2} className="text-center py-10">
                 <Loader2 className="h-5 w-5 animate-spin inline-block" />
               </TD>
             </TR>
           )}
-          {!isLoading && rows.length === 0 && (
+          {!showInitialLoading && rows.length === 0 && (
             <TR>
               <TD colSpan={orderedColumns.length + customCols.columns.length + 2}>
                 <EmptyState />
               </TD>
             </TR>
           )}
-          {!isLoading &&
+          {!showInitialLoading &&
             rows.map((row: T) => {
               const draft = inlineEditing[row.id];
               const isRowEditing = !!draft;

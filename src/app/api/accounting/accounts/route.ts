@@ -3,8 +3,8 @@ import { apiHandler, requirePermission, requireTenantId, audit, getCurrentUserId
 import { prisma } from "@/lib/prisma";
 
 export const GET = apiHandler(async (req: NextRequest) => {
-  await requirePermission("accounting.view");
-  const tenantId = await requireTenantId();
+  const session = await requirePermission("accounting.view");
+  const tenantId = await requireTenantId(session);
   const q = req.nextUrl.searchParams.get("q") ?? "";
   const fromDate = req.nextUrl.searchParams.get("from") ?? "";
   const toDate = req.nextUrl.searchParams.get("to") ?? "";

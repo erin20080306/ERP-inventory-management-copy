@@ -18,10 +18,24 @@ export default function LoginPage() {
   );
 }
 
+function normalizeCallbackUrl(value: string | null) {
+  const fallback = "/dashboard";
+  if (!value) return fallback;
+  if (value.startsWith("/") && !value.startsWith("//")) return value;
+  if (typeof window === "undefined") return fallback;
+  try {
+    const url = new URL(value, window.location.origin);
+    if (url.origin === window.location.origin || url.hostname === window.location.hostname) {
+      return `${url.pathname}${url.search}${url.hash}` || fallback;
+    }
+  } catch {}
+  return fallback;
+}
+
 function LoginInner() {
   const router = useRouter();
   const sp = useSearchParams();
-  const callbackUrl = sp.get("callbackUrl") || "/dashboard";
+  const callbackUrl = normalizeCallbackUrl(sp.get("callbackUrl"));
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);

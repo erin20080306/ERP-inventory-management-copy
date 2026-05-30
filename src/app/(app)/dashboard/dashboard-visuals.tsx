@@ -1,5 +1,6 @@
 "use client";
 
+import useSWR from "swr";
 import { AlertTriangle, Package, PieChart, Receipt, TrendingUp } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
@@ -9,18 +10,92 @@ import { SalesTrendChart } from "./trend-chart";
 import { PieChartComponent } from "./pie-chart";
 import { HorizontalBarChart } from "./horizontal-bar-chart";
 
-type DashboardVisualsProps = {
-  stats: {
-    topProducts: { name: string; subtotal: number }[];
-    salesByStatus: { name: string; value: number }[];
-    inventoryByWarehouse: { name: string; value: number }[];
-    recentSales: any[];
-    lowStockList: any[];
-    trend: { date: string; sales: number; purchase: number }[];
-  };
+type DashboardVisualStats = {
+  topProducts: { name: string; subtotal: number }[];
+  salesByStatus: { name: string; value: number }[];
+  inventoryByWarehouse: { name: string; value: number }[];
+  recentSales: Array<{
+    id: string;
+    number: string;
+    total: number | string;
+    status: string;
+    customer?: { companyName?: string | null } | null;
+  }>;
+  lowStockList: Array<{
+    id: string;
+    sku: string;
+    name: string;
+    total: number;
+    safetyStock: number | string;
+  }>;
+  trend: { date: string; sales: number; purchase: number }[];
 };
 
-export function DashboardVisuals({ stats: s }: DashboardVisualsProps) {
+async function fetchDashboardVisuals(url: string): Promise<DashboardVisualStats> {
+  const res = await fetch(url);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Dashboard 圖表資料載入失敗");
+  return data;
+}
+
+function PulseBlock({ className = "" }: { className?: string }) {
+  return <div className={`animate-pulse rounded-md bg-muted ${className}`} />;
+}
+
+function VisualCardSkeleton({ className = "", rows = 4 }: { className?: string; rows?: number }) {
+  return (
+    <Card className={`shadow-md border-0 ${className}`}>
+      <CardHeader className="bg-gradient-to-r from-slate-50 to-white dark:from-slate-800 dark:to-slate-900 rounded-t-lg">
+        <PulseBlock className="h-5 w-44" />
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <PulseBlock className="h-48 w-full" />
+        {Array.from({ length: rows }).map((_, index) => (
+          <PulseBlock key={index} className="h-4 w-full" />
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+function DashboardVisualsSkeleton() {
+  return (
+    <>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <VisualCardSkeleton className="lg:col-span-2" rows={0} />
+        <VisualCardSkeleton rows={5} />
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <VisualCardSkeleton rows={0} />
+        <VisualCardSkeleton rows={0} />
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <VisualCardSkeleton />
+        <VisualCardSkeleton />
+      </div>
+    </>
+  );
+}
+
+export function DashboardVisuals() {
+  const { data: s, error, isLoading } = useSWR<DashboardVisualStats>("/api/dashboard/visuals", fetchDashboardVisuals, {
+    dedupingInterval: 15_000,
+    keepPreviousData: true,
+    revalidateOnFocus: false,
+  });
+
+  if (error) {
+    return (
+      <Card className="border-destructive/30">
+        <CardContent className="py-6 text-sm text-destructive">
+          Dashboard 圖表資料載入失敗，KPI 已先顯示。請重新整理頁面再試一次。
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (isLoading || !s) return <DashboardVisualsSkeleton />;
+
   return (
     <>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -96,7 +171,7 @@ export function DashboardVisuals({ stats: s }: DashboardVisualsProps) {
                 {s.recentSales.map((o) => (
                   <TR key={o.id}>
                     <TD className="font-mono text-xs">{o.number}</TD>
-                    <TD>{o.customer.companyName}</TD>
+                    <TD>{o.customer?.companyName ?? "-"}</TD>
                     <TD>{formatMoney(o.total)}</TD>
                     <TD>
                       <StatusBadge status={o.status} />

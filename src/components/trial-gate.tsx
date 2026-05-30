@@ -7,10 +7,29 @@ const PAYPAL_ONCE_URL = "https://www.paypal.com/ncp/payment/THPBQKV5SY3WN";
 const PAYPAL_MONTHLY_URL = "https://www.paypal.com/ncp/payment/GV6PKA6RLC4H8";
 const PAYPAL_MODIFY_URL = "https://www.paypal.com/ncp/payment/TWZCMWYCVKBNE";
 
-type GateState = "loading" | "trial" | "expired" | "paid" | "locked";
+type GateState = "checking" | "trial" | "expired" | "paid" | "locked";
+
+const GATE_CACHE_KEY = "erp_trial_gate_state";
+
+function getCachedGateState(): GateState {
+  if (typeof window === "undefined") return "checking";
+  try {
+    const cached = sessionStorage.getItem(GATE_CACHE_KEY);
+    if (cached === "paid" || cached === "trial") return cached;
+  } catch {}
+  return "checking";
+}
+
+function rememberGateState(state: GateState) {
+  if (typeof window === "undefined") return;
+  try {
+    if (state === "paid" || state === "trial") sessionStorage.setItem(GATE_CACHE_KEY, state);
+    else sessionStorage.removeItem(GATE_CACHE_KEY);
+  } catch {}
+}
 
 export function TrialGate({ children }: { children: React.ReactNode }) {
-  const [state, setState] = useState<GateState>("loading");
+  const [state, setState] = useState<GateState>(() => getCachedGateState());
   const [remainMs, setRemainMs] = useState(0);
   const [subRemainMs, setSubRemainMs] = useState(0);
   const [tenantCount, setTenantCount] = useState<number>(0);
@@ -23,6 +42,7 @@ export function TrialGate({ children }: { children: React.ReactNode }) {
       const data = await res.json();
       if (data.status === "paid") {
         setState("paid");
+        rememberGateState("paid");
         if (data.paymentType === "MONTHLY" && data.subscriptionRemainMs) {
           subEndRef.current = Date.now() + data.subscriptionRemainMs;
           setSubRemainMs(data.subscriptionRemainMs);
@@ -30,17 +50,21 @@ export function TrialGate({ children }: { children: React.ReactNode }) {
         if (typeof data.tenantCount === "number") setTenantCount(data.tenantCount);
       } else if (data.status === "locked") {
         setState("locked");
+        rememberGateState("locked");
       } else if (data.status === "expired") {
         setState("expired");
+        rememberGateState("expired");
       } else {
         const remain = data.remainMs ?? 0;
         expireAtRef.current = Date.now() + remain;
         setRemainMs(remain);
         setState("trial");
+        rememberGateState("trial");
         if (typeof data.tenantCount === "number") setTenantCount(data.tenantCount);
       }
     } catch {
       setState("trial");
+      rememberGateState("trial");
     }
   }, []);
 
@@ -50,7 +74,10 @@ export function TrialGate({ children }: { children: React.ReactNode }) {
     const tickInterval = setInterval(() => {
       if (expireAtRef.current > 0) {
         const remaining = expireAtRef.current - Date.now();
-        if (remaining <= 0) setState("expired");
+        if (remaining <= 0) {
+          setState("expired");
+          rememberGateState("expired");
+        }
         else setRemainMs(remaining);
       }
       if (subEndRef.current > 0) {
@@ -62,13 +89,7 @@ export function TrialGate({ children }: { children: React.ReactNode }) {
     return () => { clearInterval(serverInterval); clearInterval(tickInterval); };
   }, [checkTrial]);
 
-  if (state === "loading") {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900">
-        <div className="animate-spin h-8 w-8 border-4 border-indigo-500 border-t-transparent rounded-full" />
-      </div>
-    );
-  }
+  if (state === "checking") return <>{children}</>;
 
   if (state === "locked") return <LockedScreen />;
 
@@ -82,6 +103,7 @@ export function TrialGate({ children }: { children: React.ReactNode }) {
   }
 
   if (state === "trial") {
+    if (remainMs <= 0) return <>{children}</>;
     const hours = Math.floor(remainMs / (1000 * 60 * 60));
     const mins = Math.floor((remainMs % (1000 * 60 * 60)) / (1000 * 60));
     const secs = Math.floor((remainMs % (1000 * 60)) / 1000);
@@ -416,32 +438,6 @@ function InfoPage({ onClose }: { onClose: () => void }) {
 
 /* ─── 帳號已鎖定 ─── */
 function LockedScreen() {
-  const [showFreeUse, setShowFreeUse] = useState(false);
-  const [freePassword, setFreePassword] = useState("");
-  const [freeError, setFreeError] = useState("");
-  const [freeLoading, setFreeLoading] = useState(false);
-
-  async function handleFreeUse() {
-    setFreeError("");
-    setFreeLoading(true);
-    try {
-      const res = await fetch("/api/trial/free-use", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: freePassword }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        window.location.reload();
-      } else {
-        setFreeError(data.error || "密碼錯誤");
-      }
-    } catch {
-      setFreeError("系統錯誤，請稍後再試");
-    }
-    setFreeLoading(false);
-  }
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-gray-900 to-slate-900 flex items-center justify-center p-4">
       <div className="relative max-w-md w-full rounded-2xl bg-white/5 backdrop-blur-2xl border border-red-500/50 shadow-2xl p-8 space-y-6">
@@ -472,33 +468,6 @@ function LockedScreen() {
           className="flex items-center justify-center gap-2 w-full h-11 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold rounded-xl transition">
           <CalendarClock className="h-5 w-5" />付款解鎖（月付訂閱）
         </a>
-
-        {/* 不用付款使用（需密碼） */}
-        <div className="border-t border-white/10 pt-4 space-y-3">
-          {!showFreeUse ? (
-            <button onClick={() => setShowFreeUse(true)} className="w-full h-10 text-sm text-amber-400 hover:text-amber-300 border border-amber-500/30 hover:border-amber-500/50 rounded-xl transition">
-              不用付款使用（需輸入超級管理員密碼）
-            </button>
-          ) : (
-            <div className="space-y-2">
-              <input
-                type="password"
-                placeholder="請輸入超級管理員密碼"
-                value={freePassword}
-                onChange={(e) => setFreePassword(e.target.value)}
-                className="w-full h-10 px-4 bg-white/5 border border-white/20 rounded-xl text-white placeholder:text-slate-500 text-sm focus:outline-none focus:border-amber-400"
-              />
-              {freeError && <p className="text-xs text-red-400">{freeError}</p>}
-              <button
-                onClick={handleFreeUse}
-                disabled={freeLoading || !freePassword}
-                className="w-full h-10 text-sm bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white font-medium rounded-xl transition"
-              >
-                {freeLoading ? "驗證中..." : "確認啟用"}
-              </button>
-            </div>
-          )}
-        </div>
 
         <p className="text-xs text-slate-500 text-center">
           付款後請聯繫管理員解鎖帳號：<a href="mailto:erin20080306@gmail.com" className="text-indigo-400 hover:underline">erin20080306@gmail.com</a>

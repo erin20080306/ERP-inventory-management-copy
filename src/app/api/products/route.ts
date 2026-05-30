@@ -22,8 +22,8 @@ const ProductInput = z.object({
 });
 
 export const GET = apiHandler(async (req: NextRequest) => {
-  await requirePermission("products.view");
-  const tenantId = await requireTenantId();
+  const session = await requirePermission("products.view");
+  const tenantId = await requireTenantId(session);
   const sp = req.nextUrl.searchParams;
   const q = sp.get("q") ?? "";
   const page = Number(sp.get("page") ?? 1);

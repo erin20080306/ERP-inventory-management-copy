@@ -42,6 +42,10 @@ type AssistantResult =
 
 const EXAMPLE_QUERY = "高雄貿易銷售";
 
+type AIAssistantProps = {
+  initialOpen?: boolean;
+};
+
 function arrayBufferToBase64(buffer: ArrayBuffer) {
   const bytes = new Uint8Array(buffer);
   let binary = "";
@@ -55,8 +59,8 @@ function safeFilename(value: string) {
   return value.replace(/[\\/:*?"<>|]/g, "-").slice(0, 80);
 }
 
-export function AIAssistant() {
-  const [open, setOpen] = useState(false);
+export function AIAssistant({ initialOpen = false }: AIAssistantProps) {
+  const [open, setOpen] = useState(initialOpen);
   const [question, setQuestion] = useState(EXAMPLE_QUERY);
   const [loading, setLoading] = useState(false);
   const [listening, setListening] = useState(false);

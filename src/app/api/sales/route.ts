@@ -5,8 +5,8 @@ import { calcTotals } from "@/lib/documents";
 import { autoCreateJournalFromOrder } from "@/lib/auto-journal";
 
 export const GET = apiHandler(async (req: NextRequest) => {
-  await requirePermission("sales.view");
-  const tenantId = await requireTenantId();
+  const session = await requirePermission("sales.view");
+  const tenantId = await requireTenantId(session);
   const sp = req.nextUrl.searchParams;
   const q = sp.get("q") ?? "";
   const page = Number(sp.get("page") ?? 1);
