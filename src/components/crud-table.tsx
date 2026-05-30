@@ -379,10 +379,6 @@ export function CrudTable<T extends { id: string }>({
       const saved = await res.json().catch(() => null);
       toast.success("已儲存");
       setInlineEditing((prev) => { const n = { ...prev }; delete n[row.id]; return n; });
-<<<<<<< HEAD
-      // 使用 mutate 重新驗證資料
-=======
->>>>>>> 08cb50f (Performance optimization: add pageSize limits, pagination, and database indexes)
       mutate(swrKey());
     } catch (e: any) {
       toast.error(e.message);
