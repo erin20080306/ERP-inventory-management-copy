@@ -5,10 +5,14 @@ export type InvoiceLineInput = {
   taxRate?: number | string | null;
 };
 
-export function roundInvoiceTax(value: any) {
+export function roundInvoiceAmount(value: any) {
   const n = Number(value ?? 0);
   if (!Number.isFinite(n)) return 0;
   return Math.round(n);
+}
+
+export function roundInvoiceTax(value: any) {
+  return roundInvoiceAmount(value);
 }
 
 function roundMoney(value: any) {
@@ -41,7 +45,7 @@ export function calculateInvoiceTotals(items: InvoiceLineInput[]) {
 
   const amountExTax = roundMoney(amountExTaxRaw);
   const taxAmount = roundInvoiceTax(taxRaw);
-  const totalAmount = roundMoney(amountExTax + taxAmount);
+  const totalAmount = roundInvoiceAmount(amountExTax + taxAmount);
 
   return { amountExTax, taxAmount, totalAmount, computed };
 }

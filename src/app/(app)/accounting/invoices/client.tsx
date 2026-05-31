@@ -13,7 +13,7 @@ import { downloadCSV, toCSV } from "@/lib/csv";
 import { ConvertToJournalButton } from "@/components/convert-to-journal-button";
 import { useCustomColumns, CustomColumnDialog, CustomColumnButton, getCustomFieldValues, setCustomFieldValue } from "@/components/custom-columns";
 import { TableHint, useColumnDrag } from "@/components/table-helpers";
-import { calculateInvoiceTotals, roundInvoiceTax } from "@/lib/invoice-totals";
+import { calculateInvoiceTotals, roundInvoiceAmount, roundInvoiceTax } from "@/lib/invoice-totals";
 
 export function InvoiceClient() {
   const [rows, setRows] = useState<any[]>([]);
@@ -272,7 +272,7 @@ export function InvoiceClient() {
               <TD>{(i.customer ?? i.supplier)?.companyName ?? "—"}</TD>
               <TD>{formatMoney(i.amountExTax)}</TD>
               <TD>{formatMoney(roundInvoiceTax(i.taxAmount))}</TD>
-              <TD className="font-medium">{formatMoney(i.totalAmount)}</TD>
+              <TD className="font-medium">{formatMoney(roundInvoiceAmount(i.totalAmount))}</TD>
               <TD><StatusBadge status={i.status} /></TD>
               <TD
                 className={editableFields.includes("remark") ? "cursor-cell hover:bg-muted/60 transition-colors" : ""}

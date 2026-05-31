@@ -3,6 +3,7 @@ import { requirePermission, requireTenantId } from "@/lib/api";
 import { notFound } from "next/navigation";
 import { AutoPrint } from "../../auto-print";
 import { formatDate, formatMoney } from "@/lib/utils";
+import { roundInvoiceAmount } from "@/lib/invoice-totals";
 
 export const dynamic = "force-dynamic";
 
@@ -105,11 +106,11 @@ export default async function Page({ params }: { params: { id: string } }) {
           </div>
           <div className="tw-inv-total-row">
             <span className="tw-inv-label">營 業 稅</span>
-            <span className="tw-inv-total-amt">{Number(inv.taxAmount).toLocaleString()}</span>
+            <span className="tw-inv-total-amt">{roundInvoiceAmount(inv.taxAmount).toLocaleString()}</span>
           </div>
           <div className="tw-inv-total-row tw-inv-grand">
             <span className="tw-inv-label">總　計</span>
-            <span className="tw-inv-total-amt">{Number(inv.totalAmount).toLocaleString()}</span>
+            <span className="tw-inv-total-amt">{roundInvoiceAmount(inv.totalAmount).toLocaleString()}</span>
           </div>
         </div>
 

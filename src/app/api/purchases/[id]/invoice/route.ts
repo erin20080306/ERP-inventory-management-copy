@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiHandler, requirePermission, requireTenantId, audit, nextNumber } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
-import { roundInvoiceTax } from "@/lib/invoice-totals";
+import { roundInvoiceAmount, roundInvoiceTax } from "@/lib/invoice-totals";
 
 export const POST = apiHandler(async (_req: NextRequest, { params }: { params: { id: string } }) => {
   const session = await requirePermission("invoices.create");
@@ -17,7 +17,7 @@ export const POST = apiHandler(async (_req: NextRequest, { params }: { params: {
   const number = await nextNumber("INV", tenantId);
   const amountExTax = +(Number(order.subtotal) - Number(order.discount)).toFixed(2);
   const taxAmount = roundInvoiceTax(order.taxAmount);
-  const totalAmount = +(amountExTax + taxAmount).toFixed(2);
+  const totalAmount = roundInvoiceAmount(amountExTax + taxAmount);
 
   const invoice = await prisma.invoice.create({
     data: {

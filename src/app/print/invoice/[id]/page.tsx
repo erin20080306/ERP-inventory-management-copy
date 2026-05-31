@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { AutoPrint } from "../../auto-print";
 import { CompanyHeader } from "../../CompanyHeader";
 import { formatDate, formatMoney } from "@/lib/utils";
+import { roundInvoiceAmount } from "@/lib/invoice-totals";
 
 export const dynamic = "force-dynamic";
 
@@ -61,8 +62,8 @@ export default async function Page({ params }: { params: { id: string } }) {
           <div className="remark-box"><span className="label">備註：</span>{inv.remark ?? ""}</div>
           <div className="summary">
             <div>銷售額（未稅）</div><div>{formatMoney(inv.amountExTax).replace("NT$ ", "")}</div>
-            <div>營 業 稅 額</div><div>{formatMoney(inv.taxAmount).replace("NT$ ", "")}</div>
-            <div className="row-total">總　計</div><div className="row-total">{formatMoney(inv.totalAmount).replace("NT$ ", "")}</div>
+            <div>營 業 稅 額</div><div>{formatMoney(roundInvoiceAmount(inv.taxAmount)).replace("NT$ ", "")}</div>
+            <div className="row-total">總　計</div><div className="row-total">{formatMoney(roundInvoiceAmount(inv.totalAmount)).replace("NT$ ", "")}</div>
           </div>
         </div>
         <div className="footer-note">列印時間：{new Date().toLocaleString("zh-TW")}</div>

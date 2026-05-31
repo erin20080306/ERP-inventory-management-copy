@@ -251,8 +251,8 @@ function Paywall() {
               <div className="font-medium text-slate-400">艾琳設計</div>
               <div>Email: erin20080306@gmail.com</div>
               <div>Line ID: erin2008</div>
-              <a href="https://erin20080306.wixsite.com/designed-by-erin" target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:text-indigo-300 transition">
-                網站：https://erin20080306.wixsite.com/designed-by-erin
+              <a href="https://eileen-design.pages.dev/" target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:text-indigo-300 transition">
+                網站：https://eileen-design.pages.dev/
               </a>
             </div>
           </div>
@@ -426,8 +426,8 @@ function InfoPage({ onClose }: { onClose: () => void }) {
             <div className="font-bold text-white">艾琳設計</div>
             <div>Email: erin20080306@gmail.com</div>
             <div>Line ID: erin2008</div>
-            <a href="https://erin20080306.wixsite.com/designed-by-erin" target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:text-indigo-300 transition block">
-              https://erin20080306.wixsite.com/designed-by-erin
+            <a href="https://eileen-design.pages.dev/" target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:text-indigo-300 transition block">
+              https://eileen-design.pages.dev/
             </a>
           </div>
         </div>

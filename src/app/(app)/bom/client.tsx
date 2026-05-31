@@ -12,6 +12,7 @@ import { downloadCSV, toCSV } from "@/lib/csv";
 import { toast } from "sonner";
 import { useCustomColumns, CustomColumnDialog, CustomColumnButton, getCustomFieldValues, setCustomFieldValue } from "@/components/custom-columns";
 import { readSessionCache, TableSkeletonRows, useDebouncedValue, writeSessionCache } from "@/components/table-helpers";
+import { roundInvoiceAmount } from "@/lib/invoice-totals";
 
 type Module = {
   key: string;
@@ -145,7 +146,7 @@ const MODULES: Module[] = [
     columns: [
       { key: "number", title: "發票號碼" },
       { key: "type", title: "類型" },
-      { key: "totalAmount", title: "含稅金額", render: (r) => formatMoney(r.totalAmount) },
+      { key: "totalAmount", title: "含稅金額", render: (r) => formatMoney(roundInvoiceAmount(r.totalAmount)) },
       { key: "status", title: "狀態" },
       { key: "invoiceDate", title: "日期", render: (r) => formatDate(r.invoiceDate) },
     ],
