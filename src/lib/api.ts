@@ -2,6 +2,7 @@ import { NextResponse, NextRequest } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions, hasPermission } from "./auth";
 import { prisma } from "./prisma";
+import { reportError } from "./error-report";
 
 const TENANT_EXISTS_TTL_MS = 60_000;
 const tenantExistsCache = new Map<string, { exists: boolean; expiresAt: number }>();
@@ -72,6 +73,20 @@ export function apiHandler<T extends (...args: any[]) => Promise<any>>(fn: T) {
         return NextResponse.json({ error: e.message }, { status: e.status });
       }
       console.error("[API Error]", e);
+      const req = args[0] as NextRequest | undefined;
+      let ctx: { tenantId?: string | null; userId?: string | null; method?: string | null; path?: string | null; status: number; ip?: string | null; userAgent?: string | null } = { status: 500 };
+      try {
+        if (req && typeof (req as any).headers?.get === "function") {
+          ctx.method = req.method ?? null;
+          ctx.path = req.nextUrl?.pathname ?? null;
+          ctx.ip = req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || req.headers.get("cf-connecting-ip") || null;
+          ctx.userAgent = req.headers.get("user-agent") || null;
+        }
+        const session = await getSession();
+        ctx.tenantId = (session?.user as any)?.tenantId ?? null;
+        ctx.userId = (session?.user as any)?.id ?? null;
+      } catch {}
+      void reportError(e, ctx);
       return NextResponse.json({ error: e?.message ?? "伺服器錯誤" }, { status: 500 });
     }
   };

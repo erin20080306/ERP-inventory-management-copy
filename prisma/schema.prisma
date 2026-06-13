@@ -1144,6 +1144,24 @@ model LoginLog {
   user      User?    @relation(fields: [userId], references: [id])
 }
 
+model ErrorLog {
+  id        String   @id @default(cuid())
+  tenantId  String?
+  userId    String?
+  method    String?
+  path      String?
+  status    Int      @default(500)
+  message   String
+  stack     String?
+  ip        String?
+  userAgent String?
+  notified  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([createdAt])
+}
+
 // ─────────────────────────── 票據管理 ───────────────────────────
 enum NoteStatus {
   DRAFT

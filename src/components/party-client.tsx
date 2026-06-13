@@ -26,7 +26,7 @@ function PartyDialog({ open, onClose, row, onSaved, endpoint, kind }: any) {
   const [form, setForm] = useState<any>({});
   const [saving, setSaving] = useState(false);
   useEffect(() => {
-    setForm(row ?? { code: "", companyName: "", isActive: true, creditLimit: 0 });
+    setForm(row ?? { code: "", companyName: "", isActive: true, ...(kind === "customer" ? { creditLimit: 0 } : {}) });
   }, [row, open]);
   async function save() {
     setSaving(true);
