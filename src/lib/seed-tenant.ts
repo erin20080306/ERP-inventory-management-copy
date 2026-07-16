@@ -1,5 +1,6 @@
 import { prisma } from "./prisma";
 import { STANDARD_ACCOUNTS } from "../../prisma/standard-accounts";
+import { seedOperationalBaseline } from "./seed-operational-baseline";
 
 // 台灣商業會計法標準會計科目表
 export const LEGACY_CHART_OF_ACCOUNTS: { code: string; name: string; type: string; parent?: string }[] = [
@@ -196,7 +197,7 @@ export async function seedTenantDefaults(tenantId: string) {
       });
     }
 
-    const tenant = await tx.tenant.findUnique({ where: { id: tenantId }, select: { businessMode: true } });
+    const tenant = await tx.tenant.findUnique({ where: { id: tenantId }, select: { name: true, businessMode: true, isInternal: true } });
     if (tenant?.businessMode === "POS_RESTAURANT") {
       const area = await tx.restaurantArea.upsert({
         where: { tenantId_code: { tenantId, code: "DINING" } },
@@ -230,5 +231,15 @@ export async function seedTenantDefaults(tenantId: string) {
       })),
       skipDuplicates: true,
     });
+
+    if (tenant && mainWarehouse) {
+      await seedOperationalBaseline(tx, {
+        tenantId,
+        tenantName: tenant.name,
+        businessMode: tenant.businessMode,
+        isInternal: tenant.isInternal,
+        mainWarehouseId: mainWarehouse.id,
+      });
+    }
   }, { timeout: 30000 });
 }

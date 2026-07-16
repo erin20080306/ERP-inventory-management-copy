@@ -8,19 +8,33 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const session = await requirePosPermission("view", "sales.view");
   const tenantId = await requireTenantId(session);
   const status = req.nextUrl.searchParams.get("status");
-  const items = await prisma.electronicInvoice.findMany({
-    where: {
-      tenantId,
-      ...(status && ["QUEUED", "ISSUED", "FAILED", "VOIDED"].includes(status) ? { status: status as any } : {}),
-    },
-    include: {
-      posSale: { select: { id: true, number: true, total: true, createdAt: true } },
-      events: { orderBy: { createdAt: "desc" }, take: 5 },
-    },
-    orderBy: { createdAt: "desc" },
-    take: 100,
-  });
-  return NextResponse.json({ items, readiness: getEInvoiceReadiness() });
+  const [items, eligibleSales] = await Promise.all([
+    prisma.electronicInvoice.findMany({
+      where: {
+        tenantId,
+        ...(status && ["QUEUED", "ISSUED", "FAILED", "VOIDED"].includes(status) ? { status: status as any } : {}),
+      },
+      include: {
+        posSale: { select: { id: true, number: true, total: true, createdAt: true } },
+        events: { orderBy: { createdAt: "desc" }, take: 5 },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    }),
+    prisma.posSale.findMany({
+      where: { tenantId, status: "COMPLETED", electronicInvoice: null },
+      select: {
+        id: true,
+        number: true,
+        total: true,
+        createdAt: true,
+        customer: { select: { companyName: true, taxId: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+    }),
+  ]);
+  return NextResponse.json({ items, eligibleSales, readiness: getEInvoiceReadiness() });
 });
 
 const RetryInput = z.object({ eventId: z.string().min(1) });
