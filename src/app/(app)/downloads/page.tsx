@@ -1,13 +1,72 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Download, FileArchive, Loader2, ShieldCheck } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Building2, Download, FileArchive, Info, Laptop, Loader2, ShieldCheck } from "lucide-react";
 
-type Installer = { name: string; size: number; platform: string; kind: "company-host" | "workstation"; sha256: string | null; codeSigning: string | null };
+type Installer = {
+  name: string;
+  size: number;
+  platform: string;
+  kind: "company-host" | "workstation";
+  sha256: string | null;
+  codeSigning: string | null;
+};
 type Release = { version?: string; generatedAt?: string; prerelease?: boolean; readyForCustomers?: boolean } | null;
 
 function size(bytes: number) {
   return bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(1)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function fileFlags(file: Installer) {
+  const name = file.name.toLowerCase();
+  return {
+    isWindows: name.includes("windows"),
+    isMac: name.includes("macos"),
+    isDmg: name.endsWith(".dmg"),
+    isZip: name.endsWith(".zip"),
+    isArm64: name.includes("arm64"),
+  };
+}
+
+function downloadNote(file: Installer) {
+  const flags = fileFlags(file);
+  if (file.kind === "company-host") {
+    return flags.isWindows
+      ? "Windows 公司主機：只在公司選定的主機電腦安裝"
+      : "Mac 公司主機：只在公司選定的主機電腦安裝";
+  }
+  if (flags.isWindows) return "Windows 工作站：每台 Windows 電腦都要下載";
+  if (flags.isMac && flags.isDmg && flags.isArm64) return "Apple 晶片 Mac 建議檔（M1／M2／M3／M4…）";
+  if (flags.isMac && flags.isZip && flags.isArm64) return "Mac 備用格式，與 DMG 二選一，不必都下載";
+  return "操作工作站";
+}
+
+function InstallerCard({ file }: { file: Installer }) {
+  const flags = fileFlags(file);
+  const recommended = file.kind === "workstation" && flags.isMac && flags.isDmg && flags.isArm64;
+  const backup = file.kind === "workstation" && flags.isMac && flags.isZip && flags.isArm64;
+
+  return (
+    <div className="flex flex-col gap-4 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex min-w-0 items-start gap-3">
+        <FileArchive className="mt-0.5 h-8 w-8 shrink-0 text-sky-600" />
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="break-all font-semibold">{file.name}</div>
+            {recommended ? <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-800">建議檔</span> : null}
+            {backup ? <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800">備用格式</span> : null}
+          </div>
+          <div className="mt-1 text-xs text-muted-foreground">{file.platform}・{size(file.size)}</div>
+          <div className="mt-2 text-xs font-medium text-foreground/80">{downloadNote(file)}</div>
+          {file.codeSigning === "ad-hoc-manual" ? <div className="mt-1 text-xs font-medium text-amber-700">手動安裝版・第一次需依上方步驟允許</div> : file.codeSigning === "unsigned-test" ? <div className="mt-1 text-xs font-medium text-rose-600">內部測試檔，不可交付</div> : null}
+          {file.sha256 ? <div className="mt-1 truncate font-mono text-[10px] text-muted-foreground" title={file.sha256}>SHA-256 {file.sha256}</div> : null}
+        </div>
+      </div>
+      <a href={`/api/installers?file=${encodeURIComponent(file.name)}`} className="inline-flex shrink-0 items-center justify-center gap-1 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-500">
+        <Download className="h-3.5 w-3.5" />下載
+      </a>
+    </div>
+  );
 }
 
 export default function DownloadsPage() {
@@ -15,6 +74,7 @@ export default function DownloadsPage() {
   const [release, setRelease] = useState<Release>(null);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
+
   useEffect(() => {
     fetch("/api/installers", { cache: "no-store" })
       .then(async (response) => {
@@ -28,16 +88,69 @@ export default function DownloadsPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  const hostFiles = useMemo(() => files.filter((file) => file.kind === "company-host"), [files]);
+  const workstationFiles = useMemo(() => files.filter((file) => file.kind === "workstation"), [files]);
+
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <header className="rounded-2xl border bg-card p-6 shadow-sm">
-        <div className="flex items-start justify-between gap-4"><div><h1 className="text-2xl font-bold">正式桌面版下載</h1><p className="mt-2 text-sm text-muted-foreground">此入口只在付款開通後顯示。請先安裝公司主機，再於已購席次的 Windows／macOS 電腦安裝工作站。</p></div><ShieldCheck className="h-10 w-10 text-emerald-600" /></div>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold">正式桌面版下載</h1>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">此入口只在付款開通後顯示。公司主機只選一台；每台實際操作的電腦再安裝自己的工作站。</p>
+          </div>
+          <ShieldCheck className="h-10 w-10 text-emerald-600" />
+        </div>
         {release?.version ? <p className="mt-3 text-xs text-muted-foreground">版本 {release.version}{files.some((file) => file.codeSigning === "ad-hoc-manual") ? "・手動安裝版" : release.prerelease ? "・測試版本" : "・正式簽章版本"}</p> : null}
       </header>
-      {files.some((file) => file.codeSigning === "ad-hoc-manual") ? <section className="rounded-2xl border border-amber-300 bg-amber-50 p-5 text-sm leading-6 text-amber-950"><div className="font-bold">手動安裝版首次開啟</div><div className="mt-1"><strong>macOS：</strong>下載 DMG，把「艾琳 ERP」拖到「應用程式」，再到「應用程式」對 App 按右鍵並選「打開」。請先刪除先前顯示已損毀的舊 App。</div><div className="mt-1"><strong>Windows：</strong>執行 EXE；若出現 SmartScreen，選「其他資訊」後按「仍要執行」。</div><div className="mt-2 text-xs text-amber-800">本版已做完整性簽章與 SHA-256 核對，但未取得 Apple／Windows 商業憑證，因此第一次需手動允許。</div></section> : null}
-      <section className="rounded-2xl border bg-card p-5">
-        {loading ? <div className="flex h-28 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin" /></div> : files.length ? <div className="grid gap-3 md:grid-cols-2">{files.map((file) => <div key={file.name} className="flex items-center justify-between gap-3 rounded-xl border p-4"><div className="flex min-w-0 items-center gap-3"><FileArchive className="h-8 w-8 shrink-0 text-sky-600" /><div className="min-w-0"><div className="truncate font-semibold">{file.name}</div><div className="mt-1 text-xs text-muted-foreground">{file.kind === "company-host" ? "公司主機" : "操作工作站"}・{file.platform}・{size(file.size)}</div>{file.codeSigning === "ad-hoc-manual" ? <div className="mt-1 text-xs font-medium text-amber-700">手動安裝版・第一次需依上方步驟允許</div> : file.codeSigning === "unsigned-test" ? <div className="mt-1 text-xs font-medium text-rose-600">內部測試檔，不可交付</div> : null}{file.sha256 ? <div className="mt-1 truncate font-mono text-[10px] text-muted-foreground" title={file.sha256}>SHA-256 {file.sha256}</div> : null}</div></div><a href={`/api/installers?file=${encodeURIComponent(file.name)}`} className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-500"><Download className="h-3.5 w-3.5" />下載</a></div>)}</div> : <div className="rounded-xl border border-dashed border-amber-400/40 bg-amber-50 p-6 text-sm text-amber-900">{message || "安裝版尚未發布，請聯絡艾琳設計。"}</div>}
+
+      <section className="rounded-2xl border border-sky-200 bg-sky-50 p-5 text-sm leading-6 text-sky-950">
+        <div className="flex items-start gap-3">
+          <Info className="mt-0.5 h-5 w-5 shrink-0" />
+          <div>
+            <div className="font-bold">先看懂安裝方式</div>
+            <div className="mt-1">公司主機只安裝在一台固定電腦，不是 Windows Host 與 Mac Host 都要裝。工作站則依每台電腦的作業系統下載。</div>
+            <div className="mt-2 font-medium">例如「1 對 2、兩台 Windows」：第 1 台下載 Windows Host ZIP＋Windows Setup EXE；第 2 台只下載 Windows Setup EXE。兩台工作站共占 2 個授權席次。</div>
+          </div>
+        </div>
       </section>
+
+      {files.some((file) => file.codeSigning === "ad-hoc-manual") ? <section className="rounded-2xl border border-amber-300 bg-amber-50 p-5 text-sm leading-6 text-amber-950"><div className="font-bold">手動安裝版首次開啟</div><div className="mt-1"><strong>macOS：</strong>下載 DMG，把「艾琳 ERP」拖到「應用程式」，再到「應用程式」對 App 按右鍵並選「打開」。請先刪除先前顯示已損毀的舊 App。</div><div className="mt-1"><strong>Windows：</strong>執行 EXE；若出現 SmartScreen，選「其他資訊」後按「仍要執行」。</div><div className="mt-2 text-xs text-amber-800">本版已做完整性簽章與 SHA-256 核對，但未取得 Apple／Windows 商業憑證，因此第一次需手動允許。</div></section> : null}
+
+      {loading ? (
+        <section className="rounded-2xl border bg-card p-5"><div className="flex h-32 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin" /></div></section>
+      ) : files.length ? (
+        <>
+          <section className="rounded-2xl border bg-card p-5 shadow-sm">
+            <div className="flex items-start gap-3">
+              <Building2 className="mt-0.5 h-7 w-7 shrink-0 text-indigo-600" />
+              <div>
+                <h2 className="text-lg font-bold">步驟 1：只選一個公司主機</h2>
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">依公司選定的主機電腦作業系統，Windows 或 Mac 二選一。其他工作站電腦不要重複安裝 Host。</p>
+              </div>
+            </div>
+            <div className="mt-4 grid gap-3">{hostFiles.map((file) => <InstallerCard key={file.name} file={file} />)}</div>
+          </section>
+
+          <section className="rounded-2xl border bg-card p-5 shadow-sm">
+            <div className="flex items-start gap-3">
+              <Laptop className="mt-0.5 h-7 w-7 shrink-0 text-emerald-600" />
+              <div>
+                <h2 className="text-lg font-bold">步驟 2：每台電腦選自己的工作站</h2>
+                <div className="mt-1 space-y-1 text-sm leading-6 text-muted-foreground">
+                  <p><strong className="text-foreground">Windows：</strong>下載 ErinERP-Desktop-Windows-x64-Setup.exe。</p>
+                  <p><strong className="text-foreground">Apple 晶片 Mac（M1／M2／M3／M4…）：</strong>下載 ErinERP-Desktop-macOS-arm64.dmg，這是建議檔。</p>
+                  <p><strong className="text-foreground">Mac ZIP：</strong>ErinERP-Desktop-macOS-arm64.zip 只是備用格式，和 DMG 二選一，不必都下載。</p>
+                  <p className="font-medium text-amber-700">目前只提供 Apple 晶片版 Mac 工作站，Intel Mac 尚未提供。</p>
+                </div>
+              </div>
+            </div>
+            <div className="mt-4 grid gap-3">{workstationFiles.map((file) => <InstallerCard key={file.name} file={file} />)}</div>
+          </section>
+        </>
+      ) : (
+        <section className="rounded-2xl border bg-card p-5"><div className="rounded-xl border border-dashed border-amber-400/40 bg-amber-50 p-6 text-sm text-amber-900">{message || "安裝版尚未發布，請聯絡艾琳設計。"}</div></section>
+      )}
     </div>
   );
 }
