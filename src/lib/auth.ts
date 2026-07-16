@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "./prisma";
 import { normalizeBusinessMode, type BusinessMode } from "./product-editions";
 import { ensureInternalAdminTenant } from "./internal-admin-tenant";
+import { ensureTenantBaseline } from "./tenant-baseline";
 
 declare module "next-auth" {
   interface Session {
@@ -31,6 +32,7 @@ declare module "next-auth/jwt" {
     businessMode?: BusinessMode;
     isSuperAdmin?: boolean;
     isInternalAdminTenant?: boolean;
+    tenantBaselineReady?: boolean;
   }
 }
 
@@ -112,11 +114,22 @@ export const authOptions: NextAuthOptions = {
         let tenantId = user.tenantId ?? "";
         let businessMode = normalizeBusinessMode((user as any).tenant?.businessMode);
         let isInternalAdminTenant = false;
+        let tenantBaselineReady = false;
         if ((user as any).isSuperAdmin) {
           const internalTenant = await ensureInternalAdminTenant(user.id);
           tenantId = internalTenant.id;
           businessMode = normalizeBusinessMode(internalTenant.businessMode);
           isInternalAdminTenant = true;
+          tenantBaselineReady = true;
+        } else if (tenantId) {
+          // 舊租戶（包含胖鴨公司）會在第一次成功登入時補齊基礎資料。
+          // 這是一次性流程，完成後由 AuditLog 版本標記與 JWT 避免重跑。
+          try {
+            await ensureTenantBaseline(tenantId);
+            tenantBaselineReady = true;
+          } catch (error) {
+            console.error("[tenant-baseline] login backfill failed", error);
+          }
         }
 
         // fire-and-forget：登入成功後續寫不阻塞 token 簽發
@@ -136,6 +149,7 @@ export const authOptions: NextAuthOptions = {
           businessMode,
           isSuperAdmin: (user as any).isSuperAdmin,
           isInternalAdminTenant,
+          tenantBaselineReady,
         } as any;
       },
     }),
@@ -152,6 +166,7 @@ export const authOptions: NextAuthOptions = {
         token.businessMode = u.businessMode;
         token.isSuperAdmin = u.isSuperAdmin;
         token.isInternalAdminTenant = u.isInternalAdminTenant;
+        token.tenantBaselineReady = u.tenantBaselineReady;
       }
       // 讓改版前已登入的超級管理員 token 也能自動轉到獨立內部帳套，
       // 不必等待 8 小時 session 到期。
@@ -160,6 +175,17 @@ export const authOptions: NextAuthOptions = {
         token.tenantId = internalTenant.id;
         token.businessMode = normalizeBusinessMode(internalTenant.businessMode);
         token.isInternalAdminTenant = true;
+        token.tenantBaselineReady = true;
+      }
+      // 讓改版前已登入的客戶（例如胖鴨公司）不必登出，也會在下一次
+      // Session 更新時取得和新租戶相同的基礎資料。
+      if (!token.isSuperAdmin && token.tenantId && !token.tenantBaselineReady) {
+        try {
+          await ensureTenantBaseline(token.tenantId);
+          token.tenantBaselineReady = true;
+        } catch (error) {
+          console.error("[tenant-baseline] session backfill failed", error);
+        }
       }
       return token;
     },

@@ -1,8 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { ApiError, apiHandler, audit, requireRestaurantPermission, requireTenantId } from "@/lib/api";
 import { hasPermission } from "@/lib/auth";
-import { nextNumberInTransaction } from "@/lib/documents";
+import { nextNumberFastInTransaction } from "@/lib/number-sequence";
 import { prisma } from "@/lib/prisma";
 import { createRestaurantTable, deleteRestaurantTableSafely, setRestaurantTableActive, updateRestaurantTable } from "@/lib/restaurant-tables";
 
@@ -29,6 +29,27 @@ const ActionInput = z.discriminatedUnion("action", [
 ]);
 
 const ACTIVE_ORDER_STATUSES = ["OPEN", "SENT", "PREPARING", "READY"] as const;
+const RESTAURANT_TRANSACTION_OPTIONS = { maxWait: 10_000, timeout: 15_000 } as const;
+
+type AuditOptions = Parameters<typeof audit>[0];
+
+function auditAfterResponse(options: AuditOptions) {
+  after(async () => {
+    await audit(options);
+  });
+}
+
+async function restaurantTransaction<T>(work: (tx: any) => Promise<T>): Promise<T> {
+  try {
+    return await prisma.$transaction(work, RESTAURANT_TRANSACTION_OPTIONS);
+  } catch (error: any) {
+    const message = String(error?.message ?? "");
+    if (message.includes("Transaction already closed") || message.includes("expired transaction") || message.includes("P2028")) {
+      throw new ApiError(503, "資料庫目前較忙碌，本次操作尚未完成，請再按一次");
+    }
+    throw error;
+  }
+}
 
 function orderInclude() {
   return {
@@ -42,7 +63,7 @@ export const GET = apiHandler(async () => {
   const session = await requireRestaurantPermission("view");
   const tenantId = await requireTenantId(session);
   const canManageTables = hasPermission(session.user.permissions, "restaurant.manage");
-  const [registers, openShift, areas, products, categories, kitchenTickets, tableSettings] = await Promise.all([
+  const [registers, openShift, areas, products, stockTotals, categories, kitchenTickets, tableSettings] = await Promise.all([
     prisma.posRegister.findMany({
       where: { tenantId, isActive: true },
       select: { id: true, code: true, name: true, warehouseId: true, warehouse: { select: { name: true } } },
@@ -66,9 +87,14 @@ export const GET = apiHandler(async () => {
     }),
     prisma.product.findMany({
       where: { tenantId, isActive: true },
-      select: { id: true, sku: true, name: true, imageUrl: true, salePrice: true, categoryId: true, category: { select: { name: true } }, stocks: { select: { quantity: true } } },
+      select: { id: true, sku: true, name: true, imageUrl: true, salePrice: true, categoryId: true, category: { select: { name: true } } },
       orderBy: [{ category: { name: "asc" } }, { name: "asc" }],
       take: 300,
+    }),
+    prisma.inventoryStock.groupBy({
+      by: ["productId"],
+      where: { tenantId },
+      _sum: { quantity: true },
     }),
     prisma.productCategory.findMany({ where: { tenantId }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
     prisma.restaurantKitchenTicket.findMany({
@@ -90,12 +116,13 @@ export const GET = apiHandler(async () => {
         })
       : Promise.resolve([]),
   ]);
+  const stockByProduct = new Map(stockTotals.map((row) => [row.productId, Number(row._sum.quantity ?? 0)]));
   return NextResponse.json({
     registers,
     openShift,
     areas,
     categories,
-    products: products.map((product) => ({ ...product, salePrice: Number(product.salePrice), stockTotal: product.stocks.reduce((sum, stock) => sum + Number(stock.quantity), 0), stocks: undefined })),
+    products: products.map((product) => ({ ...product, salePrice: Number(product.salePrice), stockTotal: stockByProduct.get(product.id) ?? 0 })),
     kitchenTickets,
     canManageTables,
     tableSettings,
@@ -120,39 +147,45 @@ export const POST = apiHandler(async (req: NextRequest) => {
 
   if (body.action === "CREATE_TABLE") {
     const table = await createRestaurantTable(tenantId, body);
-    await audit({ userId: session.user.id, action: "restaurant_table_create", module: "restaurant", refId: table.id, detail: `${table.code} ${table.name}` });
+    auditAfterResponse({ userId: session.user.id, action: "restaurant_table_create", module: "restaurant", refId: table.id, detail: `${table.code} ${table.name}` });
     return NextResponse.json({ ok: true, table });
   }
 
   if (body.action === "UPDATE_TABLE") {
     const table = await updateRestaurantTable(tenantId, body.tableId, body);
-    await audit({ userId: session.user.id, action: "restaurant_table_update", module: "restaurant", refId: table.id, detail: `${table.code} ${table.name}` });
+    auditAfterResponse({ userId: session.user.id, action: "restaurant_table_update", module: "restaurant", refId: table.id, detail: `${table.code} ${table.name}` });
     return NextResponse.json({ ok: true, table });
   }
 
   if (body.action === "SET_TABLE_ACTIVE") {
     const table = await setRestaurantTableActive(tenantId, body.tableId, body.isActive);
-    await audit({ userId: session.user.id, action: body.isActive ? "restaurant_table_restore" : "restaurant_table_deactivate", module: "restaurant", refId: table.id, detail: `${table.code} ${table.name}` });
+    auditAfterResponse({ userId: session.user.id, action: body.isActive ? "restaurant_table_restore" : "restaurant_table_deactivate", module: "restaurant", refId: table.id, detail: `${table.code} ${table.name}` });
     return NextResponse.json({ ok: true, table });
   }
 
   if (body.action === "DELETE_TABLE") {
     const result = await deleteRestaurantTableSafely(tenantId, body.tableId);
-    await audit({ userId: session.user.id, action: result.mode === "DELETED" ? "restaurant_table_delete" : "restaurant_table_archive", module: "restaurant", refId: result.table.id, detail: `${result.table.code} ${result.table.name}` });
+    auditAfterResponse({ userId: session.user.id, action: result.mode === "DELETED" ? "restaurant_table_delete" : "restaurant_table_archive", module: "restaurant", refId: result.table.id, detail: `${result.table.code} ${result.table.name}` });
     return NextResponse.json({ ok: true, ...result });
   }
 
   if (body.action === "OPEN_TABLE") {
-    const result = await prisma.$transaction(async (tx: any) => {
+    const result = await restaurantTransaction(async (tx: any) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`restaurant-table:${tenantId}:${body.tableId}`}))`;
-      const shift = await tx.posShift.findFirst({ where: { id: body.shiftId, tenantId, userId: session.user.id, status: "OPEN" } });
+      const shift = await tx.posShift.findFirst({
+        where: { id: body.shiftId, tenantId, userId: session.user.id, status: "OPEN" },
+        select: { id: true, registerId: true },
+      });
       if (!shift) throw new ApiError(409, "請先開班，或目前班次已結束");
-      const table = await tx.restaurantTable.findFirst({ where: { id: body.tableId, tenantId, isActive: true } });
+      const table = await tx.restaurantTable.findFirst({
+        where: { id: body.tableId, tenantId, isActive: true },
+        select: { id: true, status: true },
+      });
       if (!table) throw new ApiError(404, "找不到桌位");
       const existing = await tx.restaurantOrder.findFirst({ where: { tenantId, tableId: table.id, status: { in: [...ACTIVE_ORDER_STATUSES] } }, include: orderInclude() });
       if (existing) return { order: existing, reused: true };
       if (table.status !== "AVAILABLE") throw new ApiError(409, "桌位目前不可開桌");
-      const number = await nextNumberInTransaction(tx, "DINE", tenantId);
+      const number = await nextNumberFastInTransaction(tx, "DINE", tenantId);
       const order = await tx.restaurantOrder.create({
         data: { tenantId, tableId: table.id, shiftId: shift.id, registerId: shift.registerId, number, guests: body.guests, createdById: session.user.id },
         include: orderInclude(),
@@ -160,14 +193,16 @@ export const POST = apiHandler(async (req: NextRequest) => {
       await tx.restaurantTable.update({ where: { id: table.id }, data: { status: "OCCUPIED" } });
       return { order, reused: false };
     });
-    if (!result.reused) await audit({ userId: session.user.id, action: "restaurant_open_table", module: "restaurant", refId: result.order.id, detail: result.order.number });
+    if (!result.reused) auditAfterResponse({ userId: session.user.id, action: "restaurant_open_table", module: "restaurant", refId: result.order.id, detail: result.order.number });
     return NextResponse.json({ ok: true, ...result });
   }
 
   if (body.action === "ADD_ITEM") {
-    const order = await prisma.restaurantOrder.findFirst({ where: { id: body.orderId, tenantId, shift: { userId: session.user.id, status: "OPEN" }, status: { in: [...ACTIVE_ORDER_STATUSES] } } });
+    const [order, product] = await Promise.all([
+      prisma.restaurantOrder.findFirst({ where: { id: body.orderId, tenantId, shift: { userId: session.user.id, status: "OPEN" }, status: { in: [...ACTIVE_ORDER_STATUSES] } } }),
+      prisma.product.findFirst({ where: { id: body.productId, tenantId, isActive: true }, select: { id: true, salePrice: true } }),
+    ]);
     if (!order) throw new ApiError(409, "找不到可點餐的桌單，或不是你的班次");
-    const product = await prisma.product.findFirst({ where: { id: body.productId, tenantId, isActive: true }, select: { id: true, salePrice: true } });
     if (!product) throw new ApiError(404, "餐點已停用或不存在");
     const same = await prisma.restaurantOrderItem.findFirst({ where: { orderId: order.id, productId: product.id, note: body.note || null, status: "PENDING" } });
     const item = same
@@ -188,25 +223,29 @@ export const POST = apiHandler(async (req: NextRequest) => {
   }
 
   if (body.action === "SEND_KITCHEN") {
-    const result = await prisma.$transaction(async (tx: any) => {
+    const result = await restaurantTransaction(async (tx: any) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`restaurant-order:${tenantId}:${body.orderId}`}))`;
-      const order = await tx.restaurantOrder.findFirst({ where: { id: body.orderId, tenantId, shift: { userId: session.user.id, status: "OPEN" }, status: { in: [...ACTIVE_ORDER_STATUSES] } }, include: { items: { where: { status: "PENDING" } } } });
+      const order = await tx.restaurantOrder.findFirst({
+        where: { id: body.orderId, tenantId, shift: { userId: session.user.id, status: "OPEN" }, status: { in: [...ACTIVE_ORDER_STATUSES] } },
+        select: { id: true, sentAt: true, items: { where: { status: "PENDING" }, select: { id: true } } },
+      });
       if (!order) throw new ApiError(409, "找不到可送廚的桌單");
       if (!order.items.length) throw new ApiError(400, "沒有尚未送廚的餐點");
-      const number = await nextNumberInTransaction(tx, "KOT", tenantId);
+      const number = await nextNumberFastInTransaction(tx, "KOT", tenantId);
+      const itemIds = order.items.map((item: any) => item.id);
       const ticket = await tx.restaurantKitchenTicket.create({
-        data: { tenantId, orderId: order.id, number, items: { create: order.items.map((item: any) => ({ orderItemId: item.id })) } },
+        data: { tenantId, orderId: order.id, number, items: { create: itemIds.map((orderItemId: string) => ({ orderItemId })) } },
       });
-      await tx.restaurantOrderItem.updateMany({ where: { id: { in: order.items.map((item: any) => item.id) } }, data: { status: "SENT" } });
+      await tx.restaurantOrderItem.updateMany({ where: { id: { in: itemIds } }, data: { status: "SENT" } });
       await tx.restaurantOrder.update({ where: { id: order.id }, data: { status: "SENT", sentAt: order.sentAt ?? new Date() } });
       return ticket;
     });
-    await audit({ userId: session.user.id, action: "restaurant_send_kitchen", module: "restaurant", refId: result.id, detail: result.number });
+    auditAfterResponse({ userId: session.user.id, action: "restaurant_send_kitchen", module: "restaurant", refId: result.id, detail: result.number });
     return NextResponse.json({ ok: true, ticket: result });
   }
 
   if (body.action === "SET_ITEM_STATUS") {
-    const result = await prisma.$transaction(async (tx: any) => {
+    const result = await restaurantTransaction(async (tx: any) => {
       const item = await tx.restaurantOrderItem.findFirst({ where: { id: body.itemId, order: { tenantId, status: { in: [...ACTIVE_ORDER_STATUSES] } } }, include: { ticketItems: true } });
       if (!item) throw new ApiError(404, "找不到出餐項目");
       const allowed: Record<string, string[]> = { SENT: ["PREPARING", "READY"], PREPARING: ["READY"], READY: ["SERVED"] };
@@ -232,7 +271,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
   }
 
   if (body.action === "MOVE_TABLE") {
-    await prisma.$transaction(async (tx: any) => {
+    await restaurantTransaction(async (tx: any) => {
       const order = await tx.restaurantOrder.findFirst({ where: { id: body.orderId, tenantId, status: { in: [...ACTIVE_ORDER_STATUSES] } } });
       if (!order) throw new ApiError(404, "找不到桌單");
       const target = await tx.restaurantTable.findFirst({ where: { id: body.targetTableId, tenantId, isActive: true, status: "AVAILABLE" } });
@@ -241,11 +280,11 @@ export const POST = apiHandler(async (req: NextRequest) => {
       await tx.restaurantTable.update({ where: { id: target.id }, data: { status: "OCCUPIED" } });
       await tx.restaurantOrder.update({ where: { id: order.id }, data: { tableId: target.id } });
     });
-    await audit({ userId: session.user.id, action: "restaurant_move_table", module: "restaurant", refId: body.orderId, detail: body.targetTableId });
+    auditAfterResponse({ userId: session.user.id, action: "restaurant_move_table", module: "restaurant", refId: body.orderId, detail: body.targetTableId });
     return NextResponse.json({ ok: true });
   }
 
-  const cancelled = await prisma.$transaction(async (tx: any) => {
+  const cancelled = await restaurantTransaction(async (tx: any) => {
     const order = await tx.restaurantOrder.findFirst({ where: { id: body.orderId, tenantId, status: { in: [...ACTIVE_ORDER_STATUSES] } } });
     if (!order) throw new ApiError(404, "找不到可取消桌單");
     await tx.restaurantOrderItem.updateMany({ where: { orderId: order.id, status: { not: "SERVED" } }, data: { status: "CANCELLED" } });
@@ -254,6 +293,6 @@ export const POST = apiHandler(async (req: NextRequest) => {
     await tx.restaurantTable.update({ where: { id: order.tableId }, data: { status: "AVAILABLE" } });
     return updated;
   });
-  await audit({ userId: session.user.id, action: "restaurant_cancel_order", module: "restaurant", refId: cancelled.id, detail: body.reason });
+  auditAfterResponse({ userId: session.user.id, action: "restaurant_cancel_order", module: "restaurant", refId: cancelled.id, detail: body.reason });
   return NextResponse.json({ ok: true, order: cancelled });
 });

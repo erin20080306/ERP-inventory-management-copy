@@ -14,6 +14,7 @@ const windowsInstaller = readFileSync("installer/安裝艾琳ERP.ps1", "utf8");
 const registerServer = readFileSync("src/app/api/license/register-server/route.ts", "utf8");
 const localStatus = readFileSync("src/app/api/license/local-status/route.ts", "utf8");
 const manifestScript = readFileSync("scripts/write-release-manifest.mjs", "utf8");
+const downloadPage = readFileSync("src/app/(app)/downloads/page.tsx", "utf8");
 const dockerfile = readFileSync("Dockerfile", "utf8");
 const backupEntrypoint = readFileSync("docker/backup-entrypoint.sh", "utf8");
 
@@ -90,6 +91,12 @@ assert.match(localStatus, /refreshLocalLicenseLease/);
 assert.match(manifestScript, /sha256/);
 assert.match(manifestScript, /erin-erp-release-manifest-v1/);
 assert.match(manifestScript, /ad-hoc-manual/);
+
+assert.match(downloadPage, /步驟 1：只選一個公司主機/);
+assert.match(downloadPage, /步驟 2：每台電腦選自己的工作站/);
+assert.match(downloadPage, /Intel Mac 尚未提供/);
+assert.match(downloadPage, /Mac 備用格式，與 DMG 二選一/);
+assert.match(downloadPage, /兩台工作站共占 2 個授權席次/);
 
 for (const secretName of ["MAC_CSC_LINK", "APPLE_APP_SPECIFIC_PASSWORD", "WIN_CSC_LINK"]) {
   assert.match(workflow, new RegExp(secretName));
