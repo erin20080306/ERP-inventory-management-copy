@@ -18,7 +18,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
     return NextResponse.json({
       files: [],
       release: { version: release.version, generatedAt: release.generatedAt, prerelease: release.prerelease, readyForCustomers: false },
-      message: "正式簽章與 macOS 公證版本尚未發布；為避免安裝失敗，未簽章測試包不提供客戶下載。",
+      message: "可交付的正式簽章版或手動安裝版尚未發布；為避免安裝失敗，未驗證的測試包不提供客戶下載。",
     });
   }
 

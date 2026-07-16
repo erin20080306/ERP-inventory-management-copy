@@ -60,6 +60,10 @@ function platformLabel(name: string) {
   return "其他";
 }
 
+function isCustomerInstallable(file: InstallerFile) {
+  return file.codeSigning === "signed" || file.codeSigning === "ad-hoc-manual";
+}
+
 function githubHeaders() {
   const headers: Record<string, string> = {
     Accept: "application/vnd.github+json",
@@ -117,9 +121,9 @@ async function remoteRelease(allowPrerelease: boolean): Promise<InstallerRelease
     };
   });
   const workstations = files.filter((file) => file.kind === "workstation");
-  // 客戶正式下載只接受已完成程式簽章的工作站包。未簽章／ad-hoc 包仍可由
-  // 平台管理員內部驗收，但不可再冒充正式交付版本。
-  const readyForCustomers = workstations.length > 0 && workstations.every((file) => file.codeSigning === "signed");
+  // 客戶下載只接受商業簽章版，或已完成 bundle 驗證、並清楚標示首次需手動允許的版本。
+  // 純 unsigned-test 僅供平台管理員內部驗收。
+  const readyForCustomers = workstations.length > 0 && workstations.every(isCustomerInstallable);
   const metadata = Object.fromEntries(assets.filter((asset) => INSTALLER_METADATA.test(asset.name)).map((asset) => [asset.name, asset.browser_download_url]));
   return {
     version: manifest?.version ?? release.tag_name,
@@ -170,7 +174,7 @@ async function blobRelease(): Promise<InstallerRelease | null> {
     version,
     generatedAt: manifest?.generatedAt,
     prerelease: /(?:test|local|beta|rc)/i.test(version),
-    readyForCustomers: files.some((file) => file.kind === "workstation") && files.filter((file) => file.kind === "workstation").every((file) => file.codeSigning === "signed"),
+    readyForCustomers: files.some((file) => file.kind === "workstation") && files.filter((file) => file.kind === "workstation").every(isCustomerInstallable),
     storage: "blob",
     prefix: BLOB_PREFIX,
     files,
@@ -203,7 +207,7 @@ async function localRelease(): Promise<InstallerRelease | null> {
       };
     }));
     const workstations = files.filter((file) => file.kind === "workstation");
-    return { version: manifest.version, generatedAt: manifest.generatedAt, prerelease: true, readyForCustomers: workstations.length > 0 && workstations.every((file) => file.codeSigning === "signed"), storage: "local", files, metadata: {} };
+    return { version: manifest.version, generatedAt: manifest.generatedAt, prerelease: true, readyForCustomers: workstations.length > 0 && workstations.every(isCustomerInstallable), storage: "local", files, metadata: {} };
   } catch {
     return null;
   }

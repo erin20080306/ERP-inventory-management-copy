@@ -18,7 +18,13 @@ export function writeReleaseManifest(outputDir, version, options = {}) {
       architecture: /arm64/i.test(name) ? "arm64" : /x64/i.test(name) ? "x64" : "all",
       size: statSync(fullPath).size,
       sha256: createHash("sha256").update(content).digest("hex"),
-      codeSigning: kind === "workstation" ? (options.desktopSigned ? "signed" : "unsigned-test") : "not-applicable",
+      codeSigning: kind === "workstation"
+        ? options.desktopSigned
+          ? "signed"
+          : options.manualInstall
+            ? "ad-hoc-manual"
+            : "unsigned-test"
+        : "not-applicable",
       requiresDockerDesktop: kind === "company-host",
     };
   });
@@ -38,6 +44,9 @@ if (isDirectRun) {
   const outputDir = path.resolve(process.argv[2] || "dist/desktop");
   const packageJson = JSON.parse(readFileSync(path.resolve("package.json"), "utf8"));
   const version = process.argv[3] || process.env.GITHUB_REF_NAME || `v${packageJson.version}-local`;
-  const manifest = writeReleaseManifest(outputDir, version, { desktopSigned: process.env.RELEASE_SIGNED === "true" });
+  const manifest = writeReleaseManifest(outputDir, version, {
+    desktopSigned: process.env.RELEASE_SIGNED === "true",
+    manualInstall: process.env.RELEASE_MANUAL === "true",
+  });
   console.log(`Release manifest: PASS (${manifest.artifacts.length} artifacts)`);
 }

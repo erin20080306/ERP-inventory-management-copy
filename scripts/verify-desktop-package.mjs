@@ -29,8 +29,10 @@ assert.equal(packageJson.build.nsis.oneClick, true);
 assert.match(packageJson.build.mac.artifactName, /^ErinERP-Desktop-/);
 assert.match(packageJson.build.win.artifactName, /^ErinERP-Desktop-/);
 assert.match(packageJson.scripts["dist:mac"], /dmg/);
+assert.match(packageJson.scripts["dist:mac:manual"], /CSC_IDENTITY_AUTO_DISCOVERY=false/);
 assert.match(packageJson.scripts["dist:mac:test"], /CSC_IDENTITY_AUTO_DISCOVERY=false/);
 assert.match(packageJson.scripts["dist:win"], /nsis/);
+assert.match(packageJson.scripts["dist:win:manual"], /signExecutable=false/);
 assert.match(packageJson.scripts["dist:win:test"], /signExecutable=false/);
 assert.match(afterPack, /xattr/);
 assert.match(afterPack, /codesign/);
@@ -87,6 +89,7 @@ assert.match(localStatus, /timingSafeEqual/);
 assert.match(localStatus, /refreshLocalLicenseLease/);
 assert.match(manifestScript, /sha256/);
 assert.match(manifestScript, /erin-erp-release-manifest-v1/);
+assert.match(manifestScript, /ad-hoc-manual/);
 
 for (const secretName of ["MAC_CSC_LINK", "APPLE_APP_SPECIFIC_PASSWORD", "WIN_CSC_LINK"]) {
   assert.match(workflow, new RegExp(secretName));

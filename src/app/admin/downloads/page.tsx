@@ -12,6 +12,7 @@ type Installer = {
   platform: string;
   kind: "company-host" | "workstation";
   sha256: string | null;
+  codeSigning: string | null;
 };
 type Release = { version?: string; generatedAt?: string; prerelease?: boolean; readyForCustomers?: boolean } | null;
 
@@ -52,9 +53,9 @@ export default function AdminDownloadsPage() {
           <h2 className="flex items-center gap-2 text-lg font-bold"><Download className="h-5 w-5 text-emerald-400" />已發布安裝包</h2>
           {release?.version ? <p className="mt-2 text-xs text-slate-500">封裝版本：{release.version}{release.generatedAt ? `・${new Date(release.generatedAt).toLocaleString("zh-TW")}` : ""}</p> : null}
           {loading ? <div className="flex h-28 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin" /></div> : error ? <div className="mt-4 rounded-xl border border-red-400/30 bg-red-400/5 p-5 text-sm text-red-200">{error}</div> : files.length ? <div className="mt-4 grid gap-3 md:grid-cols-2">{files.map((file) => <div key={file.name} className="flex items-center justify-between gap-3 rounded-xl border border-slate-700 bg-slate-950 p-4"><div className="flex min-w-0 items-center gap-3"><FileArchive className="h-8 w-8 shrink-0 text-sky-300" /><div className="min-w-0"><div className="truncate font-semibold">{file.name}</div><div className="mt-1 text-xs text-slate-500">{file.kind === "company-host" ? "公司主機" : "操作工作站"}・{file.platform}・{formatFileSize(file.size)}</div>{file.sha256 ? <div className="mt-1 truncate font-mono text-[10px] text-slate-600" title={file.sha256}>SHA-256 {file.sha256}</div> : null}</div></div><a href={`/api/admin/installers?file=${encodeURIComponent(file.name)}`} className="shrink-0 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold hover:bg-emerald-500">下載</a></div>)}</div> : <div className="mt-4 rounded-xl border border-dashed border-amber-400/30 bg-amber-400/5 p-6 text-sm text-amber-200">尚未發布安裝包。可先發布未簽章版本；客戶安裝時會收到作業系統安全提醒。</div>}
-          {release?.prerelease ? <div className="mt-3 rounded-xl border border-amber-400/30 bg-amber-400/5 p-3 text-xs text-amber-200">目前為未簽章測試版本；付款開通後可提供客戶下載，但安裝時可能出現 Windows／macOS 安全提醒。</div> : null}
+          {files.some((file) => file.codeSigning === "ad-hoc-manual") ? <div className="mt-3 rounded-xl border border-amber-400/30 bg-amber-400/5 p-3 text-xs leading-6 text-amber-100">目前為手動安裝版：macOS 將 App 拖入「應用程式」後第一次右鍵選「打開」；Windows 遇 SmartScreen 時選「其他資訊 → 仍要執行」。已做 bundle 完整性與 SHA-256 核對，但不是商業憑證免提示版本。</div> : release?.prerelease ? <div className="mt-3 rounded-xl border border-rose-400/30 bg-rose-400/5 p-3 text-xs text-rose-200">目前只有內部測試檔，不提供客戶下載。</div> : null}
           {release ? <div className="mt-3 flex gap-3 text-xs"><a className="text-sky-300 hover:text-sky-200" href="/api/admin/installers?file=release-manifest.json">下載版本清單</a><a className="text-sky-300 hover:text-sky-200" href="/api/admin/installers?file=SHA256SUMS.txt">下載 SHA-256 核對檔</a></div> : null}
-          <div className="mt-4 rounded-xl bg-slate-950 p-4 text-xs leading-6 text-slate-400"><MonitorSmartphone className="mr-2 inline h-4 w-4" />同一個桌面安裝包支援三種業態；實際畫面由公司授權業態與使用者角色權限決定。未簽章版本可交付使用，但 Windows／macOS 可能要求客戶手動確認安全警告；日後取得憑證再升級簽章即可。</div>
+          <div className="mt-4 rounded-xl bg-slate-950 p-4 text-xs leading-6 text-slate-400"><MonitorSmartphone className="mr-2 inline h-4 w-4" />同一個桌面安裝包支援三種業態；實際畫面由公司授權業態與使用者角色權限決定。只有已驗證的手動安裝版或商業簽章版可以交付；純測試檔不會出現在客戶下載區。日後取得憑證可再升級為較少系統提示的正式簽章版。</div>
           <div className="mt-3 rounded-xl border border-sky-400/20 bg-sky-400/5 p-4 text-xs leading-6 text-sky-100">公司主機安裝成功時會自動登錄網址與 CA 憑證；桌面工作站用公司代碼＋啟用碼取得中央 Ed25519 簽章設定，成功後才占用一個席次。例如 1 對 2 最多登記兩台工作站，換機需先由管理後台解除舊裝置。封閉內網例外情況才由安裝人員手動匯入。</div>
         </section>
 
