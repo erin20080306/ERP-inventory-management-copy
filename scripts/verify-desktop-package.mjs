@@ -3,6 +3,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 
 const packageJson = JSON.parse(readFileSync("desktop/package.json", "utf8"));
+const afterPack = readFileSync("desktop/scripts/after-pack.cjs", "utf8");
 const main = readFileSync("desktop/main.cjs", "utf8");
 const hardwarePreload = readFileSync("desktop/hardware-preload.cjs", "utf8");
 const compose = readFileSync("docker-compose.local.yml", "utf8");
@@ -23,6 +24,7 @@ for (const file of ["desktop/main.cjs", "desktop/preload.cjs", "desktop/hardware
 assert.equal(packageJson.main, "main.cjs");
 assert.equal(packageJson.build.appId, "design.erin.erp.desktop");
 assert.equal(packageJson.build.productName, "艾琳 ERP");
+assert.equal(packageJson.build.afterPack, "scripts/after-pack.cjs");
 assert.equal(packageJson.build.nsis.oneClick, true);
 assert.match(packageJson.build.mac.artifactName, /^ErinERP-Desktop-/);
 assert.match(packageJson.build.win.artifactName, /^ErinERP-Desktop-/);
@@ -30,6 +32,9 @@ assert.match(packageJson.scripts["dist:mac"], /dmg/);
 assert.match(packageJson.scripts["dist:mac:test"], /CSC_IDENTITY_AUTO_DISCOVERY=false/);
 assert.match(packageJson.scripts["dist:win"], /nsis/);
 assert.match(packageJson.scripts["dist:win:test"], /signExecutable=false/);
+assert.match(afterPack, /xattr/);
+assert.match(afterPack, /codesign/);
+assert.match(afterPack, /CSC_IDENTITY_AUTO_DISCOVERY/);
 
 assert.match(main, /safeStorage\.encryptString/);
 assert.match(main, /generateKeyPairSync\("ed25519"\)/);

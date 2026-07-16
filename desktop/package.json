@@ -20,6 +20,7 @@
   "build": {
     "appId": "design.erin.erp.desktop",
     "productName": "艾琳 ERP",
+    "afterPack": "scripts/after-pack.cjs",
     "asar": true,
     "npmRebuild": false,
     "directories": {

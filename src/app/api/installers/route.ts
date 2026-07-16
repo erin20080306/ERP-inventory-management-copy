@@ -14,6 +14,14 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const release = await getInstallerRelease({ allowPrerelease: true });
   if (!release) return NextResponse.json({ files: [], release: null, message: "正式安裝版尚未發布" });
 
+  if (!release.readyForCustomers) {
+    return NextResponse.json({
+      files: [],
+      release: { version: release.version, generatedAt: release.generatedAt, prerelease: release.prerelease, readyForCustomers: false },
+      message: "正式簽章與 macOS 公證版本尚未發布；為避免安裝失敗，未簽章測試包不提供客戶下載。",
+    });
+  }
+
   const requested = req.nextUrl.searchParams.get("file");
   if (!requested) return NextResponse.json({
     files: release.files,

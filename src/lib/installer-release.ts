@@ -117,9 +117,9 @@ async function remoteRelease(allowPrerelease: boolean): Promise<InstallerRelease
     };
   });
   const workstations = files.filter((file) => file.kind === "workstation");
-  // 程式簽章只影響 OS 安裝警告，不是中央授權條件。只要有工作站安裝檔，
-  // 付款且授權有效的客戶即可下載；頁面仍會清楚標示未簽章警告。
-  const readyForCustomers = workstations.length > 0;
+  // 客戶正式下載只接受已完成程式簽章的工作站包。未簽章／ad-hoc 包仍可由
+  // 平台管理員內部驗收，但不可再冒充正式交付版本。
+  const readyForCustomers = workstations.length > 0 && workstations.every((file) => file.codeSigning === "signed");
   const metadata = Object.fromEntries(assets.filter((asset) => INSTALLER_METADATA.test(asset.name)).map((asset) => [asset.name, asset.browser_download_url]));
   return {
     version: manifest?.version ?? release.tag_name,
@@ -170,7 +170,7 @@ async function blobRelease(): Promise<InstallerRelease | null> {
     version,
     generatedAt: manifest?.generatedAt,
     prerelease: /(?:test|local|beta|rc)/i.test(version),
-    readyForCustomers: files.some((file) => file.kind === "workstation"),
+    readyForCustomers: files.some((file) => file.kind === "workstation") && files.filter((file) => file.kind === "workstation").every((file) => file.codeSigning === "signed"),
     storage: "blob",
     prefix: BLOB_PREFIX,
     files,
@@ -202,7 +202,8 @@ async function localRelease(): Promise<InstallerRelease | null> {
         downloadUrl: `/api/admin/installers?file=${encodeURIComponent(name)}&source=local`,
       };
     }));
-    return { version: manifest.version, generatedAt: manifest.generatedAt, prerelease: true, readyForCustomers: files.some((file) => file.kind === "workstation"), storage: "local", files, metadata: {} };
+    const workstations = files.filter((file) => file.kind === "workstation");
+    return { version: manifest.version, generatedAt: manifest.generatedAt, prerelease: true, readyForCustomers: workstations.length > 0 && workstations.every((file) => file.codeSigning === "signed"), storage: "local", files, metadata: {} };
   } catch {
     return null;
   }
