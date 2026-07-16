@@ -6,6 +6,11 @@ import { STANDARD_ACCOUNTS } from "./standard-accounts";
 const prisma = new PrismaClient();
 
 async function main() {
+  const requestedMode = process.env.BUSINESS_MODE === "POS"
+    ? "POS_RETAIL"
+    : ["ERP", "POS_RETAIL", "POS_RESTAURANT"].includes(process.env.BUSINESS_MODE || "")
+      ? process.env.BUSINESS_MODE!
+      : "ERP";
   console.log("→ 種子權限資料 ...");
   for (const p of ALL_PERMISSIONS) {
     await prisma.permission.upsert({
@@ -34,15 +39,17 @@ async function main() {
   }
 
   console.log("→ 建立預設租戶 ...");
-  let tenant = await prisma.tenant.findFirst();
+  let tenant = await prisma.tenant.findFirst({ where: { isInternal: false } });
   if (!tenant) {
-    tenant = await prisma.tenant.create({ data: { name: "示範公司" } });
+    tenant = await prisma.tenant.create({ data: { name: process.env.COMPANY_NAME || "示範公司", businessMode: requestedMode } });
   }
+  tenant = await prisma.tenant.update({ where: { id: tenant.id }, data: { businessMode: requestedMode, name: process.env.COMPANY_NAME || tenant.name } });
   const T = tenant.id;
 
   console.log("→ 建立預設管理員 admin ...");
   const adminUser = process.env.ADMIN_USERNAME || "admin";
-  const adminPwd = process.env.ADMIN_PASSWORD || "000000";
+  const adminPwd = process.env.ADMIN_PASSWORD;
+  if (!adminPwd || adminPwd.length < 8) throw new Error("ADMIN_PASSWORD 必須設定且至少 8 個字元");
   const adminEmail = process.env.ADMIN_EMAIL || "admin@example.com";
   const hash = await bcrypt.hash(adminPwd, 12);
 
@@ -69,7 +76,7 @@ async function main() {
   }
 
   console.log("→ 編號規則 ...");
-  const seqs = ["PO", "SO", "QT", "JE", "RP", "SP", "SR", "PR", "ADJ", "TRF", "INV"];
+  const seqs = ["PO", "SO", "QT", "JE", "RP", "SP", "SR", "PR", "ADJ", "TRF", "INV", "POS", "GR", "DN", "PRF", "DINE", "KOT"];
   for (const k of seqs) {
     const ex = await prisma.numberSequence.findUnique({ where: { tenantId_key: { tenantId: T, key: k } } });
     if (!ex) {
@@ -97,6 +104,26 @@ async function main() {
   let wh = await prisma.warehouse.findUnique({ where: { tenantId_code: { tenantId: T, code: "WH-MAIN" } } });
   if (!wh) {
     wh = await prisma.warehouse.create({ data: { tenantId: T, code: "WH-MAIN", name: "主倉庫" } });
+  }
+  await prisma.posRegister.upsert({
+    where: { tenantId_code: { tenantId: T, code: "POS01" } },
+    update: { warehouseId: wh.id, isActive: true },
+    create: { tenantId: T, warehouseId: wh.id, code: "POS01", name: "第一收銀台" },
+  });
+  if (requestedMode === "POS_RESTAURANT") {
+    const area = await prisma.restaurantArea.upsert({
+      where: { tenantId_code: { tenantId: T, code: "DINING" } },
+      update: { isActive: true },
+      create: { tenantId: T, code: "DINING", name: "用餐區", sortOrder: 1 },
+    });
+    for (let index = 1; index <= 8; index += 1) {
+      const code = `T${String(index).padStart(2, "0")}`;
+      await prisma.restaurantTable.upsert({
+        where: { tenantId_code: { tenantId: T, code } },
+        update: { areaId: area.id, isActive: true },
+        create: { tenantId: T, areaId: area.id, code, name: `${index} 號桌`, seats: index <= 2 ? 2 : 4, sortOrder: index },
+      });
+    }
   }
 
   console.log("→ 商品分類 / 單位 ...");
@@ -146,7 +173,7 @@ async function main() {
     await prisma.bankAccount.create({ data: { tenantId: T, code: "BANK-01", name: "公司銀行帳戶", bankName: "台灣銀行", accountNumber: "000-000-000000" } });
   }
 
-  console.log("✅ Seed 完成。請使用 admin / 000000 登入。");
+  console.log(`✅ Seed 完成。請使用 ${adminUser} 與你設定的 ADMIN_PASSWORD 登入。`);
 }
 
 main()

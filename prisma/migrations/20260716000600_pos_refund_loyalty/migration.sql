@@ -1,0 +1,2 @@
+ALTER TABLE "PosRefund" ADD COLUMN "loyaltyPointsReversed" INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE "PosRefund" ADD COLUMN "loyaltyPointsRestored" INTEGER NOT NULL DEFAULT 0;

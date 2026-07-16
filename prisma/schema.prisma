@@ -10,74 +10,163 @@ datasource db {
 
 // ─────────────────────────── 租戶 (Multi-Tenant) ───────────────────────────
 model Tenant {
-  id        String   @id @default(cuid())
-  name      String   @default("我的公司")
-  createdAt DateTime @default(now())
+  id           String   @id @default(cuid())
+  name         String   @default("我的公司")
+  businessMode String   @default("ERP") // ERP 或 POS
+  // 平台管理者自己的免費測試帳套，不列入客戶、授權或營收統計。
+  isInternal   Boolean  @default(false)
+  createdAt    DateTime @default(now())
 
-  users              User[]
-  productCategories  ProductCategory[]
-  productUnits       ProductUnit[]
-  products           Product[]
-  customers          Customer[]
-  suppliers          Supplier[]
-  warehouses         Warehouse[]
-  inventoryStocks    InventoryStock[]
-  inventoryTxns      InventoryTransaction[]
-  stockAdjustments   StockAdjustment[]
-  stockTransfers     StockTransfer[]
-  purchaseOrders     PurchaseOrder[]
-  salesOrders        SalesOrder[]
-  quotations         Quotation[]
-  salesReturns       SalesReturn[]
-  purchaseReturns    PurchaseReturn[]
-  chartOfAccounts    ChartOfAccount[]
-  journalEntries     JournalEntry[]
-  accountsReceivable AccountsReceivable[]
-  receivePayments    ReceivePayment[]
-  accountsPayable    AccountsPayable[]
-  supplierPayments   SupplierPayment[]
-  cashAccounts       CashAccount[]
-  bankAccounts       BankAccount[]
-  invoices           Invoice[]
-  taxRates           TaxRate[]
-  companySettings    CompanySetting[]
-  numberSequences    NumberSequence[]
-  notesReceivable    NoteReceivable[]
-  notesPayable       NotePayable[]
-  departments        Department[]
-  employees          Employee[]
-  payrollPeriods     PayrollPeriod[]
-  fixedAssets        FixedAsset[]
-  discountNotes      DiscountNote[]
-  invoiceTracks      InvoiceTrack[]
-  salaryStructures   SalaryStructure[]
-  salaryChanges      SalaryChange[]
+  // 授權一律綁定公司，不綁定個別使用者；日期由中央伺服器判定。
+  licensePlan            String?
+  licenseBilling         String?
+  licenseStatus          String    @default("TRIAL")
+  licenseSeatLimit       Int       @default(2)
+  licenseActivatedAt     DateTime?
+  licenseExpiresAt       DateTime?
+  licenseMaintenanceEnd  DateTime?
+  licenseKeyHash         String?   @unique
+  licenseKeyPrefix       String?
+  licenseVersion         Int       @default(0)
+  licenseUpdatedAt       DateTime?
+  companyCode            String?   @unique
+  discoveryServerUrl     String?
+  discoveryCaCertificate String?
+  discoveryEnabled       Boolean   @default(false)
+  discoveryVersion       Int       @default(0)
+  discoveryUpdatedAt     DateTime?
+
+  users                    User[]
+  productCategories        ProductCategory[]
+  productUnits             ProductUnit[]
+  products                 Product[]
+  customers                Customer[]
+  suppliers                Supplier[]
+  warehouses               Warehouse[]
+  inventoryStocks          InventoryStock[]
+  inventoryTxns            InventoryTransaction[]
+  stockAdjustments         StockAdjustment[]
+  stockTransfers           StockTransfer[]
+  purchaseOrders           PurchaseOrder[]
+  salesOrders              SalesOrder[]
+  quotations               Quotation[]
+  salesReturns             SalesReturn[]
+  purchaseReturns          PurchaseReturn[]
+  chartOfAccounts          ChartOfAccount[]
+  journalEntries           JournalEntry[]
+  accountsReceivable       AccountsReceivable[]
+  receivePayments          ReceivePayment[]
+  accountsPayable          AccountsPayable[]
+  supplierPayments         SupplierPayment[]
+  cashAccounts             CashAccount[]
+  bankAccounts             BankAccount[]
+  invoices                 Invoice[]
+  taxRates                 TaxRate[]
+  companySettings          CompanySetting[]
+  numberSequences          NumberSequence[]
+  notesReceivable          NoteReceivable[]
+  notesPayable             NotePayable[]
+  departments              Department[]
+  employees                Employee[]
+  payrollPeriods           PayrollPeriod[]
+  fixedAssets              FixedAsset[]
+  discountNotes            DiscountNote[]
+  invoiceTracks            InvoiceTrack[]
+  salaryStructures         SalaryStructure[]
+  salaryChanges            SalaryChange[]
+  licenseDevices           LicenseDevice[]
+  licenseEvents            LicenseEvent[]
+  posRegisters             PosRegister[]
+  posShifts                PosShift[]
+  posSales                 PosSale[]
+  posRefunds               PosRefund[]
+  posCashMovements         PosCashMovement[]
+  posHeldSales             PosHeldSale[]
+  posCartDrafts            PosCartDraft[]
+  electronicInvoices       ElectronicInvoice[]
+  electronicInvoiceEvents  ElectronicInvoiceEvent[]
+  posPromotions            PosPromotion[]
+  posCoupons               PosCoupon[]
+  posCouponRedemptions     PosCouponRedemption[]
+  posManagerApprovals      PosManagerApproval[]
+  restaurantAreas          RestaurantArea[]
+  restaurantTables         RestaurantTable[]
+  restaurantOrders         RestaurantOrder[]
+  restaurantKitchenTickets RestaurantKitchenTicket[]
+  loyaltyTransactions      CustomerLoyaltyTransaction[]
+  purchaseReceipts         PurchaseReceipt[]
+  salesShipments           SalesShipment[]
+  accountingPeriods        AccountingPeriod[]
+  auditLogs                AuditLog[]
+  offlineLease             OfflineLicenseLease?
+  customColumnDefinitions  CustomColumnDefinition[]
+  customFieldValues        CustomFieldValue[]
+  planInquiries            PlanInquiry[]
+  licensePayments          LicensePayment[]
+
+  @@index([isInternal])
+}
+
+model CustomColumnDefinition {
+  id        String             @id @default(cuid())
+  tenantId  String
+  module    String
+  label     String
+  type      String             @default("text")
+  sortOrder Int                @default(0)
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+  tenant    Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  values    CustomFieldValue[]
+
+  @@unique([tenantId, module, label])
+  @@index([tenantId, module, sortOrder])
+}
+
+model CustomFieldValue {
+  id        String                 @id @default(cuid())
+  tenantId  String
+  module    String
+  rowId     String
+  columnId  String
+  value     String?
+  updatedBy String?
+  createdAt DateTime               @default(now())
+  updatedAt DateTime               @updatedAt
+  tenant    Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  column    CustomColumnDefinition @relation(fields: [columnId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, module, rowId, columnId])
+  @@index([tenantId, module, rowId])
+  @@index([columnId])
 }
 
 // ─────────────────────────── 使用者 / 權限 (RBAC) ───────────────────────────
 model User {
-  id           String    @id @default(cuid())
-  tenantId     String?
-  username     String    @unique
-  email        String    @unique
-  name         String
-  passwordHash String
-  isActive     Boolean   @default(true)
-  isSuperAdmin Boolean   @default(false)
-  trialStart   DateTime  @default(now())
-  isPaid          Boolean   @default(false)
-  paymentType     String?   // "ONCE" = 永久, "MONTHLY" = 月付
-  subscriptionEnd DateTime? // 月付到期日
-  lastLoginAt     DateTime?
-  lastLoginIp     String?
-  registrationIp  String?
-  createdByUserId String?   // 誰創建了這個用戶
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id                String    @id @default(cuid())
+  tenantId          String?
+  username          String    @unique
+  email             String    @unique
+  name              String
+  passwordHash      String
+  isActive          Boolean   @default(true)
+  isSuperAdmin      Boolean   @default(false)
+  trialStart        DateTime  @default(now())
+  isPaid            Boolean   @default(false)
+  paymentType       String? // "ONCE" = 永久, "MONTHLY" = 月付
+  subscriptionEnd   DateTime? // 月付到期日
+  lastLoginAt       DateTime?
+  lastLoginIp       String?
+  registrationIp    String?
+  createdByUserId   String? // 誰創建了這個用戶
+  termsAcceptedAt   DateTime?
+  privacyAcceptedAt DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
-  tenant         Tenant?    @relation(fields: [tenantId], references: [id])
-  createdByUser  User?      @relation("UserCreator", fields: [createdByUserId], references: [id])
-  createdUsers   User[]     @relation("UserCreator")
+  tenant         Tenant?        @relation(fields: [tenantId], references: [id])
+  createdByUser  User?          @relation("UserCreator", fields: [createdByUserId], references: [id])
+  createdUsers   User[]         @relation("UserCreator")
   userRoles      UserRole[]
   auditLogs      AuditLog[]
   loginLogs      LoginLog[]
@@ -85,6 +174,111 @@ model User {
 
   @@index([tenantId])
   @@index([createdByUserId])
+}
+
+// 中央授權伺服器記錄已佔用席次。deviceHash 由伺服器密鑰 HMAC 後儲存，
+// 不保存原始硬體識別碼。
+model LicenseDevice {
+  id              String    @id @default(cuid())
+  tenantId        String
+  deviceHash      String
+  deviceRole      String    @default("WORKSTATION") // SERVER 或 WORKSTATION
+  devicePublicKey String? // 工作站 Ed25519 SPKI DER base64；私鑰只留在 OS 安全儲存區
+  displayName     String?
+  platform        String?
+  appVersion      String?
+  firstSeenAt     DateTime  @default(now())
+  lastSeenAt      DateTime  @default(now())
+  lastIp          String?
+  revokedAt       DateTime?
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, deviceHash])
+  @@index([tenantId, revokedAt])
+  @@index([tenantId, deviceRole, revokedAt])
+  @@index([lastSeenAt])
+}
+
+// 授權事件使用雜湊鏈簽章，能偵測日期、方案、席次與開通紀錄遭竄改。
+model LicenseEvent {
+  id           String   @id @default(cuid())
+  tenantId     String
+  action       String
+  actorUserId  String?
+  payload      Json?
+  previousHash String
+  eventHash    String   @unique
+  createdAt    DateTime @default(now())
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt])
+}
+
+// 公開方案頁送出的聯絡需求。即使通知信暫時寄送失敗，管理後台仍能看見並追蹤。
+model PlanInquiry {
+  id                 String    @id @default(cuid())
+  tenantId           String?
+  name               String
+  email              String
+  company            String
+  lineId             String?
+  businessMode       String
+  planCode           String
+  billing            String
+  notes              String?
+  status             String    @default("NEW") // NEW / CONTACTED / CLOSED
+  sourceIpHash       String?
+  notificationStatus String    @default("PENDING") // PENDING / SENT / FAILED / NOT_CONFIGURED
+  notificationError  String?
+  notifiedAt         DateTime?
+  contactedAt        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  tenant             Tenant?   @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([email, createdAt])
+  @@index([tenantId, createdAt])
+}
+
+// 人工核對付款後才建立；recordHash 涵蓋所有付款欄位，可由中央密鑰驗證是否遭修改。
+model LicensePayment {
+  id                String   @id
+  tenantId          String
+  planCode          String
+  billing           String
+  quotedAmount      Decimal  @db.Decimal(12, 2)
+  paidAmount        Decimal  @db.Decimal(12, 2)
+  paymentMethod     String
+  paymentReference  String
+  paidAt            DateTime
+  confirmedByUserId String
+  notes             String?
+  recordHash        String   @unique
+  createdAt         DateTime
+  tenant            Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, paymentReference])
+  @@index([tenantId, createdAt])
+  @@index([paidAt])
+}
+
+// 本機安裝只保存中央伺服器簽發的短效租約；私鑰不會下放到客戶電腦。
+model OfflineLicenseLease {
+  id             String   @id @default(cuid())
+  tenantId       String   @unique
+  remoteTenantId String
+  payload        Json
+  signature      String
+  algorithm      String
+  issuedAt       DateTime
+  expiresAt      DateTime
+  checkedAt      DateTime @default(now())
+  lastObservedAt DateTime @default(now())
+  lastError      String?
+  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
 }
 
 model Role {
@@ -177,17 +371,22 @@ model Product {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  tenant              Tenant                 @relation(fields: [tenantId], references: [id])
-  category            ProductCategory?       @relation(fields: [categoryId], references: [id])
-  unit                ProductUnit?           @relation(fields: [unitId], references: [id])
-  taxRate             TaxRate?               @relation(fields: [taxRateId], references: [id])
-  stocks              InventoryStock[]
-  txns                InventoryTransaction[]
-  purchaseItems       PurchaseOrderItem[]
-  salesItems          SalesOrderItem[]
-  quotationItems      QuotationItem[]
-  salesReturnItems    SalesReturnItem[]
-  purchaseReturnItems PurchaseReturnItem[]
+  tenant               Tenant                 @relation(fields: [tenantId], references: [id])
+  category             ProductCategory?       @relation(fields: [categoryId], references: [id])
+  unit                 ProductUnit?           @relation(fields: [unitId], references: [id])
+  taxRate              TaxRate?               @relation(fields: [taxRateId], references: [id])
+  stocks               InventoryStock[]
+  txns                 InventoryTransaction[]
+  purchaseItems        PurchaseOrderItem[]
+  salesItems           SalesOrderItem[]
+  quotationItems       QuotationItem[]
+  salesReturnItems     SalesReturnItem[]
+  purchaseReturnItems  PurchaseReturnItem[]
+  posSaleItems         PosSaleItem[]
+  posRefundItems       PosRefundItem[]
+  restaurantOrderItems RestaurantOrderItem[]
+  purchaseReceiptItems PurchaseReceiptItem[]
+  salesShipmentItems   SalesShipmentItem[]
 
   @@unique([tenantId, sku])
   @@index([tenantId])
@@ -214,15 +413,20 @@ model Customer {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  tenant          Tenant               @relation(fields: [tenantId], references: [id])
-  salesOrders     SalesOrder[]
-  quotations      Quotation[]
-  receivables     AccountsReceivable[]
-  receivePayments ReceivePayment[]
-  salesReturns    SalesReturn[]
-  invoices        Invoice[]
-  notes           NoteReceivable[]
-  discountNotes   DiscountNote[]
+  tenant              Tenant                       @relation(fields: [tenantId], references: [id])
+  salesOrders         SalesOrder[]
+  quotations          Quotation[]
+  receivables         AccountsReceivable[]
+  receivePayments     ReceivePayment[]
+  salesReturns        SalesReturn[]
+  invoices            Invoice[]
+  notes               NoteReceivable[]
+  discountNotes       DiscountNote[]
+  posSales            PosSale[]
+  loyaltyPoints       Int                          @default(0)
+  loyaltyTier         String                       @default("STANDARD")
+  loyaltyTransactions CustomerLoyaltyTransaction[]
+  couponRedemptions   PosCouponRedemption[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -247,7 +451,7 @@ model Supplier {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  tenant           Tenant           @relation(fields: [tenantId], references: [id])
+  tenant           Tenant            @relation(fields: [tenantId], references: [id])
   purchaseOrders   PurchaseOrder[]
   payables         AccountsPayable[]
   supplierPayments SupplierPayment[]
@@ -274,12 +478,16 @@ model Warehouse {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tenant        Tenant                 @relation(fields: [tenantId], references: [id])
-  stocks        InventoryStock[]
-  txns          InventoryTransaction[]
-  fromTransfers StockTransfer[]        @relation("TransferFrom")
-  toTransfers   StockTransfer[]        @relation("TransferTo")
-  adjustments   StockAdjustment[]
+  tenant           Tenant                 @relation(fields: [tenantId], references: [id])
+  stocks           InventoryStock[]
+  txns             InventoryTransaction[]
+  fromTransfers    StockTransfer[]        @relation("TransferFrom")
+  toTransfers      StockTransfer[]        @relation("TransferTo")
+  adjustments      StockAdjustment[]
+  posRegisters     PosRegister[]
+  posRefunds       PosRefund[]
+  purchaseReceipts PurchaseReceipt[]
+  salesShipments   SalesShipment[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -406,6 +614,7 @@ enum PurchaseStatus {
   DRAFT
   SUBMITTED
   APPROVED
+  PARTIALLY_RECEIVED
   POSTED
   VOIDED
   REJECTED
@@ -436,6 +645,7 @@ model PurchaseOrder {
   items    PurchaseOrderItem[]
   payables AccountsPayable[]
   returns  PurchaseReturn[]
+  receipts PurchaseReceipt[]
 
   @@unique([tenantId, number])
   @@index([tenantId])
@@ -447,17 +657,18 @@ model PurchaseOrder {
 }
 
 model PurchaseOrderItem {
-  id          String        @id @default(cuid())
-  orderId     String
-  productId   String
-  quantity    Decimal       @db.Decimal(18, 4)
-  receivedQty Decimal       @default(0) @db.Decimal(18, 4)
-  unitPrice   Decimal       @db.Decimal(18, 4)
-  discount    Decimal       @default(0) @db.Decimal(18, 2)
-  taxRate     Decimal       @default(0) @db.Decimal(6, 4)
-  subtotal    Decimal       @db.Decimal(18, 2)
-  order       PurchaseOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product     Product       @relation(fields: [productId], references: [id])
+  id           String                @id @default(cuid())
+  orderId      String
+  productId    String
+  quantity     Decimal               @db.Decimal(18, 4)
+  receivedQty  Decimal               @default(0) @db.Decimal(18, 4)
+  unitPrice    Decimal               @db.Decimal(18, 4)
+  discount     Decimal               @default(0) @db.Decimal(18, 2)
+  taxRate      Decimal               @default(0) @db.Decimal(6, 4)
+  subtotal     Decimal               @db.Decimal(18, 2)
+  order        PurchaseOrder         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product      Product               @relation(fields: [productId], references: [id])
+  receiptItems PurchaseReceiptItem[]
 }
 
 // ─────────────────────────── 銷售 ───────────────────────────
@@ -465,6 +676,7 @@ enum SalesStatus {
   DRAFT
   SUBMITTED
   APPROVED
+  PARTIALLY_SHIPPED
   POSTED
   VOIDED
   REJECTED
@@ -494,6 +706,8 @@ model SalesOrder {
   items       SalesOrderItem[]
   receivables AccountsReceivable[]
   returns     SalesReturn[]
+  posSale     PosSale?
+  shipments   SalesShipment[]
 
   @@unique([tenantId, number])
   @@index([tenantId])
@@ -505,17 +719,777 @@ model SalesOrder {
 }
 
 model SalesOrderItem {
-  id         String     @id @default(cuid())
-  orderId    String
-  productId  String
-  quantity   Decimal    @db.Decimal(18, 4)
-  shippedQty Decimal    @default(0) @db.Decimal(18, 4)
-  unitPrice  Decimal    @db.Decimal(18, 4)
-  discount   Decimal    @default(0) @db.Decimal(18, 2)
-  taxRate    Decimal    @default(0) @db.Decimal(6, 4)
-  subtotal   Decimal    @db.Decimal(18, 2)
-  order      SalesOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product    Product    @relation(fields: [productId], references: [id])
+  id            String              @id @default(cuid())
+  orderId       String
+  productId     String
+  quantity      Decimal             @db.Decimal(18, 4)
+  shippedQty    Decimal             @default(0) @db.Decimal(18, 4)
+  unitPrice     Decimal             @db.Decimal(18, 4)
+  discount      Decimal             @default(0) @db.Decimal(18, 2)
+  taxRate       Decimal             @default(0) @db.Decimal(6, 4)
+  subtotal      Decimal             @db.Decimal(18, 2)
+  order         SalesOrder          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product       Product             @relation(fields: [productId], references: [id])
+  shipmentItems SalesShipmentItem[]
+}
+
+enum FulfillmentStatus {
+  POSTED
+  VOIDED
+}
+
+model PurchaseReceipt {
+  id          String                @id @default(cuid())
+  tenantId    String
+  orderId     String
+  warehouseId String
+  number      String
+  receiptDate DateTime              @default(now())
+  status      FulfillmentStatus     @default(POSTED)
+  subtotal    Decimal               @default(0) @db.Decimal(18, 2)
+  discount    Decimal               @default(0) @db.Decimal(18, 2)
+  taxAmount   Decimal               @default(0) @db.Decimal(18, 2)
+  total       Decimal               @default(0) @db.Decimal(18, 2)
+  remark      String?
+  createdById String?
+  createdAt   DateTime              @default(now())
+  voidedAt    DateTime?
+  tenant      Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  order       PurchaseOrder         @relation(fields: [orderId], references: [id])
+  warehouse   Warehouse             @relation(fields: [warehouseId], references: [id])
+  items       PurchaseReceiptItem[]
+  payable     AccountsPayable?
+
+  @@unique([tenantId, number])
+  @@index([tenantId, receiptDate])
+  @@index([orderId, createdAt])
+  @@index([warehouseId, createdAt])
+}
+
+model PurchaseReceiptItem {
+  id          String            @id @default(cuid())
+  receiptId   String
+  orderItemId String
+  productId   String
+  quantity    Decimal           @db.Decimal(18, 4)
+  unitPrice   Decimal           @db.Decimal(18, 4)
+  discount    Decimal           @default(0) @db.Decimal(18, 2)
+  taxRate     Decimal           @default(0) @db.Decimal(6, 4)
+  subtotal    Decimal           @db.Decimal(18, 2)
+  receipt     PurchaseReceipt   @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  orderItem   PurchaseOrderItem @relation(fields: [orderItemId], references: [id])
+  product     Product           @relation(fields: [productId], references: [id])
+
+  @@unique([receiptId, orderItemId])
+  @@index([orderItemId])
+  @@index([productId])
+}
+
+model SalesShipment {
+  id           String              @id @default(cuid())
+  tenantId     String
+  orderId      String
+  warehouseId  String
+  number       String
+  shipmentDate DateTime            @default(now())
+  status       FulfillmentStatus   @default(POSTED)
+  subtotal     Decimal             @default(0) @db.Decimal(18, 2)
+  discount     Decimal             @default(0) @db.Decimal(18, 2)
+  taxAmount    Decimal             @default(0) @db.Decimal(18, 2)
+  total        Decimal             @default(0) @db.Decimal(18, 2)
+  cogs         Decimal             @default(0) @db.Decimal(18, 2)
+  remark       String?
+  createdById  String?
+  createdAt    DateTime            @default(now())
+  voidedAt     DateTime?
+  tenant       Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  order        SalesOrder          @relation(fields: [orderId], references: [id])
+  warehouse    Warehouse           @relation(fields: [warehouseId], references: [id])
+  items        SalesShipmentItem[]
+  receivable   AccountsReceivable?
+
+  @@unique([tenantId, number])
+  @@index([tenantId, shipmentDate])
+  @@index([orderId, createdAt])
+  @@index([warehouseId, createdAt])
+}
+
+model SalesShipmentItem {
+  id          String         @id @default(cuid())
+  shipmentId  String
+  orderItemId String
+  productId   String
+  quantity    Decimal        @db.Decimal(18, 4)
+  unitPrice   Decimal        @db.Decimal(18, 4)
+  discount    Decimal        @default(0) @db.Decimal(18, 2)
+  taxRate     Decimal        @default(0) @db.Decimal(6, 4)
+  subtotal    Decimal        @db.Decimal(18, 2)
+  unitCost    Decimal        @default(0) @db.Decimal(18, 4)
+  shipment    SalesShipment  @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  orderItem   SalesOrderItem @relation(fields: [orderItemId], references: [id])
+  product     Product        @relation(fields: [productId], references: [id])
+
+  @@unique([shipmentId, orderItemId])
+  @@index([orderItemId])
+  @@index([productId])
+}
+
+// ─────────────────────────── POS 門市 ───────────────────────────
+enum PosShiftStatus {
+  OPEN
+  CLOSED
+}
+
+enum PosSaleStatus {
+  COMPLETED
+  PARTIALLY_REFUNDED
+  VOIDED
+  REFUNDED
+}
+
+enum PosRefundStatus {
+  COMPLETED
+  VOIDED
+}
+
+enum PosReturnDisposition {
+  SELLABLE
+  DAMAGED
+  SCRAP
+}
+
+enum PosOfferKind {
+  PERCENT
+  AMOUNT
+}
+
+enum PosApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CONSUMED
+  EXPIRED
+}
+
+enum LoyaltyTransactionType {
+  EARN
+  REDEEM
+  REFUND
+  ADJUST
+}
+
+enum PosCashMovementType {
+  PAID_IN
+  PAID_OUT
+  SAFE_DROP
+}
+
+enum PosOperationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum PosHeldSaleStatus {
+  HELD
+  RESUMED
+  CANCELLED
+}
+
+enum ElectronicInvoiceProvider {
+  MOCK
+  TURNKEY
+  VAC
+  VAN
+}
+
+enum ElectronicInvoiceStatus {
+  QUEUED
+  ISSUED
+  FAILED
+  VOIDED
+}
+
+enum ElectronicInvoiceEventType {
+  ISSUE
+  VOID
+  ALLOWANCE
+}
+
+enum ElectronicInvoiceEventStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model PosRegister {
+  id               String            @id @default(cuid())
+  tenantId         String
+  warehouseId      String
+  code             String
+  name             String
+  isActive         Boolean           @default(true)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  warehouse        Warehouse         @relation(fields: [warehouseId], references: [id])
+  shifts           PosShift[]
+  sales            PosSale[]
+  refunds          PosRefund[]
+  cashMovements    PosCashMovement[]
+  heldSales        PosHeldSale[]
+  restaurantOrders RestaurantOrder[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, isActive])
+  @@index([warehouseId])
+}
+
+model PosShift {
+  id               String            @id @default(cuid())
+  tenantId         String
+  registerId       String
+  userId           String
+  status           PosShiftStatus    @default(OPEN)
+  openingCash      Decimal           @default(0) @db.Decimal(18, 2)
+  expectedCash     Decimal?          @db.Decimal(18, 2)
+  closingCash      Decimal?          @db.Decimal(18, 2)
+  difference       Decimal?          @db.Decimal(18, 2)
+  openedAt         DateTime          @default(now())
+  closedAt         DateTime?
+  tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  register         PosRegister       @relation(fields: [registerId], references: [id])
+  sales            PosSale[]
+  refunds          PosRefund[]
+  cashMovements    PosCashMovement[]
+  heldSales        PosHeldSale[]
+  cartDrafts       PosCartDraft[]
+  restaurantOrders RestaurantOrder[]
+
+  @@index([tenantId, status])
+  @@index([registerId, status])
+  @@index([userId, status])
+  @@index([openedAt])
+}
+
+model PosCashMovement {
+  id            String              @id @default(cuid())
+  tenantId      String
+  shiftId       String
+  registerId    String
+  type          PosCashMovementType
+  status        PosOperationStatus  @default(PENDING)
+  amount        Decimal             @db.Decimal(18, 2)
+  reason        String
+  requestedById String
+  approvedById  String?
+  requestedAt   DateTime            @default(now())
+  decidedAt     DateTime?
+  tenant        Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  shift         PosShift            @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  register      PosRegister         @relation(fields: [registerId], references: [id])
+
+  @@index([tenantId, status, requestedAt])
+  @@index([shiftId, status])
+  @@index([registerId, requestedAt])
+}
+
+model PosHeldSale {
+  id          String            @id @default(cuid())
+  tenantId    String
+  shiftId     String
+  registerId  String
+  label       String
+  status      PosHeldSaleStatus @default(HELD)
+  payload     Json
+  createdById String
+  resumedById String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  resumedAt   DateTime?
+  tenant      Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  shift       PosShift          @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  register    PosRegister       @relation(fields: [registerId], references: [id])
+
+  @@index([tenantId, status, createdAt])
+  @@index([shiftId, status])
+  @@index([registerId, status])
+}
+
+model PosCartDraft {
+  id        String   @id @default(cuid())
+  tenantId  String
+  shiftId   String
+  userId    String
+  payload   Json
+  revision  Int      @default(1)
+  updatedAt DateTime @updatedAt
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  shift     PosShift @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, shiftId, userId])
+  @@index([tenantId, updatedAt])
+}
+
+model PosPromotion {
+  id        String       @id @default(cuid())
+  tenantId  String
+  code      String
+  name      String
+  kind      PosOfferKind
+  value     Decimal      @db.Decimal(18, 2)
+  minSpend  Decimal      @default(0) @db.Decimal(18, 2)
+  priority  Int          @default(0)
+  startsAt  DateTime?
+  endsAt    DateTime?
+  isActive  Boolean      @default(true)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  tenant    Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  sales     PosSale[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, isActive, startsAt, endsAt])
+}
+
+model PosCoupon {
+  id               String                @id @default(cuid())
+  tenantId         String
+  code             String
+  name             String
+  kind             PosOfferKind
+  value            Decimal               @db.Decimal(18, 2)
+  minSpend         Decimal               @default(0) @db.Decimal(18, 2)
+  maxDiscount      Decimal?              @db.Decimal(18, 2)
+  maxUses          Int?
+  perCustomerLimit Int                   @default(1)
+  usedCount        Int                   @default(0)
+  startsAt         DateTime?
+  endsAt           DateTime?
+  isActive         Boolean               @default(true)
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+  tenant           Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  redemptions      PosCouponRedemption[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, isActive, startsAt, endsAt])
+}
+
+model PosCouponRedemption {
+  id         String    @id @default(cuid())
+  tenantId   String
+  couponId   String
+  saleId     String    @unique
+  customerId String?
+  amount     Decimal   @db.Decimal(18, 2)
+  createdAt  DateTime  @default(now())
+  tenant     Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  coupon     PosCoupon @relation(fields: [couponId], references: [id])
+  sale       PosSale   @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  customer   Customer? @relation(fields: [customerId], references: [id])
+
+  @@index([couponId, customerId])
+  @@index([tenantId, createdAt])
+}
+
+model PosManagerApproval {
+  id            String            @id @default(cuid())
+  tenantId      String
+  kind          String
+  fingerprint   String
+  status        PosApprovalStatus @default(PENDING)
+  payload       Json
+  requestedById String
+  decidedById   String?
+  saleId        String?           @unique
+  reason        String?
+  expiresAt     DateTime
+  consumedAt    DateTime?
+  createdAt     DateTime          @default(now())
+  decidedAt     DateTime?
+  tenant        Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  sale          PosSale?          @relation(fields: [saleId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, status, createdAt])
+  @@index([fingerprint, status])
+}
+
+model CustomerLoyaltyTransaction {
+  id           String                 @id @default(cuid())
+  tenantId     String
+  customerId   String
+  saleId       String
+  type         LoyaltyTransactionType
+  points       Int
+  balanceAfter Int
+  createdAt    DateTime               @default(now())
+  tenant       Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer     Customer               @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  sale         PosSale                @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  @@unique([saleId, type])
+  @@index([customerId, createdAt])
+  @@index([tenantId, createdAt])
+}
+
+model ElectronicInvoice {
+  id            String                    @id @default(cuid())
+  tenantId      String
+  posSaleId     String                    @unique
+  provider      ElectronicInvoiceProvider
+  status        ElectronicInvoiceStatus   @default(QUEUED)
+  mode          String
+  invoiceNumber String?
+  randomCode    String?
+  buyerTaxId    String?
+  carrierType   String?
+  carrierId     String?
+  donationCode  String?
+  printMark     Boolean                   @default(false)
+  issuedAt      DateTime?
+  voidedAt      DateTime?
+  lastError     String?
+  createdAt     DateTime                  @default(now())
+  updatedAt     DateTime                  @updatedAt
+  tenant        Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  posSale       PosSale                   @relation(fields: [posSaleId], references: [id], onDelete: Cascade)
+  events        ElectronicInvoiceEvent[]
+
+  @@index([tenantId, status, createdAt])
+  @@index([tenantId, invoiceNumber])
+}
+
+model ElectronicInvoiceEvent {
+  id                  String                       @id @default(cuid())
+  tenantId            String
+  invoiceId           String
+  type                ElectronicInvoiceEventType
+  status              ElectronicInvoiceEventStatus @default(PENDING)
+  payload             Json
+  attempts            Int                          @default(0)
+  nextRetryAt         DateTime?
+  processingStartedAt DateTime?
+  providerRequestId   String?
+  providerResponse    Json?
+  lastError           String?
+  createdAt           DateTime                     @default(now())
+  updatedAt           DateTime                     @updatedAt
+  processedAt         DateTime?
+  tenant              Tenant                       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  invoice             ElectronicInvoice            @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status, nextRetryAt])
+  @@index([status, processingStartedAt])
+  @@index([invoiceId, createdAt])
+}
+
+model PosSale {
+  id                    String                       @id @default(cuid())
+  tenantId              String
+  clientRequestId       String?
+  shiftId               String
+  registerId            String
+  customerId            String?
+  salesOrderId          String?                      @unique
+  exchangeRefundId      String?                      @unique
+  promotionId           String?
+  number                String
+  status                PosSaleStatus                @default(COMPLETED)
+  subtotal              Decimal                      @default(0) @db.Decimal(18, 2)
+  discount              Decimal                      @default(0) @db.Decimal(18, 2)
+  promotionDiscount     Decimal                      @default(0) @db.Decimal(18, 2)
+  couponDiscount        Decimal                      @default(0) @db.Decimal(18, 2)
+  pointsDiscount        Decimal                      @default(0) @db.Decimal(18, 2)
+  loyaltyPointsEarned   Int                          @default(0)
+  loyaltyPointsRedeemed Int                          @default(0)
+  taxAmount             Decimal                      @default(0) @db.Decimal(18, 2)
+  total                 Decimal                      @default(0) @db.Decimal(18, 2)
+  paidAmount            Decimal                      @default(0) @db.Decimal(18, 2)
+  changeDue             Decimal                      @default(0) @db.Decimal(18, 2)
+  receiptNo             String?
+  voidReason            String?
+  voidedAt              DateTime?
+  createdAt             DateTime                     @default(now())
+  tenant                Tenant                       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  shift                 PosShift                     @relation(fields: [shiftId], references: [id])
+  register              PosRegister                  @relation(fields: [registerId], references: [id])
+  customer              Customer?                    @relation(fields: [customerId], references: [id])
+  salesOrder            SalesOrder?                  @relation(fields: [salesOrderId], references: [id], onDelete: SetNull)
+  exchangeRefund        PosRefund?                   @relation("PosExchange", fields: [exchangeRefundId], references: [id], onDelete: SetNull)
+  promotion             PosPromotion?                @relation(fields: [promotionId], references: [id], onDelete: SetNull)
+  items                 PosSaleItem[]
+  payments              PosPayment[]
+  refunds               PosRefund[]
+  electronicInvoice     ElectronicInvoice?
+  couponRedemption      PosCouponRedemption?
+  managerApproval       PosManagerApproval?
+  loyaltyTransactions   CustomerLoyaltyTransaction[]
+  restaurantOrder       RestaurantOrder?
+
+  @@unique([tenantId, number])
+  @@unique([tenantId, clientRequestId])
+  @@index([tenantId, createdAt])
+  @@index([shiftId, createdAt])
+  @@index([registerId, createdAt])
+  @@index([status])
+}
+
+// ─────────────────────────── 餐飲桌位／廚房 ───────────────────────────
+enum RestaurantTableStatus {
+  AVAILABLE
+  OCCUPIED
+  RESERVED
+  CLEANING
+}
+
+enum RestaurantOrderStatus {
+  OPEN
+  SENT
+  PREPARING
+  READY
+  COMPLETED
+  CANCELLED
+}
+
+enum RestaurantItemStatus {
+  PENDING
+  SENT
+  PREPARING
+  READY
+  SERVED
+  CANCELLED
+}
+
+enum RestaurantTicketStatus {
+  NEW
+  PREPARING
+  READY
+  SERVED
+  CANCELLED
+}
+
+model RestaurantArea {
+  id        String            @id @default(cuid())
+  tenantId  String
+  code      String
+  name      String
+  sortOrder Int               @default(0)
+  isActive  Boolean           @default(true)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  tenant    Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tables    RestaurantTable[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, isActive, sortOrder])
+}
+
+model RestaurantTable {
+  id        String                @id @default(cuid())
+  tenantId  String
+  areaId    String
+  code      String
+  name      String
+  seats     Int                   @default(4)
+  status    RestaurantTableStatus @default(AVAILABLE)
+  sortOrder Int                   @default(0)
+  isActive  Boolean               @default(true)
+  createdAt DateTime              @default(now())
+  updatedAt DateTime              @updatedAt
+  tenant    Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  area      RestaurantArea        @relation(fields: [areaId], references: [id], onDelete: Cascade)
+  orders    RestaurantOrder[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, status, isActive])
+  @@index([areaId, sortOrder])
+}
+
+model RestaurantOrder {
+  id          String                    @id @default(cuid())
+  tenantId    String
+  tableId     String
+  shiftId     String
+  registerId  String
+  posSaleId   String?                   @unique
+  number      String
+  status      RestaurantOrderStatus     @default(OPEN)
+  guests      Int                       @default(1)
+  note        String?
+  createdById String
+  openedAt    DateTime                  @default(now())
+  sentAt      DateTime?
+  completedAt DateTime?
+  cancelledAt DateTime?
+  updatedAt   DateTime                  @updatedAt
+  tenant      Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  table       RestaurantTable           @relation(fields: [tableId], references: [id])
+  shift       PosShift                  @relation(fields: [shiftId], references: [id])
+  register    PosRegister               @relation(fields: [registerId], references: [id])
+  posSale     PosSale?                  @relation(fields: [posSaleId], references: [id], onDelete: SetNull)
+  items       RestaurantOrderItem[]
+  tickets     RestaurantKitchenTicket[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, status, openedAt])
+  @@index([tableId, status])
+  @@index([shiftId, status])
+}
+
+model RestaurantOrderItem {
+  id          String                        @id @default(cuid())
+  orderId     String
+  productId   String
+  quantity    Decimal                       @db.Decimal(18, 4)
+  unitPrice   Decimal                       @db.Decimal(18, 4)
+  note        String?
+  course      String?
+  status      RestaurantItemStatus          @default(PENDING)
+  createdAt   DateTime                      @default(now())
+  updatedAt   DateTime                      @updatedAt
+  order       RestaurantOrder               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product     Product                       @relation(fields: [productId], references: [id])
+  ticketItems RestaurantKitchenTicketItem[]
+
+  @@index([orderId, status])
+  @@index([productId])
+}
+
+model RestaurantKitchenTicket {
+  id        String                        @id @default(cuid())
+  tenantId  String
+  orderId   String
+  number    String
+  station   String                        @default("主廚房")
+  status    RestaurantTicketStatus        @default(NEW)
+  sentAt    DateTime                      @default(now())
+  startedAt DateTime?
+  readyAt   DateTime?
+  servedAt  DateTime?
+  tenant    Tenant                        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  order     RestaurantOrder               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  items     RestaurantKitchenTicketItem[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, status, sentAt])
+  @@index([orderId, sentAt])
+}
+
+model RestaurantKitchenTicketItem {
+  ticketId    String
+  orderItemId String
+  ticket      RestaurantKitchenTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  orderItem   RestaurantOrderItem     @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+
+  @@id([ticketId, orderItemId])
+  @@index([orderItemId])
+}
+
+model PosSaleItem {
+  id          String          @id @default(cuid())
+  saleId      String
+  productId   String
+  quantity    Decimal         @db.Decimal(18, 4)
+  returnedQty Decimal         @default(0) @db.Decimal(18, 4)
+  unitPrice   Decimal         @db.Decimal(18, 4)
+  unitCost    Decimal         @default(0) @db.Decimal(18, 4)
+  discount    Decimal         @default(0) @db.Decimal(18, 2)
+  taxRate     Decimal         @default(0) @db.Decimal(6, 4)
+  subtotal    Decimal         @db.Decimal(18, 2)
+  sale        PosSale         @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  product     Product         @relation(fields: [productId], references: [id])
+  refundItems PosRefundItem[]
+
+  @@index([saleId])
+  @@index([productId])
+}
+
+model PosPayment {
+  id        String   @id @default(cuid())
+  saleId    String
+  method    String
+  amount    Decimal  @db.Decimal(18, 2)
+  reference String?
+  createdAt DateTime @default(now())
+  sale      PosSale  @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  @@index([saleId])
+  @@index([method, createdAt])
+}
+
+model PosRefund {
+  id                    String             @id @default(cuid())
+  tenantId              String
+  saleId                String
+  shiftId               String
+  registerId            String
+  warehouseId           String
+  number                String
+  status                PosRefundStatus    @default(COMPLETED)
+  subtotal              Decimal            @default(0) @db.Decimal(18, 2)
+  discount              Decimal            @default(0) @db.Decimal(18, 2)
+  taxAmount             Decimal            @default(0) @db.Decimal(18, 2)
+  total                 Decimal            @default(0) @db.Decimal(18, 2)
+  cogs                  Decimal            @default(0) @db.Decimal(18, 2)
+  writeOffCost          Decimal            @default(0) @db.Decimal(18, 2)
+  loyaltyPointsReversed Int                @default(0)
+  loyaltyPointsRestored Int                @default(0)
+  reason                String
+  createdById           String?
+  createdAt             DateTime           @default(now())
+  voidedAt              DateTime?
+  tenant                Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  sale                  PosSale            @relation(fields: [saleId], references: [id])
+  shift                 PosShift           @relation(fields: [shiftId], references: [id])
+  register              PosRegister        @relation(fields: [registerId], references: [id])
+  warehouse             Warehouse          @relation(fields: [warehouseId], references: [id])
+  items                 PosRefundItem[]
+  payments              PosRefundPayment[]
+  exchangeSale          PosSale?           @relation("PosExchange")
+
+  @@unique([tenantId, number])
+  @@index([tenantId, createdAt])
+  @@index([saleId, createdAt])
+  @@index([shiftId, createdAt])
+  @@index([registerId, createdAt])
+  @@index([warehouseId, createdAt])
+}
+
+model PosRefundItem {
+  id          String               @id @default(cuid())
+  refundId    String
+  saleItemId  String
+  productId   String
+  quantity    Decimal              @db.Decimal(18, 4)
+  unitPrice   Decimal              @db.Decimal(18, 4)
+  unitCost    Decimal              @default(0) @db.Decimal(18, 4)
+  discount    Decimal              @default(0) @db.Decimal(18, 2)
+  taxRate     Decimal              @default(0) @db.Decimal(6, 4)
+  subtotal    Decimal              @db.Decimal(18, 2)
+  disposition PosReturnDisposition @default(SELLABLE)
+  refund      PosRefund            @relation(fields: [refundId], references: [id], onDelete: Cascade)
+  saleItem    PosSaleItem          @relation(fields: [saleItemId], references: [id])
+  product     Product              @relation(fields: [productId], references: [id])
+
+  @@unique([refundId, saleItemId])
+  @@index([saleItemId])
+  @@index([productId])
+}
+
+model PosRefundPayment {
+  id        String    @id @default(cuid())
+  refundId  String
+  method    String
+  amount    Decimal   @db.Decimal(18, 2)
+  reference String?
+  createdAt DateTime  @default(now())
+  refund    PosRefund @relation(fields: [refundId], references: [id], onDelete: Cascade)
+
+  @@index([refundId])
+  @@index([method, createdAt])
 }
 
 // ─────────────────────────── 報價單 ───────────────────────────
@@ -704,26 +1678,40 @@ enum JournalStatus {
 }
 
 model JournalEntry {
-  id          String             @id @default(cuid())
-  tenantId    String
-  number      String
-  entryDate   DateTime           @default(now())
-  summary     String
-  status      JournalStatus      @default(DRAFT)
-  attachment  String?
-  createdById String?
-  updatedBy   String?
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
-  tenant      Tenant             @relation(fields: [tenantId], references: [id])
-  createdBy   User?              @relation("JournalEntryCreator", fields: [createdById], references: [id])
-  lines       JournalEntryLine[]
+  id               String             @id @default(cuid())
+  tenantId         String
+  number           String
+  entryDate        DateTime           @default(now())
+  summary          String
+  status           JournalStatus      @default(DRAFT)
+  attachment       String?
+  createdById      String?
+  submittedById    String?
+  submittedAt      DateTime?
+  approvedById     String?
+  approvedAt       DateTime?
+  postedById       String?
+  postedAt         DateTime?
+  reversedById     String?
+  reversedAt       DateTime?
+  reversalOfId     String?            @unique
+  reversalReason   String?
+  updatedBy        String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  tenant           Tenant             @relation(fields: [tenantId], references: [id])
+  createdBy        User?              @relation("JournalEntryCreator", fields: [createdById], references: [id])
+  lines            JournalEntryLine[]
+  reversalOf       JournalEntry?      @relation("JournalReversal", fields: [reversalOfId], references: [id])
+  reversal         JournalEntry?      @relation("JournalReversal")
+  closingForPeriod AccountingPeriod[] @relation("AccountingPeriodClosingJournal")
 
   @@unique([tenantId, number])
   @@index([tenantId])
   @@index([tenantId, createdAt])
   @@index([tenantId, entryDate])
   @@index([tenantId, status])
+  @@index([reversalOfId])
 }
 
 model JournalEntryLine {
@@ -737,33 +1725,73 @@ model JournalEntryLine {
   account   ChartOfAccount @relation(fields: [accountId], references: [id])
 }
 
+enum AccountingPeriodStatus {
+  OPEN
+  CLOSED
+}
+
+enum AccountingPeriodCloseType {
+  MONTH_END
+  YEAR_END
+}
+
+model AccountingPeriod {
+  id               String                     @id @default(cuid())
+  tenantId         String
+  year             Int
+  month            Int
+  startDate        DateTime
+  endDate          DateTime
+  status           AccountingPeriodStatus     @default(OPEN)
+  closeType        AccountingPeriodCloseType?
+  closingJournalId String?
+  closedById       String?
+  closedAt         DateTime?
+  reopenedById     String?
+  reopenedAt       DateTime?
+  reopenReason     String?
+  createdAt        DateTime                   @default(now())
+  updatedAt        DateTime                   @updatedAt
+  tenant           Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  closingJournal   JournalEntry?              @relation("AccountingPeriodClosingJournal", fields: [closingJournalId], references: [id])
+
+  @@unique([tenantId, year, month])
+  @@index([tenantId, status])
+  @@index([tenantId, startDate, endDate])
+  @@index([closingJournalId])
+}
+
 enum ReceivableStatus {
   DRAFT
   SUBMITTED
   APPROVED
+  PARTIAL
+  PAID
   POSTED
   VOIDED
   REJECTED
 }
 
 model AccountsReceivable {
-  id           String           @id @default(cuid())
-  tenantId     String
-  customerId   String
-  salesOrderId String?
-  invoiceId    String?
-  amount       Decimal          @db.Decimal(18, 2)
-  paidAmount   Decimal          @default(0) @db.Decimal(18, 2)
-  dueDate      DateTime?
-  status       ReceivableStatus @default(DRAFT)
-  updatedBy    String?
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
-  tenant       Tenant           @relation(fields: [tenantId], references: [id])
-  customer     Customer         @relation(fields: [customerId], references: [id])
-  salesOrder   SalesOrder?      @relation(fields: [salesOrderId], references: [id])
-  payments     ReceivePayment[]
-  notes        NoteReceivable[]
+  id              String           @id @default(cuid())
+  tenantId        String
+  customerId      String
+  salesOrderId    String?
+  salesShipmentId String?          @unique
+  invoiceId       String?
+  amount          Decimal          @db.Decimal(18, 2)
+  paidAmount      Decimal          @default(0) @db.Decimal(18, 2)
+  dueDate         DateTime?
+  status          ReceivableStatus @default(DRAFT)
+  updatedBy       String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  tenant          Tenant           @relation(fields: [tenantId], references: [id])
+  customer        Customer         @relation(fields: [customerId], references: [id])
+  salesOrder      SalesOrder?      @relation(fields: [salesOrderId], references: [id])
+  salesShipment   SalesShipment?   @relation(fields: [salesShipmentId], references: [id])
+  payments        ReceivePayment[]
+  notes           NoteReceivable[]
 
   @@index([tenantId])
   @@index([tenantId, createdAt])
@@ -803,29 +1831,33 @@ enum PayableStatus {
   DRAFT
   SUBMITTED
   APPROVED
+  PARTIAL
+  PAID
   POSTED
   VOIDED
   REJECTED
 }
 
 model AccountsPayable {
-  id              String            @id @default(cuid())
-  tenantId        String
-  supplierId      String
-  purchaseOrderId String?
-  invoiceId       String?
-  amount          Decimal           @db.Decimal(18, 2)
-  paidAmount      Decimal           @default(0) @db.Decimal(18, 2)
-  dueDate         DateTime?
-  status          PayableStatus     @default(DRAFT)
-  updatedBy       String?
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
-  tenant          Tenant            @relation(fields: [tenantId], references: [id])
-  supplier        Supplier          @relation(fields: [supplierId], references: [id])
-  purchaseOrder   PurchaseOrder?    @relation(fields: [purchaseOrderId], references: [id])
-  payments        SupplierPayment[]
-  notes           NotePayable[]
+  id                String            @id @default(cuid())
+  tenantId          String
+  supplierId        String
+  purchaseOrderId   String?
+  purchaseReceiptId String?           @unique
+  invoiceId         String?
+  amount            Decimal           @db.Decimal(18, 2)
+  paidAmount        Decimal           @default(0) @db.Decimal(18, 2)
+  dueDate           DateTime?
+  status            PayableStatus     @default(DRAFT)
+  updatedBy         String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  tenant            Tenant            @relation(fields: [tenantId], references: [id])
+  supplier          Supplier          @relation(fields: [supplierId], references: [id])
+  purchaseOrder     PurchaseOrder?    @relation(fields: [purchaseOrderId], references: [id])
+  purchaseReceipt   PurchaseReceipt?  @relation(fields: [purchaseReceiptId], references: [id])
+  payments          SupplierPayment[]
+  notes             NotePayable[]
 
   @@index([tenantId])
   @@index([tenantId, createdAt])
@@ -863,21 +1895,21 @@ model SupplierPayment {
 
 // ─────────────────────────── 折讓單 ───────────────────────────
 model DiscountNote {
-  id            String   @id @default(cuid())
-  tenantId      String
-  number        String
-  type          String   // SALES / PURCHASE
-  customerId    String?
-  supplierId    String?
-  receivableId  String?
-  payableId     String?
-  amount        Decimal  @db.Decimal(18, 2)
-  reason        String?
-  relNumber     String?  // 原銷售/採購單號
-  createdAt     DateTime @default(now())
-  tenant        Tenant   @relation(fields: [tenantId], references: [id])
-  customer      Customer? @relation(fields: [customerId], references: [id])
-  supplier      Supplier? @relation(fields: [supplierId], references: [id])
+  id           String    @id @default(cuid())
+  tenantId     String
+  number       String
+  type         String // SALES / PURCHASE
+  customerId   String?
+  supplierId   String?
+  receivableId String?
+  payableId    String?
+  amount       Decimal   @db.Decimal(18, 2)
+  reason       String?
+  relNumber    String? // 原銷售/採購單號
+  createdAt    DateTime  @default(now())
+  tenant       Tenant    @relation(fields: [tenantId], references: [id])
+  customer     Customer? @relation(fields: [customerId], references: [id])
+  supplier     Supplier? @relation(fields: [supplierId], references: [id])
 
   @@unique([tenantId, number])
   @@index([tenantId])
@@ -1028,11 +2060,11 @@ model InvoiceItem {
 model InvoiceTrack {
   id          String   @id @default(cuid())
   tenantId    String
-  year        Int      // 民國年，例 114
-  period      Int      // 期別 1~6（1-2月=1, 3-4月=2, ...）
-  trackCode   String   // 字軌，例 "AB"
-  startNumber Int      // 起始號，例 1
-  endNumber   Int      // 結束號，例 50
+  year        Int // 民國年，例 114
+  period      Int // 期別 1~6（1-2月=1, 3-4月=2, ...）
+  trackCode   String // 字軌，例 "AB"
+  startNumber Int // 起始號，例 1
+  endNumber   Int // 結束號，例 50
   currentNum  Int      @default(0) // 目前已用到的號碼
   type        String   @default("SALES") // SALES / PURCHASE
   isActive    Boolean  @default(true)
@@ -1090,7 +2122,7 @@ model SystemSetting {
 model NumberSequence {
   id        String   @id @default(cuid())
   tenantId  String
-  key       String   // 例: SO / PO / JE / QT / RP / SP / SR / PR / ADJ / TRF
+  key       String // 例: SO / PO / JE / QT / RP / SP / SR / PR / ADJ / TRF
   prefix    String   @default("")
   nextNo    Int      @default(1)
   format    String   @default("{prefix}{yyyy}{mm}-{seq:0000}")
@@ -1102,32 +2134,38 @@ model NumberSequence {
 }
 
 model AuditLog {
-  id        String   @id @default(cuid())
-  userId    String?
-  action    String
-  module    String
-  refId     String?
-  detail    String?
-  ip        String?
-  createdAt DateTime @default(now())
-  user      User?    @relation(fields: [userId], references: [id])
+  id               String   @id @default(cuid())
+  tenantId         String?
+  userId           String?
+  action           String
+  module           String
+  refId            String?
+  detail           String?
+  ip               String?
+  previousHash     String?
+  entryHash        String?  @unique
+  integrityVersion Int      @default(1)
+  createdAt        DateTime @default(now())
+  tenant           Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user             User?    @relation(fields: [userId], references: [id])
 
   @@index([module])
   @@index([userId])
+  @@index([tenantId, createdAt])
 }
 
 model PermissionChangeLog {
-  id          String   @id @default(cuid())
-  userId      String?
-  roleId      String
-  roleName    String?
-  action      String
-  oldValue    String?
-  newValue    String?
+  id             String   @id @default(cuid())
+  userId         String?
+  roleId         String
+  roleName       String?
+  action         String
+  oldValue       String?
+  newValue       String?
   permissionCode String?
-  ip          String?
-  userAgent   String?
-  createdAt   DateTime @default(now())
+  ip             String?
+  userAgent      String?
+  createdAt      DateTime @default(now())
 
   @@index([roleId])
   @@index([userId])
@@ -1183,7 +2221,7 @@ enum NoteType {
 model NoteReceivable {
   id           String              @id @default(cuid())
   tenantId     String
-  number       String              // 系統編號 NR-yyyymm-xxxx
+  number       String // 系統編號 NR-yyyymm-xxxx
   noteNumber   String // 票號
   noteType     NoteType            @default(CHECK)
   customerId   String
@@ -1214,7 +2252,7 @@ model NoteReceivable {
 model NotePayable {
   id            String           @id @default(cuid())
   tenantId      String
-  number        String           // 系統編號 NP-yyyymm-xxxx
+  number        String // 系統編號 NP-yyyymm-xxxx
   noteNumber    String // 票號
   noteType      NoteType         @default(CHECK)
   supplierId    String
@@ -1276,12 +2314,12 @@ model Department {
 }
 
 model Employee {
-  id                   String             @id @default(cuid())
+  id                   String                    @id @default(cuid())
   tenantId             String
-  employeeNo           String             // 員工編號 e.g. EMP001
+  employeeNo           String // 員工編號 e.g. EMP001
   name                 String
   englishName          String?
-  idNumber             String?            // 身分證字號
+  idNumber             String? // 身分證字號
   gender               Gender?
   birthDate            DateTime?
   phone                String?
@@ -1294,27 +2332,27 @@ model Employee {
   position             String? // 職稱
   hireDate             DateTime
   resignDate           DateTime?
-  status               EmployeeStatus     @default(ACTIVE)
+  status               EmployeeStatus            @default(ACTIVE)
   // 薪資設定
-  baseSalary           Decimal            @default(0) @db.Decimal(18, 2) // 本薪
-  mealAllowance        Decimal            @default(2400) @db.Decimal(18, 2) // 伙食津貼(免稅)
-  transportAllowance   Decimal            @default(0) @db.Decimal(18, 2)
-  positionAllowance    Decimal            @default(0) @db.Decimal(18, 2)
+  baseSalary           Decimal                   @default(0) @db.Decimal(18, 2) // 本薪
+  mealAllowance        Decimal                   @default(2400) @db.Decimal(18, 2) // 伙食津貼(免稅)
+  transportAllowance   Decimal                   @default(0) @db.Decimal(18, 2)
+  positionAllowance    Decimal                   @default(0) @db.Decimal(18, 2)
   // 投保資訊
-  insuredSalary        Decimal            @default(0) @db.Decimal(18, 2) // 投保薪資
-  laborPensionRate     Decimal            @default(0.06) @db.Decimal(6, 4) // 雇主提繳率 (預設6%)
-  voluntaryPensionRate Decimal            @default(0) @db.Decimal(6, 4) // 員工自願提繳
-  dependents           Int                @default(0) // 健保眷屬數
+  insuredSalary        Decimal                   @default(0) @db.Decimal(18, 2) // 投保薪資
+  laborPensionRate     Decimal                   @default(0.06) @db.Decimal(6, 4) // 雇主提繳率 (預設6%)
+  voluntaryPensionRate Decimal                   @default(0) @db.Decimal(6, 4) // 員工自願提繳
+  dependents           Int                       @default(0) // 健保眷屬數
   // 銀行帳戶
   bankName             String?
   bankAccountNo        String?
   taxId                String? // 所得稅扣繳憑單統編
   remark               String?
   updatedBy            String?
-  createdAt            DateTime           @default(now())
-  updatedAt            DateTime           @updatedAt
-  tenant               Tenant             @relation(fields: [tenantId], references: [id])
-  department           Department?        @relation(fields: [departmentId], references: [id])
+  createdAt            DateTime                  @default(now())
+  updatedAt            DateTime                  @updatedAt
+  tenant               Tenant                    @relation(fields: [tenantId], references: [id])
+  department           Department?               @relation(fields: [departmentId], references: [id])
   payrolls             Payroll[]
   attendances          AttendanceRecord[]
   salaryStructures     EmployeeSalaryStructure[]
@@ -1455,23 +2493,23 @@ enum SalaryCalculationMethod {
 
 /// 薪資結構模板
 model SalaryStructure {
-  id              String                  @id @default(cuid())
-  tenantId        String
-  code            String                  // 結構代碼 e.g. SAL-001
-  name            String                  // 結構名稱 e.g. 標準薪資結構
-  type            SalaryStructureType
-  calculationMethod SalaryCalculationMethod
-  amount          Decimal                 @default(0) @db.Decimal(18, 2)
-  rate            Decimal?                @db.Decimal(6, 4) // 百分比或時薪率
-  isTaxable       Boolean                 @default(true) // 是否計入所得稅
-  isInsuranceBase Boolean                 @default(true) // 是否計入勞健保投保薪資
-  isPensionBase   Boolean                 @default(true) // 是否計入勞退投保薪資
-  description     String?
-  isActive        Boolean                 @default(true)
-  updatedBy       String?
-  createdAt       DateTime                @default(now())
-  updatedAt       DateTime                @updatedAt
-  tenant          Tenant                  @relation(fields: [tenantId], references: [id])
+  id                 String                    @id @default(cuid())
+  tenantId           String
+  code               String // 結構代碼 e.g. SAL-001
+  name               String // 結構名稱 e.g. 標準薪資結構
+  type               SalaryStructureType
+  calculationMethod  SalaryCalculationMethod
+  amount             Decimal                   @default(0) @db.Decimal(18, 2)
+  rate               Decimal?                  @db.Decimal(6, 4) // 百分比或時薪率
+  isTaxable          Boolean                   @default(true) // 是否計入所得稅
+  isInsuranceBase    Boolean                   @default(true) // 是否計入勞健保投保薪資
+  isPensionBase      Boolean                   @default(true) // 是否計入勞退投保薪資
+  description        String?
+  isActive           Boolean                   @default(true)
+  updatedBy          String?
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
+  tenant             Tenant                    @relation(fields: [tenantId], references: [id])
   employeeStructures EmployeeSalaryStructure[]
 
   @@unique([tenantId, code])
@@ -1482,17 +2520,17 @@ model SalaryStructure {
 
 /// 員工薪資結構關聯
 model EmployeeSalaryStructure {
-  id                String            @id @default(cuid())
-  employeeId        String
-  structureId       String
-  effectiveDate     DateTime          // 生效日期
-  amount            Decimal           @default(0) @db.Decimal(18, 2) // 個別化金額
-  rate              Decimal?          @db.Decimal(6, 4) // 個別化比率
-  isActive          Boolean           @default(true)
-  expiredAt         DateTime?
-  createdAt         DateTime          @default(now())
-  employee          Employee          @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  structure         SalaryStructure   @relation(fields: [structureId], references: [id], onDelete: Cascade)
+  id            String          @id @default(cuid())
+  employeeId    String
+  structureId   String
+  effectiveDate DateTime // 生效日期
+  amount        Decimal         @default(0) @db.Decimal(18, 2) // 個別化金額
+  rate          Decimal?        @db.Decimal(6, 4) // 個別化比率
+  isActive      Boolean         @default(true)
+  expiredAt     DateTime?
+  createdAt     DateTime        @default(now())
+  employee      Employee        @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  structure     SalaryStructure @relation(fields: [structureId], references: [id], onDelete: Cascade)
 
   @@unique([employeeId, structureId, effectiveDate])
   @@index([employeeId])
@@ -1523,33 +2561,33 @@ enum SalaryChangeStatus {
 
 /// 薪資異動記錄
 model SalaryChange {
-  id              String              @id @default(cuid())
+  id              String             @id @default(cuid())
   tenantId        String
-  number          String              // 異動單號 e.g. SC-202601-0001
+  number          String // 異動單號 e.g. SC-202601-0001
   employeeId      String
   type            SalaryChangeType
-  status          SalaryChangeStatus  @default(DRAFT)
-  effectiveDate   DateTime           // 生效日期
+  status          SalaryChangeStatus @default(DRAFT)
+  effectiveDate   DateTime // 生效日期
   // 異動前資訊
   oldDepartmentId String?
   oldPosition     String?
-  oldBaseSalary   Decimal?            @db.Decimal(18, 2)
-  oldTotalSalary  Decimal?            @db.Decimal(18, 2)
+  oldBaseSalary   Decimal?           @db.Decimal(18, 2)
+  oldTotalSalary  Decimal?           @db.Decimal(18, 2)
   // 異動後資訊
   newDepartmentId String?
   newPosition     String?
-  newBaseSalary   Decimal?            @db.Decimal(18, 2)
-  newTotalSalary  Decimal?            @db.Decimal(18, 2)
+  newBaseSalary   Decimal?           @db.Decimal(18, 2)
+  newTotalSalary  Decimal?           @db.Decimal(18, 2)
   // 異動原因
   reason          String?
-  approvedBy      String?             // 核准人
+  approvedBy      String? // 核准人
   approvedAt      DateTime?
   remark          String?
   updatedBy       String?
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
-  tenant          Tenant              @relation(fields: [tenantId], references: [id])
-  employee        Employee            @relation(fields: [employeeId], references: [id])
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  tenant          Tenant             @relation(fields: [tenantId], references: [id])
+  employee        Employee           @relation(fields: [employeeId], references: [id])
 
   @@unique([tenantId, number])
   @@index([tenantId])
@@ -1578,7 +2616,7 @@ enum FixedAssetStatus {
 model FixedAsset {
   id                      String             @id @default(cuid())
   tenantId                String
-  code                    String             // 資產編號
+  code                    String // 資產編號
   name                    String // 資產名稱
   category                String? // 分類 (土地/建築/設備...)
   accountCode             String? // 對應會計科目代碼 (1401, 1421...)

@@ -9,16 +9,13 @@ export const GET = apiHandler(async (_req: NextRequest) => {
   if (!session.user.isSuperAdmin) throw new ApiError(403, "僅限超級管理員");
 
   const tenants = await prisma.tenant.findMany({ select: { id: true, name: true } });
-  const results: { tenant: string; added: boolean }[] = [];
+  const results: { tenant: string; added: number }[] = [];
 
   for (const t of tenants) {
-    const count = await prisma.chartOfAccount.count({ where: { tenantId: t.id } });
-    if (count === 0) {
-      await seedTenantDefaults(t.id);
-      results.push({ tenant: t.name, added: true });
-    } else {
-      results.push({ tenant: t.name, added: false });
-    }
+    const before = await prisma.chartOfAccount.count({ where: { tenantId: t.id } });
+    await seedTenantDefaults(t.id);
+    const after = await prisma.chartOfAccount.count({ where: { tenantId: t.id } });
+    results.push({ tenant: t.name, added: after - before });
   }
 
   return NextResponse.json({ ok: true, results });

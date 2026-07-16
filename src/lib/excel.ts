@@ -1,81 +1,83 @@
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 
 export type ExcelColumn<T> = {
   key: string;
   title: string;
   get?: (row: T) => any;
-  isImage?: boolean; // 標記此欄位為圖片欄位
-  isUrl?: boolean; // 標記此欄位為 URL 欄位，創建超連結
-  urlGet?: (row: T) => string; // 獲取實際 URL（與顯示文字分開）
+  isImage?: boolean;
+  isUrl?: boolean;
+  urlGet?: (row: T) => string;
 };
 
-/** 匯出資料為 .xlsx */
-export function downloadExcel<T = any>(filename: string, sheetName: string, rows: T[], columns: ExcelColumn<T>[]) {
-  const data = rows.map((r: any) => {
-    const o: Record<string, any> = {};
-    columns.forEach((c) => {
-      o[c.title] = c.get ? c.get(r) : r[c.key];
+function triggerDownload(data: ArrayBuffer, filename: string) {
+  const url = URL.createObjectURL(new Blob([data], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1_000);
+}
+
+/** 匯出資料為 .xlsx；使用 ExcelJS，避免已知無修補版本的 SheetJS 解析器。 */
+export async function downloadExcel<T = any>(filename: string, sheetName: string, rows: T[], columns: ExcelColumn<T>[]) {
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet(sheetName.slice(0, 31));
+  sheet.columns = columns.map((column) => ({ header: column.title, key: column.key, width: Math.max(12, column.title.length * 2 + 2) }));
+  rows.forEach((row: any) => {
+    const values: Record<string, unknown> = {};
+    columns.forEach((column) => { values[column.key] = column.get ? column.get(row) : row[column.key]; });
+    const excelRow = sheet.addRow(values);
+    columns.forEach((column, index) => {
+      if (!column.isUrl) return;
+      const target = column.urlGet ? column.urlGet(row) : String(values[column.key] ?? "");
+      if (target) excelRow.getCell(index + 1).value = { text: String(values[column.key] ?? target), hyperlink: target, tooltip: "點擊開啟" };
     });
-    return o;
   });
-  const ws = XLSX.utils.json_to_sheet(data, { header: columns.map((c) => c.title) });
-  
-  // 處理 URL 欄位，創建超連結
-  columns.forEach((c, colIndex) => {
-    if (c.isUrl) {
-      const colLetter = XLSX.utils.encode_col(colIndex);
-      data.forEach((row: any, rowIndex) => {
-        const cellAddress = `${colLetter}${rowIndex + 2}`; // +2 因為有標題行
-        const cell = ws[cellAddress];
-        if (cell && cell.v) {
-          // 如果有 urlGet，使用它作為超連結目標，否則使用單元格值
-          const targetUrl = c.urlGet ? c.urlGet(rows[rowIndex]) : cell.v;
-          if (targetUrl) {
-            cell.l = { Target: targetUrl, Tooltip: "點擊查看圖片" };
-          }
-        }
-      });
-    }
-  });
-  
-  // 處理圖片欄位
-  const imageColIndex = columns.findIndex((c) => c.isImage);
-  if (imageColIndex !== -1) {
-    // 設置圖片欄位的欄寬為固定大小
-    const colWidths = columns.map((c, idx) => ({
-      wch: c.isImage ? 15 : Math.max(c.title.length * 2, ...data.map((d: any) => String(d[c.title] ?? "").length)) + 2,
-    }));
-    ws["!cols"] = colWidths;
-    
-    // 嘗試添加圖片（需要在服務器端處理，因為瀏覽器端 XLSX 對圖片支持有限）
-    // 這裡我們保留圖片 URL 在單元格中，用戶可以點擊查看
-  } else {
-    // 自動欄寬
-    const colWidths = columns.map((c) => ({
-      wch: Math.max(c.title.length * 2, ...data.map((d: any) => String(d[c.title] ?? "").length)) + 2,
-    }));
-    ws["!cols"] = colWidths;
+  sheet.getRow(1).font = { bold: true };
+  const buffer = await workbook.xlsx.writeBuffer();
+  triggerDownload(buffer, `${filename}-${new Date().toISOString().slice(0, 10)}.xlsx`);
+}
+
+function cellValue(cell: ExcelJS.Cell) {
+  const value = cell.value;
+  if (value && typeof value === "object") {
+    if ("result" in value) return value.result ?? "";
+    if ("text" in value) return value.text ?? "";
+    if ("richText" in value) return value.richText.map((item) => item.text).join("");
   }
-  
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, sheetName);
-  XLSX.writeFile(wb, `${filename}-${new Date().toISOString().slice(0, 10)}.xlsx`);
+  return value ?? "";
 }
 
-/** 從 .xlsx/.xls/.csv 讀取為 JSON 物件陣列 */
+/** 從 .xlsx 讀取 JSON。CSV 另由既有 CSV 匯入流程處理。 */
 export async function readExcelFile(file: File): Promise<Record<string, any>[]> {
-  const buf = await file.arrayBuffer();
-  const wb = XLSX.read(buf, { type: "array" });
-  const sheet = wb.Sheets[wb.SheetNames[0]];
-  return XLSX.utils.sheet_to_json(sheet, { defval: "" });
+  if (!file.name.toLowerCase().endsWith(".xlsx")) throw new Error("Excel 匯入僅接受 .xlsx；舊 .xls 請先另存為 .xlsx");
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(await file.arrayBuffer());
+  const sheet = workbook.worksheets[0];
+  if (!sheet || sheet.rowCount < 1) return [];
+  const headers: string[] = [];
+  sheet.getRow(1).eachCell({ includeEmpty: true }, (cell, column) => { headers[column] = String(cellValue(cell)).trim(); });
+  const rows: Record<string, any>[] = [];
+  for (let rowNo = 2; rowNo <= sheet.rowCount; rowNo++) {
+    const row: Record<string, any> = {};
+    let hasValue = false;
+    headers.forEach((header, column) => {
+      if (!header) return;
+      const value = cellValue(sheet.getRow(rowNo).getCell(column));
+      row[header] = value;
+      if (value !== "" && value !== null) hasValue = true;
+    });
+    if (hasValue) rows.push(row);
+  }
+  return rows;
 }
 
-/** 下載 Excel 範本 */
-export function downloadExcelTemplate(filename: string, sheetName: string, headers: string[], example?: Record<string, any>[]) {
-  const data = example ?? [headers.reduce((o, h) => ({ ...o, [h]: "" }), {} as Record<string, any>)];
-  const ws = XLSX.utils.json_to_sheet(data, { header: headers });
-  ws["!cols"] = headers.map((h) => ({ wch: Math.max(h.length * 2, 12) }));
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, sheetName);
-  XLSX.writeFile(wb, `${filename}-template.xlsx`);
+export async function downloadExcelTemplate(filename: string, sheetName: string, headers: string[], example?: Record<string, any>[]) {
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet(sheetName.slice(0, 31));
+  sheet.columns = headers.map((header, index) => ({ header, key: `c${index}`, width: Math.max(header.length * 2, 12) }));
+  for (const row of example ?? []) sheet.addRow(Object.fromEntries(headers.map((header, index) => [`c${index}`, row[header] ?? ""])));
+  sheet.getRow(1).font = { bold: true };
+  const buffer = await workbook.xlsx.writeBuffer();
+  triggerDownload(buffer, `${filename}-template.xlsx`);
 }

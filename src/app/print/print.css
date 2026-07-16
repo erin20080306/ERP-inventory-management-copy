@@ -665,12 +665,59 @@ table.tw-inv-items .center { text-align: center; }
 .tw-inv-remark { flex: 1; }
 .tw-inv-print-time { text-align: right; }
 
+/* 80mm POS 交易收據。這是交易明細，不冒充財政部電子發票證明聯。 */
+.pos-receipt {
+  page: pos-receipt;
+  width: 80mm;
+  min-height: 120mm;
+  margin: 16px auto;
+  padding: 5mm 4mm;
+  background: #fff;
+  box-shadow: 0 0 8px rgba(0,0,0,0.12);
+  color: #111;
+  font-size: 11px;
+  line-height: 1.45;
+}
+.pos-receipt-header { text-align: center; }
+.pos-receipt-header h1 { margin: 0 0 3px; font-size: 17px; }
+.pos-receipt-warning {
+  margin: 8px 0;
+  border: 1px solid #111;
+  padding: 4px;
+  text-align: center;
+  font-weight: 700;
+}
+.pos-receipt-meta { margin: 0 0 8px; padding: 0 0 7px; border-bottom: 1px dashed #555; }
+.pos-receipt-meta > div,
+.pos-receipt-totals > div,
+.pos-receipt-payments > div { display: flex; justify-content: space-between; gap: 8px; }
+.pos-receipt-meta dt { flex: 0 0 25mm; color: #444; }
+.pos-receipt-meta dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
+.pos-receipt-items { width: 100%; border-collapse: collapse; }
+.pos-receipt-items th { padding: 4px 2px; border-bottom: 1px solid #111; text-align: left; }
+.pos-receipt-items th:nth-child(2),
+.pos-receipt-items th:nth-child(3),
+.pos-receipt-items td:nth-child(2),
+.pos-receipt-items td:nth-child(3) { text-align: right; }
+.pos-receipt-items td { padding: 5px 2px; border-bottom: 1px dotted #aaa; vertical-align: top; }
+.pos-receipt-items strong,
+.pos-receipt-items small { display: block; }
+.pos-receipt-items small { color: #444; }
+.pos-receipt-totals { margin-top: 8px; padding-top: 4px; border-top: 1px dashed #555; }
+.pos-receipt-totals .grand { margin: 4px 0; border-top: 1px solid #111; border-bottom: 1px solid #111; padding: 5px 0; font-size: 14px; }
+.pos-receipt-payments { margin-top: 8px; padding-top: 6px; border-top: 1px dashed #555; }
+.pos-receipt-payments h2 { margin: 0 0 4px; font-size: 12px; }
+.pos-receipt footer { margin-top: 10px; padding-top: 7px; border-top: 1px dashed #555; text-align: center; color: #444; }
+
+@page pos-receipt { size: 80mm auto; margin: 0; }
+
 @media print {
   body { background: #fff; }
   .sheet { margin: 0; box-shadow: none; }
   .sheet-half { margin: 0; box-shadow: none; }
   .sheet-a4-cut { margin: 0; box-shadow: none; }
   .tw-invoice-sheet { margin: 0; box-shadow: none; }
+  .pos-receipt { margin: 0; box-shadow: none; }
   .no-print { display: none !important; }
   @page { size: A4; margin: 6mm; }
 }

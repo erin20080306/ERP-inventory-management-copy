@@ -1,62 +1,52 @@
+import { createReadStream } from "node:fs";
+import { stat } from "node:fs/promises";
+import path from "node:path";
+import { Readable } from "node:stream";
 import { NextRequest, NextResponse } from "next/server";
-import { apiHandler, requirePermission, requireTenantId, audit } from "@/lib/api";
-import { prisma } from "@/lib/prisma";
+import { ApiError, apiHandler, audit, requirePermission } from "@/lib/api";
+import { assertSafeBackupName, createEncryptedDatabaseBackup, listEncryptedBackups } from "@/lib/encrypted-backup";
 
-// 備份順序：依外鍵相依性，匯出時不影響；還原時須依此順序匯入
-const BACKUP_TABLES = [
-  "permission", "role", "rolePermission", "user", "userRole",
-  "companySetting", "systemSetting", "numberSequence", "taxRate",
-  "chartOfAccount", "warehouse", "productCategory", "productUnit",
-  "product", "customer", "supplier",
-  "cashAccount", "bankAccount", "cashTransaction", "bankTransaction",
-  "purchaseOrder", "purchaseOrderItem",
-  "salesOrder", "salesOrderItem",
-  "quotation", "quotationItem",
-  "inventoryStock", "inventoryTransaction",
-  "stockAdjustment", "stockAdjustmentItem",
-  "stockTransfer", "stockTransferItem",
-  "salesReturn", "salesReturnItem",
-  "purchaseReturn", "purchaseReturnItem",
-  "journalEntry", "journalEntryLine",
-  "accountsReceivable", "receivePayment",
-  "accountsPayable", "supplierPayment",
-  "noteReceivable", "notePayable",
-  "fixedAsset",
-  "department", "employee",
-  "payrollPeriod", "payroll", "payrollItem",
-  "attendanceRecord",
-  "invoice", "invoiceItem",
-  "loginLog", "auditLog",
-] as const;
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-// 不含 tenantId 的系統表
-const SYSTEM_TABLES = new Set(["permission", "role", "rolePermission"]);
+function backupDirectory() {
+  if (process.env.LOCAL_LICENSE_MODE !== "true") throw new ApiError(403, "完整資料庫備份只在客戶本機公司主機執行");
+  if (!process.env.BACKUP_ENCRYPTION_KEY) throw new ApiError(503, "尚未設定加密備份金鑰，請重新執行主機安裝或聯絡艾琳設計");
+  return process.env.BACKUP_DIR || "/backups";
+}
 
-export const GET = apiHandler(async (_req: NextRequest) => {
-  const session = await requirePermission("settings.export");
-  const tenantId = await requireTenantId();
-  const dump: Record<string, any[]> = {};
-  for (const t of BACKUP_TABLES) {
-    try {
-      // @ts-ignore - dynamic table access
-      const where = SYSTEM_TABLES.has(t) ? {} : { tenantId };
-      const rows = await (prisma as any)[t].findMany({ where });
-      dump[t] = rows;
-    } catch (e) {
-      dump[t] = [];
-    }
-  }
-  await audit({ userId: session.user.id, action: "export_backup", module: "settings" });
-  const body = JSON.stringify({
-    version: 1,
-    generatedAt: new Date().toISOString(),
-    tables: dump,
-  });
-  return new NextResponse(body, {
-    status: 200,
+export const GET = apiHandler(async (req: NextRequest) => {
+  await requirePermission("settings.export");
+  const directory = backupDirectory();
+  const requested = req.nextUrl.searchParams.get("file");
+  if (!requested) return NextResponse.json({ files: await listEncryptedBackups(directory) });
+  let name: string;
+  try { name = assertSafeBackupName(requested); }
+  catch { throw new ApiError(400, "備份檔名不合法"); }
+  const file = path.join(directory, name);
+  let info;
+  try { info = await stat(file); }
+  catch { throw new ApiError(404, "找不到備份檔"); }
+  const stream = Readable.toWeb(createReadStream(file));
+  return new Response(stream as BodyInit, {
     headers: {
-      "Content-Type": "application/json; charset=utf-8",
-      "Content-Disposition": `attachment; filename="erp-backup-${new Date().toISOString().slice(0, 10)}.json"`,
+      "Content-Type": "application/octet-stream",
+      "Content-Disposition": `attachment; filename="${name}"`,
+      "Content-Length": String(info.size),
+      "Cache-Control": "private, no-store",
     },
   });
+});
+
+export const POST = apiHandler(async () => {
+  const session = await requirePermission("settings.export");
+  backupDirectory();
+  try {
+    const backup = await createEncryptedDatabaseBackup();
+    await audit({ userId: session.user.id, action: "create_encrypted_database_backup", module: "settings", detail: backup.name });
+    return NextResponse.json({ ok: true, backup });
+  } catch (error) {
+    console.error("encrypted backup failed", error);
+    throw new ApiError(500, error instanceof Error ? error.message : "加密備份失敗");
+  }
 });

@@ -2,6 +2,8 @@ import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "./prisma";
+import { normalizeBusinessMode, type BusinessMode } from "./product-editions";
+import { ensureInternalAdminTenant } from "./internal-admin-tenant";
 
 declare module "next-auth" {
   interface Session {
@@ -13,7 +15,9 @@ declare module "next-auth" {
       email: string;
       roles: string[];
       permissions: string[];
+      businessMode?: BusinessMode;
       isSuperAdmin?: boolean;
+      isInternalAdminTenant?: boolean;
     };
   }
 }
@@ -24,7 +28,9 @@ declare module "next-auth/jwt" {
     username: string;
     roles: string[];
     permissions: string[];
+    businessMode?: BusinessMode;
     isSuperAdmin?: boolean;
+    isInternalAdminTenant?: boolean;
   }
 }
 
@@ -40,43 +46,54 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials, req) {
         if (!credentials?.username || !credentials.password) return null;
-        const username = credentials.username.trim();
+        const identifier = credentials.username.trim().toLowerCase();
+        if (!identifier) return null;
         const ip = (req?.headers?.["x-forwarded-for"] as string) || "";
 
-        // 並行：失敗計數 + 使用者查詢 (節省一個 DB 來回時間)
-        const since = new Date(Date.now() - 15 * 60 * 1000);
-        const [recentFails, user] = await Promise.all([
-          prisma.loginLog.count({ where: { username, success: false, createdAt: { gte: since } } }),
-          prisma.user.findUnique({
-            where: { username },
-            include: {
-              userRoles: {
-                include: { role: { include: { permissions: { include: { permission: true } } } } },
-              },
+        // 登入欄位同時接受帳號或 Email，並與註冊端使用相同的大小寫／空白正規化。
+        const user = await prisma.user.findFirst({
+          where: {
+            OR: [
+              { username: { equals: identifier, mode: "insensitive" } },
+              { email: { equals: identifier, mode: "insensitive" } },
+            ],
+          },
+          include: {
+            tenant: { select: { businessMode: true } },
+            userRoles: {
+              include: { role: { include: { permissions: { include: { permission: true } } } } },
             },
-          }),
-        ]);
+          },
+        });
+
+        const since = new Date(Date.now() - 15 * 60 * 1000);
+        const recentFails = await prisma.loginLog.count({
+          where: user
+            ? { success: false, createdAt: { gte: since }, OR: [{ userId: user.id }, { username: { equals: user.username, mode: "insensitive" } }, { username: { equals: user.email, mode: "insensitive" } }] }
+            : { username: { equals: identifier, mode: "insensitive" }, success: false, createdAt: { gte: since } },
+        });
+        const logUsername = user?.username ?? identifier;
 
         if (recentFails >= 5) {
           prisma.loginLog
-            .create({ data: { username, success: false, ip, userAgent: req?.headers?.["user-agent"] as string } })
+            .create({ data: { userId: user?.id, username: logUsername, success: false, ip, userAgent: req?.headers?.["user-agent"] as string } })
             .catch(() => {});
           throw new Error("登入失敗次數過多，請 15 分鐘後再試");
         }
 
         if (!user) {
-          prisma.loginLog.create({ data: { username, success: false, ip } }).catch(() => {});
+          prisma.loginLog.create({ data: { username: logUsername, success: false, ip } }).catch(() => {});
           return null;
         }
 
         if (!user.isActive) {
-          prisma.loginLog.create({ data: { username, success: false, ip } }).catch(() => {});
+          prisma.loginLog.create({ data: { userId: user.id, username: logUsername, success: false, ip } }).catch(() => {});
           throw new Error("帳號已被鎖定，請聯繫管理員或完成付款後解鎖");
         }
 
         const ok = await bcrypt.compare(credentials.password, user.passwordHash);
         if (!ok) {
-          prisma.loginLog.create({ data: { userId: user.id, username, success: false, ip } }).catch(() => {});
+          prisma.loginLog.create({ data: { userId: user.id, username: logUsername, success: false, ip } }).catch(() => {});
           return null;
         }
 
@@ -92,21 +109,33 @@ export const authOptions: NextAuthOptions = {
         // 系統管理員角色或超級管理員擁有所有權限
         const permissions = isSuper ? ["*"] : Array.from(permsSet);
 
+        let tenantId = user.tenantId ?? "";
+        let businessMode = normalizeBusinessMode((user as any).tenant?.businessMode);
+        let isInternalAdminTenant = false;
+        if ((user as any).isSuperAdmin) {
+          const internalTenant = await ensureInternalAdminTenant(user.id);
+          tenantId = internalTenant.id;
+          businessMode = normalizeBusinessMode(internalTenant.businessMode);
+          isInternalAdminTenant = true;
+        }
+
         // fire-and-forget：登入成功後續寫不阻塞 token 簽發
         prisma.user
           .update({ where: { id: user.id }, data: { lastLoginAt: new Date(), lastLoginIp: ip } })
           .catch(() => {});
-        prisma.loginLog.create({ data: { userId: user.id, username, success: true, ip } }).catch(() => {});
+        prisma.loginLog.create({ data: { userId: user.id, username: user.username, success: true, ip } }).catch(() => {});
 
         return {
           id: user.id,
-          tenantId: user.tenantId ?? "",
+          tenantId,
           name: user.name,
           email: user.email,
           username: user.username,
           roles,
           permissions,
+          businessMode,
           isSuperAdmin: (user as any).isSuperAdmin,
+          isInternalAdminTenant,
         } as any;
       },
     }),
@@ -120,7 +149,17 @@ export const authOptions: NextAuthOptions = {
         token.username = u.username;
         token.roles = u.roles;
         token.permissions = u.permissions;
+        token.businessMode = u.businessMode;
         token.isSuperAdmin = u.isSuperAdmin;
+        token.isInternalAdminTenant = u.isInternalAdminTenant;
+      }
+      // 讓改版前已登入的超級管理員 token 也能自動轉到獨立內部帳套，
+      // 不必等待 8 小時 session 到期。
+      if (token.isSuperAdmin && token.uid && !token.isInternalAdminTenant) {
+        const internalTenant = await ensureInternalAdminTenant(token.uid);
+        token.tenantId = internalTenant.id;
+        token.businessMode = normalizeBusinessMode(internalTenant.businessMode);
+        token.isInternalAdminTenant = true;
       }
       return token;
     },
@@ -133,7 +172,9 @@ export const authOptions: NextAuthOptions = {
         email: session.user?.email ?? "",
         roles: token.roles ?? [],
         permissions: token.permissions ?? [],
+        businessMode: token.businessMode ?? "ERP",
         isSuperAdmin: token.isSuperAdmin,
+        isInternalAdminTenant: token.isInternalAdminTenant,
       };
       return session;
     },

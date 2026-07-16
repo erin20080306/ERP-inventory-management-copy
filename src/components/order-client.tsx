@@ -8,11 +8,10 @@ import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { StatusBadge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/layout/page-shell";
 import { toast } from "sonner";
-import { Plus, Loader2, Trash2, Eye, Search, Download, Printer, FileDown, Pencil, Settings2 } from "lucide-react";
+import { Plus, Loader2, Trash2, Eye, Search, Download, Printer, FileDown, Pencil } from "lucide-react";
 import { formatDate, formatMoney } from "@/lib/utils";
 import { downloadCSV, toCSV } from "@/lib/csv";
-import { ConvertToJournalButton } from "@/components/convert-to-journal-button";
-import { useCustomColumns, CustomColumnDialog, CustomColumnButton, getCustomFieldValues, setCustomFieldValue } from "@/components/custom-columns";
+import { useCustomColumns, useCustomFieldValues, CustomColumnDialog, CustomColumnButton, CustomFieldGridCell } from "@/components/custom-columns";
 import { readSessionCache, TableHint, useColumnDrag, useDebouncedValue, writeSessionCache } from "@/components/table-helpers";
 
 function PDFOrderBtn({ kind }: { kind: string }) {
@@ -43,6 +42,8 @@ type OrderRow = {
   items?: Array<{
     product?: { name: string };
     quantity: number;
+    receivedQty?: number;
+    shippedQty?: number;
   }>;
 };
 
@@ -75,10 +76,9 @@ export function OrderClient({ kind, serverExcelExport }: { kind: Kind; serverExc
   const [openEdit, setOpenEdit] = useState<string | null>(null);
   const pageSize = 20;
   const customCols = useCustomColumns(kind === "purchase" ? "purchases" : "sales");
-  const [editingCells, setEditingCells] = useState<Record<string, any>>({});
   const colDrag = useColumnDrag(kind === "purchase" ? "purchases" : "sales", ["number", "party", "date", "products", "quantity", "amount", "taxAmount", "status", "updatedBy"]);
   const [inlineEditing, setInlineEditing] = useState<Record<string, Record<string, any>>>({});
-  const [inlineSaving, setInlineSaving] = useState<string | null>(null);
+  const [, setInlineSaving] = useState<string | null>(null);
   const [activeCell, setActiveCell] = useState<{ rowId: string; colKey: string } | null>(null);
 
   // SWR fetcher
@@ -110,6 +110,8 @@ export function OrderClient({ kind, serverExcelExport }: { kind: Kind; serverExc
 
   const rows = data?.items ?? [];
   const total = data?.total ?? 0;
+  const customFieldModule = kind === "purchase" ? "purchases" : "sales";
+  const customFieldValues = useCustomFieldValues(customFieldModule, rows.map((row: OrderRow) => row.id));
   const tableColumnCount = 11 + customCols.columns.length;
   const showInitialLoading = isLoading && !data;
   const showRefreshing = isValidating && !!data && !isLoading;
@@ -215,7 +217,7 @@ export function OrderClient({ kind, serverExcelExport }: { kind: Kind; serverExc
       const payload = { ...(row as any), ...draft };
       const res = await fetch(`${endpoint}/${row.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       if (!res.ok) throw new Error((await res.json()).error || "儲存失敗");
-      const saved = await res.json().catch(() => null);
+      await res.json().catch(() => null);
       toast.success("已儲存");
       setInlineEditing((prev) => { const n = { ...prev }; delete n[row.id]; return n; });
       mutate(swrKey());
@@ -389,12 +391,13 @@ export function OrderClient({ kind, serverExcelExport }: { kind: Kind; serverExc
           <Button variant="outline" size="sm" onClick={() => window.print()}>
             <Printer className="h-4 w-4 mr-1" /> 列印
           </Button>
+          <CustomColumnButton onClick={() => customCols.setOpen(true)} />
         </div>
       </div>
 
       <TableHint />
       <Table>
-        <THead>
+        <THead onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title="表頭按右鍵可新增／刪減自訂欄位">
           <TR>
             <TH>圖片</TH>
             <TH {...colDrag.thProps("number")}>單號</TH>
@@ -406,7 +409,7 @@ export function OrderClient({ kind, serverExcelExport }: { kind: Kind; serverExc
             <TH {...colDrag.thProps("taxAmount")}>稅金</TH>
             <TH {...colDrag.thProps("status")}>狀態</TH>
             <TH {...colDrag.thProps("updatedBy")}>操作人員</TH>
-            {customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}
+            {customCols.columns.map((cc) => <TH key={cc.id} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title="按右鍵管理自訂欄位">{cc.label}</TH>)}
             <TH className="w-20 text-right">操作</TH>
           </TR>
         </THead>
@@ -427,7 +430,7 @@ export function OrderClient({ kind, serverExcelExport }: { kind: Kind; serverExc
             </TR>
           )}
           {!showInitialLoading &&
-            rows.map((r: OrderRow) => {
+            rows.map((r: OrderRow, rowIndex: number) => {
               const draft = inlineEditing[r.id];
               const isRowEditing = !!draft;
               return (
@@ -463,7 +466,14 @@ export function OrderClient({ kind, serverExcelExport }: { kind: Kind; serverExc
                   {r.items?.map((i: any) => i.product?.name).join(", ") || "—"}
                 </TD>
                 <TD className="text-xs">
-                  {r.items?.reduce((sum: number, i: any) => sum + Number(i.quantity || 0), 0) || 0}
+                  {(() => {
+                    const ordered = r.items?.reduce((sum: number, i: any) => sum + Number(i.quantity || 0), 0) || 0;
+                    const processed = r.items?.reduce(
+                      (sum: number, i: any) => sum + Number(kind === "purchase" ? i.receivedQty || 0 : i.shippedQty || 0),
+                      0,
+                    ) || 0;
+                    return processed > 0 ? `${processed} / ${ordered}` : ordered;
+                  })()}
                 </TD>
                 <TD>{formatMoney(r.total)}</TD>
                 <TD className="text-xs">
@@ -481,37 +491,28 @@ export function OrderClient({ kind, serverExcelExport }: { kind: Kind; serverExc
                   <StatusBadge status={r.status} />
                 </TD>
                 <TD className="text-xs text-gray-500">{r.updatedBy || "-"}</TD>
-                {customCols.columns.map((cc) => {
-                  const cellKey = `${r.id}_${cc.id}`;
-                  const vals = getCustomFieldValues(kind === "purchase" ? "purchases" : "sales", r.id);
-                  const isEditing = editingCells[cellKey];
-                  return (
-                    <TD key={cc.id}>
-                      {isEditing ? (
-                        <Input type={cc.type === "number" ? "number" : cc.type === "date" ? "date" : "text"} defaultValue={vals[cc.id] ?? ""} autoFocus className="h-7 text-xs" onBlur={(e) => { setCustomFieldValue(kind === "purchase" ? "purchases" : "sales", r.id, cc.id, e.target.value); setEditingCells((p) => ({ ...p, [cellKey]: false })); }} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} />
-                      ) : (
-                        <span className="inline-block min-h-[24px] min-w-[40px] cursor-pointer rounded px-1 py-0.5 transition-colors hover:bg-muted" onClick={() => setEditingCells((p) => ({ ...p, [cellKey]: true }))}>{vals[cc.id] || "—"}</span>
-                      )}
-                    </TD>
-                  );
-                })}
+                {customCols.columns.map((cc, columnIndex) => { const vals = customFieldValues.getValues(r.id); return <TD key={cc.id}><CustomFieldGridCell gridId={`orders-${kind}`} rowId={r.id} rowIndex={rowIndex} column={cc} columnIndex={columnIndex} rowIds={rows.map((row: OrderRow) => row.id)} columns={customCols.columns} value={vals[cc.id] ?? ""} saveValues={customFieldValues.saveValues} onManageColumns={() => customCols.setOpen(true)} /></TD>; })}
                 <TD className="text-right flex items-center justify-end gap-0">
-                  {r.status === "DRAFT" && <Button size="sm" variant="outline" onClick={() => onAct(r.id, "submit")}>送出</Button>}
+                  {(r.status === "DRAFT" || r.status === "REJECTED") && <Button size="sm" variant="outline" onClick={() => onAct(r.id, "submit")}>送出</Button>}
                   {r.status === "SUBMITTED" && (
                     <>
                       <Button size="sm" variant="outline" onClick={() => onAct(r.id, "approve")}>審核</Button>
                       <Button size="sm" variant="destructive" onClick={() => onAct(r.id, "reject")}>駁回</Button>
                     </>
                   )}
-                  {r.status === "APPROVED" && <Button size="sm" onClick={() => onAct(r.id, "post")}>過帳</Button>}
-                  {r.status !== "VOIDED" && r.status !== "POSTED" && <Button size="sm" variant="destructive" onClick={() => onAct(r.id, "cancel")}>作廢</Button>}
+                  {(
+                    r.status === "APPROVED" ||
+                    (kind === "purchase" && r.status === "PARTIALLY_RECEIVED") ||
+                    (kind === "sales" && r.status === "PARTIALLY_SHIPPED")
+                  ) && <Button size="sm" onClick={() => setOpenView(r.id)}>{kind === "purchase" ? "進貨" : "出貨"}</Button>}
+                  {!['VOIDED', 'POSTED', 'PARTIALLY_RECEIVED', 'PARTIALLY_SHIPPED'].includes(r.status) && <Button size="sm" variant="destructive" onClick={() => onAct(r.id, "cancel")}>作廢</Button>}
                   <Button variant="ghost" size="icon" onClick={() => setOpenView(r.id)} title="查看">
                     <Eye className="h-4 w-4" />
                   </Button>
-                  <Button variant="ghost" size="icon" onClick={() => setOpenEdit(r.id)} title="修改">
+                  {(r.status === "DRAFT" || r.status === "REJECTED") && <Button variant="ghost" size="icon" onClick={() => setOpenEdit(r.id)} title="修改">
                     <Pencil className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-700" title="刪除" onClick={async () => {
+                  </Button>}
+                  {(r.status === "DRAFT" || r.status === "REJECTED") && <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-700" title="刪除" onClick={async () => {
                     if (!confirm(`確定刪除 ${r.number}？\n\n刪除將同時刪除關聯的應收應付記錄與傳票，此操作無法復原。`)) return;
                     const res = await fetch(`${endpoint}/${r.id}`, { method: "DELETE" });
                     if (!res.ok) { const e = await res.json(); toast.error(e.error || "刪除失敗"); return; }
@@ -519,7 +520,7 @@ export function OrderClient({ kind, serverExcelExport }: { kind: Kind; serverExc
                     mutate(swrKey());
                   }}>
                     <Trash2 className="h-4 w-4" />
-                  </Button>
+                  </Button>}
                 </TD>
               </TR>
             );
@@ -545,7 +546,7 @@ export function OrderClient({ kind, serverExcelExport }: { kind: Kind; serverExc
         kind={kind}
         open={openNew}
         onClose={() => setOpenNew(false)}
-        onCreated={(newOrder) => {
+        onCreated={(_newOrder) => {
           setOpenNew(false);
           mutate(swrKey());
         }}
@@ -554,7 +555,7 @@ export function OrderClient({ kind, serverExcelExport }: { kind: Kind; serverExc
         <ViewOrderDialog kind={kind} id={openView} onClose={() => setOpenView(null)} onChanged={() => mutate(swrKey())} />
       )}
       {openEdit && (
-        <EditOrderDialog kind={kind} id={openEdit} onClose={() => setOpenEdit(null)} onSaved={(updated) => { setOpenEdit(null); mutate(swrKey()); }} />
+        <EditOrderDialog kind={kind} id={openEdit} onClose={() => setOpenEdit(null)} onSaved={(_updated) => { setOpenEdit(null); mutate(swrKey()); }} />
       )}
       <CustomColumnDialog
         module={kind === "purchase" ? "purchases" : "sales"}
@@ -885,40 +886,75 @@ function ViewOrderDialog({ kind, id, onClose, onChanged }: any) {
   const [data, setData] = useState<any>(null);
   const [warehouseId, setWarehouseId] = useState("");
   const [warehouses, setWarehouses] = useState<any[]>([]);
+  const [fulfillQty, setFulfillQty] = useState<Record<string, number | string>>({});
+  const [fulfillmentRemark, setFulfillmentRemark] = useState("");
+  const [busyAction, setBusyAction] = useState<string | null>(null);
   const endpoint = kind === "purchase" ? "/api/purchases" : "/api/sales";
 
+  const loadOrder = useCallback(async () => {
+    const response = await fetch(`${endpoint}/${id}`);
+    const order = await response.json();
+    if (!response.ok) throw new Error(order.error || "載入單據失敗");
+    setData(order);
+    const progressField = kind === "purchase" ? "receivedQty" : "shippedQty";
+    setFulfillQty(Object.fromEntries((order.items ?? []).map((item: any) => [
+      item.id,
+      Math.max(0, Math.round((Number(item.quantity) - Number(item[progressField] ?? 0)) * 10_000) / 10_000),
+    ])));
+  }, [endpoint, id, kind]);
+
   useEffect(() => {
-    fetch(`${endpoint}/${id}`).then((r) => r.json()).then(setData);
+    loadOrder().catch((error) => toast.error(error.message));
     fetch(`/api/warehouses`).then((r) => r.json()).then((d) => {
       setWarehouses(d.items ?? []);
       if (d.items?.[0]) setWarehouseId(d.items[0].id);
     });
-  }, [id, endpoint]);
+  }, [loadOrder]);
 
   async function act(action: string) {
+    const isFulfillment = action === "receive" || action === "ship";
+    const selectedItems = isFulfillment
+      ? (data?.items ?? []).map((item: any) => ({
+          orderItemId: item.id,
+          quantity: Number(fulfillQty[item.id] ?? 0),
+        })).filter((item: any) => Number.isFinite(item.quantity) && item.quantity > 0)
+      : undefined;
     try {
+      if (isFulfillment && !warehouseId) throw new Error("請選擇處理倉庫");
+      if (isFulfillment && !selectedItems?.length) throw new Error("請至少輸入一筆本次數量");
+      setBusyAction(action);
       const res = await fetch(`${endpoint}/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, warehouseId }),
+        body: JSON.stringify({ action, warehouseId, items: selectedItems, remark: fulfillmentRemark || undefined }),
       });
       if (!res.ok) throw new Error((await res.json()).error || "操作失敗");
-      const data = await res.json();
-      if (data.message) {
-        toast.success(data.message);
+      const result = await res.json();
+      if (result.message) {
+        toast.success(result.message);
       } else {
         toast.success("已處理");
       }
       onChanged();
-      onClose();
+      if (isFulfillment && !result.complete) {
+        setFulfillmentRemark("");
+        await loadOrder();
+      } else {
+        onClose();
+      }
     } catch (e: any) {
       toast.error(e.message);
+    } finally {
+      setBusyAction(null);
     }
   }
 
   if (!data) return null;
   const party = kind === "purchase" ? data.supplier : data.customer;
-  const canReceiveShip = kind === "purchase" ? data.status === "APPROVED" || data.status === "SUBMITTED" : data.status === "APPROVED";
+  const progressField = kind === "purchase" ? "receivedQty" : "shippedQty";
+  const partialStatus = kind === "purchase" ? "PARTIALLY_RECEIVED" : "PARTIALLY_SHIPPED";
+  const canReceiveShip = data.status === "APPROVED" || data.status === partialStatus;
+  const fulfillmentDocs = kind === "purchase" ? (data.receipts ?? []) : (data.shipments ?? []);
 
   return (
     <Dialog open onOpenChange={(v) => !v && onClose()}>
@@ -942,41 +978,113 @@ function ViewOrderDialog({ kind, id, onClose, onChanged }: any) {
             <div className="font-bold">{formatMoney(data.total)}</div>
           </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm border rounded-md min-w-[400px]">
+        <div className="overflow-x-auto border rounded-md">
+          <table className="w-full text-sm min-w-[720px]">
             <thead className="bg-muted/50 text-xs text-muted-foreground">
               <tr>
                 <th className="p-2 text-left whitespace-nowrap">SKU</th>
                 <th className="p-2 text-left whitespace-nowrap">商品</th>
-                <th className="p-2 text-right whitespace-nowrap">數量</th>
+                <th className="p-2 text-right whitespace-nowrap">訂購量</th>
+                <th className="p-2 text-right whitespace-nowrap">已{kind === "purchase" ? "進" : "出"}</th>
+                <th className="p-2 text-right whitespace-nowrap">未交量</th>
+                {canReceiveShip && <th className="p-2 text-right whitespace-nowrap">本次{kind === "purchase" ? "進貨" : "出貨"}</th>}
                 <th className="p-2 text-right whitespace-nowrap">單價</th>
                 <th className="p-2 text-right whitespace-nowrap">小計</th>
               </tr>
             </thead>
             <tbody>
-              {data.items.map((i: any) => (
-                <tr key={i.id} className="border-t">
-                  <td className="p-2 font-mono text-xs whitespace-nowrap">{i.product?.sku}</td>
-                  <td className="p-2 whitespace-nowrap">{i.product?.name}</td>
-                  <td className="p-2 text-right whitespace-nowrap">{i.quantity}</td>
-                  <td className="p-2 text-right whitespace-nowrap">{formatMoney(i.unitPrice)}</td>
-                  <td className="p-2 text-right whitespace-nowrap">{formatMoney(i.subtotal)}</td>
-                </tr>
-              ))}
+              {data.items.map((i: any) => {
+                const ordered = Number(i.quantity);
+                const fulfilled = Number(i[progressField] ?? 0);
+                const remaining = Math.max(0, Math.round((ordered - fulfilled) * 10_000) / 10_000);
+                return (
+                  <tr key={i.id} className="border-t">
+                    <td className="p-2 font-mono text-xs whitespace-nowrap">{i.product?.sku}</td>
+                    <td className="p-2 whitespace-nowrap">{i.product?.name}</td>
+                    <td className="p-2 text-right whitespace-nowrap">{ordered}</td>
+                    <td className="p-2 text-right whitespace-nowrap">{fulfilled}</td>
+                    <td className="p-2 text-right whitespace-nowrap font-medium">{remaining}</td>
+                    {canReceiveShip && (
+                      <td className="p-2">
+                        <Input
+                          type="number"
+                          min="0"
+                          max={remaining}
+                          step="0.0001"
+                          disabled={remaining <= 0 || busyAction !== null}
+                          value={fulfillQty[i.id] ?? ""}
+                          onChange={(event) => setFulfillQty((previous) => ({ ...previous, [i.id]: event.target.value }))}
+                          className="h-8 w-28 text-right ml-auto"
+                        />
+                      </td>
+                    )}
+                    <td className="p-2 text-right whitespace-nowrap">{formatMoney(i.unitPrice)}</td>
+                    <td className="p-2 text-right whitespace-nowrap">{formatMoney(i.subtotal)}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
 
         {data.remark && <div className="text-sm"><span className="text-muted-foreground">備註：</span>{data.remark}</div>}
 
-        <div className="border-t pt-3 space-y-2">
-          <Label>處理倉庫</Label>
-          <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)}>
-            {warehouses.map((w) => (
-              <option key={w.id} value={w.id}>{w.code} - {w.name}</option>
-            ))}
-          </select>
-        </div>
+        {canReceiveShip && (
+          <div className="border-t pt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label>本次處理倉庫</Label>
+              <select
+                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                value={warehouseId}
+                disabled={busyAction !== null}
+                onChange={(e) => setWarehouseId(e.target.value)}
+              >
+                {warehouses.map((w) => (
+                  <option key={w.id} value={w.id}>{w.code} - {w.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label>本次備註</Label>
+              <Input
+                value={fulfillmentRemark}
+                disabled={busyAction !== null}
+                onChange={(event) => setFulfillmentRemark(event.target.value)}
+                placeholder={kind === "purchase" ? "例如：第一批到貨" : "例如：第一批出貨"}
+              />
+            </div>
+          </div>
+        )}
+
+        {fulfillmentDocs.length > 0 && (
+          <div className="space-y-2 border-t pt-3">
+            <Label>{kind === "purchase" ? "進貨驗收紀錄" : "出貨紀錄"}</Label>
+            <div className="overflow-x-auto border rounded-md">
+              <table className="w-full text-sm min-w-[560px]">
+                <thead className="bg-muted/50 text-xs text-muted-foreground">
+                  <tr>
+                    <th className="p-2 text-left">單號</th>
+                    <th className="p-2 text-left">日期</th>
+                    <th className="p-2 text-left">倉庫</th>
+                    <th className="p-2 text-right">本次數量</th>
+                    <th className="p-2 text-right">本次金額</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {fulfillmentDocs.map((doc: any) => (
+                    <tr key={doc.id} className="border-t">
+                      <td className="p-2 font-mono text-xs">{doc.number}</td>
+                      <td className="p-2">{formatDate(kind === "purchase" ? doc.receiptDate : doc.shipmentDate)}</td>
+                      <td className="p-2">{doc.warehouse?.code} - {doc.warehouse?.name}</td>
+                      <td className="p-2 text-right">{doc.items?.reduce((sum: number, item: any) => sum + Number(item.quantity), 0)}</td>
+                      <td className="p-2 text-right">{formatMoney(doc.total)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         <DialogFooter className="gap-2 flex-wrap flex-col-reverse md:flex-row">
           <Button
@@ -985,26 +1093,23 @@ function ViewOrderDialog({ kind, id, onClose, onChanged }: any) {
           >
             <Printer className="h-4 w-4" />列印
           </Button>
-          {data.status === "POSTED" && (
-            <ConvertToJournalButton sourceType={kind === "purchase" ? "PURCHASE" : "SALES"} sourceId={data.id} />
-          )}
-          {data.status === "DRAFT" && <Button variant="outline" onClick={() => act("submit")}>送出</Button>}
+          {(data.status === "DRAFT" || data.status === "REJECTED") && <Button variant="outline" onClick={() => act("submit")}>送出</Button>}
           {data.status === "SUBMITTED" && (
             <>
               <Button variant="outline" onClick={() => act("approve")}>審核</Button>
               <Button variant="destructive" onClick={() => act("reject")}>駁回</Button>
             </>
           )}
-          {data.status === "APPROVED" && <Button variant="outline" onClick={() => act("post")}>過帳</Button>}
           {canReceiveShip && (
-            <Button onClick={() => act(kind === "purchase" ? "receive" : "ship")}>
-              {kind === "purchase" ? "進貨入庫" : "出貨扣庫"}
+            <Button disabled={busyAction !== null} onClick={() => act(kind === "purchase" ? "receive" : "ship")}>
+              {busyAction ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              {kind === "purchase" ? "確認本次進貨" : "確認本次出貨"}
             </Button>
           )}
-          {data.status !== "VOIDED" && data.status !== "POSTED" && (
+          {!['VOIDED', 'POSTED', 'PARTIALLY_RECEIVED', 'PARTIALLY_SHIPPED'].includes(data.status) && (
             <Button variant="destructive" onClick={() => act("cancel")}>作廢</Button>
           )}
-          {(data.status === "DRAFT" || data.status === "APPROVED" || data.status === "SUBMITTED" || data.status === "VOIDED") && (
+          {(data.status === "DRAFT" || data.status === "REJECTED") && (
             <Button variant="ghost" className="text-red-500 hover:text-red-700" onClick={async () => {
               if (!confirm(`確定刪除 ${data.number}？`)) return;
               const res = await fetch(`${endpoint}/${id}`, { method: "DELETE" });

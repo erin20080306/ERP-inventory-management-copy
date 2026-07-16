@@ -12,7 +12,7 @@
  *   5101 銷貨成本       5102 進貨        5104 進貨退出     5105 進貨折讓
  */
 import { prisma } from "./prisma";
-import { nextNumber } from "./api";
+import { createPostedJournal } from "./documents";
 
 // ─────────── 預設科目對應 ───────────
 export const DEFAULT_ACCOUNT_CODES = {
@@ -644,15 +644,23 @@ export async function buildInventoryAdjustmentDraft(adjustmentId: string): Promi
 /* ============================================================ */
 /*               期末結帳（收入/費用結轉本期損益）                     */
 /* ============================================================ */
-export async function buildClosingDraft(tenantId: string, periodEnd: string, isYearEnd: boolean = false): Promise<DraftEntry> {
-  // 取得所有已過帳傳票在該日期之前的分錄
-  const postedEntries = await prisma.journalEntry.findMany({
+export async function buildClosingDraft(
+  tenantId: string,
+  periodEnd: string,
+  isYearEnd: boolean = false,
+  client: any = prisma,
+): Promise<DraftEntry> {
+  const end = new Date(`${periodEnd}T23:59:59.999+08:00`);
+  const start = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), 1) - 8 * 60 * 60 * 1000);
+
+  // 月結只能結轉本月活動，否則前期損益會被重複結轉。
+  const postedEntries = await client.journalEntry.findMany({
     where: {
       tenantId,
       status: "POSTED",
-      entryDate: { lte: periodEnd },
+      entryDate: { gte: start, lte: end },
     },
-    include: { lines: true },
+    include: { lines: { include: { account: true } } },
   });
 
   // 彙總各科目餘額
@@ -662,8 +670,7 @@ export async function buildClosingDraft(tenantId: string, periodEnd: string, isY
     for (const line of entry.lines) {
       const key = line.accountId;
       if (!accountBalances.has(key)) {
-        const account = await prisma.chartOfAccount.findUnique({ where: { id: key } });
-        if (!account) continue;
+        const account = line.account;
         accountBalances.set(key, { debit: 0, credit: 0, code: account.code, name: account.name, type: account.type });
       }
       const bal = accountBalances.get(key)!;
@@ -678,7 +685,7 @@ export async function buildClosingDraft(tenantId: string, periodEnd: string, isY
   let totalExpense = 0;
 
   // 收入科目（4xxx）：借記收入、貸記本期損益
-  for (const [id, bal] of accountBalances) {
+  for (const bal of accountBalances.values()) {
     if (bal.type === "REVENUE" && bal.code.startsWith("4")) {
       const net = bal.credit - bal.debit;
       if (net > 0) {
@@ -690,7 +697,7 @@ export async function buildClosingDraft(tenantId: string, periodEnd: string, isY
   }
 
   // 成本科目（5xxx）：借記本期損益、貸記成本
-  for (const [id, bal] of accountBalances) {
+  for (const bal of accountBalances.values()) {
     if (bal.type === "COST" && bal.code.startsWith("5")) {
       const net = bal.debit - bal.credit;
       if (net > 0) {
@@ -702,7 +709,7 @@ export async function buildClosingDraft(tenantId: string, periodEnd: string, isY
   }
 
   // 費用科目（6xxx）：借記本期損益、貸記費用
-  for (const [id, bal] of accountBalances) {
+  for (const bal of accountBalances.values()) {
     if (bal.type === "EXPENSE" && bal.code.startsWith("6")) {
       const net = bal.debit - bal.credit;
       if (net > 0) {
@@ -715,17 +722,39 @@ export async function buildClosingDraft(tenantId: string, periodEnd: string, isY
 
   // 計算本期損益
   const netIncome = totalRevenue - totalCost - totalExpense;
+  let closingNetIncome = netIncome;
 
   if (isYearEnd) {
-    // 年結：本期損益結轉到累積盈虧
-    if (netIncome > 0) {
+    // 3402 已包含前面月份的月結結果；再加上本月結轉，才是全年損益。
+    const yearStart = new Date(Date.UTC(end.getUTCFullYear(), 0, 1) - 8 * 60 * 60 * 1000);
+    const currentIncomeAccount = await client.chartOfAccount.findUnique({
+      where: { tenantId_code: { tenantId, code: DEFAULT_ACCOUNT_CODES.CURRENT_INCOME } },
+      select: { id: true },
+    });
+    let existingCurrentIncome = 0;
+    if (currentIncomeAccount) {
+      const currentIncomeLines = await client.journalEntryLine.findMany({
+        where: {
+          accountId: currentIncomeAccount.id,
+          entry: { tenantId, status: "POSTED", entryDate: { gte: yearStart, lte: end } },
+        },
+        select: { debit: true, credit: true },
+      });
+      existingCurrentIncome = currentIncomeLines.reduce(
+        (sum: number, item: any) => sum + Number(item.credit) - Number(item.debit),
+        0,
+      );
+    }
+    const yearNetIncome = +(existingCurrentIncome + netIncome).toFixed(2);
+    closingNetIncome = yearNetIncome;
+    if (yearNetIncome > 0) {
       // 有淨利：借 本期損益 / 貸 累積盈虧
-      lines.push(await line(tenantId, DEFAULT_ACCOUNT_CODES.CURRENT_INCOME, netIncome, 0, "年結本期淨利"));
-      lines.push(await line(tenantId, DEFAULT_ACCOUNT_CODES.RETAINED_EARNINGS, 0, netIncome, "年結轉入累積盈虧"));
-    } else if (netIncome < 0) {
+      lines.push(await line(tenantId, DEFAULT_ACCOUNT_CODES.CURRENT_INCOME, yearNetIncome, 0, "年結本期淨利"));
+      lines.push(await line(tenantId, DEFAULT_ACCOUNT_CODES.RETAINED_EARNINGS, 0, yearNetIncome, "年結轉入累積盈虧"));
+    } else if (yearNetIncome < 0) {
       // 有淨損：借 累積盈虧 / 貸 本期損益
-      lines.push(await line(tenantId, DEFAULT_ACCOUNT_CODES.RETAINED_EARNINGS, Math.abs(netIncome), 0, "年結轉入累積盈虧"));
-      lines.push(await line(tenantId, DEFAULT_ACCOUNT_CODES.CURRENT_INCOME, 0, Math.abs(netIncome), "年結本期淨損"));
+      lines.push(await line(tenantId, DEFAULT_ACCOUNT_CODES.RETAINED_EARNINGS, Math.abs(yearNetIncome), 0, "年結轉入累積盈虧"));
+      lines.push(await line(tenantId, DEFAULT_ACCOUNT_CODES.CURRENT_INCOME, 0, Math.abs(yearNetIncome), "年結本期淨損"));
     }
   }
 
@@ -733,7 +762,7 @@ export async function buildClosingDraft(tenantId: string, periodEnd: string, isY
     sourceType: isYearEnd ? "YEAR_END_CLOSING" : "PERIOD_CLOSING",
     sourceId: "",
     summary: isYearEnd 
-      ? `年結 ${periodEnd} 收入${totalRevenue.toFixed(0)} 成本${totalCost.toFixed(0)} 費用${totalExpense.toFixed(0)} 淨利${netIncome.toFixed(0)}`
+      ? `年結 ${periodEnd} 收入${totalRevenue.toFixed(0)} 成本${totalCost.toFixed(0)} 費用${totalExpense.toFixed(0)} 全年損益${closingNetIncome.toFixed(0)}`
       : `月結 ${periodEnd} 收入${totalRevenue.toFixed(0)} 成本${totalCost.toFixed(0)} 費用${totalExpense.toFixed(0)} 淨利${netIncome.toFixed(0)}`,
     entryDate: periodEnd,
     lines: assertBalanced(`${isYearEnd ? "年結" : "月結"} ${periodEnd}`, lines),
@@ -748,39 +777,24 @@ export async function autoCreateJournal(
   draft: DraftEntry,
   createdById?: string,
 ) {
-  try {
-    const totalDebit = draft.lines.reduce((s, l) => s + l.debit, 0);
-    const totalCredit = draft.lines.reduce((s, l) => s + l.credit, 0);
-    if (Math.abs(totalDebit - totalCredit) > 0.001) {
-      console.warn(`[autoCreateJournal] 借貸不平衡，跳過: ${draft.summary} (D=${totalDebit}, C=${totalCredit})`);
-      return null;
-    }
-    if (totalDebit === 0) return null;
-
-    const number = await nextNumber("JE", tenantId);
-    const entry = await prisma.journalEntry.create({
-      data: {
-        tenantId,
-        number,
-        summary: draft.summary,
-        entryDate: draft.entryDate ? new Date(draft.entryDate) : new Date(),
-        status: "POSTED",
-        createdById: createdById || null,
-        lines: {
-          create: draft.lines.map((l) => ({
-            accountId: l.accountId,
-            debit: l.debit,
-            credit: l.credit,
-            memo: l.memo,
-          })),
-        },
-      },
-      include: { lines: true },
-    });
-    console.log(`[autoCreateJournal] 已建立傳票 ${number}: ${draft.summary}`);
-    return entry;
-  } catch (err: any) {
-    console.error(`[autoCreateJournal] 建立失敗: ${err.message}`, draft.summary);
-    return null;
+  const totalDebit = draft.lines.reduce((sum, item) => sum + item.debit, 0);
+  const totalCredit = draft.lines.reduce((sum, item) => sum + item.credit, 0);
+  if (Math.abs(totalDebit - totalCredit) > 0.001) {
+    throw new Error(`自動傳票借貸不平衡：${draft.summary}（借 ${totalDebit}／貸 ${totalCredit}）`);
   }
+  if (totalDebit === 0) return null;
+  const entryDate = draft.entryDate ? new Date(draft.entryDate) : new Date();
+  return prisma.$transaction((tx: any) => createPostedJournal(
+    tx,
+    tenantId,
+    draft.summary,
+    createdById,
+    draft.lines.map((item) => ({
+      code: item.accountCode,
+      debit: item.debit,
+      credit: item.credit,
+      memo: item.memo ?? draft.summary,
+    })),
+    entryDate,
+  ), { isolationLevel: "ReadCommitted", maxWait: 10_000, timeout: 30_000 });
 }

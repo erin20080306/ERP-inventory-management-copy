@@ -10,6 +10,8 @@ export const MODULES = [
   "inventory",
   "warehouses",
   "returns",
+  "pos",
+  "restaurant",
   "accounting",
   "journals",
   "receivables",
@@ -44,6 +46,8 @@ export const MODULE_LABELS: Record<Module, string> = {
   inventory: "庫存管理",
   warehouses: "倉庫管理",
   returns: "退貨管理",
+  pos: "POS 收銀前台",
+  restaurant: "餐飲桌位／廚房",
   accounting: "會計科目",
   journals: "傳票管理",
   receivables: "應收帳款",
@@ -116,6 +120,26 @@ export const DEFAULT_ROLES = {
     )
       .filter((p) => !["delete", "approve", "manage"].includes(p.action))
       .map((p) => p.code),
+  },
+  POS_CASHIER: {
+    name: "POS 收銀員",
+    permissions: ALL_PERMISSIONS.filter((p) =>
+      ["dashboard", "pos", "products", "customers", "sales", "returns"].includes(p.module)
+    )
+      .filter((p) => !["delete", "approve", "manage"].includes(p.action))
+      .map((p) => p.code),
+  },
+  RESTAURANT_SERVICE: {
+    name: "餐飲外場人員",
+    permissions: ALL_PERMISSIONS.filter((p) =>
+      ["dashboard", "pos", "restaurant", "products", "customers", "sales"].includes(p.module)
+    )
+      .filter((p) => !["delete", "approve", "manage"].includes(p.action))
+      .map((p) => p.code),
+  },
+  KITCHEN: {
+    name: "廚房人員",
+    permissions: ALL_PERMISSIONS.filter((p) => p.module === "restaurant" && ["view", "edit"].includes(p.action)).map((p) => p.code),
   },
   WAREHOUSE: {
     name: "倉管人員",

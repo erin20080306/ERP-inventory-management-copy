@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { requirePermission } from "@/lib/api";
+import { requirePermission, requireTenantId } from "@/lib/api";
 import { notFound } from "next/navigation";
 import { AutoPrint } from "../../auto-print";
 import { CompanyHeader } from "../../CompanyHeader";
@@ -7,10 +7,11 @@ import { formatDate, formatMoney } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
-export default async function PrintJournal({ params }: { params: { id: string } }) {
+export default async function PrintJournal({ params }: { params: Promise<{ id: string }> }) {
   await requirePermission("journals.view");
-  const entry = await prisma.journalEntry.findUnique({
-    where: { id: params.id },
+  const [{ id }, tenantId] = await Promise.all([params, requireTenantId()]);
+  const entry = await prisma.journalEntry.findFirst({
+    where: { id, tenantId },
     include: { lines: { include: { account: true } }, createdBy: true },
   });
   if (!entry) notFound();

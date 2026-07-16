@@ -10,13 +10,14 @@ export const dynamic = "force-dynamic";
 export default async function CheckAccountPrint({
   searchParams,
 }: {
-  searchParams: { from?: string; to?: string };
+  searchParams: Promise<{ from?: string; to?: string }>;
 }) {
+  const query = await searchParams;
   const today = new Date();
-  const start = searchParams.from
-    ? new Date(searchParams.from)
+  const start = query.from
+    ? new Date(query.from)
     : new Date(today.getFullYear(), 0, 1);
-  const end = searchParams.to ? new Date(searchParams.to) : today;
+  const end = query.to ? new Date(query.to) : today;
 
   const tenantId = await requireTenantId();
   const trial = await computeTrialBalance(end, tenantId);

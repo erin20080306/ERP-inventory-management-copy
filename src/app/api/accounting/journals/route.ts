@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { apiHandler, requirePermission, requireTenantId, audit, nextNumber, getCurrentUserId } from "@/lib/api";
+import { apiHandler, requirePermission, requireTenantId, audit, getCurrentUserId } from "@/lib/api";
+import { lockAndAssertAccountingPeriodOpen } from "@/lib/accounting-controls";
+import { nextNumberInTransaction } from "@/lib/documents";
 import { prisma } from "@/lib/prisma";
 
 export const GET = apiHandler(async (req: NextRequest) => {
@@ -29,11 +31,25 @@ export const GET = apiHandler(async (req: NextRequest) => {
         summary: true,
         entryDate: true,
         status: true,
+        createdById: true,
+        submittedById: true,
+        submittedAt: true,
+        approvedById: true,
+        approvedAt: true,
+        postedById: true,
+        postedAt: true,
+        reversedAt: true,
         updatedBy: true,
+        createdBy: { select: { id: true, name: true, username: true } },
+        reversal: { select: { id: true, number: true, entryDate: true } },
+        reversalOf: { select: { id: true, number: true } },
         lines: {
           select: {
+            id: true,
+            accountId: true,
             debit: true,
             credit: true,
+            memo: true,
             account: { select: { code: true, name: true } },
           },
         },
@@ -58,28 +74,40 @@ export const POST = apiHandler(async (req: NextRequest) => {
   const totalCredit = lines.reduce((s: number, l: any) => s + Number(l.credit ?? 0), 0);
   if (Math.abs(totalDebit - totalCredit) > 0.001) throw new Error(`借貸不平衡 (借 ${totalDebit} / 貸 ${totalCredit})`);
   if (totalDebit === 0) throw new Error("金額不可為 0");
-  const number = await nextNumber("JE", tenantId);
-  const created = await prisma.journalEntry.create({
-    data: {
-      tenantId,
-      number,
-      summary: summary ?? "",
-      entryDate: entryDate ? new Date(entryDate) : new Date(),
-      attachment,
-      createdById: session.user.id,
-      updatedBy: currentUserId,
-      status: "DRAFT",
-      lines: {
-        create: lines.map((l: any) => ({
-          accountId: l.accountId,
-          debit: Number(l.debit ?? 0),
-          credit: Number(l.credit ?? 0),
-          memo: l.memo,
-        })),
+  const journalDate = entryDate ? new Date(entryDate) : new Date();
+  const created = await prisma.$transaction(async (tx: any) => {
+    await lockAndAssertAccountingPeriodOpen(tx, tenantId, journalDate);
+    const accountIds = [...new Set(lines.map((line: any) => line.accountId))] as string[];
+    const accountCount = await tx.chartOfAccount.count({ where: { tenantId, id: { in: accountIds }, isActive: true } });
+    if (accountCount !== accountIds.length) throw new Error("分錄包含其他公司或已停用的會計科目");
+    const number = await nextNumberInTransaction(tx, "JE", tenantId);
+    return tx.journalEntry.create({
+      data: {
+        tenantId,
+        number,
+        summary: summary ?? "",
+        entryDate: journalDate,
+        attachment,
+        createdById: session.user.id,
+        updatedBy: currentUserId,
+        status: "DRAFT",
+        lines: {
+          create: lines.map((line: any) => ({
+            accountId: line.accountId,
+            debit: Number(line.debit ?? 0),
+            credit: Number(line.credit ?? 0),
+            memo: line.memo,
+          })),
+        },
       },
-    },
-    include: { lines: true },
-  });
+      include: {
+        lines: { include: { account: true } },
+        createdBy: { select: { id: true, name: true, username: true } },
+        reversal: { select: { id: true, number: true, entryDate: true } },
+        reversalOf: { select: { id: true, number: true } },
+      },
+    });
+  }, { isolationLevel: "ReadCommitted", maxWait: 10_000, timeout: 30_000 });
   await audit({ userId: session.user.id, action: "create", module: "journals", refId: created.id });
   return NextResponse.json(created);
 });

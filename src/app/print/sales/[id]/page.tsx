@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { requirePermission } from "@/lib/api";
+import { requirePermission, requireTenantId } from "@/lib/api";
 import { notFound } from "next/navigation";
 import { AutoPrint } from "../../auto-print";
 import { CompanyHeader } from "../../CompanyHeader";
@@ -8,13 +8,14 @@ import { formatDate, formatMoney } from "@/lib/utils";
 export const dynamic = "force-dynamic";
 
 const STATUS_LABEL: Record<string, string> = {
-  DRAFT: "草稿", SUBMITTED: "已送審", APPROVED: "已審核", POSTED: "已過帳", VOIDED: "已作廢", REJECTED: "已駁回",
+  DRAFT: "草稿", SUBMITTED: "已送審", APPROVED: "已審核", PARTIALLY_SHIPPED: "部分出貨", POSTED: "已過帳", VOIDED: "已作廢", REJECTED: "已駁回",
 };
 
-export default async function Page({ params }: { params: { id: string } }) {
+export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   await requirePermission("sales.view");
-  const o = await prisma.salesOrder.findUnique({
-    where: { id: params.id },
+  const [{ id }, tenantId] = await Promise.all([params, requireTenantId()]);
+  const o = await prisma.salesOrder.findFirst({
+    where: { id, tenantId },
     include: { customer: true, items: { include: { product: true } } },
   });
   if (!o) notFound();

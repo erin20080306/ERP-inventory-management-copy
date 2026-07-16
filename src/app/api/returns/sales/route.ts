@@ -56,7 +56,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
         customerId,
         salesOrderId,
         reason,
-        status: status ?? "DRAFT",
+        status: status === "SUBMITTED" ? "SUBMITTED" : "DRAFT",
         returnDate: new Date(),
         total: totals.total,
         isTaxable: isTaxable !== false,
@@ -75,47 +75,6 @@ export const POST = apiHandler(async (req: NextRequest) => {
       include: { items: true, customer: true },
     });
 
-    // 如果確認，更新庫存和應收帳款
-    if ((status ?? "DRAFT") === "APPROVED") {
-      for (const item of ret.items) {
-        // 更新庫存（退貨入庫）
-        const stock = await tx.inventoryStock.findFirst({
-          where: { productId: item.productId },
-        });
-        if (stock) {
-          await tx.inventoryStock.update({
-            where: { id: stock.id },
-            data: { quantity: { increment: Number(item.quantity) } },
-          });
-        }
-        
-        // 記錄庫存交易
-        await tx.inventoryTransaction.create({
-          data: {
-            tenantId,
-            productId: item.productId,
-            warehouseId: stock?.warehouseId || "",
-            type: "SALES_RETURN_IN",
-            quantity: Number(item.quantity),
-            refType: "SALES_RETURN",
-            refId: ret.id,
-            remark: `銷貨退回 ${ret.number}`,
-          },
-        });
-      }
-
-      // 沖銷應收帳款（使用備註欄位標記退貨）
-      await tx.accountsReceivable.create({
-        data: {
-          tenantId,
-          customerId,
-          salesOrderId: ret.id,
-          amount: -totals.total,
-          status: "DRAFT",
-        },
-      });
-    }
-
     return ret;
   });
 
@@ -130,22 +89,47 @@ export const PATCH = apiHandler(async (req: NextRequest) => {
   const currentUserId = await getCurrentUserId();
   const body = await req.json();
   const { id, action } = body as any;
+  const existing = await prisma.salesReturn.findUnique({ where: { id, tenantId } });
+  if (!existing) throw new Error("退貨單不存在");
 
   if (action === "submit") {
     await requirePermission("returns.submit");
+    if (!["DRAFT", "REJECTED"].includes(existing.status)) throw new Error("只有草稿或退回單據可以送審");
     await prisma.salesReturn.update({ where: { id, tenantId }, data: { status: "SUBMITTED", updatedBy: currentUserId } });
   } else if (action === "approve") {
     await requirePermission("returns.approve");
+    if (existing.status !== "SUBMITTED") throw new Error("只有已送審退貨單可以核准");
     await prisma.salesReturn.update({ where: { id, tenantId }, data: { status: "APPROVED", updatedBy: currentUserId } });
   } else if (action === "reject") {
     await requirePermission("returns.reject");
+    if (existing.status !== "SUBMITTED") throw new Error("只有已送審退貨單可以退回");
     await prisma.salesReturn.update({ where: { id, tenantId }, data: { status: "REJECTED", updatedBy: currentUserId } });
   } else if (action === "post") {
     await requirePermission("returns.post");
-    await prisma.salesReturn.update({ where: { id, tenantId }, data: { status: "POSTED", updatedBy: currentUserId } });
+    if (existing.status !== "APPROVED") throw new Error("只有已核准退貨單可以過帳");
+    await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`sales-return:${tenantId}:${id}`}))`;
+      const ret = await tx.salesReturn.findFirst({ where: { id, tenantId, status: "APPROVED" }, include: { items: true, salesOrder: { include: { items: true } } } });
+      if (!ret) throw new Error("退貨單已由其他人員處理，請重新整理");
+      if (!ret?.salesOrder || ret.salesOrder.status !== "POSTED" || !ret.salesOrder.warehouseId) throw new Error("退貨單必須關聯已出貨銷售單與原出貨倉庫");
+      if (ret.customerId !== ret.salesOrder.customerId) throw new Error("退貨客戶與原銷售單不一致");
+      const source = new Map(ret.salesOrder.items.map((item) => [item.productId, Number(item.shippedQty)]));
+      const prior = await tx.salesReturnItem.groupBy({ by: ["productId"], where: { return: { salesOrderId: ret.salesOrderId, status: "POSTED" } }, _sum: { quantity: true } });
+      const priorMap = new Map(prior.map((row) => [row.productId, Number(row._sum.quantity ?? 0)]));
+      for (const item of ret.items) {
+        if (Number(item.quantity) + (priorMap.get(item.productId) ?? 0) > (source.get(item.productId) ?? 0)) throw new Error("退貨數量不可超過原出貨數量");
+        await tx.inventoryStock.upsert({ where: { productId_warehouseId: { productId: item.productId, warehouseId: ret.salesOrder.warehouseId } }, update: { quantity: { increment: item.quantity } }, create: { tenantId, productId: item.productId, warehouseId: ret.salesOrder.warehouseId, quantity: item.quantity } });
+        await tx.inventoryTransaction.create({ data: { tenantId, productId: item.productId, warehouseId: ret.salesOrder.warehouseId, type: "SALES_RETURN_IN", quantity: item.quantity, refType: "SALES_RETURN", refId: ret.id, remark: `銷貨退回 ${ret.number}` } });
+      }
+      await tx.accountsReceivable.create({ data: { tenantId, customerId: ret.customerId, salesOrderId: ret.salesOrderId, amount: Number(ret.total) * -1, status: "POSTED", updatedBy: currentUserId } });
+      await tx.salesReturn.update({ where: { id: ret.id }, data: { status: "POSTED", updatedBy: currentUserId } });
+    }, { isolationLevel: "ReadCommitted" });
   } else if (action === "void") {
     await requirePermission("returns.void");
+    if (existing.status === "POSTED") throw new Error("已過帳退貨必須建立沖銷單，不可直接作廢");
     await prisma.salesReturn.update({ where: { id, tenantId }, data: { status: "VOIDED", updatedBy: currentUserId } });
+  } else {
+    throw new Error("不支援的退貨動作");
   }
 
   await audit({ userId: session.user.id, action, module: "returns", refId: id });
@@ -157,13 +141,14 @@ export const PUT = apiHandler(async (req: NextRequest) => {
   const tenantId = await requireTenantId();
   const currentUserId = await getCurrentUserId();
   const body = await req.json();
-  const { id, customerId, salesOrderId, reason, status, items, isTaxable } = body as any;
+  const { id, customerId, salesOrderId, reason, items, isTaxable } = body as any;
   if (!customerId) throw new Error("請選擇客戶");
   if (!items?.length) throw new Error("請至少新增一項商品");
   const totals = calcTotals(items, isTaxable !== false);
 
   const existing = await prisma.salesReturn.findUnique({ where: { id, tenantId } });
   if (!existing) throw new Error("退貨單不存在");
+  if (!["DRAFT", "REJECTED"].includes(existing.status)) throw new Error("只有草稿或退回單據可以修改");
 
   const updated = await prisma.salesReturn.update({
     where: { id, tenantId },
@@ -171,7 +156,7 @@ export const PUT = apiHandler(async (req: NextRequest) => {
       customerId,
       salesOrderId,
       reason,
-      status: status ?? existing.status,
+      status: existing.status,
       total: totals.total,
       isTaxable: isTaxable !== false,
       updatedBy: currentUserId,

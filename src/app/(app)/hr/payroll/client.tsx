@@ -10,7 +10,7 @@ import { EmptyState } from "@/components/layout/page-shell";
 import { toast } from "sonner";
 import { Plus, Loader2, Calculator, FileSpreadsheet, Printer, Eye, CheckCircle2, DollarSign, Ban, BookOpen, Edit } from "lucide-react";
 import { formatMoney, formatDate } from "@/lib/utils";
-import { useCustomColumns, CustomColumnDialog, CustomColumnButton, getCustomFieldValues, setCustomFieldValue } from "@/components/custom-columns";
+import { useCustomColumns, useCustomFieldValues, CustomColumnDialog, CustomColumnButton, CustomFieldGridCell } from "@/components/custom-columns";
 import { TableHint, useColumnDrag } from "@/components/table-helpers";
 
 const STATUS_LABELS: Record<string, string> = { DRAFT: "草稿", APPROVED: "已確認", POSTED: "已發放", VOIDED: "作廢" };
@@ -24,7 +24,7 @@ export function PayrollClient() {
   const [openNew, setOpenNew] = useState(false);
   const [viewPayroll, setViewPayroll] = useState<any>(null);
   const customCols = useCustomColumns("payroll");
-  const [editingCells, setEditingCells] = useState<Record<string, any>>({});
+  const customFieldValues = useCustomFieldValues("payroll", payrolls.map((row) => row.id));
   const colDrag = useColumnDrag("payroll", ["number", "employee", "dept", "earnings", "deductions", "netPay", "employerCost", "status"]);
 
   async function loadPeriods() {
@@ -166,7 +166,7 @@ export function PayrollClient() {
 
           {/* 薪資清冊 */}
           <Table>
-            <THead>
+            <THead onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title="表頭按右鍵可新增／刪減自訂欄位">
               <TR>
                 <TH {...colDrag.thProps("number")}>單號</TH><TH {...colDrag.thProps("employee")}>員工</TH><TH {...colDrag.thProps("dept")}>部門</TH>
                 <TH {...colDrag.thProps("earnings")} className="text-right">應發</TH>
@@ -174,14 +174,14 @@ export function PayrollClient() {
                 <TH {...colDrag.thProps("netPay")} className="text-right">實領</TH>
                 <TH {...colDrag.thProps("employerCost")} className="text-right">雇主負擔</TH>
                 <TH {...colDrag.thProps("status")}>狀態</TH>
-                {customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}
+                {customCols.columns.map((cc) => <TH key={cc.id} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title="按右鍵管理自訂欄位">{cc.label}</TH>)}
                 <TH className="text-right w-40">操作</TH>
               </TR>
             </THead>
             <TBody>
               {loading && <TR><TD colSpan={9} className="text-center py-10"><Loader2 className="inline h-5 w-5 animate-spin" /></TD></TR>}
               {!loading && payrolls.length === 0 && <TR><TD colSpan={9}><EmptyState /></TD></TR>}
-              {!loading && payrolls.map((p) => (
+              {!loading && payrolls.map((p, rowIndex) => (
                 <TR key={p.id}>
                   <TD className="font-mono text-xs">{p.number}</TD>
                   <TD>{p.employee.employeeNo} {p.employee.name}</TD>
@@ -201,35 +201,7 @@ export function PayrollClient() {
                       {p.status !== "VOIDED" && p.status !== "POSTED" && <Button size="sm" variant="ghost" title="作廢" onClick={() => act(p.id, "void")}><Ban className="h-4 w-4 text-red-600" /></Button>}
                     </div>
                   </TD>
-                  {customCols.columns.map((cc) => {
-                    const cellKey = `${p.id}_${cc.id}`;
-                    const vals = getCustomFieldValues("payroll", p.id);
-                    const isEditing = editingCells[cellKey];
-                    return (
-                      <TD key={cc.id}>
-                        {isEditing ? (
-                          <Input
-                            type={cc.type === "number" ? "number" : cc.type === "date" ? "date" : "text"}
-                            defaultValue={vals[cc.id] ?? ""}
-                            autoFocus
-                            className="h-7 text-xs"
-                            onBlur={(e) => {
-                              setCustomFieldValue("payroll", p.id, cc.id, e.target.value);
-                              setEditingCells((p) => ({ ...p, [cellKey]: false }));
-                            }}
-                            onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-                          />
-                        ) : (
-                          <span
-                            className="inline-block min-h-[24px] min-w-[40px] cursor-pointer rounded px-1 py-0.5 transition-colors hover:bg-muted"
-                            onClick={() => setEditingCells((p) => ({ ...p, [cellKey]: true }))}
-                          >
-                            {vals[cc.id] || "—"}
-                          </span>
-                        )}
-                      </TD>
-                    );
-                  })}
+                  {customCols.columns.map((cc, columnIndex) => { const vals = customFieldValues.getValues(p.id); return <TD key={cc.id}><CustomFieldGridCell gridId="payroll" rowId={p.id} rowIndex={rowIndex} column={cc} columnIndex={columnIndex} rowIds={payrolls.map((row) => row.id)} columns={customCols.columns} value={vals[cc.id] ?? ""} saveValues={customFieldValues.saveValues} onManageColumns={() => customCols.setOpen(true)} /></TD>; })}
                 </TR>
               ))}
             </TBody>

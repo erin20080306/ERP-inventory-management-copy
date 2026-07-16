@@ -10,7 +10,7 @@ import { Loader2, Search, FileDown, Download, Printer, Upload, Pencil, Save, X }
 import { formatDate, formatMoney, formatNumber } from "@/lib/utils";
 import { downloadCSV, toCSV } from "@/lib/csv";
 import { toast } from "sonner";
-import { useCustomColumns, CustomColumnDialog, CustomColumnButton, getCustomFieldValues, setCustomFieldValue } from "@/components/custom-columns";
+import { useCustomColumns, useCustomFieldValues, CustomColumnDialog, CustomColumnButton, CustomFieldGridCell } from "@/components/custom-columns";
 import { readSessionCache, TableSkeletonRows, useDebouncedValue, writeSessionCache } from "@/components/table-helpers";
 import { roundInvoiceAmount } from "@/lib/invoice-totals";
 
@@ -197,7 +197,6 @@ export function BomClient() {
   const [page, setPage] = useState(1);
   const pageSize = 50;
   const customCols = useCustomColumns(`bom-${selectedModule}`);
-  const [editingCells, setEditingCells] = useState<Record<string, any>>({});
   const [inlineRow, setInlineRow] = useState<Record<string, any>>({});
   const [inlineSaving, setInlineSaving] = useState<string | null>(null);
   const requestSeq = useRef(0);
@@ -222,6 +221,7 @@ export function BomClient() {
   const activeDataKey = `${selectedModule}:${queryString}`;
   const hasCurrentData = loadedKey === activeDataKey;
   const displayRows = hasCurrentData ? rows : [];
+  const customFieldValues = useCustomFieldValues(`bom-${selectedModule}`, displayRows.map((row) => row.id));
   const displayTotal = hasCurrentData ? total : 0;
   const waitingForData = (loading || !hasCurrentData) && displayRows.length === 0;
 
@@ -383,12 +383,12 @@ export function BomClient() {
       ) : (
         <div className="overflow-x-auto">
           <Table>
-            <THead>
+            <THead onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title="表頭按右鍵可新增／刪減自訂欄位">
               <TR>
                 {currentModule.columns.map((col) => (
                   <TH key={col.key}>{col.title}</TH>
                 ))}
-                {customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}
+                {customCols.columns.map((cc) => <TH key={cc.id} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title="按右鍵管理自訂欄位">{cc.label}</TH>)}
                 <TH className="w-20 text-right">操作</TH>
               </TR>
             </THead>
@@ -407,7 +407,7 @@ export function BomClient() {
                       )}
                     </TD>
                   ))}
-                  {customCols.columns.map((cc) => { const ck = `${row.id}_${cc.id}`; const v = getCustomFieldValues(`bom-${selectedModule}`, row.id); const isE = editingCells[ck]; return <TD key={cc.id}>{isE ? <Input type={cc.type === "number" ? "number" : "text"} defaultValue={v[cc.id] ?? ""} autoFocus className="h-7 text-xs" onBlur={(e) => { setCustomFieldValue(`bom-${selectedModule}`, row.id, cc.id, e.target.value); setEditingCells((p) => ({ ...p, [ck]: false })); }} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} /> : <span className="inline-block min-h-[24px] min-w-[40px] cursor-pointer rounded px-1 py-0.5 transition-colors hover:bg-muted" onClick={() => setEditingCells((p) => ({ ...p, [ck]: true }))}>{v[cc.id] || "—"}</span>}</TD>; })}
+                  {customCols.columns.map((cc, columnIndex) => { const v = customFieldValues.getValues(row.id); return <TD key={cc.id}><CustomFieldGridCell gridId={`bom-${selectedModule}`} rowId={row.id} rowIndex={idx} column={cc} columnIndex={columnIndex} rowIds={displayRows.map((item) => item.id)} columns={customCols.columns} value={v[cc.id] ?? ""} saveValues={customFieldValues.saveValues} onManageColumns={() => customCols.setOpen(true)} /></TD>; })}
                   <TD className="text-right">
                     {isEditing ? (
                       <div className="flex items-center justify-end gap-1">

@@ -1,75 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
-import { apiHandler, requirePermission, requireTenantId, audit } from "@/lib/api";
-import { prisma } from "@/lib/prisma";
+import { ApiError, apiHandler, requirePermission } from "@/lib/api";
 
-// 還原時的清空順序 (反向: 從子到父，避免外鍵衝突)
-const TRUNCATE_ORDER = [
-  "auditLog", "loginLog",
-  "fixedAsset",
-  "attendanceRecord",
-  "payrollItem", "payroll", "payrollPeriod",
-  "employee", "department",
-  "notePayable", "noteReceivable",
-  "invoiceItem", "invoice",
-  "supplierPayment", "accountsPayable",
-  "receivePayment", "accountsReceivable",
-  "journalEntryLine", "journalEntry",
-  "purchaseReturnItem", "purchaseReturn",
-  "salesReturnItem", "salesReturn",
-  "stockTransferItem", "stockTransfer",
-  "stockAdjustmentItem", "stockAdjustment",
-  "inventoryTransaction", "inventoryStock",
-  "quotationItem", "quotation",
-  "salesOrderItem", "salesOrder",
-  "purchaseOrderItem", "purchaseOrder",
-  "bankTransaction", "cashTransaction",
-  "bankAccount", "cashAccount",
-  "supplier", "customer",
-  "product", "productUnit", "productCategory",
-  "warehouse", "chartOfAccount", "taxRate",
-  "numberSequence", "systemSetting", "companySetting",
-  "userRole", "user",
-  "rolePermission", "role", "permission",
-];
+export const runtime = "nodejs";
 
-const RESTORE_ORDER = [...TRUNCATE_ORDER].reverse();
-
-// 不含 tenantId 的系統表
-const SYSTEM_TABLES = new Set(["permission", "role", "rolePermission"]);
-
-export const POST = apiHandler(async (req: NextRequest) => {
-  const session = await requirePermission("settings.manage");
-  const tenantId = await requireTenantId();
-  const body = await req.json();
-  if (!body.tables || typeof body.tables !== "object") throw new Error("備份檔格式錯誤");
-
-  // 還原邏輯：先清空 → 再依序匯入
-  const counts: Record<string, number> = {};
-
-  await prisma.$transaction(
-    async (tx) => {
-      for (const t of TRUNCATE_ORDER) {
-        try {
-          // @ts-ignore
-          const where = SYSTEM_TABLES.has(t) ? {} : { tenantId };
-          await (tx as any)[t].deleteMany({ where });
-        } catch {}
-      }
-      for (const t of RESTORE_ORDER) {
-        const rows = body.tables[t];
-        if (!Array.isArray(rows) || rows.length === 0) continue;
-        try {
-          // @ts-ignore
-          const r = await (tx as any)[t].createMany({ data: rows, skipDuplicates: true });
-          counts[t] = r.count ?? rows.length;
-        } catch (e: any) {
-          counts[t] = -1;
-        }
-      }
-    },
-    { maxWait: 30000, timeout: 120000 }
-  );
-
-  await audit({ userId: session.user.id, action: "restore_backup", module: "settings" });
-  return NextResponse.json({ ok: true, counts });
+export const POST = apiHandler(async () => {
+  await requirePermission("settings.manage");
+  throw new ApiError(410, "線上 JSON 還原已停用，避免不完整資料表或跨公司系統角色被誤刪。請由艾琳設計在維護模式使用已驗證的 PostgreSQL 加密備份還原程序。");
 });

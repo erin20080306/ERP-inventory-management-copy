@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiHandler, requirePermission, requireTenantId } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
-import XLSX from "xlsx";
+import ExcelJS from "exceljs";
 
 export const GET = apiHandler(async (req: NextRequest) => {
   await requirePermission("payroll.export");
   const id = req.nextUrl.pathname.split("/").slice(-2, -1)[0];
   const tenantId = await requireTenantId();
 
-  const payroll = await prisma.payroll.findUnique({
-    where: { id },
+  const payroll = await prisma.payroll.findFirst({
+    where: { id, period: { tenantId } },
     include: {
       employee: { include: { department: true } },
       period: true,
@@ -22,7 +22,14 @@ export const GET = apiHandler(async (req: NextRequest) => {
   }
 
   // 準備 Excel 資料
-  const wb = XLSX.utils.book_new();
+  const workbook = new ExcelJS.Workbook();
+  const addSheet = (name: string, rows: Array<Record<string, unknown>>) => {
+    const sheet = workbook.addWorksheet(name.slice(0, 31));
+    const headers = [...new Set(rows.flatMap((row) => Object.keys(row)))];
+    sheet.columns = headers.map((header) => ({ header, key: header, width: 18 }));
+    sheet.addRows(rows);
+    sheet.getRow(1).font = { bold: true };
+  };
 
   // 基本資訊
   const basicInfo = [
@@ -35,7 +42,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
     { 項目: "工作天數", 值: Number(payroll.workDays) },
     { 項目: "加班時數", 值: Number(payroll.overtimeHours) },
   ];
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(basicInfo), "基本資訊");
+  addSheet("基本資訊", basicInfo);
 
   // 應發項目
   const earnings = payroll.items.filter((item) => item.type === "EARNING").map((item) => ({
@@ -44,7 +51,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
     是否計稅: item.taxable ? "是" : "否",
     備註: item.remark || "",
   }));
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(earnings), "應發項目");
+  addSheet("應發項目", earnings);
 
   // 應扣項目
   const deductions = payroll.items.filter((item) => item.type === "DEDUCTION").map((item) => ({
@@ -52,7 +59,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
     金額: Number(item.amount),
     備註: item.remark || "",
   }));
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(deductions), "應扣項目");
+  addSheet("應扣項目", deductions);
 
   // 雇主負擔
   const employerCosts = payroll.items.filter((item) => item.type === "EMPLOYER").map((item) => ({
@@ -60,7 +67,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
     金額: Number(item.amount),
     備註: item.remark || "",
   }));
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(employerCosts), "雇主負擔");
+  addSheet("雇主負擔", employerCosts);
 
   // 總計
   const summary = [
@@ -69,10 +76,10 @@ export const GET = apiHandler(async (req: NextRequest) => {
     { 項目: "雇主負擔", 金額: Number(payroll.employerCost) },
     { 項目: "淨額", 金額: Number(payroll.netPay) },
   ];
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(summary), "總計");
+  addSheet("總計", summary);
 
   // 生成 Excel 檔案
-  const buffer = XLSX.write(wb, { bookType: "xlsx", type: "buffer" }) as Buffer;
+  const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
   const uint8Array = new Uint8Array(buffer);
 
   // 設定回應標頭

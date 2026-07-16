@@ -7,14 +7,14 @@ import { roundInvoiceAmount } from "@/lib/invoice-totals";
 
 export const dynamic = "force-dynamic";
 
-export default async function Page({ params }: { params: { id: string } }) {
+export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   await requirePermission("invoices.view");
-  const tenantId = await requireTenantId();
-  const inv = await prisma.invoice.findUnique({
-    where: { id: params.id },
+  const [{ id }, tenantId] = await Promise.all([params, requireTenantId()]);
+  const inv = await prisma.invoice.findFirst({
+    where: { id, tenantId },
     include: { customer: true, supplier: true, items: true },
   });
-  if (!inv || inv.tenantId !== tenantId) notFound();
+  if (!inv) notFound();
 
   const company = await prisma.companySetting.findFirst({ where: { tenantId } });
   const party = inv.customer ?? inv.supplier;

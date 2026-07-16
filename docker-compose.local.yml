@@ -1,0 +1,94 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: erp
+      POSTGRES_USER: erp
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - erp_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U erp -d erp"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  app:
+    image: ${ERP_IMAGE:-ghcr.io/erin20080306/erp-inventory-management-copy:latest}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://erp:${POSTGRES_PASSWORD}@postgres:5432/erp?schema=public
+      NEXTAUTH_URL: ${NEXTAUTH_URL}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      COMPANY_NAME: ${COMPANY_NAME}
+      BUSINESS_MODE: ${BUSINESS_MODE:-ERP}
+      LOCAL_LICENSE_MODE: "true"
+      CENTRAL_LICENSE_URL: ${CENTRAL_LICENSE_URL}
+      LOCAL_ACTIVATION_KEY: ${LOCAL_ACTIVATION_KEY}
+      LOCAL_DEVICE_ID: ${LOCAL_DEVICE_ID}
+      LOCAL_DEVICE_NAME: ${LOCAL_DEVICE_NAME}
+      LOCAL_INSTALLER_TOKEN: ${LOCAL_INSTALLER_TOKEN}
+      BACKUP_DIR: /backups
+      BACKUP_ENCRYPTION_KEY: ${BACKUP_ENCRYPTION_KEY}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
+      LICENSE_ED25519_PUBLIC_KEY_B64: ${LICENSE_ED25519_PUBLIC_KEY_B64}
+      INTEGRITY_SECRET: ${INTEGRITY_SECRET}
+      EINVOICE_PROVIDER: ${EINVOICE_PROVIDER:-}
+      EINVOICE_ALLOW_MOCK: ${EINVOICE_ALLOW_MOCK:-false}
+      EINVOICE_ENV: ${EINVOICE_ENV:-TEST}
+      EINVOICE_MIG_VERSION: ${EINVOICE_MIG_VERSION:-4.1}
+      EINVOICE_SELLER_TAX_ID: ${EINVOICE_SELLER_TAX_ID:-}
+      EINVOICE_TURNKEY_OUTBOX_DIR: ${EINVOICE_TURNKEY_OUTBOX_DIR:-}
+      EINVOICE_TURNKEY_ACK_DIR: ${EINVOICE_TURNKEY_ACK_DIR:-}
+      EINVOICE_VAN_NAME: ${EINVOICE_VAN_NAME:-}
+      EINVOICE_VAN_BASE_URL: ${EINVOICE_VAN_BASE_URL:-}
+      EINVOICE_VAN_CLIENT_ID: ${EINVOICE_VAN_CLIENT_ID:-}
+      EINVOICE_VAN_CLIENT_SECRET: ${EINVOICE_VAN_CLIENT_SECRET:-}
+    volumes:
+      - erp_exports:/app/exports
+      - erp_uploads:/app/public/uploads
+      - "${HOST_BACKUP_DIR}:/backups"
+
+  backup:
+    image: ${ERP_IMAGE:-ghcr.io/erin20080306/erp-inventory-management-copy:latest}
+    restart: unless-stopped
+    entrypoint: ["/app/docker/backup-entrypoint.sh"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://erp:${POSTGRES_PASSWORD}@postgres:5432/erp?schema=public
+      BACKUP_DIR: /backups
+      BACKUP_ENCRYPTION_KEY: ${BACKUP_ENCRYPTION_KEY}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
+      BACKUP_INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-24}
+    volumes:
+      - "${HOST_BACKUP_DIR}:/backups"
+
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    depends_on:
+      - app
+    environment:
+      SERVER_HOST: ${SERVER_HOST}
+    ports:
+      - "${ERP_HTTPS_PORT:-3443}:3443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - erp_caddy_data:/data
+      - erp_caddy_config:/config
+
+volumes:
+  erp_postgres_data:
+  erp_exports:
+  erp_uploads:
+  erp_caddy_data:
+  erp_caddy_config:

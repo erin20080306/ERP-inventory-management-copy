@@ -54,6 +54,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
     DRAFT: "草稿",
     SUBMITTED: "已送出",
     APPROVED: "已核准",
+    PARTIALLY_SHIPPED: "部分出貨",
     POSTED: "已過帳",
     VOIDED: "已作廢",
   };

@@ -9,7 +9,7 @@ import { EmptyState } from "@/components/layout/page-shell";
 import { toast } from "sonner";
 import { Plus, Search, Loader2, TrendingDown, Trash2, Ban, FileSpreadsheet, Upload, Save, X, Pencil } from "lucide-react";
 import { formatDate, formatMoney } from "@/lib/utils";
-import { useCustomColumns, CustomColumnDialog, CustomColumnButton, getCustomFieldValues, setCustomFieldValue } from "@/components/custom-columns";
+import { useCustomColumns, useCustomFieldValues, CustomColumnDialog, CustomColumnButton, CustomFieldGridCell } from "@/components/custom-columns";
 import { TableHint, useColumnDrag } from "@/components/table-helpers";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -35,7 +35,7 @@ export function FixedAssetsClient() {
   const [editing, setEditing] = useState<any>(null);
   const pageSize = 20;
   const customCols = useCustomColumns("fixed-assets");
-  const [editingCells, setEditingCells] = useState<Record<string, any>>({});
+  const customFieldValues = useCustomFieldValues("fixed-assets", rows.map((row) => row.id));
   const [inlineRow, setInlineRow] = useState<Record<string, any>>({});
   const colDrag = useColumnDrag("fixed-assets", ["code", "name", "category", "acquireDate", "acquireCost", "accDep", "bookValue", "method", "status", "updatedBy"]);
   const [inlineSaving, setInlineSaving] = useState<string | null>(null);
@@ -159,17 +159,17 @@ export function FixedAssetsClient() {
 
       <TableHint />
       <Table>
-        <THead>
+        <THead onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title="表頭按右鍵可新增／刪減自訂欄位">
           <TR>
             <TH {...colDrag.thProps("code")}>編號</TH><TH {...colDrag.thProps("name")}>名稱</TH><TH {...colDrag.thProps("category")}>分類</TH><TH {...colDrag.thProps("acquireDate")}>取得日</TH>
             <TH {...colDrag.thProps("acquireCost")} className="text-right">取得成本</TH><TH {...colDrag.thProps("accDep")} className="text-right">累計折舊</TH><TH {...colDrag.thProps("bookValue")} className="text-right">帳面價值</TH>
-            <TH {...colDrag.thProps("method")}>折舊法</TH><TH {...colDrag.thProps("status")}>狀態</TH><TH {...colDrag.thProps("updatedBy")}>操作人員</TH>{customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}<TH className="text-right w-32">操作</TH>
+            <TH {...colDrag.thProps("method")}>折舊法</TH><TH {...colDrag.thProps("status")}>狀態</TH><TH {...colDrag.thProps("updatedBy")}>操作人員</TH>{customCols.columns.map((cc) => <TH key={cc.id} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title="按右鍵管理自訂欄位">{cc.label}</TH>)}<TH className="text-right w-32">操作</TH>
           </TR>
         </THead>
         <TBody>
           {loading && <TR><TD colSpan={11} className="text-center py-10"><Loader2 className="inline h-5 w-5 animate-spin" /></TD></TR>}
           {!loading && rows.length === 0 && <TR><TD colSpan={11}><EmptyState /></TD></TR>}
-          {!loading && rows.map((r) => {
+          {!loading && rows.map((r, rowIndex) => {
             const isEditing = !!inlineRow[r.id];
             return (
             <TR key={r.id} className={isEditing ? "bg-accent/5" : ""}>
@@ -183,7 +183,7 @@ export function FixedAssetsClient() {
               <TD className="text-xs">{METHOD_LABELS[r.method] ?? r.method}</TD>
               <TD><Badge variant={STATUS_VARIANTS[r.status]}>{STATUS_LABELS[r.status] ?? r.status}</Badge></TD>
               <TD className="text-xs text-gray-500">{r.updatedBy || "-"}</TD>
-              {customCols.columns.map((cc) => { const ck = `${r.id}_${cc.id}`; const v = getCustomFieldValues("fixed-assets", r.id); const isE = editingCells[ck]; return <TD key={cc.id}>{isE ? <Input type={cc.type === "number" ? "number" : cc.type === "date" ? "date" : "text"} defaultValue={v[cc.id] ?? ""} autoFocus className="h-7 text-xs" onBlur={(e) => { setCustomFieldValue("fixed-assets", r.id, cc.id, e.target.value); setEditingCells((p) => ({ ...p, [ck]: false })); }} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} /> : <span className="inline-block min-h-[24px] min-w-[40px] cursor-pointer rounded px-1 py-0.5 transition-colors hover:bg-muted" onClick={() => setEditingCells((p) => ({ ...p, [ck]: true }))}>{v[cc.id] || "—"}</span>}</TD>; })}
+              {customCols.columns.map((cc, columnIndex) => { const v = customFieldValues.getValues(r.id); return <TD key={cc.id}><CustomFieldGridCell gridId="fixed-assets" rowId={r.id} rowIndex={rowIndex} column={cc} columnIndex={columnIndex} rowIds={rows.map((row) => row.id)} columns={customCols.columns} value={v[cc.id] ?? ""} saveValues={customFieldValues.saveValues} onManageColumns={() => customCols.setOpen(true)} /></TD>; })}
               <TD className="text-right">
                 <div className="flex items-center justify-end gap-1">
                   {isEditing ? (

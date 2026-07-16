@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { apiHandler, requirePermission, requireTenantId, audit, nextNumber } from "@/lib/api";
+import { apiHandler, requirePermission, requireTenantId, audit } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { calculateInvoiceTotals } from "@/lib/invoice-totals";
+import { allocateInvoiceTrackNumber } from "@/lib/invoice-numbering";
+import { nextNumberInTransaction } from "@/lib/documents";
 
 export const GET = apiHandler(async (req: NextRequest) => {
   await requirePermission("invoices.view");
@@ -57,42 +59,31 @@ export const POST = apiHandler(async (req: NextRequest) => {
 
   const totals = calculateInvoiceTotals(items);
 
-  // 嘗試從字軌取號
-  let number = inNumber;
-  if (!number) {
-    const now = new Date();
-    const rocYear = now.getFullYear() - 1911;
-    const currentPeriod = Math.ceil((now.getMonth() + 1) / 2);
-    const track = await prisma.invoiceTrack.findFirst({
-      where: { tenantId, type, year: rocYear, period: currentPeriod, isActive: true },
-      orderBy: { trackCode: "asc" },
-    });
-    if (track && track.currentNum < track.endNumber) {
-      const nextNum = track.currentNum < track.startNumber ? track.startNumber : track.currentNum + 1;
-      number = `${track.trackCode}${String(nextNum).padStart(8, "0")}`;
-      await prisma.invoiceTrack.update({ where: { id: track.id }, data: { currentNum: nextNum } });
-    } else {
-      number = await nextNumber("INV", tenantId);
+  const effectiveInvoiceDate = invoiceDate ? new Date(invoiceDate) : new Date();
+  const created = await prisma.$transaction(async (tx: any) => {
+    let number = String(inNumber ?? "").trim().toUpperCase();
+    if (!number) {
+      const allocation = await allocateInvoiceTrackNumber(tx, { tenantId, type, invoiceDate: effectiveInvoiceDate, required: false });
+      number = allocation?.invoiceNumber ?? await nextNumberInTransaction(tx, "INV", tenantId);
     }
-  }
-
-  const created = await prisma.invoice.create({
-    data: {
-      tenantId,
-      number,
-      type,
-      invoiceDate: invoiceDate ? new Date(invoiceDate) : new Date(),
-      customerId: type === "SALES" ? customerId : null,
-      supplierId: type === "PURCHASE" ? supplierId : null,
-      amountExTax: totals.amountExTax,
-      taxAmount: totals.taxAmount,
-      totalAmount: totals.totalAmount,
-      remark,
-      status: "POSTED",
-      items: { create: totals.computed },
-    },
-    include: { items: true, customer: true, supplier: true },
+    return tx.invoice.create({
+      data: {
+        tenantId,
+        number,
+        type,
+        invoiceDate: effectiveInvoiceDate,
+        customerId: type === "SALES" ? customerId : null,
+        supplierId: type === "PURCHASE" ? supplierId : null,
+        amountExTax: totals.amountExTax,
+        taxAmount: totals.taxAmount,
+        totalAmount: totals.totalAmount,
+        remark,
+        status: "POSTED",
+        items: { create: totals.computed },
+      },
+      include: { items: true, customer: true, supplier: true },
+    });
   });
-  await audit({ userId: session.user.id, action: "create", module: "invoices", refId: created.id, detail: number });
+  await audit({ userId: session.user.id, action: "create", module: "invoices", refId: created.id, detail: created.number });
   return NextResponse.json(created);
 });

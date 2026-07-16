@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { Search, Loader2, Save, FileSpreadsheet, Upload, RotateCcw, Printer, FileDown, Trash2, Plus } from "lucide-react";
 import { formatMoney } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { useCustomColumns, CustomColumnDialog, CustomColumnButton, getCustomFieldValues, setCustomFieldValue } from "@/components/custom-columns";
+import { useCustomColumns, useCustomFieldValues, CustomColumnDialog, CustomColumnButton, CustomFieldGridCell } from "@/components/custom-columns";
 import { readSessionCache, TableSkeletonRows, writeSessionCache } from "@/components/table-helpers";
 
 type Product = {
@@ -35,7 +35,7 @@ export function CostManagementClient() {
   const [newForm, setNewForm] = useState({ sku: "", name: "", spec: "", costPrice: "", salePrice: "" });
   const [addSaving, setAddSaving] = useState(false);
   const customCols = useCustomColumns("costs");
-  const [editingCells, setEditingCells] = useState<Record<string, any>>({});
+  const customFieldValues = useCustomFieldValues("costs", rows.map((row) => row.id));
   const pageSize = 30;
 
   // debounce 搜尋
@@ -261,19 +261,19 @@ export function CostManagementClient() {
       )}
 
       <Table>
-        <THead>
+        <THead onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title="表頭按右鍵可新增／刪減自訂欄位">
           <TR>
             <TH>SKU</TH><TH>商品名稱</TH><TH>規格</TH>
             <TH className="w-40">成本</TH><TH className="w-40">售價</TH>
             <TH className="w-20 text-right">毛利率</TH>
-            {customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}
+            {customCols.columns.map((cc) => <TH key={cc.id} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title="按右鍵管理自訂欄位">{cc.label}</TH>)}
             <TH className="w-24 text-right">操作</TH>
           </TR>
         </THead>
         <TBody>
           {loading && rows.length === 0 && <TableSkeletonRows columns={7 + customCols.columns.length} />}
           {!loading && rows.length === 0 && <TR><TD colSpan={7 + customCols.columns.length}><EmptyState /></TD></TR>}
-          {rows.length > 0 && rows.map((r) => {
+          {rows.length > 0 && rows.map((r, rowIndex) => {
             const draft = drafts[r.id];
             const cost = draft?.costPrice ?? Number(r.costPrice);
             const sale = draft?.salePrice ?? Number(r.salePrice);
@@ -301,7 +301,7 @@ export function CostManagementClient() {
                   />
                 </TD>
                 <TD className="text-right text-xs">{margin === "—" ? "—" : `${margin}%`}</TD>
-                {customCols.columns.map((cc) => { const ck = `${r.id}_${cc.id}`; const v = getCustomFieldValues("costs", r.id); const isE = editingCells[ck]; return <TD key={cc.id}>{isE ? <Input type={cc.type === "number" ? "number" : cc.type === "date" ? "date" : "text"} defaultValue={v[cc.id] ?? ""} autoFocus className="h-7 text-xs" onBlur={(e) => { setCustomFieldValue("costs", r.id, cc.id, e.target.value); setEditingCells((p) => ({ ...p, [ck]: false })); }} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} /> : <span className="inline-block min-h-[24px] min-w-[40px] cursor-pointer rounded px-1 py-0.5 transition-colors hover:bg-muted" onClick={() => setEditingCells((p) => ({ ...p, [ck]: true }))}>{v[cc.id] || "—"}</span>}</TD>; })}
+                {customCols.columns.map((cc, columnIndex) => { const v = customFieldValues.getValues(r.id); return <TD key={cc.id}><CustomFieldGridCell gridId="product-costs" rowId={r.id} rowIndex={rowIndex} column={cc} columnIndex={columnIndex} rowIds={rows.map((row) => row.id)} columns={customCols.columns} value={v[cc.id] ?? ""} saveValues={customFieldValues.saveValues} onManageColumns={() => customCols.setOpen(true)} /></TD>; })}
                 <TD className="text-right flex items-center justify-end gap-1">
                   {dirty && (
                     <Button size="sm" variant="outline" onClick={() => saveOne(r.id)}>

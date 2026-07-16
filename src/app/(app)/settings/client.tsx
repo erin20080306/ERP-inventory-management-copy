@@ -1,10 +1,10 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input, Label } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Download, Upload, Database, AlertTriangle, Loader2, Mail } from "lucide-react";
+import { Download, Database, AlertTriangle, Loader2, Mail, MonitorCog, Plus, Store } from "lucide-react";
 
 export function SettingsClient() {
   const [form, setForm] = useState<any>({ name: "", currency: "TWD", smtpSecure: true, smtpPort: 465 });
@@ -113,96 +113,194 @@ export function SettingsClient() {
           <div className="col-span-2"><Button onClick={save} disabled={saving}>{saving ? "儲存中..." : "儲存 SMTP 設定"}</Button></div>
         </CardContent>
       </Card>
+      <PosRegisterCard />
       <BackupCard />
     </div>
   );
 }
 
+type RegisterRow = {
+  id: string;
+  code: string;
+  name: string;
+  warehouseId: string;
+  isActive: boolean;
+  warehouse: { id: string; code: string; name: string };
+  _count: { shifts: number; sales: number };
+};
+
+function PosRegisterCard() {
+  const [registers, setRegisters] = useState<RegisterRow[]>([]);
+  const [warehouses, setWarehouses] = useState<Array<{ id: string; code: string; name: string }>>([]);
+  const [form, setForm] = useState({ id: "", code: "", name: "", warehouseId: "", isActive: true });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  async function load() {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/pos/registers", { cache: "no-store" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "收銀台載入失敗");
+      setRegisters(data.registers ?? []);
+      setWarehouses(data.warehouses ?? []);
+      setForm((current) => ({ ...current, warehouseId: current.warehouseId || data.warehouses?.[0]?.id || "" }));
+    } catch (error: any) {
+      toast.error(error.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => { void load(); }, []);
+
+  function resetForm() {
+    setForm({ id: "", code: "", name: "", warehouseId: warehouses[0]?.id || "", isActive: true });
+  }
+
+  async function saveRegister(next = form) {
+    if (!next.code.trim() || !next.name.trim() || !next.warehouseId) return toast.error("請完整填寫收銀台代碼、名稱與倉庫");
+    setSaving(true);
+    try {
+      const res = await fetch("/api/pos/registers", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(next) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "收銀台儲存失敗");
+      toast.success(next.id ? "收銀台已更新" : "收銀台已建立");
+      resetForm();
+      await load();
+    } catch (error: any) {
+      toast.error(error.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2"><MonitorCog className="h-5 w-5" />POS 收銀台與門市倉庫</CardTitle>
+        <CardDescription>每台收銀台綁定一個出貨倉庫；開班、銷售、退貨及結班都依此追蹤。</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        <div className="grid gap-3 rounded-lg border bg-muted/20 p-4 md:grid-cols-4">
+          <div className="space-y-1"><Label>收銀台代碼</Label><Input placeholder="POS01" value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value.toUpperCase() })} /></div>
+          <div className="space-y-1"><Label>顯示名稱</Label><Input placeholder="第一收銀台" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></div>
+          <div className="space-y-1"><Label>門市／出貨倉庫</Label><select value={form.warehouseId} onChange={(event) => setForm({ ...form, warehouseId: event.target.value })} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">{warehouses.map((warehouse) => <option key={warehouse.id} value={warehouse.id}>{warehouse.code} · {warehouse.name}</option>)}</select></div>
+          <div className="flex items-end gap-2"><Button onClick={() => void saveRegister()} disabled={saving || warehouses.length === 0}><Plus className="h-4 w-4" />{form.id ? "儲存修改" : "新增收銀台"}</Button>{form.id && <Button variant="outline" onClick={resetForm}>取消</Button>}</div>
+        </div>
+        {warehouses.length === 0 && <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">請先在「倉庫／門市」建立至少一個有效倉庫。</div>}
+        <div className="overflow-x-auto rounded-lg border">
+          <table className="w-full min-w-[720px] text-sm">
+            <thead className="bg-muted/50"><tr><th className="p-3 text-left">代碼</th><th className="p-3 text-left">收銀台</th><th className="p-3 text-left">出貨倉庫</th><th className="p-3 text-right">班次／交易</th><th className="p-3 text-left">狀態</th><th className="p-3 text-right">操作</th></tr></thead>
+            <tbody>
+              {registers.map((register) => <tr key={register.id} className="border-t"><td className="p-3 font-mono">{register.code}</td><td className="p-3"><span className="inline-flex items-center gap-2"><Store className="h-4 w-4 text-muted-foreground" />{register.name}</span></td><td className="p-3">{register.warehouse.code} · {register.warehouse.name}</td><td className="p-3 text-right">{register._count.shifts}／{register._count.sales}</td><td className="p-3">{register.isActive ? "啟用" : "停用"}</td><td className="p-3 text-right space-x-2"><Button size="sm" variant="outline" onClick={() => setForm({ id: register.id, code: register.code, name: register.name, warehouseId: register.warehouseId, isActive: register.isActive })}>編輯</Button><Button size="sm" variant="outline" disabled={saving} onClick={() => void saveRegister({ id: register.id, code: register.code, name: register.name, warehouseId: register.warehouseId, isActive: !register.isActive })}>{register.isActive ? "停用" : "啟用"}</Button></td></tr>)}
+              {!loading && registers.length === 0 && <tr><td colSpan={6} className="p-8 text-center text-muted-foreground">尚未建立收銀台</td></tr>}
+              {loading && <tr><td colSpan={6} className="p-8 text-center text-muted-foreground">載入中…</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function BackupCard() {
-  const fileRef = useRef<HTMLInputElement>(null);
+  type BackupFile = { name: string; size: number; createdAt: string; sha256: string | null };
   const [backing, setBacking] = useState(false);
-  const [restoring, setRestoring] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [files, setFiles] = useState<BackupFile[]>([]);
+  const [unavailable, setUnavailable] = useState("");
+
+  async function loadBackups() {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/system/backup", { cache: "no-store" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "無法讀取備份清單");
+      setFiles(Array.isArray(data.files) ? data.files : []);
+      setUnavailable("");
+    } catch (error) {
+      setFiles([]);
+      setUnavailable(error instanceof Error ? error.message : "無法讀取備份清單");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => { void loadBackups(); }, []);
 
   async function doBackup() {
     setBacking(true);
     try {
-      const res = await fetch("/api/system/backup");
-      if (!res.ok) throw new Error((await res.json()).error || "備份失敗");
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `erp-backup-${new Date().toISOString().slice(0, 10)}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      toast.success("備份檔已下載");
-    } catch (e: any) { toast.error(e.message); } finally { setBacking(false); }
-  }
-
-  async function onPickRestore(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    if (!confirm("⚠️ 還原會覆蓋目前所有資料且無法復原！是否確定？")) {
-      if (fileRef.current) fileRef.current.value = "";
-      return;
-    }
-    setRestoring(true);
-    try {
-      const text = await f.text();
-      const json = JSON.parse(text);
-      const res = await fetch("/api/system/restore", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(json),
-      });
-      const d = await res.json();
-      if (!res.ok) throw new Error(d.error || "還原失敗");
-      const tableCount = Object.keys(d.counts).length;
-      toast.success(`還原完成，已匯入 ${tableCount} 個資料表，請重新登入`);
-      setTimeout(() => { window.location.href = "/login"; }, 1500);
-    } catch (e: any) { toast.error(e.message); } finally {
-      setRestoring(false);
-      if (fileRef.current) fileRef.current.value = "";
+      const res = await fetch("/api/system/backup", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "備份失敗");
+      toast.success("加密資料庫備份已建立並通過完整性雜湊");
+      await loadBackups();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "備份失敗");
+    } finally {
+      setBacking(false);
     }
   }
 
-  const busy = backing || restoring;
+  function formatBytes(value: number) {
+    if (value < 1024) return `${value} B`;
+    if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
+    return `${(value / 1024 / 1024).toFixed(1)} MB`;
+  }
 
   return (
     <>
-      {busy && (
+      {backing && (
         <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm">
           <Loader2 className="h-12 w-12 animate-spin text-white mb-4" />
-          <div className="text-white text-xl font-semibold">{backing ? "備份作業中，請稍候..." : "還原作業中，請勿關閉頁面..."}</div>
-          <div className="text-white/70 text-sm mt-2">{backing ? "正在匯出資料庫" : "正在清空並重建資料庫，可能需要數十秒"}</div>
+          <div className="text-white text-xl font-semibold">備份作業中，請稍候...</div>
+          <div className="text-white/70 text-sm mt-2">正在建立 PostgreSQL 完整備份並加密驗證</div>
         </div>
       )}
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2"><Database className="h-5 w-5" />系統備份與還原</CardTitle>
-        <CardDescription>將目前資料庫所有資料匯出為單一 JSON 備份檔，或從備份檔還原資料庫。</CardDescription>
+        <CardDescription>公司主機每 24 小時自動建立一次完整加密備份，預設保留 30 日；也可由授權管理者立即建立。</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className="space-y-4">
         <div className="flex flex-wrap items-center gap-2">
-          <Button onClick={doBackup} disabled={busy}>
-            <Download className="h-4 w-4" />{backing ? "備份中..." : "立即備份下載"}
+          <Button onClick={doBackup} disabled={backing || Boolean(unavailable)}>
+            <Database className="h-4 w-4" />{backing ? "備份中..." : "立即建立加密備份"}
           </Button>
-          <Button variant="outline" onClick={() => fileRef.current?.click()} disabled={busy}>
-            <Upload className="h-4 w-4" />{restoring ? "還原中..." : "從備份檔還原"}
-          </Button>
-          <input ref={fileRef} type="file" accept=".json,application/json" hidden onChange={onPickRestore} />
+          <Button variant="outline" onClick={() => void loadBackups()} disabled={loading || backing}>重新整理清單</Button>
         </div>
+        {unavailable && <div className="rounded-md border bg-muted/30 p-3 text-sm text-muted-foreground">{unavailable}</div>}
+        {!unavailable && (
+          <div className="overflow-x-auto rounded-md border">
+            <table className="w-full min-w-[720px] text-sm">
+              <thead className="bg-muted/50"><tr><th className="p-3 text-left">建立時間</th><th className="p-3 text-left">備份檔</th><th className="p-3 text-right">大小</th><th className="p-3 text-left">SHA-256</th><th className="p-3 text-right">操作</th></tr></thead>
+              <tbody>
+                {files.map((file) => (
+                  <tr key={file.name} className="border-t">
+                    <td className="whitespace-nowrap p-3">{new Date(file.createdAt).toLocaleString("zh-TW")}</td>
+                    <td className="p-3 font-mono text-xs">{file.name}</td>
+                    <td className="whitespace-nowrap p-3 text-right">{formatBytes(file.size)}</td>
+                    <td className="max-w-[260px] truncate p-3 font-mono text-xs" title={file.sha256 || "尚無雜湊"}>{file.sha256 || "—"}</td>
+                    <td className="p-3 text-right"><Button size="sm" variant="outline" asChild><a href={`/api/system/backup?file=${encodeURIComponent(file.name)}`} download><Download className="h-4 w-4" />下載</a></Button></td>
+                  </tr>
+                ))}
+                {!loading && files.length === 0 && <tr><td colSpan={5} className="p-8 text-center text-muted-foreground">尚無加密備份</td></tr>}
+                {loading && <tr><td colSpan={5} className="p-8 text-center text-muted-foreground">載入中…</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        )}
         <div className="flex items-start gap-2 text-xs text-amber-700 bg-amber-50 dark:bg-amber-950/30 dark:text-amber-200 border border-amber-200 dark:border-amber-900 p-3 rounded-md">
           <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
           <div>
             <div className="font-semibold mb-1">注意事項</div>
             <ul className="list-disc list-inside space-y-0.5">
-              <li>備份檔含**全部資料**（含使用者密碼雜湊），請妥善保管，不得外流。</li>
-              <li>還原會**清空目前所有資料**並以備份檔取代，作業期間請勿其他人員操作。</li>
-              <li>建議在還原前先做一次新備份，並於非營運時段進行。</li>
-              <li>還原完成後系統會自動登出，請使用備份當時的帳號重新登入。</li>
+              <li>備份檔包含全部營運資料，已使用 AES-256-GCM 加密；請另存一份至 NAS 或雲端。</li>
+              <li>復原金鑰必須與備份檔分開保存；遺失金鑰後，艾琳設計也無法解密。</li>
+              <li>為避免營業中覆蓋或部分還原，瀏覽器不提供直接上傳還原。</li>
+              <li>正式還原須先停止系統，由維護人員建立安全備份、驗證檔案後執行完整資料庫復原。</li>
             </ul>
           </div>
         </div>

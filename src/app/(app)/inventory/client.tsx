@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ExportButton } from "@/components/export-button";
 import { PrintListButton, PDFExportButton } from "@/components/print-list-button";
 import { Search } from "lucide-react";
-import { useCustomColumns, CustomColumnDialog, CustomColumnButton, getCustomFieldValues, setCustomFieldValue } from "@/components/custom-columns";
+import { useCustomColumns, useCustomFieldValues, CustomColumnDialog, CustomColumnButton, CustomFieldGridCell } from "@/components/custom-columns";
 import { readSessionCache, TableHint, TableSkeletonRows, useColumnDrag, useDebouncedValue, writeSessionCache } from "@/components/table-helpers";
 
 export default function InventoryClient() {
@@ -21,7 +21,7 @@ export default function InventoryClient() {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const customCols = useCustomColumns("inventory");
-  const [editingCells, setEditingCells] = useState<Record<string, any>>({});
+  const customFieldValues = useCustomFieldValues("inventory", stocks.map((stock) => stock.id));
   const colDrag = useColumnDrag("inventory", ["warehouse", "sku", "product", "quantity", "safetyStock", "cost", "value", "stockStatus"]);
 
   function buildParams() {
@@ -132,15 +132,15 @@ export default function InventoryClient() {
               <Table>
                 <THead>
                   <TR>
-                    <TH {...colDrag.thProps("warehouse")}>倉庫</TH>
-                    <TH {...colDrag.thProps("sku")}>SKU</TH>
-                    <TH {...colDrag.thProps("product")}>商品</TH>
-                    <TH {...colDrag.thProps("quantity")}>數量</TH>
-                    <TH {...colDrag.thProps("safetyStock")}>安全庫存</TH>
-                    <TH {...colDrag.thProps("cost")}>成本</TH>
-                    <TH {...colDrag.thProps("value")}>庫存價值</TH>
-                    <TH {...colDrag.thProps("stockStatus")}>狀態</TH>
-                    {customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}
+                    <TH {...colDrag.thProps("warehouse")} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }}>倉庫</TH>
+                    <TH {...colDrag.thProps("sku")} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }}>SKU</TH>
+                    <TH {...colDrag.thProps("product")} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }}>商品</TH>
+                    <TH {...colDrag.thProps("quantity")} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }}>數量</TH>
+                    <TH {...colDrag.thProps("safetyStock")} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }}>安全庫存</TH>
+                    <TH {...colDrag.thProps("cost")} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }}>成本</TH>
+                    <TH {...colDrag.thProps("value")} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }}>庫存價值</TH>
+                    <TH {...colDrag.thProps("stockStatus")} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }}>狀態</TH>
+                    {customCols.columns.map((cc) => <TH key={cc.id} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title="按右鍵管理自訂欄位">{cc.label}</TH>)}
                   </TR>
                 </THead>
                 <TBody>
@@ -150,7 +150,7 @@ export default function InventoryClient() {
                       <TD colSpan={8 + customCols.columns.length} className="text-center text-muted-foreground">尚無庫存</TD>
                     </TR>
                   )}
-                  {stocks.map((s: any) => {
+                  {stocks.map((s: any, rowIndex: number) => {
                     const qty = Number(s.quantity);
                     const safe = Number(s.product.safetyStock);
                     return (
@@ -163,7 +163,7 @@ export default function InventoryClient() {
                         <TD>{formatMoney(s.product.costPrice)}</TD>
                         <TD>{formatMoney(qty * Number(s.product.costPrice))}</TD>
                         <TD>{qty < safe ? <Badge variant="warning">低庫存</Badge> : <Badge variant="success">正常</Badge>}</TD>
-                        {customCols.columns.map((cc) => { const ck = `${s.id}_${cc.id}`; const v = getCustomFieldValues("inventory", s.id); const isE = editingCells[ck]; return <TD key={cc.id}>{isE ? <Input type={cc.type === "number" ? "number" : cc.type === "date" ? "date" : "text"} defaultValue={v[cc.id] ?? ""} autoFocus className="h-7 text-xs" onBlur={(e) => { setCustomFieldValue("inventory", s.id, cc.id, e.target.value); setEditingCells((p) => ({ ...p, [ck]: false })); }} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} /> : <span className="inline-block min-h-[24px] min-w-[40px] cursor-pointer rounded px-1 py-0.5 transition-colors hover:bg-muted" onClick={() => setEditingCells((p) => ({ ...p, [ck]: true }))}>{v[cc.id] || "—"}</span>}</TD>; })}
+                        {customCols.columns.map((cc, columnIndex) => { const v = customFieldValues.getValues(s.id); return <TD key={cc.id}><CustomFieldGridCell gridId="inventory-stocks" rowId={s.id} rowIndex={rowIndex} column={cc} columnIndex={columnIndex} rowIds={stocks.map((stock) => stock.id)} columns={customCols.columns} value={v[cc.id] ?? ""} saveValues={customFieldValues.saveValues} onManageColumns={() => customCols.setOpen(true)} /></TD>; })}
                       </TR>
                     );
                   })}

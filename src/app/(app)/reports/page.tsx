@@ -9,12 +9,13 @@ import { ReportContent } from "./report-content";
 
 export const dynamic = "force-dynamic";
 
-export default async function Page({ searchParams }: { searchParams: { from?: string; to?: string } }) {
+export default async function Page({ searchParams }: { searchParams: Promise<{ from?: string; to?: string }> }) {
   const g = await requirePermissionOrForbidden("reports.view");
   if (g.forbidden) return g.element;
 
-  const fromDate = searchParams.from;
-  const toDate = searchParams.to;
+  const query = await searchParams;
+  const fromDate = query.from;
+  const toDate = query.to;
   const dateFilter = fromDate || toDate;
   const dateRangeLabel = dateFilter ? `${fromDate || "開始"} ~ ${toDate || "今天"}` : "全部期間";
 

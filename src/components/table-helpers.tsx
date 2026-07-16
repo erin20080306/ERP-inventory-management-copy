@@ -56,6 +56,8 @@ export function TableHint() {
         <span>⌨️ <strong>方向鍵</strong>：↑↓ 跳行、←→ 跳欄</span>
         <span>↵ <strong>Enter</strong>：儲存並跳下一行</span>
         <span>⇥ <strong>Tab</strong>：跳下一欄 / Shift+Tab 上一欄</span>
+        <span>📋 <strong>複製貼上</strong>：支援 Excel 多列多欄資料</span>
+        <span>🖱️ <strong>右鍵</strong>：複製貼上、編輯、刪除；表頭可新增／隱藏欄位</span>
         <span>⎋ <strong>Escape</strong>：取消編輯</span>
       </div>
     </div>

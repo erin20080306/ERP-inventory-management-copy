@@ -10,10 +10,11 @@ export const dynamic = "force-dynamic";
 export default async function TrialBalancePrint({
   searchParams,
 }: {
-  searchParams: { date?: string };
+  searchParams: Promise<{ date?: string }>;
 }) {
+  const query = await searchParams;
   const tenantId = await requireTenantId();
-  const asOf = searchParams.date ? new Date(searchParams.date) : new Date();
+  const asOf = query.date ? new Date(query.date) : new Date();
   const trial = await computeTrialBalance(asOf, tenantId);
 
   const sumOpening = trial.reduce((s, a) => s + a.openingBalance, 0);

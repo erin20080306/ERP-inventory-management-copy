@@ -11,7 +11,7 @@ import { Loader2, Search, CreditCard, Download, Printer, FileDown, ListChecks, T
 import { formatDate, formatMoney } from "@/lib/utils";
 import { downloadCSV, toCSV } from "@/lib/csv";
 import { ConvertToJournalButton } from "@/components/convert-to-journal-button";
-import { useCustomColumns, CustomColumnDialog, CustomColumnButton, getCustomFieldValues, setCustomFieldValue } from "@/components/custom-columns";
+import { useCustomColumns, useCustomFieldValues, CustomColumnDialog, CustomColumnButton, CustomFieldGridCell } from "@/components/custom-columns";
 import { readSessionCache, TableHint, TableSkeletonRows, useColumnDrag, useDebouncedValue, writeSessionCache } from "@/components/table-helpers";
 
 function LedgerSummarySkeleton() {
@@ -46,7 +46,8 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
   const [summaryLoading, setSummaryLoading] = useState(true);
   const pageSize = 20;
   const customCols = useCustomColumns(kind === "ar" ? "receivables" : "payables");
-  const [editingCells, setEditingCells] = useState<Record<string, any>>({});
+  const customFieldModule = kind === "ar" ? "receivables" : "payables";
+  const customFieldValues = useCustomFieldValues(customFieldModule, rows.map((row) => row.id));
   const colDrag = useColumnDrag(kind === "ar" ? "receivables" : "payables", ["party", "relNumber", "date", "amount", "paid", "balance", "status", "updatedBy"]);
   const [inlineEditing, setInlineEditing] = useState<Record<string, Record<string, any>>>({});
   const [inlineSaving, setInlineSaving] = useState<string | null>(null);
@@ -336,15 +337,15 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
 
       <TableHint />
       <Table>
-        <THead>
+        <THead onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title="表頭按右鍵可新增／刪減自訂欄位">
           <TR>
-            <TH {...colDrag.thProps("party")}>{partyLabel}</TH><TH {...colDrag.thProps("relNumber")}>關聯單號</TH><TH {...colDrag.thProps("date")}>日期</TH><TH {...colDrag.thProps("dueDate")}>到期日</TH><TH {...colDrag.thProps("amount")}>金額</TH><TH {...colDrag.thProps("paid")}>已{kind === "ar" ? "收" : "付"}</TH><TH {...colDrag.thProps("balance")}>未結</TH><TH {...colDrag.thProps("status")}>狀態</TH><TH {...colDrag.thProps("updatedBy")}>操作人員</TH>{customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}<TH className="w-24 text-right">操作</TH>
+            <TH {...colDrag.thProps("party")}>{partyLabel}</TH><TH {...colDrag.thProps("relNumber")}>關聯單號</TH><TH {...colDrag.thProps("date")}>日期</TH><TH {...colDrag.thProps("dueDate")}>到期日</TH><TH {...colDrag.thProps("amount")}>金額</TH><TH {...colDrag.thProps("paid")}>已{kind === "ar" ? "收" : "付"}</TH><TH {...colDrag.thProps("balance")}>未結</TH><TH {...colDrag.thProps("status")}>狀態</TH><TH {...colDrag.thProps("updatedBy")}>操作人員</TH>{customCols.columns.map((cc) => <TH key={cc.id} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title="按右鍵管理自訂欄位">{cc.label}</TH>)}<TH className="w-24 text-right">操作</TH>
           </TR>
         </THead>
         <TBody>
           {loading && rows.length === 0 && <TableSkeletonRows columns={10 + customCols.columns.length} />}
           {!loading && rows.length === 0 && <TR><TD colSpan={10 + customCols.columns.length}><EmptyState /></TD></TR>}
-          {rows.length > 0 && rows.map((r) => {
+          {rows.length > 0 && rows.map((r, rowIndex) => {
             const party = kind === "ar" ? r.customer : r.supplier;
             const rel = kind === "ar" ? r.salesOrder : r.purchaseOrder;
             const balance = Number(r.amount) - Number(r.paidAmount);
@@ -444,35 +445,7 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
                     </>
                   )}
                 </TD>
-                {customCols.columns.map((cc) => {
-                  const cellKey = `${r.id}_${cc.id}`;
-                  const vals = getCustomFieldValues(kind === "ar" ? "receivables" : "payables", r.id);
-                  const isEditing = editingCells[cellKey];
-                  return (
-                    <TD key={cc.id}>
-                      {isEditing ? (
-                        <Input
-                          type={cc.type === "number" ? "number" : cc.type === "date" ? "date" : "text"}
-                          defaultValue={vals[cc.id] ?? ""}
-                          autoFocus
-                          className="h-7 text-xs"
-                          onBlur={(e) => {
-                            setCustomFieldValue(kind === "ar" ? "receivables" : "payables", r.id, cc.id, e.target.value);
-                            setEditingCells((p) => ({ ...p, [cellKey]: false }));
-                          }}
-                          onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-                        />
-                      ) : (
-                        <span
-                          className="inline-block min-h-[24px] min-w-[40px] cursor-pointer rounded px-1 py-0.5 transition-colors hover:bg-muted"
-                          onClick={() => setEditingCells((p) => ({ ...p, [cellKey]: true }))}
-                        >
-                          {vals[cc.id] || "—"}
-                        </span>
-                      )}
-                    </TD>
-                  );
-                })}
+                {customCols.columns.map((cc, columnIndex) => { const vals = customFieldValues.getValues(r.id); return <TD key={cc.id}><CustomFieldGridCell gridId={`ledger-${kind}`} rowId={r.id} rowIndex={rowIndex} column={cc} columnIndex={columnIndex} rowIds={rows.map((row) => row.id)} columns={customCols.columns} value={vals[cc.id] ?? ""} saveValues={customFieldValues.saveValues} onManageColumns={() => customCols.setOpen(true)} /></TD>; })}
               </TR>
             );
           })}

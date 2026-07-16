@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { apiHandler, requirePermission, requireTenantId, audit, nextNumber, getCurrentUserId } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { calcTotals } from "@/lib/documents";
-import { autoCreateJournalFromOrder } from "@/lib/auto-journal";
 
 export const GET = apiHandler(async (req: NextRequest) => {
   const session = await requirePermission("purchases.view");
@@ -42,6 +41,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
         items: {
           select: {
             quantity: true,
+            receivedQty: true,
             unitPrice: true,
             subtotal: true,
             discount: true,
@@ -76,8 +76,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
   if (!items?.length) throw new Error("請至少新增一項商品");
   const totals = calcTotals(items, isTaxable !== false);
   const number = await nextNumber("PO", tenantId);
-  const s = status ?? "DRAFT";
-  const isApproved = s === "SUBMITTED" || s === "APPROVED";
+  const s = status === "SUBMITTED" ? "SUBMITTED" : "DRAFT";
 
   // 使用 transaction 合併所有寫入，減少網路往返
   const created = await prisma.$transaction(async (tx) => {
@@ -108,39 +107,10 @@ export const POST = apiHandler(async (req: NextRequest) => {
       include: { items: true, supplier: true },
     });
 
-    if (isApproved) {
-      await tx.accountsPayable.create({
-        data: { tenantId, supplierId, purchaseOrderId: order.id, amount: totals.total, status: "DRAFT" },
-      });
-      // 核准時自動入庫到預設倉庫
-      const defaultWh = await tx.warehouse.findFirst({ where: { tenantId, isActive: true }, orderBy: { createdAt: "asc" } });
-      if (defaultWh) {
-        for (const item of order.items) {
-          await tx.inventoryStock.upsert({
-            where: { productId_warehouseId: { productId: item.productId, warehouseId: defaultWh.id } },
-            update: { quantity: { increment: item.quantity } },
-            create: { tenantId, productId: item.productId, warehouseId: defaultWh.id, quantity: item.quantity },
-          });
-          await tx.inventoryTransaction.create({
-            data: { tenantId, productId: item.productId, warehouseId: defaultWh.id, type: "PURCHASE_IN", quantity: item.quantity, unitCost: item.unitPrice, refType: "PURCHASE", refId: order.id, remark: `採購核准入庫 ${order.number}` },
-          });
-        }
-      }
-    }
-
     return order;
   });
 
-  // 非同步處理：audit + 自動傳票（不阻塞回應）
-  const bgTasks: Promise<any>[] = [
-    audit({ userId: session.user.id, action: "create", module: "purchases", refId: created.id, detail: number }),
-  ];
-  if (isApproved) {
-    bgTasks.push(
-      autoCreateJournalFromOrder("purchase", created, tenantId, session.user.id)
-    );
-  }
-  await Promise.all(bgTasks);
+  await audit({ userId: session.user.id, action: "create", module: "purchases", refId: created.id, detail: number });
 
-  return NextResponse.json({ ...created, autoCreated: isApproved });
+  return NextResponse.json({ ...created, autoCreated: false });
 });

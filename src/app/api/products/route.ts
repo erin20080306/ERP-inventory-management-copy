@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { apiHandler, requirePermission, requireTenantId, audit, getCurrentUserId } from "@/lib/api";
+import { ApiError, apiHandler, requirePermission, requireTenantId, audit, getCurrentUserId } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 
@@ -28,6 +28,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const q = sp.get("q") ?? "";
   const page = Number(sp.get("page") ?? 1);
   const pageSize = Math.min(Number(sp.get("pageSize") ?? 20), 200);
+  const warehouseId = sp.get("warehouseId") ?? "";
   const fromDate = sp.get("from") ?? "";
   const toDate = sp.get("to") ?? "";
   const where: any = q
@@ -58,7 +59,10 @@ export const GET = apiHandler(async (req: NextRequest) => {
         imageUrl: true,
         category: { select: { name: true } },
         unit: { select: { name: true } },
-        stocks: { select: { quantity: true } },
+        stocks: {
+          where: warehouseId ? { warehouseId } : undefined,
+          select: { quantity: true },
+        },
         taxRate: { select: { rate: true } },
       },
       orderBy: { createdAt: "desc" },
@@ -89,13 +93,21 @@ export const POST = apiHandler(async (req: NextRequest) => {
   const tenantId = await requireTenantId();
   const currentUserId = await getCurrentUserId();
   const body = ProductInput.parse(await req.json());
+  const normalizedBarcode = body.barcode?.trim() || null;
   const upsert = req.nextUrl.searchParams.get("upsert") === "1";
+  if (normalizedBarcode) {
+    const duplicate = await prisma.product.findFirst({
+      where: { tenantId, barcode: normalizedBarcode, ...(upsert ? { sku: { not: body.sku } } : {}) },
+      select: { sku: true, name: true },
+    });
+    if (duplicate) throw new ApiError(409, `條碼 ${normalizedBarcode} 已由 ${duplicate.sku} ${duplicate.name} 使用`);
+  }
   if (upsert) {
     const { stockQty, ...productData } = body;
     const result = await prisma.product.upsert({
       where: { tenantId_sku: { tenantId, sku: body.sku } },
-      update: { ...productData, updatedBy: currentUserId } as any,
-      create: { ...productData, tenantId, updatedBy: currentUserId } as any,
+      update: { ...productData, barcode: normalizedBarcode, updatedBy: currentUserId } as any,
+      create: { ...productData, barcode: normalizedBarcode, tenantId, updatedBy: currentUserId } as any,
     });
     // 庫存數量處理：導入時写入預設倉庫
     if (stockQty != null && stockQty >= 0) {
@@ -112,7 +124,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
     return NextResponse.json(result);
   }
   const { stockQty: _sq, ...createData } = body;
-  const created = await prisma.product.create({ data: { ...createData, tenantId, updatedBy: currentUserId } as any });
+  const created = await prisma.product.create({ data: { ...createData, barcode: normalizedBarcode, tenantId, updatedBy: currentUserId } as any });
   // 自動在預設倉庫建立庫存記錄（數量 0），確保庫存管理頁面可見
   const defaultWh = await prisma.warehouse.findFirst({ where: { tenantId, isActive: true }, orderBy: { createdAt: "asc" } });
   if (defaultWh) {

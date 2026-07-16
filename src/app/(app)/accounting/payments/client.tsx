@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { Loader2, Search, Download, Printer, FileDown } from "lucide-react";
 import { formatDate, formatMoney } from "@/lib/utils";
 import { downloadCSV, toCSV } from "@/lib/csv";
-import { useCustomColumns, CustomColumnDialog, CustomColumnButton, getCustomFieldValues, setCustomFieldValue } from "@/components/custom-columns";
+import { useCustomColumns, useCustomFieldValues, CustomColumnDialog, CustomColumnButton, CustomFieldGridCell } from "@/components/custom-columns";
 import { readSessionCache, TableHint, TableSkeletonRows, useColumnDrag, useDebouncedValue, writeSessionCache } from "@/components/table-helpers";
 
 export function PaymentHistoryClient() {
@@ -25,7 +25,7 @@ export function PaymentHistoryClient() {
   const [pdfBusy, setPdfBusy] = useState(false);
   const pageSize = 20;
   const customCols = useCustomColumns("payments");
-  const [editingCells, setEditingCells] = useState<Record<string, any>>({});
+  const customFieldValues = useCustomFieldValues("payments", rows.map((row) => row.id));
   const colDrag = useColumnDrag("payments", ["type", "number", "party", "relNumber", "amount", "method", "date", "remark"]);
 
   async function load() {
@@ -144,7 +144,7 @@ export function PaymentHistoryClient() {
 
       <TableHint />
       <Table>
-        <THead>
+        <THead onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title="表頭按右鍵可新增／刪減自訂欄位">
           <TR>
             <TH {...colDrag.thProps("type")}>類型</TH>
             <TH {...colDrag.thProps("number")}>單號</TH>
@@ -154,13 +154,13 @@ export function PaymentHistoryClient() {
             <TH {...colDrag.thProps("method")}>方式</TH>
             <TH {...colDrag.thProps("date")}>日期</TH>
             <TH {...colDrag.thProps("remark")}>備註</TH>
-            {customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}
+            {customCols.columns.map((cc) => <TH key={cc.id} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title="按右鍵管理自訂欄位">{cc.label}</TH>)}
           </TR>
         </THead>
         <TBody>
           {loading && rows.length === 0 && <TableSkeletonRows columns={8 + customCols.columns.length} />}
           {!loading && rows.length === 0 && <TR><TD colSpan={8 + customCols.columns.length}><EmptyState /></TD></TR>}
-          {rows.length > 0 && rows.map((r) => (
+          {rows.length > 0 && rows.map((r, rowIndex) => (
             <TR key={r.id}>
               <TD>{typeBadge(r.type)}</TD>
               <TD className="font-mono text-xs">{r.number}</TD>
@@ -170,35 +170,7 @@ export function PaymentHistoryClient() {
               <TD>{methodLabel(r.method)}</TD>
               <TD>{formatDate(r.date)}</TD>
               <TD className="text-muted-foreground text-xs max-w-[150px] truncate">{r.remark ?? ""}</TD>
-              {customCols.columns.map((cc) => {
-                const cellKey = `${r.id}_${cc.id}`;
-                const vals = getCustomFieldValues("payments", r.id);
-                const isEditing = editingCells[cellKey];
-                return (
-                  <TD key={cc.id}>
-                    {isEditing ? (
-                      <Input
-                        type={cc.type === "number" ? "number" : cc.type === "date" ? "date" : "text"}
-                        defaultValue={vals[cc.id] ?? ""}
-                        autoFocus
-                        className="h-7 text-xs"
-                        onBlur={(e) => {
-                          setCustomFieldValue("payments", r.id, cc.id, e.target.value);
-                          setEditingCells((p) => ({ ...p, [cellKey]: false }));
-                        }}
-                        onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-                      />
-                    ) : (
-                      <span
-                        className="inline-block min-h-[24px] min-w-[40px] cursor-pointer rounded px-1 py-0.5 transition-colors hover:bg-muted"
-                        onClick={() => setEditingCells((p) => ({ ...p, [cellKey]: true }))}
-                      >
-                        {vals[cc.id] || "—"}
-                      </span>
-                    )}
-                  </TD>
-                );
-              })}
+              {customCols.columns.map((cc, columnIndex) => { const vals = customFieldValues.getValues(r.id); return <TD key={cc.id}><CustomFieldGridCell gridId="payments" rowId={r.id} rowIndex={rowIndex} column={cc} columnIndex={columnIndex} rowIds={rows.map((row) => row.id)} columns={customCols.columns} value={vals[cc.id] ?? ""} saveValues={customFieldValues.saveValues} onManageColumns={() => customCols.setOpen(true)} /></TD>; })}
             </TR>
           ))}
         </TBody>

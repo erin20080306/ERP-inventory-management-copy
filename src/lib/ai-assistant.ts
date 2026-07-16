@@ -1,10 +1,12 @@
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import { prisma } from "@/lib/prisma";
 
 const STATUS_LABELS: Record<string, string> = {
   DRAFT: "草稿",
   SUBMITTED: "已送審",
   APPROVED: "已審核",
+  PARTIALLY_RECEIVED: "部分進貨",
+  PARTIALLY_SHIPPED: "部分出貨",
   POSTED: "已過帳",
   VOIDED: "已作廢",
   REJECTED: "已駁回",
@@ -2295,16 +2297,20 @@ export function buildAssistantHtmlReport(result: ReportResult) {
 </html>`;
 }
 
-export function buildAssistantExcelBuffer(result: ReportResult) {
-  const wb = XLSX.utils.book_new();
+export async function buildAssistantExcelBuffer(result: ReportResult) {
+  const workbook = new ExcelJS.Workbook();
   const overview = [
     { 項目: "標題", 值: result.title },
     { 項目: "說明", 值: result.description },
     ...result.cards.map((card) => ({ 項目: card.label, 值: card.value })),
   ];
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(overview), "摘要");
+  const summary = workbook.addWorksheet("摘要");
+  summary.columns = [{ header: "項目", key: "項目", width: 24 }, { header: "值", key: "值", width: 48 }];
+  summary.addRows(overview);
   for (const item of result.tables) {
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(item.rows), item.title.slice(0, 31));
+    const sheet = workbook.addWorksheet(item.title.slice(0, 31));
+    sheet.columns = item.columns.map((column) => ({ header: column, key: column, width: 20 }));
+    sheet.addRows(item.rows);
   }
-  return XLSX.write(wb, { bookType: "xlsx", type: "buffer" }) as Buffer;
+  return Buffer.from(await workbook.xlsx.writeBuffer());
 }

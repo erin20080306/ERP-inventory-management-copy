@@ -1,7 +1,8 @@
 import { prisma } from "./prisma";
+import { STANDARD_ACCOUNTS } from "../../prisma/standard-accounts";
 
 // 台灣商業會計法標準會計科目表
-const CHART_OF_ACCOUNTS: { code: string; name: string; type: string; parent?: string }[] = [
+export const LEGACY_CHART_OF_ACCOUNTS: { code: string; name: string; type: string; parent?: string }[] = [
   // ═══════ 資產 ASSET ═══════
   { code: "1000", name: "資產", type: "ASSET" },
   // 流動資產
@@ -159,7 +160,7 @@ const CHART_OF_ACCOUNTS: { code: string; name: string; type: string; parent?: st
 export async function seedTenantDefaults(tenantId: string) {
   await prisma.$transaction(async (tx: any) => {
     // 1. 編號規則 + 稅率 + 倉庫 + 公司設定 — 全部在同一 transaction
-    const seqs = ["PO", "SO", "QT", "JE", "RP", "SP", "SR", "PR", "ADJ", "TRF", "INV", "DN"];
+    const seqs = ["PO", "SO", "QT", "JE", "RP", "SP", "SR", "PR", "ADJ", "TRF", "INV", "DN", "GR", "POS", "PRF", "DINE", "KOT"];
     await tx.numberSequence.createMany({
       data: seqs.map((k: string) => ({ tenantId, key: k, prefix: k })),
       skipDuplicates: true,
@@ -178,6 +179,40 @@ export async function seedTenantDefaults(tenantId: string) {
       skipDuplicates: true,
     });
 
+    const mainWarehouse = await tx.warehouse.findFirst({
+      where: { tenantId, code: "WH01" },
+      select: { id: true },
+    });
+    if (mainWarehouse) {
+      await tx.posRegister.upsert({
+        where: { tenantId_code: { tenantId, code: "POS01" } },
+        update: { warehouseId: mainWarehouse.id, isActive: true },
+        create: {
+          tenantId,
+          warehouseId: mainWarehouse.id,
+          code: "POS01",
+          name: "第一收銀台",
+        },
+      });
+    }
+
+    const tenant = await tx.tenant.findUnique({ where: { id: tenantId }, select: { businessMode: true } });
+    if (tenant?.businessMode === "POS_RESTAURANT") {
+      const area = await tx.restaurantArea.upsert({
+        where: { tenantId_code: { tenantId, code: "DINING" } },
+        update: { isActive: true },
+        create: { tenantId, code: "DINING", name: "用餐區", sortOrder: 1 },
+      });
+      for (let index = 1; index <= 8; index += 1) {
+        const code = `T${String(index).padStart(2, "0")}`;
+        await tx.restaurantTable.upsert({
+          where: { tenantId_code: { tenantId, code } },
+          update: { areaId: area.id, isActive: true },
+          create: { tenantId, areaId: area.id, code, name: `${index} 號桌`, seats: index <= 2 ? 2 : 4, sortOrder: index },
+        });
+      }
+    }
+
     const existing = await tx.companySetting.findFirst({ where: { tenantId } });
     if (!existing) {
       await tx.companySetting.create({
@@ -185,33 +220,15 @@ export async function seedTenantDefaults(tenantId: string) {
       });
     }
 
-    // 2. 標準會計科目表
-    const existingAccounts = await tx.chartOfAccount.count({ where: { tenantId } });
-    if (existingAccounts === 0) {
-      await tx.chartOfAccount.createMany({
-        data: CHART_OF_ACCOUNTS.map((a) => ({
-          tenantId,
-          code: a.code,
-          name: a.name,
-          type: a.type as any,
-        })),
-        skipDuplicates: true,
-      });
-      // 查回科目 id，用 raw SQL 一次更新所有 parentId
-      const all: { id: string; code: string }[] = await tx.chartOfAccount.findMany({
-        where: { tenantId },
-        select: { id: true, code: true },
-      });
-      const idMap = Object.fromEntries(all.map((a) => [a.code, a.id]));
-      const withParent = CHART_OF_ACCOUNTS.filter((a) => a.parent && idMap[a.parent] && idMap[a.code]);
-      if (withParent.length > 0) {
-        // 用 CASE WHEN 一條 SQL 更新全部 parentId
-        const cases = withParent.map((a) => `WHEN id = '${idMap[a.code]}' THEN '${idMap[a.parent!]}'`).join(" ");
-        const ids = withParent.map((a) => `'${idMap[a.code]}'`).join(",");
-        await tx.$executeRawUnsafe(
-          `UPDATE "ChartOfAccount" SET "parentId" = CASE ${cases} END WHERE id IN (${ids})`
-        );
-      }
-    }
+    // 2. 自動傳票使用的標準科目必須每個租戶都存在。skipDuplicates 也能安全補齊舊租戶。
+    await tx.chartOfAccount.createMany({
+      data: STANDARD_ACCOUNTS.map((account) => ({
+        tenantId,
+        code: account.code,
+        name: account.name,
+        type: account.type,
+      })),
+      skipDuplicates: true,
+    });
   }, { timeout: 30000 });
 }

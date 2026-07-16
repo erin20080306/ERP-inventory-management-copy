@@ -1,0 +1,48 @@
+import { execFileSync } from "node:child_process";
+import { chmodSync, cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import path from "node:path";
+import { writeReleaseManifest } from "./write-release-manifest.mjs";
+
+const root = process.cwd();
+const packageJson = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8"));
+const rawVersion = process.argv[2] || process.env.GITHUB_REF_NAME || `v${packageJson.version}-local`;
+const version = rawVersion.replace(/[^A-Za-z0-9._-]/g, "-");
+const imageTag = process.argv[3] || (process.env.GITHUB_REF_NAME ? rawVersion : "latest");
+const outputDir = path.join(root, "dist", "desktop");
+const stagingDir = path.join(root, "dist", ".host-installer-staging");
+
+rmSync(stagingDir, { recursive: true, force: true });
+mkdirSync(outputDir, { recursive: true });
+
+function prepare(platform) {
+  const target = path.join(stagingDir, platform);
+  mkdirSync(path.join(target, "installer"), { recursive: true });
+  mkdirSync(path.join(target, "docker"), { recursive: true });
+  cpSync(path.join(root, "docker-compose.local.yml"), path.join(target, "docker-compose.local.yml"));
+  cpSync(path.join(root, "docker", "Caddyfile"), path.join(target, "docker", "Caddyfile"));
+  writeFileSync(path.join(target, "image-tag.txt"), `${imageTag}\n`);
+  return target;
+}
+
+const mac = prepare("macos");
+cpSync(path.join(root, "installer", "安裝艾琳ERP.command"), path.join(mac, "installer", "Install-ErinERP.command"));
+chmodSync(path.join(mac, "installer", "Install-ErinERP.command"), 0o755);
+
+const windows = prepare("windows");
+cpSync(path.join(root, "installer", "安裝艾琳ERP.ps1"), path.join(windows, "installer", "Install-ErinERP.ps1"));
+writeFileSync(path.join(windows, "installer", "Install-ErinERP.bat"), "@echo off\r\nchcp 65001 >nul\r\npowershell.exe -NoProfile -ExecutionPolicy Bypass -File \"%~dp0Install-ErinERP.ps1\"\r\nif errorlevel 1 pause\r\n");
+
+const artifacts = [
+  { platform: "macOS", staging: mac, name: `ErinERP-Host-macOS-${version}.zip` },
+  { platform: "Windows", staging: windows, name: `ErinERP-Host-Windows-${version}.zip` },
+];
+
+for (const artifact of artifacts) {
+  const target = path.join(outputDir, artifact.name);
+  rmSync(target, { force: true });
+  execFileSync("zip", ["-qr", target, "."], { cwd: artifact.staging, stdio: "inherit" });
+}
+writeReleaseManifest(outputDir, rawVersion, { desktopSigned: false });
+rmSync(stagingDir, { recursive: true, force: true });
+
+console.log(`Host installers: PASS (${artifacts.map((item) => item.name).join(", ")})`);

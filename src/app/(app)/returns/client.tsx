@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { Plus, Loader2, Trash2, Search, Printer, Pencil } from "lucide-react";
 import { formatDate, formatMoney } from "@/lib/utils";
 import { ConvertToJournalButton } from "@/components/convert-to-journal-button";
-import { useCustomColumns, CustomColumnDialog, CustomColumnButton, getCustomFieldValues, setCustomFieldValue } from "@/components/custom-columns";
+import { useCustomColumns, useCustomFieldValues, CustomColumnDialog, CustomColumnButton, CustomFieldGridCell } from "@/components/custom-columns";
 import { readSessionCache, TableHint, TableSkeletonRows, useColumnDrag, useDebouncedValue, writeSessionCache } from "@/components/table-helpers";
 
 type ReturnItem = {
@@ -210,7 +210,7 @@ export default function ReturnsClient() {
   const [editPurchaseId, setEditPurchaseId] = useState<string | null>(null);
   const [pdfBusy, setPdfBusy] = useState(false);
   const customCols = useCustomColumns("returns");
-  const [editingCells, setEditingCells] = useState<Record<string, any>>({});
+  const customFieldValues = useCustomFieldValues("returns", [...salesReturns, ...purchaseReturns].map((row) => row.id));
   const colDrag = useColumnDrag("returns", ["number", "party", "date", "reason", "total", "status", "updatedBy"]);
   const [inlineEditing, setInlineEditing] = useState<Record<string, Record<string, any>>>({});
   const [inlineSaving, setInlineSaving] = useState<string | null>(null);
@@ -414,13 +414,13 @@ export default function ReturnsClient() {
       <div>
             <h3 className="text-lg font-semibold mb-3">銷售退貨</h3>
             <Table>
-              <THead>
-                <TR><TH {...colDrag.thProps("number")}>單號</TH><TH {...colDrag.thProps("party")}>客戶</TH><TH {...colDrag.thProps("date")}>日期</TH><TH {...colDrag.thProps("reason")}>原因</TH><TH {...colDrag.thProps("total")}>總計</TH><TH {...colDrag.thProps("status")}>狀態</TH><TH {...colDrag.thProps("updatedBy")}>操作人員</TH>{customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}<TH className="text-right">操作</TH></TR>
+              <THead onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title="表頭按右鍵可新增／刪減自訂欄位">
+                <TR><TH {...colDrag.thProps("number")}>單號</TH><TH {...colDrag.thProps("party")}>客戶</TH><TH {...colDrag.thProps("date")}>日期</TH><TH {...colDrag.thProps("reason")}>原因</TH><TH {...colDrag.thProps("total")}>總計</TH><TH {...colDrag.thProps("status")}>狀態</TH><TH {...colDrag.thProps("updatedBy")}>操作人員</TH>{customCols.columns.map((cc) => <TH key={cc.id} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title="按右鍵管理自訂欄位">{cc.label}</TH>)}<TH className="text-right">操作</TH></TR>
               </THead>
               <TBody>
                 {salesLoading && salesReturns.length === 0 && <TableSkeletonRows columns={8 + customCols.columns.length} />}
                 {!salesLoading && salesReturns.length === 0 && <TR><TD colSpan={8 + customCols.columns.length} className="text-center text-muted-foreground">尚無資料</TD></TR>}
-                {salesReturns.map((r) => {
+                {salesReturns.map((r, rowIndex) => {
                   const draft = inlineEditing[r.id];
                   const isRowEditing = !!draft;
                   return (
@@ -447,7 +447,7 @@ export default function ReturnsClient() {
                     <TD>{formatMoney(r.total)}</TD>
                     <TD><StatusBadge status={r.status} /></TD>
                     <TD className="text-xs text-gray-500">{r.updatedBy || "-"}</TD>
-                    {customCols.columns.map((cc) => { const ck = `${r.id}_${cc.id}`; const v = getCustomFieldValues("returns", r.id); const isE = editingCells[ck]; return <TD key={cc.id}>{isE ? <Input type={cc.type === "number" ? "number" : cc.type === "date" ? "date" : "text"} defaultValue={v[cc.id] ?? ""} autoFocus className="h-7 text-xs" onBlur={(e) => { setCustomFieldValue("returns", r.id, cc.id, e.target.value); setEditingCells((p) => ({ ...p, [ck]: false })); }} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} /> : <span className="inline-block min-h-[24px] min-w-[40px] cursor-pointer rounded px-1 py-0.5 transition-colors hover:bg-muted" onClick={() => setEditingCells((p) => ({ ...p, [ck]: true }))}>{v[cc.id] || "—"}</span>}</TD>; })}
+                    {customCols.columns.map((cc, columnIndex) => { const v = customFieldValues.getValues(r.id); return <TD key={cc.id}><CustomFieldGridCell gridId="sales-returns" rowId={r.id} rowIndex={rowIndex} column={cc} columnIndex={columnIndex} rowIds={salesReturns.map((row) => row.id)} columns={customCols.columns} value={v[cc.id] ?? ""} saveValues={customFieldValues.saveValues} onManageColumns={() => customCols.setOpen(true)} /></TD>; })}
                     <TD className="text-right flex items-center justify-end gap-1">
                       {r.status === "DRAFT" && <Button size="sm" variant="outline" onClick={() => onAct(r.id, "submit", true)}>送出</Button>}
                       {r.status === "SUBMITTED" && (
@@ -482,13 +482,13 @@ export default function ReturnsClient() {
           <div>
             <h3 className="text-lg font-semibold mb-3">採購退貨</h3>
             <Table>
-              <THead>
-                <TR><TH {...colDrag.thProps("number")}>單號</TH><TH {...colDrag.thProps("party")}>供應商</TH><TH {...colDrag.thProps("date")}>日期</TH><TH {...colDrag.thProps("reason")}>原因</TH><TH {...colDrag.thProps("total")}>總計</TH><TH {...colDrag.thProps("status")}>狀態</TH><TH {...colDrag.thProps("updatedBy")}>操作人員</TH>{customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}<TH className="text-right">操作</TH></TR>
+              <THead onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title="表頭按右鍵可新增／刪減自訂欄位">
+                <TR><TH {...colDrag.thProps("number")}>單號</TH><TH {...colDrag.thProps("party")}>供應商</TH><TH {...colDrag.thProps("date")}>日期</TH><TH {...colDrag.thProps("reason")}>原因</TH><TH {...colDrag.thProps("total")}>總計</TH><TH {...colDrag.thProps("status")}>狀態</TH><TH {...colDrag.thProps("updatedBy")}>操作人員</TH>{customCols.columns.map((cc) => <TH key={cc.id} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title="按右鍵管理自訂欄位">{cc.label}</TH>)}<TH className="text-right">操作</TH></TR>
               </THead>
               <TBody>
                 {purchaseLoading && purchaseReturns.length === 0 && <TableSkeletonRows columns={8 + customCols.columns.length} />}
                 {!purchaseLoading && purchaseReturns.length === 0 && <TR><TD colSpan={8 + customCols.columns.length} className="text-center text-muted-foreground">尚無資料</TD></TR>}
-                {purchaseReturns.map((r) => {
+                {purchaseReturns.map((r, rowIndex) => {
                   const draft = inlineEditing[r.id];
                   const isRowEditing = !!draft;
                   return (
@@ -515,7 +515,7 @@ export default function ReturnsClient() {
                     <TD>{formatMoney(r.total)}</TD>
                     <TD><StatusBadge status={r.status} /></TD>
                     <TD className="text-xs text-gray-500">{r.updatedBy || "-"}</TD>
-                    {customCols.columns.map((cc) => { const ck = `${r.id}_${cc.id}`; const v = getCustomFieldValues("returns", r.id); const isE = editingCells[ck]; return <TD key={cc.id}>{isE ? <Input type={cc.type === "number" ? "number" : cc.type === "date" ? "date" : "text"} defaultValue={v[cc.id] ?? ""} autoFocus className="h-7 text-xs" onBlur={(e) => { setCustomFieldValue("returns", r.id, cc.id, e.target.value); setEditingCells((p) => ({ ...p, [ck]: false })); }} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} /> : <span className="inline-block min-h-[24px] min-w-[40px] cursor-pointer rounded px-1 py-0.5 transition-colors hover:bg-muted" onClick={() => setEditingCells((p) => ({ ...p, [ck]: true }))}>{v[cc.id] || "—"}</span>}</TD>; })}
+                    {customCols.columns.map((cc, columnIndex) => { const v = customFieldValues.getValues(r.id); return <TD key={cc.id}><CustomFieldGridCell gridId="purchase-returns" rowId={r.id} rowIndex={rowIndex} column={cc} columnIndex={columnIndex} rowIds={purchaseReturns.map((row) => row.id)} columns={customCols.columns} value={v[cc.id] ?? ""} saveValues={customFieldValues.saveValues} onManageColumns={() => customCols.setOpen(true)} /></TD>; })}
                     <TD className="text-right flex items-center justify-end gap-1">
                       {r.status === "DRAFT" && <Button size="sm" variant="outline" onClick={() => onAct(r.id, "submit", false)}>送出</Button>}
                       {r.status === "SUBMITTED" && (

@@ -1,5 +1,8 @@
 node_modules
 .next
+dist
+desktop
+.local-test
 .env
 .env*.local
 prisma/migrations/dev.db*

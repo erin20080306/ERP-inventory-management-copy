@@ -3,6 +3,9 @@ import { getServerSession } from "next-auth";
 import { authOptions, hasPermission } from "./auth";
 import { prisma } from "./prisma";
 import { reportError } from "./error-report";
+import { getLicenseAccessForUser, verifyLocalWorkstationRequest } from "./license";
+import { appendAuditLog } from "./integrity";
+import { normalizeBusinessMode } from "./product-editions";
 
 const TENANT_EXISTS_TTL_MS = 60_000;
 const tenantExistsCache = new Map<string, { exists: boolean; expiresAt: number }>();
@@ -14,6 +17,10 @@ export async function getSession() {
 export async function requireAuth() {
   const session = await getSession();
   if (!session?.user) throw new ApiError(401, "未登入");
+  const access = await getLicenseAccessForUser(session.user.id);
+  if (!access.allowed) {
+    throw new ApiError(402, access.reason ?? "公司授權已到期，請聯絡艾琳設計開通");
+  }
   return session;
 }
 
@@ -22,6 +29,23 @@ export async function requirePermission(code: string) {
   if (!hasPermission(session.user.permissions, code)) {
     throw new ApiError(403, `權限不足: 需要 ${code}`);
   }
+  return session;
+}
+
+export async function requirePosPermission(action = "view", secondaryPermission?: string) {
+  const session = await requirePermission(`pos.${action}`);
+  if (secondaryPermission && !hasPermission(session.user.permissions, secondaryPermission)) {
+    throw new ApiError(403, `權限不足: 需要 ${secondaryPermission}`);
+  }
+  const mode = normalizeBusinessMode(session.user.businessMode);
+  if (!session.user.isSuperAdmin && mode === "ERP") throw new ApiError(403, "此公司未開通 POS 業態");
+  return session;
+}
+
+export async function requireRestaurantPermission(action = "view") {
+  const session = await requirePermission(`restaurant.${action}`);
+  const mode = normalizeBusinessMode(session.user.businessMode);
+  if (!session.user.isSuperAdmin && mode !== "POS_RESTAURANT") throw new ApiError(403, "此公司鎖定為非餐飲業態");
   return session;
 }
 
@@ -62,9 +86,29 @@ export class ApiError extends Error {
 }
 
 export function apiHandler<T extends (...args: any[]) => Promise<any>>(fn: T) {
-  return async (...args: Parameters<T>) => {
+  // Next 15 將動態路由 params 改為 Promise；在共用邊界解析一次，既有處理器
+  // 仍可安全地使用同步的 context.params，且匯出的型別符合 Route Handler 規格。
+  return async (
+    req: NextRequest,
+    context: { params: Promise<Record<string, string | string[] | undefined>> },
+  ) => {
+    const resolvedContext = context
+      ? { ...context, params: await context.params }
+      : undefined;
     try {
-      return await fn(...args);
+      if (process.env.LOCAL_LICENSE_MODE === "true") {
+        const activeSession = await getSession();
+        const tenantId = activeSession?.user?.tenantId;
+        if (tenantId && !activeSession?.user?.isSuperAdmin) {
+          const workstation = await verifyLocalWorkstationRequest(tenantId, {
+            method: req.method,
+            path: `${req.nextUrl.pathname}${req.nextUrl.search}`,
+            headers: req.headers,
+          });
+          if (!workstation.allowed) throw new ApiError(403, workstation.reason);
+        }
+      }
+      return await fn(req, resolvedContext);
     } catch (e: any) {
       if (e?.digest === "DYNAMIC_SERVER_USAGE" || e?.message?.includes("Dynamic server usage")) {
         throw e;
@@ -73,7 +117,6 @@ export function apiHandler<T extends (...args: any[]) => Promise<any>>(fn: T) {
         return NextResponse.json({ error: e.message }, { status: e.status });
       }
       console.error("[API Error]", e);
-      const req = args[0] as NextRequest | undefined;
       let ctx: { tenantId?: string | null; userId?: string | null; method?: string | null; path?: string | null; status: number; ip?: string | null; userAgent?: string | null } = { status: 500 };
       try {
         if (req && typeof (req as any).headers?.get === "function") {
@@ -101,7 +144,7 @@ export async function audit(opts: {
   ip?: string;
 }) {
   try {
-    await prisma.auditLog.create({ data: { ...opts } });
+    await appendAuditLog(opts);
   } catch (e) {
     console.error("[audit] failed", e);
   }

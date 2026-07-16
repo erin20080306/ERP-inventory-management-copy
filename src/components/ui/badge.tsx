@@ -42,6 +42,8 @@ export function StatusBadge({ status }: { status: string }) {
     DRAFT: { label: "草稿", variant: "outline" },
     SUBMITTED: { label: "已送審", variant: "info" },
     APPROVED: { label: "已審核", variant: "success" },
+    PARTIALLY_RECEIVED: { label: "部分進貨", variant: "warning" },
+    PARTIALLY_SHIPPED: { label: "部分出貨", variant: "warning" },
     POSTED: { label: "已過帳", variant: "success" },
     VOIDED: { label: "已作廢", variant: "danger" },
     REJECTED: { label: "已駁回", variant: "danger" },

@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import { Plus, Loader2, Trash2, Search, Download, FileDown, Printer, Pencil } from "lucide-react";
 import { formatDate, formatMoney } from "@/lib/utils";
 import { downloadCSV, toCSV } from "@/lib/csv";
-import { useCustomColumns, CustomColumnDialog, CustomColumnButton, getCustomFieldValues, setCustomFieldValue } from "@/components/custom-columns";
+import { useCustomColumns, useCustomFieldValues, CustomColumnDialog, CustomColumnButton, CustomFieldGridCell } from "@/components/custom-columns";
 import { readSessionCache, TableHint, useColumnDrag, useDebouncedValue, writeSessionCache } from "@/components/table-helpers";
 
 type QuotationItem = {
@@ -225,7 +225,6 @@ export default function QuotationClient() {
   const [editId, setEditId] = useState<string | null>(null);
   const [pdfBusy, setPdfBusy] = useState(false);
   const customCols = useCustomColumns("quotations");
-  const [editingCells, setEditingCells] = useState<Record<string, any>>({});
   const colDrag = useColumnDrag("quotations", ["number", "customer", "date", "validUntil", "total", "status", "updatedBy"]);
   const [inlineEditing, setInlineEditing] = useState<Record<string, Record<string, any>>>({});
   const [inlineSaving, setInlineSaving] = useState<string | null>(null);
@@ -249,6 +248,7 @@ export default function QuotationClient() {
   });
   const items: any[] = data?.items ?? [];
   const total = data?.total ?? 0;
+  const customFieldValues = useCustomFieldValues("quotations", items.map((item) => item.id));
   const tableColumnCount = 9 + customCols.columns.length;
   const showInitialLoading = isLoading && !data;
   const showRefreshing = isValidating && !!data && !isLoading;
@@ -437,14 +437,14 @@ export default function QuotationClient() {
       <TableHint />
 
       <Table>
-        <THead>
-          <TR><TH>圖片</TH><TH {...colDrag.thProps("number")}>單號</TH><TH {...colDrag.thProps("customer")}>客戶</TH><TH {...colDrag.thProps("date")}>日期</TH><TH {...colDrag.thProps("validUntil")}>有效期限</TH><TH {...colDrag.thProps("total")}>總計</TH><TH {...colDrag.thProps("status")}>狀態</TH><TH {...colDrag.thProps("updatedBy")}>操作人員</TH>{customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}<TH className="text-right">操作</TH></TR>
+        <THead onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title="表頭按右鍵可新增／刪減自訂欄位">
+          <TR><TH>圖片</TH><TH {...colDrag.thProps("number")}>單號</TH><TH {...colDrag.thProps("customer")}>客戶</TH><TH {...colDrag.thProps("date")}>日期</TH><TH {...colDrag.thProps("validUntil")}>有效期限</TH><TH {...colDrag.thProps("total")}>總計</TH><TH {...colDrag.thProps("status")}>狀態</TH><TH {...colDrag.thProps("updatedBy")}>操作人員</TH>{customCols.columns.map((cc) => <TH key={cc.id} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title="按右鍵管理自訂欄位">{cc.label}</TH>)}<TH className="text-right">操作</TH></TR>
         </THead>
         <TBody>
             {showInitialLoading && <TableSkeletonRows columns={tableColumnCount} />}
             {error && !showInitialLoading && items.length === 0 && <TR><TD colSpan={tableColumnCount} className="py-8 text-center text-sm text-destructive">{error.message || "資料載入失敗"}</TD></TR>}
             {!showInitialLoading && !error && items.length === 0 && <TR><TD colSpan={tableColumnCount} className="text-center text-muted-foreground">尚無報價單</TD></TR>}
-            {!showInitialLoading && items.map((q) => {
+            {!showInitialLoading && items.map((q, rowIndex) => {
               const draft = inlineEditing[q.id];
               const isRowEditing = !!draft;
               return (
@@ -497,12 +497,7 @@ export default function QuotationClient() {
                 <TD>{formatMoney(q.total)}</TD>
                 <TD><StatusBadge status={q.status} /></TD>
                 <TD className="text-xs text-gray-500">{q.updatedBy || "-"}</TD>
-                {customCols.columns.map((cc) => {
-                  const cellKey = `${q.id}_${cc.id}`;
-                  const vals = getCustomFieldValues("quotations", q.id);
-                  const isE = editingCells[cellKey];
-                  return <TD key={cc.id}>{isE ? <Input type={cc.type === "number" ? "number" : cc.type === "date" ? "date" : "text"} defaultValue={vals[cc.id] ?? ""} autoFocus className="h-7 text-xs" onBlur={(e) => { setCustomFieldValue("quotations", q.id, cc.id, e.target.value); setEditingCells((p) => ({ ...p, [cellKey]: false })); }} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} /> : <span className="inline-block min-h-[24px] min-w-[40px] cursor-pointer rounded px-1 py-0.5 transition-colors hover:bg-muted" onClick={() => setEditingCells((p) => ({ ...p, [cellKey]: true }))}>{vals[cc.id] || "—"}</span>}</TD>;
-                })}
+                {customCols.columns.map((cc, columnIndex) => { const vals = customFieldValues.getValues(q.id); return <TD key={cc.id}><CustomFieldGridCell gridId="quotations" rowId={q.id} rowIndex={rowIndex} column={cc} columnIndex={columnIndex} rowIds={items.map((item) => item.id)} columns={customCols.columns} value={vals[cc.id] ?? ""} saveValues={customFieldValues.saveValues} onManageColumns={() => customCols.setOpen(true)} /></TD>; })}
                 <TD className="text-right">
                   {q.status === "DRAFT" && <Button size="sm" variant="outline" onClick={() => onAct(q.id, "submit")}>送出</Button>}
                   {q.status === "SUBMITTED" && (

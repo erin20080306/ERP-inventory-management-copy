@@ -11,7 +11,7 @@ import { Plus, Trash2, Loader2, Search, Download, FileText, Ban, Printer, FileDo
 import { formatDate, formatMoney } from "@/lib/utils";
 import { downloadCSV, toCSV } from "@/lib/csv";
 import { ConvertToJournalButton } from "@/components/convert-to-journal-button";
-import { useCustomColumns, CustomColumnDialog, CustomColumnButton, getCustomFieldValues, setCustomFieldValue } from "@/components/custom-columns";
+import { useCustomColumns, useCustomFieldValues, CustomColumnDialog, CustomColumnButton, CustomFieldGridCell } from "@/components/custom-columns";
 import { TableHint, useColumnDrag } from "@/components/table-helpers";
 import { calculateInvoiceTotals, roundInvoiceAmount, roundInvoiceTax } from "@/lib/invoice-totals";
 
@@ -30,7 +30,7 @@ export function InvoiceClient() {
   const [pdfBusy, setPdfBusy] = useState(false);
   const pageSize = 20;
   const customCols = useCustomColumns("invoices");
-  const [editingCells, setEditingCells] = useState<Record<string, any>>({});
+  const customFieldValues = useCustomFieldValues("invoices", rows.map((row) => row.id));
   const colDrag = useColumnDrag("invoices", ["date", "type", "number", "party", "amountExTax", "taxAmount", "totalAmount", "status"]);
   const [inlineEditing, setInlineEditing] = useState<Record<string, Record<string, any>>>({});
   const [inlineSaving, setInlineSaving] = useState<string | null>(null);
@@ -253,15 +253,15 @@ export function InvoiceClient() {
 
       <TableHint />
       <Table>
-        <THead>
+        <THead onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title="表頭按右鍵可新增／刪減自訂欄位">
           <TR>
-            <TH {...colDrag.thProps("date")}>日期</TH><TH {...colDrag.thProps("type")}>類型</TH><TH {...colDrag.thProps("number")}>發票號碼</TH><TH {...colDrag.thProps("party")}>對象</TH><TH {...colDrag.thProps("amountExTax")}>未稅</TH><TH {...colDrag.thProps("taxAmount")}>稅額</TH><TH {...colDrag.thProps("totalAmount")}>含稅</TH><TH {...colDrag.thProps("status")}>狀態</TH><TH {...colDrag.thProps("remark")}>備註</TH>{customCols.columns.map((cc) => <TH key={cc.id}>{cc.label}</TH>)}<TH className="w-20 text-right">操作</TH>
+            <TH {...colDrag.thProps("date")}>日期</TH><TH {...colDrag.thProps("type")}>類型</TH><TH {...colDrag.thProps("number")}>發票號碼</TH><TH {...colDrag.thProps("party")}>對象</TH><TH {...colDrag.thProps("amountExTax")}>未稅</TH><TH {...colDrag.thProps("taxAmount")}>稅額</TH><TH {...colDrag.thProps("totalAmount")}>含稅</TH><TH {...colDrag.thProps("status")}>狀態</TH><TH {...colDrag.thProps("remark")}>備註</TH>{customCols.columns.map((cc) => <TH key={cc.id} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title="按右鍵管理自訂欄位">{cc.label}</TH>)}<TH className="w-20 text-right">操作</TH>
           </TR>
         </THead>
         <TBody>
           {loading && <TR><TD colSpan={9} className="text-center py-10"><Loader2 className="inline h-5 w-5 animate-spin" /></TD></TR>}
           {!loading && rows.length === 0 && <TR><TD colSpan={9}><EmptyState /></TD></TR>}
-          {!loading && rows.map((i) => {
+          {!loading && rows.map((i, rowIndex) => {
             const draft = inlineEditing[i.id];
             const isRowEditing = !!draft;
             return (
@@ -291,7 +291,7 @@ export function InvoiceClient() {
                   i.remark ?? "—"
                 )}
               </TD>
-              {customCols.columns.map((cc) => { const ck = `${i.id}_${cc.id}`; const v = getCustomFieldValues("invoices", i.id); const isE = editingCells[ck]; return <TD key={cc.id}>{isE ? <Input type={cc.type === "number" ? "number" : cc.type === "date" ? "date" : "text"} defaultValue={v[cc.id] ?? ""} autoFocus className="h-7 text-xs" onBlur={(e) => { setCustomFieldValue("invoices", i.id, cc.id, e.target.value); setEditingCells((p) => ({ ...p, [ck]: false })); }} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} /> : <span className="inline-block min-h-[24px] min-w-[40px] cursor-pointer rounded px-1 py-0.5 transition-colors hover:bg-muted" onClick={() => setEditingCells((p) => ({ ...p, [ck]: true }))}>{v[cc.id] || "—"}</span>}</TD>; })}
+              {customCols.columns.map((cc, columnIndex) => { const v = customFieldValues.getValues(i.id); return <TD key={cc.id}><CustomFieldGridCell gridId="invoices" rowId={i.id} rowIndex={rowIndex} column={cc} columnIndex={columnIndex} rowIds={rows.map((row) => row.id)} columns={customCols.columns} value={v[cc.id] ?? ""} saveValues={customFieldValues.saveValues} onManageColumns={() => customCols.setOpen(true)} /></TD>; })}
               <TD className="text-right">
                 <div className="flex items-center justify-end gap-1">
                   <Button variant="ghost" size="icon" onClick={() => setEditId(i.id)} title="編輯">

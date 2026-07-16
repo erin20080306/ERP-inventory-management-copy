@@ -149,7 +149,7 @@ DATABASE_URL="postgresql://user:password@localhost:5432/erp?schema=public"
 NEXTAUTH_URL="http://localhost:3000"
 NEXTAUTH_SECRET="請改為長隨機字串，可用 openssl rand -base64 32 產生"
 ADMIN_USERNAME="admin"
-ADMIN_PASSWORD="661012"
+ADMIN_PASSWORD="請設定至少 8 字元的安全密碼"
 ADMIN_EMAIL="admin@example.com"
 ```
 
@@ -192,9 +192,7 @@ npm run dev
 
 開啟 <http://localhost:3000> → 自動導向 `/login`。
 
-**預設登入：**
-- 帳號：`admin`
-- 密碼：`661012`
+**初始登入：** 使用 `.env` 中設定的 `ADMIN_USERNAME` 與 `ADMIN_PASSWORD`；系統不再提供固定預設密碼。
 
 ---
 
@@ -230,13 +228,15 @@ git push -u origin main
    ```bash
    DATABASE_URL="<你的雲端 DATABASE_URL>" npm run db:seed
    ```
-7. 造訪網址登入 `admin` / `661012`。
+7. 使用環境變數中設定的管理員帳號與密碼登入。
 
 > ⚠️ **正式環境請立刻修改 admin 密碼**。
 
 ---
 
 ## 🧪 測試方式
+
+正式發布前請依 [封閉測試與正式上線閘門](docs/RELEASE-GATES.md) 執行完整測試、環境檢查、備份與回滾演練。環境變數可用 `npm run release:check` 驗證，檢查器不會輸出密鑰內容。
 
 1. 登入後先到 **系統設定** 填公司資料
 2. 到 **商品管理** 新增商品（SKU、售價、成本、安全庫存）
@@ -275,6 +275,11 @@ git push -u origin main
 | `npm run db:push` | 推送 schema（開發用） |
 | `npm run db:migrate` | 建立 migration |
 | `npm run db:deploy` | 部署環境套用 migration |
+| `npm run db:rehearse` | migration、升級前後備份與災難還原演練 |
+| `npm run test:fulfillment` | 分批進貨／出貨與原子回復測試 |
+| `npm run test:pos` | POS 原交易退款與帳務回復測試 |
+| `npm run test:accounting` | 關帳、期間鎖、沖銷與年結測試 |
+| `npm run test:resilience` | 併發交易、席次與 24 小時離線授權防竄改測試 |
 | `npm run db:seed` | 執行種子資料 |
 | `npm run db:reset` | 重置資料庫（⚠️ 會清除所有資料） |
 

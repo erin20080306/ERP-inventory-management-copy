@@ -11,7 +11,9 @@ import {
   RotateCcw, BookOpen, BookMarked, Coins, Wallet, FileSpreadsheet, BarChart3,
   UserCog, Shield, Settings, History, Building2, ScrollText, Landmark,
   Briefcase, BadgeDollarSign, Building,
+  ShoppingBag, Store, ScanBarcode, Cable, FileCheck2, UtensilsCrossed, ChefHat, PanelsTopLeft,
 } from "lucide-react";
+import { normalizeBusinessMode } from "@/lib/product-editions";
 
 type NavItem = { title: string; href: string; icon: any; perm?: string };
 type NavSection = { label: string; items: NavItem[] };
@@ -34,6 +36,8 @@ const DATA_PREFETCH_BY_HREF: Record<string, string[]> = {
   "/warehouses": ["/api/warehouses?q=&page=1&pageSize=20"],
   "/users": ["/api/users?q=&page=1&pageSize=20"],
   "/roles": ["/api/roles"],
+  "/pos": ["/api/pos/bootstrap"],
+  "/pos/restaurant": ["/api/pos/restaurant"],
 };
 
 const warmedRoutes = new Set<string>();
@@ -53,8 +57,11 @@ function prefetchDataForRoute(href: string) {
   }
 }
 
-const sections: NavSection[] = [
-  { label: "總覽", items: [{ title: "儀表板", href: "/dashboard", icon: LayoutDashboard, perm: "dashboard.view" }] },
+const erpSections: NavSection[] = [
+  { label: "總覽", items: [
+    { title: "工作區選擇", href: "/workspace", icon: PanelsTopLeft },
+    { title: "儀表板", href: "/dashboard", icon: LayoutDashboard, perm: "dashboard.view" },
+  ] },
   {
     label: "進銷存",
     items: [
@@ -107,15 +114,93 @@ const sections: NavSection[] = [
   },
 ];
 
+const retailPosFront: NavSection =
+  {
+    label: "零售 POS 前台",
+    items: [
+      { title: "POS 收銀台", href: "/pos", icon: ScanBarcode, perm: "pos.view" },
+      { title: "電子發票佇列", href: "/pos/e-invoices", icon: FileCheck2, perm: "pos.view" },
+      { title: "硬體模擬診斷", href: "/pos/hardware", icon: Cable, perm: "pos.view" },
+      { title: "促銷與店長授權", href: "/pos/offers", icon: BadgeDollarSign, perm: "pos.approve" },
+    ],
+  };
+
+const restaurantPosFront: NavSection = {
+  label: "餐飲 POS 前台",
+  items: [
+    { title: "桌位與圖片點餐", href: "/pos/restaurant", icon: UtensilsCrossed, perm: "restaurant.view" },
+    { title: "廚房出餐看板", href: "/pos/restaurant/kitchen", icon: ChefHat, perm: "restaurant.view" },
+    { title: "電子發票佇列", href: "/pos/e-invoices", icon: FileCheck2, perm: "pos.view" },
+    { title: "硬體模擬診斷", href: "/pos/hardware", icon: Cable, perm: "pos.view" },
+  ],
+};
+
+const posBackendSections: NavSection[] = [
+  {
+    label: "進銷存後台",
+    items: [
+      { title: "商品與圖片售價", href: "/products", icon: Package, perm: "products.view" },
+      { title: "會員／客戶", href: "/customers", icon: Users, perm: "customers.view" },
+      { title: "銷售與退換貨", href: "/sales", icon: Receipt, perm: "sales.view" },
+      { title: "退貨管理", href: "/returns", icon: RotateCcw, perm: "returns.view" },
+      { title: "即時庫存", href: "/inventory", icon: Warehouse, perm: "inventory.view" },
+      { title: "採購補貨", href: "/purchases", icon: ShoppingCart, perm: "purchases.view" },
+      { title: "供應商", href: "/suppliers", icon: Truck, perm: "suppliers.view" },
+      { title: "倉庫／門市", href: "/warehouses", icon: Store, perm: "inventory.view" },
+    ],
+  },
+  {
+    label: "會計與分析",
+    items: [
+      { title: "營運報表", href: "/reports", icon: BarChart3, perm: "reports.view" },
+      { title: "應收與收款", href: "/accounting/receivables", icon: Coins, perm: "receivables.view" },
+      { title: "發票管理", href: "/accounting/invoices", icon: FileSpreadsheet, perm: "invoices.view" },
+      { title: "會計傳票", href: "/accounting/journals", icon: BookMarked, perm: "journals.view" },
+      { title: "應付帳款", href: "/accounting/payables", icon: Wallet, perm: "payables.view" },
+      { title: "現金銀行", href: "/accounting/cash", icon: Landmark, perm: "cash.view" },
+    ],
+  },
+  {
+    label: "系統",
+    items: [
+      { title: "使用者管理", href: "/users", icon: UserCog, perm: "users.view" },
+      { title: "角色權限", href: "/roles", icon: Shield, perm: "roles.view" },
+      { title: "系統設定", href: "/settings", icon: Settings, perm: "settings.view" },
+      { title: "稽核紀錄", href: "/audit", icon: History, perm: "audit.view" },
+    ],
+  },
+];
+
+const adminSections: NavSection[] = [
+  {
+    label: "管理者工作區",
+    items: [
+      { title: "平台授權後台", href: "/admin", icon: Shield },
+      { title: "工作區選擇", href: "/workspace", icon: PanelsTopLeft },
+      { title: "一般企業 ERP", href: "/dashboard", icon: LayoutDashboard },
+      { title: "零售 POS", href: "/pos", icon: ShoppingBag },
+      { title: "餐飲桌位與廚房", href: "/pos/restaurant", icon: UtensilsCrossed },
+      { title: "電子發票佇列", href: "/pos/e-invoices", icon: FileCheck2 },
+      { title: "POS 硬體診斷", href: "/pos/hardware", icon: Cable },
+      { title: "促銷與店長授權", href: "/pos/offers", icon: BadgeDollarSign },
+    ],
+  },
+  ...erpSections.slice(1),
+];
+
 export function SidebarBrand() {
+  const { data } = useSession();
+  const mode = normalizeBusinessMode(data?.user?.businessMode);
+  const isPos = mode !== "ERP" && !data?.user?.isSuperAdmin;
+  const isRestaurant = mode === "POS_RESTAURANT" && !data?.user?.isSuperAdmin;
   return (
     <div className="flex h-16 items-center gap-2 px-5 border-b border-white/10 shrink-0">
       <div className="h-8 w-8 rounded-md bg-gradient-to-br from-indigo-500 to-emerald-500 text-white flex items-center justify-center">
         <Building2 className="h-5 w-5" />
       </div>
       <div>
-        <div className="font-semibold text-sm">專業 ERP 系統</div>
-        <div className="text-[10px] text-white/50">Enterprise Edition</div>
+        <div className="font-semibold text-sm">{isRestaurant ? "餐飲 POS" : isPos ? "零售 POS" : "艾琳 ERP 系統"}</div>
+        <div className="text-[10px] text-white/50">{isRestaurant ? "Restaurant Edition" : isPos ? "Retail Edition" : "Enterprise Edition"}</div>
       </div>
     </div>
   );
@@ -127,6 +212,14 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   const { data } = useSession();
   const perms = data?.user?.permissions ?? [];
   const permKey = perms.join("|");
+  const businessMode = normalizeBusinessMode(data?.user?.businessMode);
+  const sections = data?.user?.isSuperAdmin
+    ? adminSections
+    : businessMode === "POS_RESTAURANT"
+      ? [erpSections[0], restaurantPosFront, ...posBackendSections]
+      : businessMode === "POS_RETAIL"
+        ? [erpSections[0], retailPosFront, ...posBackendSections]
+      : erpSections;
 
   const warmRoute = useCallback((href: string, options?: { data?: boolean }) => {
     if (!warmedRoutes.has(href)) {
@@ -148,7 +241,7 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
     }
     const id = setTimeout(warmCommonRoutes, 1200);
     return () => clearTimeout(id);
-  }, [permKey, warmRoute]);
+  }, [permKey, warmRoute, sections]);
 
   return (
     <nav className="flex-1 overflow-y-auto py-4">

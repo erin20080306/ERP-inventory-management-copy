@@ -28,8 +28,8 @@ export async function getDashboardKpis(tenantId: string) {
       _sum: { total: true },
       where: { tenantId, orderDate: { gte: startMonth }, status: { not: "VOIDED" } },
     }),
-    prisma.accountsReceivable.aggregate({ _sum: { amount: true, paidAmount: true }, where: { tenantId, status: { not: "POSTED" } } }),
-    prisma.accountsPayable.aggregate({ _sum: { amount: true, paidAmount: true }, where: { tenantId, status: { not: "POSTED" } } }),
+    prisma.accountsReceivable.aggregate({ _sum: { amount: true, paidAmount: true }, where: { tenantId, status: { in: ["POSTED", "PARTIAL"] } } }),
+    prisma.accountsPayable.aggregate({ _sum: { amount: true, paidAmount: true }, where: { tenantId, status: { in: ["POSTED", "PARTIAL"] } } }),
     (prisma.$queryRawUnsafe as any)(
       `SELECT COALESCE(SUM(s.quantity * p."costPrice"),0) as total FROM "InventoryStock" s JOIN "Product" p ON p.id = s."productId" WHERE s."tenantId" = $1`,
       tenantId

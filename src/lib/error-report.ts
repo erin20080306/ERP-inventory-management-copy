@@ -1,4 +1,4 @@
-import nodemailer from "nodemailer";
+import nodemailer from "nodemailer9";
 import { prisma } from "./prisma";
 
 const ALERT_TO = "erin20080306@gmail.com";

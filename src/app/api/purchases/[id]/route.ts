@@ -2,14 +2,21 @@ import { NextRequest, NextResponse } from "next/server";
 import { apiHandler, requirePermission, requireTenantId, audit, getCurrentUserId } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { receivePurchaseOrder, calcTotals } from "@/lib/documents";
-import { buildAPCreatedDraft, autoCreateJournal } from "@/lib/auto-journal";
 
 export const GET = apiHandler(async (_req: NextRequest, { params }: { params: { id: string } }) => {
   await requirePermission("purchases.view");
   const tenantId = await requireTenantId();
   const item = await prisma.purchaseOrder.findUnique({
     where: { id: params.id, tenantId },
-    include: { supplier: true, items: { include: { product: true } } },
+    include: {
+      supplier: true,
+      items: { include: { product: true } },
+      receipts: {
+        where: { status: "POSTED" },
+        include: { warehouse: true, items: { include: { product: true } }, payable: true },
+        orderBy: { createdAt: "desc" },
+      },
+    },
   });
   return NextResponse.json(item);
 });
@@ -19,76 +26,51 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: {
   const tenantId = await requireTenantId();
   const currentUserId = await getCurrentUserId();
   const body = await req.json();
-  const { action, warehouseId } = body;
+  const { action, warehouseId, items, remark } = body;
+  const existing = await prisma.purchaseOrder.findUnique({ where: { id: params.id, tenantId } });
+  if (!existing) throw new Error("找不到採購單");
 
   if (action === "submit") {
     await requirePermission("purchases.submit");
+    if (!["DRAFT", "REJECTED"].includes(existing.status)) throw new Error("只有草稿或退回單據可以送審");
     await prisma.purchaseOrder.update({ where: { id: params.id, tenantId }, data: { status: "SUBMITTED", updatedBy: currentUserId } });
   } else if (action === "approve") {
     await requirePermission("purchases.approve");
-    const order = await prisma.purchaseOrder.findUnique({ where: { id: params.id, tenantId }, include: { items: true } });
-    if (!order) throw new Error("找不到採購單");
-    // 核准時自動入庫到預設倉庫
-    const defaultWh = await prisma.warehouse.findFirst({ where: { tenantId, isActive: true }, orderBy: { createdAt: "asc" } });
-    if (defaultWh) {
-      for (const item of order.items) {
-        await prisma.inventoryStock.upsert({
-          where: { productId_warehouseId: { productId: item.productId, warehouseId: defaultWh.id } },
-          update: { quantity: { increment: item.quantity } },
-          create: { tenantId, productId: item.productId, warehouseId: defaultWh.id, quantity: item.quantity },
-        });
-        await prisma.inventoryTransaction.create({
-          data: { tenantId, productId: item.productId, warehouseId: defaultWh.id, type: "PURCHASE_IN", quantity: item.quantity, unitCost: item.unitPrice, refType: "PURCHASE", refId: order.id, remark: `採購核准入庫 ${order.number}` },
-        });
-      }
-    }
+    if (existing.status !== "SUBMITTED") throw new Error("只有已送審採購單可以核准");
     await prisma.purchaseOrder.update({ where: { id: params.id, tenantId }, data: { status: "APPROVED", updatedBy: currentUserId } });
-    // 核准時自動建立應付帳款
-    const existingAP = await prisma.accountsPayable.findFirst({ where: { purchaseOrderId: order.id, tenantId } });
-    if (!existingAP) {
-      await prisma.accountsPayable.create({
-        data: {
-          tenantId,
-          supplierId: order.supplierId,
-          purchaseOrderId: order.id,
-          amount: order.total,
-          status: "DRAFT",
-        },
-      });
-      // 自動建立傳票：借 存貨(進貨) / 貸 應付帳款
-      const draft = await buildAPCreatedDraft(order.id);
-      await autoCreateJournal(tenantId, draft, session.user.id);
-      return NextResponse.json({ ok: true, message: "已自動建立應付帳款與傳票，庫存已增加" });
-    }
   } else if (action === "reject") {
     await requirePermission("purchases.reject");
+    if (existing.status !== "SUBMITTED") throw new Error("只有已送審採購單可以退回");
     await prisma.purchaseOrder.update({ where: { id: params.id, tenantId }, data: { status: "REJECTED", updatedBy: currentUserId } });
   } else if (action === "post") {
-    await requirePermission("purchases.post");
-    const order = await prisma.purchaseOrder.findUnique({ where: { id: params.id, tenantId } });
-    if (!order) throw new Error("找不到採購單");
-    await prisma.purchaseOrder.update({ where: { id: params.id, tenantId }, data: { status: "POSTED", updatedBy: currentUserId } });
-    // 過帳時確保應付帳款存在並將狀態改為 POSTED
-    let ap = await prisma.accountsPayable.findFirst({ where: { purchaseOrderId: params.id, tenantId } });
-    if (!ap) {
-      ap = await prisma.accountsPayable.create({
-        data: {
-          tenantId,
-          supplierId: order.supplierId,
-          purchaseOrderId: order.id,
-          amount: order.total,
-          status: "POSTED",
-        },
-      });
-    } else {
-      await prisma.accountsPayable.update({ where: { id: ap.id }, data: { status: "POSTED" } });
-    }
+    throw new Error("採購單必須執行進貨驗收，不可跳過庫存直接過帳");
   } else if (action === "receive") {
+    await requirePermission("purchases.post");
     if (!warehouseId) throw new Error("請選擇入庫倉庫");
-    await receivePurchaseOrder(params.id, warehouseId);
+    const result = await receivePurchaseOrder(params.id, warehouseId, tenantId, items, session.user.id, remark);
+    await audit({
+      userId: session.user.id,
+      action,
+      module: "purchases",
+      refId: params.id,
+      detail: `驗收單 ${result.receipt.number}；${result.complete ? "全部完成" : "部分進貨"}`,
+    });
+    return NextResponse.json({
+      ok: true,
+      complete: result.complete,
+      receiptNumber: result.receipt.number,
+      message: result.complete
+        ? "進貨完成，庫存、應付帳款與採購傳票已同步"
+        : "部分進貨完成，未交數量可於下次繼續驗收",
+    });
   } else if (action === "cancel") {
     await requirePermission("purchases.void");
+    if (["PARTIALLY_RECEIVED", "POSTED"].includes(existing.status)) {
+      throw new Error("已有進貨紀錄的單據必須走採購退貨或沖銷，不可直接作廢");
+    }
     await prisma.purchaseOrder.update({ where: { id: params.id, tenantId }, data: { status: "VOIDED", updatedBy: currentUserId } });
+  } else {
+    throw new Error("不支援的採購動作");
   }
   await audit({ userId: session.user.id, action, module: "purchases", refId: params.id });
   return NextResponse.json({ ok: true });
@@ -100,8 +82,8 @@ export const PUT = apiHandler(async (req: NextRequest, { params }: { params: { i
   const currentUserId = await getCurrentUserId();
   const existing = await prisma.purchaseOrder.findUnique({ where: { id: params.id, tenantId } });
   if (!existing) throw new Error("找不到採購單");
-  if (["POSTED", "VOIDED"].includes(existing.status)) {
-    throw new Error("已過帳/已作廢狀態無法修改");
+  if (!["DRAFT", "REJECTED"].includes(existing.status)) {
+    throw new Error("只有草稿或退回單據可以修改");
   }
   const body = await req.json();
   const { supplierId, items, remark, isTaxable } = body as any;
@@ -146,8 +128,8 @@ export const DELETE = apiHandler(async (_req: NextRequest, { params }: { params:
   const tenantId = await requireTenantId();
   const order = await prisma.purchaseOrder.findUnique({ where: { id: params.id, tenantId } });
   if (!order) throw new Error("找不到採購單");
-  const canDelete = ["DRAFT", "VOIDED", "SUBMITTED", "APPROVED"].includes(order.status);
-  if (!canDelete) throw new Error("已入庫/已付款狀態無法刪除");
+  const canDelete = ["DRAFT", "REJECTED"].includes(order.status);
+  if (!canDelete) throw new Error("送審後的單據須保留稽核軌跡，請改用退回或作廢");
   
   // 刪除關聯的傳票
   const journal = await prisma.journalEntry.findFirst({

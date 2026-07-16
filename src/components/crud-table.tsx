@@ -5,15 +5,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { EmptyState } from "@/components/layout/page-shell";
-import { Plus, Search, Loader2, Trash2, Download, Printer, FileDown, FileSpreadsheet, Upload, Settings2, Save, X, Pencil } from "lucide-react";
+import { Plus, Search, Loader2, Trash2, Download, Printer, FileDown, FileSpreadsheet, Upload, Settings2, Save, X, Pencil, Copy, ClipboardPaste, EyeOff, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { downloadCSV, toCSV } from "@/lib/csv";
 import { readSessionCache, TableHint, useDebouncedValue, writeSessionCache } from "@/components/table-helpers";
 import {
   useCustomColumns,
+  useCustomFieldValues,
   CustomColumnDialog,
-  getCustomFieldValues,
-  setCustomFieldValue,
+  CustomFieldGridCell,
   type CustomColumn,
 } from "@/components/custom-columns";
 
@@ -200,11 +200,23 @@ export function CrudTable<T extends { id: string }>({
   const [editing, setEditing] = useState<T | null>(null);
   const [open, setOpen] = useState(false);
   const customCols = useCustomColumns(moduleKey || exportName);
-  const [editingCells, setEditingCells] = useState<Record<string, any>>({});
   const [inlineEditing, setInlineEditing] = useState<Record<string, Record<string, any>>>({});
   const [inlineSaving, setInlineSaving] = useState<string | null>(null);
   // 單格編輯追蹤 (像真正 Excel)
   const [activeCell, setActiveCell] = useState<{ rowId: string; colKey: string } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; row: T; colKey: string } | null>(null);
+  const [columnMenu, setColumnMenu] = useState<{ x: number; y: number; colKey: string } | null>(null);
+
+  useEffect(() => {
+    if (!contextMenu && !columnMenu) return;
+    const close = () => { setContextMenu(null); setColumnMenu(null); };
+    window.addEventListener("click", close);
+    window.addEventListener("scroll", close, true);
+    return () => {
+      window.removeEventListener("click", close);
+      window.removeEventListener("scroll", close, true);
+    };
+  }, [contextMenu, columnMenu]);
 
   // 欄位順序管理（拖曳表頭排序）
   const colOrderKey = `erp_col_order_${moduleKey || exportName}`;
@@ -224,6 +236,27 @@ export function CrudTable<T extends { id: string }>({
     return columns.map((c) => c.key);
   });
   const [dragCol, setDragCol] = useState<string | null>(null);
+  const hiddenColsKey = `erp_hidden_cols_${moduleKey || exportName}`;
+  const [hiddenColumns, setHiddenColumns] = useState<string[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      const saved = localStorage.getItem(hiddenColsKey);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  function hideColumn(key: string) {
+    const next = [...new Set([...hiddenColumns, key])];
+    setHiddenColumns(next);
+    localStorage.setItem(hiddenColsKey, JSON.stringify(next));
+  }
+
+  function restoreColumns() {
+    setHiddenColumns([]);
+    localStorage.removeItem(hiddenColsKey);
+  }
 
   function saveColOrder(order: string[]) {
     setColOrder(order);
@@ -246,6 +279,7 @@ export function CrudTable<T extends { id: string }>({
 
   // 依據 colOrder 排序 columns
   const orderedColumns = useMemo(() => [...columns].sort((a, b) => colOrder.indexOf(a.key) - colOrder.indexOf(b.key)), [columns, colOrder]);
+  const visibleColumns = useMemo(() => orderedColumns.filter((column) => !hiddenColumns.includes(column.key)), [hiddenColumns, orderedColumns]);
 
   // SWR fetcher
   const fetcher = useCallback(async (url: string) => {
@@ -276,7 +310,8 @@ export function CrudTable<T extends { id: string }>({
 
   const rows = data?.items ?? [];
   const total = data?.total ?? 0;
-  const tableColumnCount = orderedColumns.length + customCols.columns.length + ((canEdit || canDelete) ? 1 : 0);
+  const customFieldValues = useCustomFieldValues(moduleKey || exportName, rows.map((row: T) => row.id));
+  const tableColumnCount = visibleColumns.length + customCols.columns.length + ((canEdit || canDelete) ? 1 : 0);
   const showInitialLoading = isLoading && !data;
   const showRefreshing = isValidating && !!data && !isLoading;
 
@@ -299,7 +334,12 @@ export function CrudTable<T extends { id: string }>({
   }
 
   // 進入單格編輯（點擊某個 cell）
-  function startCellEdit(row: T, colKey: string) {
+  function startCellEdit(row: T, colKey: string, savePrevious = true) {
+    if (!canEdit) return;
+    if (savePrevious && activeCell?.rowId && activeCell.rowId !== row.id) {
+      const previousRow = rows.find((candidate: T) => candidate.id === activeCell.rowId) as T | undefined;
+      if (previousRow) void saveInlineEdit(previousRow, { silent: true, revalidate: false });
+    }
     if (!inlineEditing[row.id]) {
       const draft: Record<string, any> = {};
       columns.forEach((c) => { if (c.editable) draft[c.key] = (row as any)[c.key] ?? ""; });
@@ -308,9 +348,84 @@ export function CrudTable<T extends { id: string }>({
     setActiveCell({ rowId: row.id, colKey });
   }
 
+  function clipboardValue(column: Column<T>, row: T) {
+    const raw = column.csv ? column.csv(row) : (row as any)[column.key];
+    return raw == null ? "" : String(raw);
+  }
+
+  function normalizePastedValue(column: Column<T>, value: string) {
+    const trimmed = value.trim();
+    if (column.editable?.type === "select") {
+      return column.editable.options?.find((option) => option.label === trimmed || option.value === trimmed)?.value ?? trimmed;
+    }
+    return trimmed;
+  }
+
+  async function copyCell(row: T, colKey: string) {
+    const column = visibleColumns.find((candidate) => candidate.key === colKey);
+    if (!column) return;
+    await navigator.clipboard.writeText(clipboardValue(column, row));
+    toast.success("已複製儲存格");
+  }
+
+  async function copyRow(row: T) {
+    await navigator.clipboard.writeText(visibleColumns.map((column) => clipboardValue(column, row)).join("\t"));
+    toast.success("已複製整列，可貼到 Excel");
+  }
+
+  async function pasteGrid(startRow: T, startColKey: string, text: string) {
+    if (!canEdit) return;
+    const editableCols = visibleColumns.filter((column) => column.editable);
+    const startRowIdx = rows.findIndex((row: T) => row.id === startRow.id);
+    const startColIdx = editableCols.findIndex((column) => column.key === startColKey);
+    if (startRowIdx < 0 || startColIdx < 0 || !text) return;
+    const normalized = text.replace(/\r/g, "").replace(/\n$/, "");
+    const matrix = normalized.split("\n").map((line) => line.split("\t"));
+    const affected = new Map<string, { row: T; values: Record<string, unknown> }>();
+    matrix.forEach((line, rowOffset) => {
+      const targetRow = rows[startRowIdx + rowOffset] as T | undefined;
+      if (!targetRow) return;
+      line.forEach((value, colOffset) => {
+        const targetColumn = editableCols[startColIdx + colOffset];
+        if (!targetColumn) return;
+        const current = affected.get(targetRow.id) ?? { row: targetRow, values: {} };
+        current.values[targetColumn.key] = normalizePastedValue(targetColumn, value);
+        affected.set(targetRow.id, current);
+      });
+    });
+    if (affected.size === 0) return;
+    const optimisticValues = new Map([...affected.entries()].map(([rowId, update]) => [rowId, update.values]));
+    setInlineEditing({});
+    const lastRowIdx = Math.min(rows.length - 1, startRowIdx + matrix.length - 1);
+    const lastColIdx = Math.min(editableCols.length - 1, startColIdx + Math.max(...matrix.map((line) => line.length)) - 1);
+    setActiveCell({ rowId: rows[lastRowIdx].id, colKey: editableCols[lastColIdx].key });
+    void mutate(swrKey(), (current: any) => current ? {
+      ...current,
+      items: current.items.map((row: T) => optimisticValues.has(row.id) ? { ...row, ...optimisticValues.get(row.id) } : row),
+    } : current, { revalidate: false });
+    setInlineSaving(startRow.id);
+    try {
+      await Promise.all([...affected.values()].map(async (update) => {
+        const response = await fetch(`${endpoint}/${update.row.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...(update.row as any), ...update.values }),
+        });
+        if (!response.ok) throw new Error((await response.json()).error || "貼上失敗");
+      }));
+      void mutate(swrKey());
+      toast.success(`已貼上 ${affected.size} 列資料`);
+    } catch (error: any) {
+      void mutate(swrKey());
+      toast.error(error.message || "貼上失敗");
+    } finally {
+      setInlineSaving(null);
+    }
+  }
+
   // 鍵盤導航：Enter/下移、上下左右移動、Tab 右移、Escape 取消
   function handleCellKeyDown(e: React.KeyboardEvent, row: T, colKey: string) {
-    const editableCols = orderedColumns.filter((c) => c.editable);
+    const editableCols = visibleColumns.filter((c) => c.editable);
     const rowIdx = rows.findIndex((r: T) => r.id === row.id);
     const colIdx = editableCols.findIndex((c) => c.key === colKey);
     if (editableCols.length === 0 || colIdx === -1) return;
@@ -381,34 +496,45 @@ export function CrudTable<T extends { id: string }>({
     setOpen(true);
   }
 
-  async function saveCellAndMove(currentRow: T, targetRowIdx: number, targetColKey: string) {
-    // 先儲存當前行
-    await saveInlineEdit(currentRow);
-    // 移動到目標行
+  function saveCellAndMove(currentRow: T, targetRowIdx: number, targetColKey: string) {
+    // 先移動游標，儲存改在背景完成；網路延遲不阻擋連續輸入。
     if (targetRowIdx >= 0 && targetRowIdx < rows.length) {
       const targetRow = rows[targetRowIdx];
-      startCellEdit(targetRow as T, targetColKey);
+      startCellEdit(targetRow as T, targetColKey, false);
     } else {
       setActiveCell(null);
     }
+    void saveInlineEdit(currentRow, { silent: true, revalidate: false });
   }
 
-  async function saveInlineEdit(row: T) {
+  async function saveInlineEdit(row: T, options: { silent?: boolean; revalidate?: boolean } = {}) {
     const draft = inlineEditing[row.id];
     if (!draft) return;
-    setInlineSaving(row.id);
+    if (!options.silent) setInlineSaving(row.id);
     try {
       const payload = { ...(row as any), ...draft };
       const res = await fetch(`${endpoint}/${row.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       if (!res.ok) throw new Error((await res.json()).error || "儲存失敗");
       const saved = await res.json().catch(() => null);
-      toast.success("已儲存");
-      setInlineEditing((prev) => { const n = { ...prev }; delete n[row.id]; return n; });
-      mutate(swrKey());
+      if (!options.silent) toast.success("已儲存");
+      setInlineEditing((prev) => {
+        if (prev[row.id] !== draft) return prev;
+        const next = { ...prev };
+        delete next[row.id];
+        return next;
+      });
+      if (saved) {
+        void mutate(swrKey(), (current: any) => current ? {
+          ...current,
+          items: current.items.map((item: T) => item.id === row.id ? { ...item, ...saved } : item),
+        } : current, { revalidate: options.revalidate ?? false });
+      } else if (options.revalidate) {
+        void mutate(swrKey());
+      }
     } catch (e: any) {
       toast.error(e.message);
     } finally {
-      setInlineSaving(null);
+      if (!options.silent) setInlineSaving(null);
     }
   }
 
@@ -487,7 +613,7 @@ export function CrudTable<T extends { id: string }>({
                       exportName,
                       pdfTitle || exportName,
                       data.items,
-                      orderedColumns.map((c) => ({ key: c.key, title: c.title, get: c.csv, isImage: c.isImage, isUrl: c.isUrl })) as any
+                      visibleColumns.map((c) => ({ key: c.key, title: c.title, get: c.csv, isImage: c.isImage, isUrl: c.isUrl })) as any
                     );
                     toast.success("已匯出 Excel");
                   } catch (e: any) {
@@ -509,7 +635,7 @@ export function CrudTable<T extends { id: string }>({
                     const data = await res.json();
                     const csv = toCSV(
                       data.items,
-                      orderedColumns.map((c) => ({ key: c.key, title: c.title, get: c.csv })) as any
+                      visibleColumns.map((c) => ({ key: c.key, title: c.title, get: c.csv })) as any
                     );
                     downloadCSV(`${exportName}-${new Date().toISOString().slice(0, 10)}.csv`, csv);
                     toast.success("已匯出 CSV");
@@ -556,7 +682,7 @@ export function CrudTable<T extends { id: string }>({
       <Table>
         <THead>
           <TR>
-            {orderedColumns.map((c) => (
+            {visibleColumns.map((c) => (
               <TH
                 key={c.key}
                 className={`${c.className ?? ""} cursor-grab select-none hover:text-foreground ${dragCol === c.key ? "bg-muted opacity-70" : ""}`}
@@ -564,13 +690,28 @@ export function CrudTable<T extends { id: string }>({
                 onDragStart={() => handleDragStart(c.key)}
                 onDragOver={handleDragOver}
                 onDrop={() => handleDrop(c.key)}
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                  setContextMenu(null);
+                  setColumnMenu({ x: Math.min(event.clientX, window.innerWidth - 230), y: Math.min(event.clientY, window.innerHeight - 190), colKey: c.key });
+                }}
                 title="拖曳調整欄位順序"
               >
                 {c.title}
               </TH>
             ))}
             {customCols.columns.map((cc) => (
-              <TH key={cc.id}>{cc.label}</TH>
+              <TH
+                key={cc.id}
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                  setContextMenu(null);
+                  customCols.setOpen(true);
+                }}
+                title="按右鍵管理自訂欄位"
+              >
+                {cc.label}
+              </TH>
             ))}
             {(canEdit || canDelete) && <TH className="w-28 text-right">操作</TH>}
           </TR>
@@ -592,19 +733,24 @@ export function CrudTable<T extends { id: string }>({
             </TR>
           )}
           {!showInitialLoading &&
-            rows.map((row: T) => {
+            rows.map((row: T, rowIndex: number) => {
               const draft = inlineEditing[row.id];
               const isRowEditing = !!draft;
               return (
               <TR key={row.id} className={isRowEditing ? "bg-accent/5" : ""}>
-                {orderedColumns.map((c) => {
+                {visibleColumns.map((c) => {
                   const isCellActive = activeCell?.rowId === row.id && activeCell?.colKey === c.key;
                   const showInput = isRowEditing && c.editable && isCellActive;
                   return (
                   <TD
                     key={c.key}
-                    className={`${c.className ?? ""} ${c.editable ? "cursor-cell transition-colors hover:bg-muted/60" : ""} ${isCellActive ? "ring-2 ring-ring ring-inset" : ""}`}
-                    onClick={() => { if (c.editable) startCellEdit(row, c.key); }}
+                    className={`${c.className ?? ""} ${canEdit && c.editable ? "cursor-cell transition-colors hover:bg-muted/60" : ""} ${isCellActive ? "ring-2 ring-ring ring-inset" : ""}`}
+                    onClick={() => { if (canEdit && c.editable) startCellEdit(row, c.key); }}
+                    onContextMenu={(event) => {
+                      event.preventDefault();
+                      setActiveCell({ rowId: row.id, colKey: c.key });
+                      setContextMenu({ x: Math.min(event.clientX, window.innerWidth - 220), y: Math.min(event.clientY, window.innerHeight - 220), row, colKey: c.key });
+                    }}
                   >
                     {showInput ? (
                       c.editable!.type === "select" ? (
@@ -613,6 +759,13 @@ export function CrudTable<T extends { id: string }>({
                           autoFocus
                           onChange={(e) => setInlineEditing((prev) => ({ ...prev, [row.id]: { ...prev[row.id], [c.key]: e.target.value } }))}
                           onKeyDown={(e) => handleCellKeyDown(e, row, c.key)}
+                          onPaste={(event) => {
+                            const text = event.clipboardData.getData("text/plain");
+                            if (text.includes("\t") || /[\r\n]/.test(text)) {
+                              event.preventDefault();
+                              void pasteGrid(row, c.key, text);
+                            }
+                          }}
                           onBlur={() => { /* 保持焦點管理由 keyboard 處理 */ }}
                           className="h-8 w-full rounded border-0 bg-transparent px-1 text-sm focus:outline-none"
                           ref={(el) => { if (el) el.focus(); }}
@@ -628,6 +781,13 @@ export function CrudTable<T extends { id: string }>({
                           onChange={(e) => setInlineEditing((prev) => ({ ...prev, [row.id]: { ...prev[row.id], [c.key]: e.target.value } }))}
                           className="h-8 text-sm border-0 bg-transparent shadow-none focus-visible:ring-0 px-1"
                           onKeyDown={(e) => handleCellKeyDown(e, row, c.key)}
+                          onPaste={(event) => {
+                            const text = event.clipboardData.getData("text/plain");
+                            if (text.includes("\t") || /[\r\n]/.test(text)) {
+                              event.preventDefault();
+                              void pasteGrid(row, c.key, text);
+                            }
+                          }}
                           ref={(el) => { if (el) el.focus(); }}
                         />
                       )
@@ -639,34 +799,22 @@ export function CrudTable<T extends { id: string }>({
                   </TD>
                   );
                 })}
-                {customCols.columns.map((cc) => {
-                  const cellKey = `${row.id}_${cc.id}`;
-                  const vals = getCustomFieldValues(moduleKey || exportName, row.id);
-                  const isCellEditing = editingCells[cellKey];
+                {customCols.columns.map((cc, columnIndex) => {
+                  const vals = customFieldValues.getValues(row.id);
                   return (
                     <TD key={cc.id} className="min-w-[100px]">
-                      {isCellEditing ? (
-                        <Input
-                          type={cc.type === "number" ? "number" : cc.type === "date" ? "date" : "text"}
-                          defaultValue={vals[cc.id] ?? ""}
-                          autoFocus
-                          className="h-7 text-xs"
-                          onBlur={(e) => {
-                            setCustomFieldValue(moduleKey || exportName, row.id, cc.id, e.target.value);
-                            setEditingCells((prev) => ({ ...prev, [cellKey]: false }));
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-                          }}
-                        />
-                      ) : (
-                        <span
-                          className="inline-block min-h-[24px] min-w-[40px] cursor-pointer rounded px-1 py-0.5 transition-colors hover:bg-muted"
-                          onClick={() => setEditingCells((prev) => ({ ...prev, [cellKey]: true }))}
-                        >
-                          {vals[cc.id] || "—"}
-                        </span>
-                      )}
+                      <CustomFieldGridCell
+                        gridId={`crud-${moduleKey || exportName}`}
+                        rowId={row.id}
+                        rowIndex={rowIndex}
+                        column={cc}
+                        columnIndex={columnIndex}
+                        rowIds={rows.map((item: T) => item.id)}
+                        columns={customCols.columns}
+                        value={vals[cc.id] ?? ""}
+                        saveValues={customFieldValues.saveValues}
+                        onManageColumns={() => customCols.setOpen(true)}
+                      />
                     </TD>
                   );
                 })}
@@ -704,6 +852,31 @@ export function CrudTable<T extends { id: string }>({
             })}
         </TBody>
       </Table>
+
+      {contextMenu && (() => {
+        const column = visibleColumns.find((candidate) => candidate.key === contextMenu.colKey);
+        const editable = Boolean(canEdit && column?.editable);
+        return <div role="menu" aria-label="表格右鍵選單" className="fixed z-[100] w-52 rounded-lg border bg-popover p-1 text-sm shadow-xl" style={{ left: contextMenu.x, top: contextMenu.y }} onClick={(event) => event.stopPropagation()}>
+          <button type="button" className="flex w-full items-center gap-2 rounded px-3 py-2 text-left hover:bg-muted" onClick={() => { void copyCell(contextMenu.row, contextMenu.colKey); setContextMenu(null); }}><Copy className="h-4 w-4" />複製儲存格</button>
+          <button type="button" className="flex w-full items-center gap-2 rounded px-3 py-2 text-left hover:bg-muted" onClick={() => { void copyRow(contextMenu.row); setContextMenu(null); }}><Copy className="h-4 w-4" />複製整列</button>
+          <button type="button" disabled={!editable} className="flex w-full items-center gap-2 rounded px-3 py-2 text-left hover:bg-muted disabled:opacity-40" onClick={async () => { const text = await navigator.clipboard.readText(); await pasteGrid(contextMenu.row, contextMenu.colKey, text); setContextMenu(null); }}><ClipboardPaste className="h-4 w-4" />從此格貼上</button>
+          {canEdit && <button type="button" className="flex w-full items-center gap-2 rounded px-3 py-2 text-left hover:bg-muted" onClick={() => { setEditing(contextMenu.row); setOpen(true); setContextMenu(null); }}><Pencil className="h-4 w-4" />編輯此筆</button>}
+          {moduleKey && <button type="button" className="flex w-full items-center gap-2 rounded px-3 py-2 text-left hover:bg-muted" onClick={() => { customCols.setOpen(true); setContextMenu(null); }}><Settings2 className="h-4 w-4" />新增／刪減自訂欄位</button>}
+          {visibleColumns.length > 1 && <button type="button" className="flex w-full items-center gap-2 rounded px-3 py-2 text-left hover:bg-muted" onClick={() => { hideColumn(contextMenu.colKey); setContextMenu(null); }}><EyeOff className="h-4 w-4" />隱藏此欄</button>}
+          {hiddenColumns.length > 0 && <button type="button" className="flex w-full items-center gap-2 rounded px-3 py-2 text-left hover:bg-muted" onClick={() => { restoreColumns(); setContextMenu(null); }}><RotateCcw className="h-4 w-4" />恢復隱藏欄位</button>}
+          {canDelete && <><div className="my-1 border-t" /><button type="button" className="flex w-full items-center gap-2 rounded px-3 py-2 text-left text-destructive hover:bg-destructive/10" onClick={() => { const row = contextMenu.row; setContextMenu(null); void onDelete(row); }}><Trash2 className="h-4 w-4" />刪除此筆</button></>}
+        </div>;
+      })()}
+
+      {columnMenu && (() => {
+        const column = visibleColumns.find((candidate) => candidate.key === columnMenu.colKey);
+        if (!column) return null;
+        return <div role="menu" aria-label="欄位右鍵選單" className="fixed z-[100] w-56 rounded-lg border bg-popover p-1 text-sm shadow-xl" style={{ left: columnMenu.x, top: columnMenu.y }} onClick={(event) => event.stopPropagation()}>
+          {moduleKey && <button type="button" className="flex w-full items-center gap-2 rounded px-3 py-2 text-left hover:bg-muted" onClick={() => { customCols.setOpen(true); setColumnMenu(null); }}><Settings2 className="h-4 w-4" />新增／刪減自訂欄位</button>}
+          {visibleColumns.length > 1 && <button type="button" className="flex w-full items-center gap-2 rounded px-3 py-2 text-left hover:bg-muted" onClick={() => { hideColumn(column.key); setColumnMenu(null); }}><EyeOff className="h-4 w-4" />隱藏「{column.title}」</button>}
+          {hiddenColumns.length > 0 && <button type="button" className="flex w-full items-center gap-2 rounded px-3 py-2 text-left hover:bg-muted" onClick={() => { restoreColumns(); setColumnMenu(null); }}><RotateCcw className="h-4 w-4" />恢復所有隱藏欄位</button>}
+        </div>;
+      })()}
 
       <div className="flex items-center justify-between text-sm text-muted-foreground">
         <div>

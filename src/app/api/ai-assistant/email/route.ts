@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import nodemailer from "nodemailer";
+import nodemailer from "nodemailer9";
 import { apiHandler, requirePermission, requireTenantId } from "@/lib/api";
 import {
   buildAssistantExcelBuffer,
@@ -59,7 +59,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
   if (selectedFormat === "excel") {
     attachments.push({
       filename: `${filenameBase}.xlsx`,
-      content: buildAssistantExcelBuffer(result),
+      content: await buildAssistantExcelBuffer(result),
       contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     });
   } else if (selectedFormat === "word") {

@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'">
+  <title>艾琳 ERP 連線設定</title>
+  <link rel="stylesheet" href="setup.css">
+</head>
+<body>
+  <main>
+    <section class="brand">
+      <div class="mark">E</div>
+      <div><h1>艾琳 ERP</h1><p>企業 ERP／零售 POS／餐飲 POS 安全工作站</p></div>
+    </section>
+
+    <div id="message" class="message" hidden></div>
+
+    <section id="ready" class="card" hidden>
+      <div class="status"><span></span>此電腦已完成授權</div>
+      <dl>
+        <div><dt>公司代碼</dt><dd id="readyCompany"></dd></div>
+        <div><dt>公司主機</dt><dd id="readyServer"></dd></div>
+        <div><dt>裝置代碼</dt><dd id="readyDevice"></dd></div>
+        <div><dt>離線租約</dt><dd id="readyExpiry"></dd></div>
+      </dl>
+      <button id="openButton" class="primary">開啟 ERP／POS</button>
+      <button id="resetButton" class="secondary">變更公司主機或啟用碼</button>
+    </section>
+
+    <form id="setup" class="card" hidden>
+      <h2>第一次連線</h2>
+      <p class="hint">輸入艾琳設計付款開通後提供的公司代碼與啟用碼，系統會自動取得正確的公司主機連線設定。</p>
+      <label>公司代碼
+        <input id="companyCode" required placeholder="ERIN-XXXXXXXXXXXX" autocomplete="organization">
+      </label>
+      <label>啟用碼
+        <input id="activationKey" required type="password" placeholder="ERP-…" autocomplete="off">
+      </label>
+      <label><span><input id="manualMode" type="checkbox"> 無法使用中央查詢，改由安裝人員手動設定內網主機</span></label>
+      <div id="manualFields" hidden>
+        <label>公司主機 HTTPS 網址
+          <input id="serverUrl" placeholder="https://192.168.1.20:3443" autocomplete="url">
+        </label>
+        <label>公司主機 CA 憑證
+          <div class="file-row"><input id="caName" readonly placeholder="尚未選擇 ca.crt"><button id="chooseCa" type="button" class="secondary">選擇檔案</button></div>
+        </label>
+      </div>
+      <p class="security">啟用碼與裝置私鑰會使用 macOS Keychain 或 Windows DPAPI 加密保存。私鑰不會傳送到中央或公司主機。</p>
+      <button id="saveButton" class="primary" type="submit">自動尋找公司並驗證席次</button>
+    </form>
+  </main>
+  <script src="setup.js"></script>
+</body>
+</html>

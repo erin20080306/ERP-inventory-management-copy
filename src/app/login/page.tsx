@@ -1,14 +1,13 @@
 "use client";
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Loader2, Lock, User, Building2, ShieldCheck, BarChart3, Package, Sparkles } from "lucide-react";
+import { Loader2, Lock, User, Building2, ShieldCheck, BarChart3, Package, Sparkles, Download } from "lucide-react";
 import Link from "next/link";
-import { PWAInstall } from "@/components/pwa-install";
 
 export default function LoginPage() {
   return (
@@ -19,7 +18,7 @@ export default function LoginPage() {
 }
 
 function normalizeCallbackUrl(value: string | null) {
-  const fallback = "/dashboard";
+  const fallback = "/workspace";
   if (!value) return fallback;
   if (value.startsWith("/") && !value.startsWith("//")) return value;
   if (typeof window === "undefined") return fallback;
@@ -39,6 +38,14 @@ function LoginInner() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [isLocalPreview, setIsLocalPreview] = useState(false);
+  const registered = sp.get("registered") === "1";
+
+  useEffect(() => {
+    setIsLocalPreview(["127.0.0.1", "localhost"].includes(window.location.hostname));
+    const registeredUsername = sp.get("username")?.trim();
+    if (registeredUsername) setUsername(registeredUsername);
+  }, [sp]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -52,11 +59,15 @@ function LoginInner() {
     toast.success("登入成功");
     // 標記首次登入，讓手機版選單自動展開
     try { sessionStorage.setItem("erp_just_logged_in", "1"); } catch {}
-    // 檢查是否為超級管理員，有 tenantId 才導向 /admin
+    // 登入後依平台管理者／公司模式進入正確工作區。
     try {
       const sess = await fetch("/api/auth/session").then((r) => r.json());
-      if (sess?.user?.isSuperAdmin && !sess?.user?.tenantId) {
+      if (sess?.user?.isSuperAdmin) {
         window.location.href = "/admin";
+        return;
+      }
+      if (!sp.get("callbackUrl")) {
+        window.location.href = "/workspace";
         return;
       }
     } catch {}
@@ -96,9 +107,9 @@ function LoginInner() {
             </div>
             <div>
               <h1 className="text-xl md:text-2xl font-bold tracking-wide bg-gradient-to-r from-white to-slate-300 bg-clip-text text-transparent">
-                專業 ERP 管理系統
+                艾琳設計 ERP／POS 系統
               </h1>
-              <p className="text-xs md:text-sm text-slate-400 mt-0.5">Enterprise Resource Planning</p>
+              <p className="text-xs md:text-sm text-slate-400 mt-0.5">Enterprise &amp; Point of Sale Management</p>
             </div>
           </div>
 
@@ -106,7 +117,7 @@ function LoginInner() {
             <Feature icon={<Package className="h-4 w-4 md:h-5 md:w-5" />} title="完整進銷存管理" desc="商品 / 採購 / 銷售 / 庫存即時掌握" />
             <Feature icon={<BarChart3 className="h-4 w-4 md:h-5 md:w-5" />} title="專業會計系統" desc="傳票 / AR / AP / 損益 / 試算 / 資產負債" />
             <Feature icon={<ShieldCheck className="h-4 w-4 md:h-5 md:w-5" />} title="企業級安全" desc="RBAC 角色權限 + 操作稽核紀錄" />
-            <Feature icon={<Sparkles className="h-4 w-4 md:h-5 md:w-5" />} title="客製化ERP系統操作" desc="蝦皮訂單管理 / 餐飲 / 商家 / 一般公司行號" />
+            <Feature icon={<Sparkles className="h-4 w-4 md:h-5 md:w-5" />} title="ERP／POS 雙模式" desc="一般企業流程 / 門市掃碼結帳 / 電商訂單管理" />
           </div>
 
           <div className="pt-3 md:pt-4 border-t border-white/10 text-xs text-slate-500 space-y-2 md:space-y-3">
@@ -115,7 +126,7 @@ function LoginInner() {
             </div>
             <div className="space-y-1">
               <div className="font-medium text-slate-400">服務人員：艾琳設計</div>
-              <div className="text-slate-500">eein20080306@gmail.com</div>
+              <div className="text-slate-500">erin20080306@gmail.com</div>
               <div className="text-slate-500">Line ID: erin2008</div>
               <a
                 href="https://erin.is-a.dev/"
@@ -139,9 +150,10 @@ function LoginInner() {
             </div>
 
             <form onSubmit={onSubmit} className="space-y-4">
+              {registered && <div className="rounded-xl border border-emerald-400/30 bg-emerald-400/10 p-3 text-sm text-emerald-200">帳號已建立完成，帳號已自動帶入；也可以使用註冊 Email 登入。</div>}
               <div className="space-y-1.5">
                 <Label htmlFor="username" className="text-slate-300 text-xs">
-                  帳號
+                  帳號或 Email
                 </Label>
                 <div className="relative">
                   <User className="absolute left-3 top-3 h-4 w-4 text-slate-500" />
@@ -151,6 +163,7 @@ function LoginInner() {
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     autoComplete="username"
+                    placeholder="請輸入帳號或註冊 Email"
                     required
                   />
                 </div>
@@ -182,15 +195,41 @@ function LoginInner() {
               </Button>
             </form>
 
+            {isLocalPreview && (
+              <div className="mt-5 rounded-xl border border-amber-300/20 bg-amber-300/5 p-3">
+                <div className="mb-2 text-center text-[11px] font-semibold text-amber-200">本機預覽・模擬客戶快速登入</div>
+                <div className="grid grid-cols-3 gap-1.5">
+                  <button type="button" onClick={() => { setUsername("demo-erp"); setPassword("DemoERP2026!"); }} className="rounded-lg border border-white/10 px-2 py-2 text-[11px] text-slate-300 hover:bg-white/10">企業 ERP</button>
+                  <button type="button" onClick={() => { setUsername("demo-retail"); setPassword("DemoRetail2026!"); }} className="rounded-lg border border-white/10 px-2 py-2 text-[11px] text-slate-300 hover:bg-white/10">零售 POS</button>
+                  <button type="button" onClick={() => { setUsername("demo-food"); setPassword("DemoFood2026!"); }} className="rounded-lg border border-white/10 px-2 py-2 text-[11px] text-slate-300 hover:bg-white/10">餐飲 POS</button>
+                </div>
+                <div className="mt-1.5 grid grid-cols-3 gap-1.5">
+                  <button type="button" onClick={() => { setUsername("demo-trial"); setPassword("DemoTrial2026!"); }} className="rounded-lg border border-amber-300/20 px-2 py-2 text-[11px] text-amber-200 hover:bg-amber-300/10">試用倒數</button>
+                  <button type="button" onClick={() => { setUsername("demo-expired"); setPassword("DemoExpired2026!"); }} className="rounded-lg border border-rose-300/20 px-2 py-2 text-[11px] text-rose-200 hover:bg-rose-300/10">試用到期</button>
+                  <button type="button" onClick={() => { setUsername("demo-revoked"); setPassword("DemoRevoked2026!"); }} className="rounded-lg border border-rose-300/20 px-2 py-2 text-[11px] text-rose-200 hover:bg-rose-300/10">授權撤銷</button>
+                </div>
+              </div>
+            )}
+
             <div className="mt-4 text-center">
-              <Link href="/register" className="text-sm text-slate-400 hover:text-white transition">
-                還沒有帳號？<span className="text-indigo-400 font-medium">立即註冊</span>
+              <Link href="/solutions" className="text-sm text-slate-400 hover:text-white transition">
+                還沒有帳號？<span className="text-indigo-400 font-medium">選擇模式並試用</span>
               </Link>
             </div>
 
-            <div className="mt-4 flex justify-center">
-              <PWAInstall />
+            <div className="mt-4 rounded-xl border border-sky-300/20 bg-sky-300/5 p-3 text-xs leading-5 text-slate-400">
+              <div className="flex items-start gap-2"><Download className="mt-0.5 h-4 w-4 shrink-0 text-sky-300" /><p><span className="font-semibold text-sky-200">線上版只供 3 日試用。</span>正式使用請先選擇方案並聯絡付款，開通後才提供 macOS／Windows 公司主機與工作站安裝包。</p></div>
+              <div className="mt-2 flex flex-wrap gap-3 pl-6"><Link href="/plans" className="text-emerald-300 hover:underline">費率與開通方式</Link><Link href="/terms" className="text-indigo-300 hover:underline">產品條款</Link><Link href="/refund" className="text-indigo-300 hover:underline">退款政策</Link></div>
             </div>
+
+            <p className="mt-5 text-center text-[11px] leading-5 text-slate-500">
+              登入即表示你已閱讀
+              <Link href="/terms" className="text-indigo-300 hover:underline mx-1">服務條款與聲明</Link>
+              及
+              <Link href="/privacy" className="text-indigo-300 hover:underline ml-1">隱私權政策</Link>
+              <br />
+              <Link href="/plans" className="text-emerald-300 hover:underline">查看方案與聯絡開通</Link>
+            </p>
           </div>
         </div>
       </div>

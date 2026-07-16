@@ -1,0 +1,14 @@
+{
+  admin off
+}
+
+https://{$SERVER_HOST}:3443 {
+  tls internal
+  encode zstd gzip
+  reverse_proxy app:3000
+  header {
+    Strict-Transport-Security "max-age=31536000"
+    X-Content-Type-Options "nosniff"
+    Referrer-Policy "same-origin"
+  }
+}

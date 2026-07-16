@@ -199,9 +199,9 @@ function ProductDialog({ open, onClose, row, onSaved }: any) {
                   onClick={() => fileInputRef.current?.click()}
                   disabled={uploading}
                 >
-                  {uploading ? "上傳中..." : "上傳圖片"}
+                  {uploading ? "上傳中..." : form.imageUrl ? "更換圖片" : "上傳圖片"}
                 </Button>
-                <p className="text-xs text-muted-foreground">支援 JPG、PNG、WebP、GIF 格式，最大 2MB</p>
+                <p className="text-xs text-muted-foreground">支援 JPG、PNG、WebP、GIF，最大 5MB；儲存後餐飲點餐與零售商品同步更新。</p>
               </div>
             </div>
           </div>

@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { requirePermission } from "@/lib/api";
+import { requirePermission, requireTenantId } from "@/lib/api";
 import { notFound } from "next/navigation";
 import { AutoPrint } from "../../auto-print";
 import { CompanyHeader } from "../../CompanyHeader";
@@ -7,10 +7,11 @@ import { formatMoney } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
-export default async function PrintPayroll({ params }: { params: { id: string } }) {
+export default async function PrintPayroll({ params }: { params: Promise<{ id: string }> }) {
   await requirePermission("payroll.view");
-  const p = await prisma.payroll.findUnique({
-    where: { id: params.id },
+  const [{ id }, tenantId] = await Promise.all([params, requireTenantId()]);
+  const p = await prisma.payroll.findFirst({
+    where: { id, employee: { tenantId } },
     include: { employee: { include: { department: true } }, period: true, items: true },
   });
   if (!p) notFound();

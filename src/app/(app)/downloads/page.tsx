@@ -1,0 +1,42 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { Download, FileArchive, Loader2, ShieldCheck } from "lucide-react";
+
+type Installer = { name: string; size: number; platform: string; kind: "company-host" | "workstation"; sha256: string | null; codeSigning: string | null };
+type Release = { version?: string; generatedAt?: string; prerelease?: boolean; readyForCustomers?: boolean } | null;
+
+function size(bytes: number) {
+  return bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(1)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+export default function DownloadsPage() {
+  const [files, setFiles] = useState<Installer[]>([]);
+  const [release, setRelease] = useState<Release>(null);
+  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    fetch("/api/installers", { cache: "no-store" })
+      .then(async (response) => {
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || "載入失敗");
+        setFiles(result.files ?? []);
+        setRelease(result.release ?? null);
+        setMessage(result.message ?? "");
+      })
+      .catch((error) => setMessage(error instanceof Error ? error.message : "載入失敗"))
+      .finally(() => setLoading(false));
+  }, []);
+
+  return (
+    <div className="mx-auto max-w-5xl space-y-6">
+      <header className="rounded-2xl border bg-card p-6 shadow-sm">
+        <div className="flex items-start justify-between gap-4"><div><h1 className="text-2xl font-bold">正式桌面版下載</h1><p className="mt-2 text-sm text-muted-foreground">此入口只在付款開通後顯示。請先安裝公司主機，再於已購席次的 Windows／macOS 電腦安裝工作站。</p></div><ShieldCheck className="h-10 w-10 text-emerald-600" /></div>
+        {release?.version ? <p className="mt-3 text-xs text-muted-foreground">版本 {release.version}{release.prerelease ? "・未簽章測試版本" : "・正式版本"}</p> : null}
+      </header>
+      <section className="rounded-2xl border bg-card p-5">
+        {loading ? <div className="flex h-28 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin" /></div> : files.length ? <div className="grid gap-3 md:grid-cols-2">{files.map((file) => <div key={file.name} className="flex items-center justify-between gap-3 rounded-xl border p-4"><div className="flex min-w-0 items-center gap-3"><FileArchive className="h-8 w-8 shrink-0 text-sky-600" /><div className="min-w-0"><div className="truncate font-semibold">{file.name}</div><div className="mt-1 text-xs text-muted-foreground">{file.kind === "company-host" ? "公司主機" : "操作工作站"}・{file.platform}・{size(file.size)}</div>{file.codeSigning === "unsigned-test" ? <div className="mt-1 text-xs font-medium text-amber-600">未簽章，安裝時可能出現系統安全提醒</div> : null}{file.sha256 ? <div className="mt-1 truncate font-mono text-[10px] text-muted-foreground" title={file.sha256}>SHA-256 {file.sha256}</div> : null}</div></div><a href={`/api/installers?file=${encodeURIComponent(file.name)}`} className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-500"><Download className="h-3.5 w-3.5" />下載</a></div>)}</div> : <div className="rounded-xl border border-dashed border-amber-400/40 bg-amber-50 p-6 text-sm text-amber-900">{message || "安裝版尚未發布，請聯絡艾琳設計。"}</div>}
+      </section>
+    </div>
+  );
+}

@@ -10,10 +10,11 @@ export const dynamic = "force-dynamic";
 export default async function BalanceSheetPrint({
   searchParams,
 }: {
-  searchParams: { date?: string };
+  searchParams: Promise<{ date?: string }>;
 }) {
+  const query = await searchParams;
   const tenantId = await requireTenantId();
-  const asOf = searchParams.date ? new Date(searchParams.date) : new Date();
+  const asOf = query.date ? new Date(query.date) : new Date();
   const trial = await computeTrialBalance(asOf, tenantId);
 
   // 損益用於計算保留盈餘

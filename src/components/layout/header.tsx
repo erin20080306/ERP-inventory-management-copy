@@ -2,12 +2,13 @@
 import { useSession, signOut } from "next-auth/react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
-import { Moon, Sun, LogOut, UserCircle2, Shield } from "lucide-react";
+import { Moon, Sun, LogOut, UserCircle2, Shield, Download } from "lucide-react";
 import { useEffect, useState } from "react";
 import { MobileSidebar } from "./mobile-sidebar";
 import { AIAssistantLauncher } from "@/components/ai-assistant-launcher";
+import { ErpKeyboardNavigator } from "@/components/erp-keyboard-navigator";
 
-export function Header() {
+export function Header({ showDownloads = false }: { showDownloads?: boolean }) {
   const { data } = useSession();
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
@@ -23,12 +24,13 @@ export function Header() {
         </Button>
       )}
       <AIAssistantLauncher />
+      <ErpKeyboardNavigator />
       <div className="flex items-center gap-2 text-sm">
         <UserCircle2 className="h-5 w-5 text-muted-foreground" />
         <div className="hidden sm:flex flex-col">
           <span className="font-medium leading-tight">{data?.user?.name ?? "未登入"}</span>
           <span className="text-[11px] text-muted-foreground leading-tight">
-            {data?.user?.roles?.join(" / ") || "—"}
+            {data?.user?.isSuperAdmin ? "管理者免費內部帳套" : data?.user?.roles?.join(" / ") || "—"}
           </span>
         </div>
       </div>
@@ -36,6 +38,12 @@ export function Header() {
         <Button variant="outline" size="sm" onClick={() => window.location.href = "/admin"}>
           <Shield className="h-4 w-4" />
           後台
+        </Button>
+      )}
+      {showDownloads && (
+        <Button variant="outline" size="sm" onClick={() => window.location.href = "/downloads"}>
+          <Download className="h-4 w-4" />
+          <span className="hidden lg:inline">桌面版</span>
         </Button>
       )}
       <Button variant="outline" size="sm" onClick={() => signOut({ callbackUrl: "/login" })}>
