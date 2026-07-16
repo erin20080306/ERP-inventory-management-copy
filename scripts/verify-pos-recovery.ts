@@ -47,6 +47,13 @@ assert.equal(conflict?.source, "LOCAL");
 assert.equal(conflict?.conflict, true);
 assert.equal(conflict?.serverDraft?.revision, 3);
 
+const staleLocal = choosePosRecoveryDraft(
+  { ...server, revision: 3, updatedAt: "2026-07-16T12:01:00.000Z" },
+  { ...local, savedAt: "2026-07-16T12:00:00.000Z" },
+);
+assert.equal(staleLocal?.source, "SERVER");
+assert.equal(staleLocal?.conflict, false);
+
 const matchingLocal = { ...local, payload, serverRevision: 2 };
 const matching = choosePosRecoveryDraft(server, matchingLocal);
 assert.equal(matching?.source, "SERVER");

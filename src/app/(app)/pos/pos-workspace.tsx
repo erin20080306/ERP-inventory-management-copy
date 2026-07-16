@@ -72,6 +72,10 @@ export function PosWorkspace() {
   const draftCheckedShiftRef = useRef("");
   const autosaveReadyRef = useRef(false);
   const draftRevisionRef = useRef(0);
+  const draftSaveQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const productRequestKeyRef = useRef("");
+  const customerRequestKeyRef = useRef("");
+  const offerRequestKeyRef = useRef("");
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customerQuery, setCustomerQuery] = useState("");
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
@@ -129,8 +133,10 @@ export function PosWorkspace() {
   const loadProducts = useCallback(async (activeShift: Shift | null) => {
     if (!activeShift) {
       setProducts([]);
+      productRequestKeyRef.current = "";
       return;
     }
+    productRequestKeyRef.current = `${activeShift.id}:`;
     const params = new URLSearchParams({ warehouseId: activeShift.register.warehouseId });
     const res = await fetch(`/api/pos/products?${params}`, { cache: "no-store" });
     const data = await res.json();
@@ -139,6 +145,7 @@ export function PosWorkspace() {
   }, []);
 
   const loadCustomers = useCallback(async (value = "") => {
+    customerRequestKeyRef.current = value.trim().toLowerCase();
     const params = new URLSearchParams();
     if (value.trim()) params.set("q", value.trim());
     const res = await fetch(`/api/pos/customers?${params}`, { cache: "no-store" });
@@ -148,6 +155,7 @@ export function PosWorkspace() {
   }, []);
 
   const loadOffers = useCallback(async (customerId = "") => {
+    offerRequestKeyRef.current = customerId;
     const params = new URLSearchParams();
     if (customerId) params.set("customerId", customerId);
     const res = await fetch(`/api/pos/offers?${params}`, { cache: "no-store" });
@@ -169,20 +177,23 @@ export function PosWorkspace() {
       setDraftProtection("NONE");
       return;
     }
-    const [cashRes, holdRes] = await Promise.all([
+    const shouldLoadDraft = draftCheckedShiftRef.current !== activeShift.id;
+    const [cashRes, holdRes, draftRes] = await Promise.all([
       fetch(`/api/pos/cash-movements?shiftId=${encodeURIComponent(activeShift.id)}`, { cache: "no-store" }),
       fetch(`/api/pos/holds?shiftId=${encodeURIComponent(activeShift.id)}`, { cache: "no-store" }),
+      shouldLoadDraft
+        ? fetch(`/api/pos/draft?shiftId=${encodeURIComponent(activeShift.id)}`, { cache: "no-store" })
+        : Promise.resolve(null),
     ]);
     const [cashData, holdData] = await Promise.all([cashRes.json(), holdRes.json()]);
     if (!cashRes.ok) throw new Error(cashData.error || "錢櫃紀錄載入失敗");
     if (!holdRes.ok) throw new Error(holdData.error || "暫存單載入失敗");
     setCashMovements(cashData.items ?? []);
     setHeldSales(holdData.items ?? []);
-    if (draftCheckedShiftRef.current !== activeShift.id) {
-      draftCheckedShiftRef.current = activeShift.id;
-      const draftRes = await fetch(`/api/pos/draft?shiftId=${encodeURIComponent(activeShift.id)}`, { cache: "no-store" });
+    if (draftRes) {
       const draftData = await draftRes.json();
       if (!draftRes.ok) throw new Error(draftData.error || "停電復原草稿載入失敗");
+      draftCheckedShiftRef.current = activeShift.id;
       const serverDraft = draftData.draft ? {
         payload: draftData.draft.payload,
         revision: Number(draftData.draft.revision ?? 1),
@@ -197,22 +208,30 @@ export function PosWorkspace() {
     }
   }, []);
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
+  const refresh = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const activeShift = await loadBootstrap();
-      await Promise.all([loadProducts(activeShift), activeShift ? loadCustomers() : Promise.resolve(), loadOperations(activeShift)]);
+      await Promise.all([
+        loadProducts(activeShift),
+        activeShift ? loadCustomers() : Promise.resolve(),
+        activeShift ? loadOffers() : Promise.resolve(),
+        loadOperations(activeShift),
+      ]);
     } catch (error: any) {
       toast.error(error.message || "載入失敗");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
-  }, [loadBootstrap, loadCustomers, loadOperations, loadProducts]);
+  }, [loadBootstrap, loadCustomers, loadOffers, loadOperations, loadProducts]);
 
   useEffect(() => { void refresh(); }, [refresh]);
 
   useEffect(() => {
     if (!shift) return;
+    const requestKey = `${shift.id}:${query.trim().toLowerCase()}`;
+    if (productRequestKeyRef.current === requestKey) return;
+    productRequestKeyRef.current = requestKey;
     const timer = window.setTimeout(() => {
       const params = new URLSearchParams({ warehouseId: shift.register.warehouseId });
       if (query.trim()) params.set("q", query.trim());
@@ -222,21 +241,31 @@ export function PosWorkspace() {
           if (!res.ok) throw new Error(data.error || "商品搜尋失敗");
           setProducts(data.items ?? []);
         })
-        .catch((error) => toast.error(error.message));
+        .catch((error) => {
+          if (productRequestKeyRef.current === requestKey) productRequestKeyRef.current = "";
+          toast.error(error.message);
+        });
     }, query.trim() ? 250 : 0);
     return () => window.clearTimeout(timer);
   }, [query, shift]);
 
   useEffect(() => {
     if (!shift) return;
+    const requestKey = customerQuery.trim().toLowerCase();
+    if (customerRequestKeyRef.current === requestKey) return;
+    customerRequestKeyRef.current = requestKey;
     const timer = window.setTimeout(() => {
-      void loadCustomers(customerQuery).catch((error) => toast.error(error.message));
+      void loadCustomers(customerQuery).catch((error) => {
+        if (customerRequestKeyRef.current === requestKey) customerRequestKeyRef.current = "";
+        toast.error(error.message);
+      });
     }, customerQuery.trim() ? 250 : 0);
     return () => window.clearTimeout(timer);
   }, [customerQuery, loadCustomers, shift]);
 
   useEffect(() => {
     if (!shift) return;
+    if (offerRequestKeyRef.current === selectedCustomerId) return;
     void loadOffers(selectedCustomerId).catch((error) => toast.error(error.message));
   }, [loadOffers, selectedCustomerId, shift]);
 
@@ -388,37 +417,50 @@ export function PosWorkspace() {
     // server debounce, so a power loss inside the next 700 ms cannot drop it.
     persistLocalCart(payload);
     const timer = window.setTimeout(() => {
-      void fetch("/api/pos/draft", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ shiftId: shift.id, payload, baseRevision: draftRevisionRef.current }),
-      }).then(async (res) => {
-        const data = await res.json();
-        if (!res.ok) {
-          if (res.status === 409) {
-            autosaveReadyRef.current = false;
-            setDraftProtection("CONFLICT");
-            const currentRes = await fetch(`/api/pos/draft?shiftId=${encodeURIComponent(shift.id)}`, { cache: "no-store" });
-            const currentData = await currentRes.json();
-            const serverDraft = currentData.draft ? { payload: currentData.draft.payload, revision: Number(currentData.draft.revision ?? 1), updatedAt: currentData.draft.updatedAt } : null;
-            draftRevisionRef.current = serverDraft?.revision ?? 0;
-            const localDraft = readLocalPosDraft(window.localStorage, shift.id);
-            const recovery = choosePosRecoveryDraft(serverDraft, localDraft);
-            setRecoveryDraft(recovery ? { ...recovery, conflict: true } : null);
+      // Vercel 延遲可能高於 debounce。所有 PUT 必須串行，後一筆開始時才讀
+      // 最新 revision，避免同一瀏覽器的兩個請求互相製造 409 假衝突。
+      draftSaveQueueRef.current = draftSaveQueueRef.current
+        .catch(() => undefined)
+        .then(async () => {
+          if (!autosaveReadyRef.current || draftCheckedShiftRef.current !== shift.id) return;
+          const res = await fetch("/api/pos/draft", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ shiftId: shift.id, payload, baseRevision: draftRevisionRef.current }),
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            if (res.status === 409) {
+              autosaveReadyRef.current = false;
+              setDraftProtection("CONFLICT");
+              const currentRes = await fetch(`/api/pos/draft?shiftId=${encodeURIComponent(shift.id)}`, { cache: "no-store" });
+              const currentData = await currentRes.json();
+              const serverDraft = currentData.draft ? { payload: currentData.draft.payload, revision: Number(currentData.draft.revision ?? 1), updatedAt: currentData.draft.updatedAt } : null;
+              draftRevisionRef.current = serverDraft?.revision ?? 0;
+              const localDraft = readLocalPosDraft(window.localStorage, shift.id);
+              const recovery = choosePosRecoveryDraft(serverDraft, localDraft);
+              setRecoveryDraft(recovery ? { ...recovery, conflict: true } : null);
+            }
+            throw new Error(data.error || "草稿儲存失敗");
           }
-          throw new Error(data.error || "草稿儲存失敗");
-        }
-        if (data.cleared) {
-          draftRevisionRef.current = 0;
-          setDraftProtection("NONE");
-          return;
-        }
-        draftRevisionRef.current = Number(data.draft?.revision ?? draftRevisionRef.current);
-        if (payload.items.length) {
-          writeLocalPosDraft(window.localStorage, { version: 1, shiftId: shift.id, savedAt: new Date().toISOString(), serverRevision: draftRevisionRef.current, checkoutRequestId: checkoutRequestIdRef.current, payload });
-          setDraftProtection("SERVER");
-        }
-      }).catch((error) => toast.error(`停電復原保護：已保存在本機，但伺服器同步失敗（${error.message}）`));
+          if (data.cleared) {
+            draftRevisionRef.current = 0;
+            setDraftProtection("NONE");
+            return;
+          }
+          draftRevisionRef.current = Number(data.draft?.revision ?? draftRevisionRef.current);
+          if (payload.items.length) {
+            // 若使用者已在前一筆慢速請求期間繼續編輯，保留 localStorage
+            // 裡較新的內容，只把它所依據的伺服器 revision 向前推進。
+            const latestLocal = readLocalPosDraft(window.localStorage, shift.id);
+            const hasNewerLocalEdit = Boolean(latestLocal && JSON.stringify(latestLocal.payload) !== JSON.stringify(payload));
+            writeLocalPosDraft(window.localStorage, latestLocal
+              ? { ...latestLocal, serverRevision: draftRevisionRef.current }
+              : { version: 1, shiftId: shift.id, savedAt: new Date().toISOString(), serverRevision: draftRevisionRef.current, checkoutRequestId: checkoutRequestIdRef.current, payload });
+            setDraftProtection(hasNewerLocalEdit ? "LOCAL" : "SERVER");
+          }
+        })
+        .catch((error) => { toast.error(`停電復原保護：已保存在本機，但伺服器同步失敗（${error.message}）`); });
     }, 700);
     return () => window.clearTimeout(timer);
   }, [appliedCoupon, cart, couponCode, discountApproval, discountReason, invoiceBuyerTaxId, invoiceCarrierId, invoiceDonationCode, invoiceMode, paymentLines, pendingExchange, redeemPoints, selectedCustomerId, shift]);
@@ -799,6 +841,9 @@ export function PosWorkspace() {
     try {
       if (!checkoutRequestIdRef.current) checkoutRequestIdRef.current = crypto.randomUUID();
       persistLocalCart(currentCartPayload(), checkoutRequestIdRef.current);
+      // 先等候已在途的草稿 PUT，避免交易完成後慢到的舊 PUT 重建已清除草稿。
+      await draftSaveQueueRef.current;
+      autosaveReadyRef.current = false;
       const res = await fetch("/api/pos/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -852,10 +897,20 @@ export function PosWorkspace() {
       draftRevisionRef.current = 0;
       setDraftProtection("NONE");
       toast.success("交易完成，庫存與帳務已同步");
-      await fetch(`/api/pos/draft?shiftId=${encodeURIComponent(shift.id)}`, { method: "DELETE" });
-      await refresh();
+      // 使用者看到交易完成後立即可操作；清草稿及統計/庫存刷新在背景完成，
+      // 且 silent refresh 不再把整個 POS 換成全頁 loading。
+      void (async () => {
+        const draftRes = await fetch(`/api/pos/draft?shiftId=${encodeURIComponent(shift.id)}`, { method: "DELETE" });
+        if (!draftRes.ok) throw new Error("伺服器草稿清除失敗");
+        autosaveReadyRef.current = true;
+        await refresh(true);
+      })().catch((error) => {
+        autosaveReadyRef.current = true;
+        toast.error(`交易已完成，但背景更新失敗：${error.message}`);
+      });
       window.setTimeout(() => scanInputRef.current?.focus(), 0);
     } catch (error: any) {
+      autosaveReadyRef.current = true;
       if (checkoutRequestIdRef.current) toast.error("連線中斷，交易結果尚待確認。請勿再次收款；恢復連線後以同一購物車再次按結帳，系統會用防重複碼查回原交易。");
       else toast.error(error.message);
     } finally {
@@ -918,7 +973,7 @@ export function PosWorkspace() {
           <button onClick={() => setCashPanelOpen(true)} className="h-10 px-4 rounded-lg border hover:bg-muted text-sm inline-flex items-center gap-2"><CircleDollarSign className="h-4 w-4" />錢櫃異動{cashMovements.some((movement) => movement.status === "PENDING") ? `（${cashMovements.filter((movement) => movement.status === "PENDING").length} 待核）` : ""}</button>
           <button onClick={() => setHoldPanelOpen(true)} className="h-10 px-4 rounded-lg border hover:bg-muted text-sm inline-flex items-center gap-2"><ArchiveRestore className="h-4 w-4" />暫存／取回{heldSales.length ? `（${heldSales.length}）` : ""}</button>
           <button onClick={previewCloseShift} disabled={busy} className="h-10 px-4 rounded-lg border hover:bg-muted text-sm">預覽結班</button>
-          <button onClick={refresh} className="h-10 w-10 inline-flex items-center justify-center rounded-lg border hover:bg-muted" aria-label="重新整理"><RefreshCw className="h-4 w-4" /></button>
+          <button onClick={() => { void refresh(); }} className="h-10 w-10 inline-flex items-center justify-center rounded-lg border hover:bg-muted" aria-label="重新整理"><RefreshCw className="h-4 w-4" /></button>
         </div>
       </header>
 

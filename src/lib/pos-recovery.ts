@@ -51,5 +51,15 @@ export function choosePosRecoveryDraft(server: ServerPosDraft | null, local: Loc
   if (local.serverRevision === server.revision) {
     return { source: "LOCAL" as const, conflict: false, payload: local.payload, updatedAt: local.savedAt, checkoutRequestId: local.checkoutRequestId, serverDraft: server };
   }
+  // 本機內容的儲存時間早於伺服器，而且本機所知 revision 也落後，代表它只是
+  // 同一瀏覽器留下的舊快照；自動採用伺服器版，不要要求門市人員處理假衝突。
+  const localSavedAt = new Date(local.savedAt).getTime();
+  const serverUpdatedAt = new Date(server.updatedAt).getTime();
+  if (local.serverRevision < server.revision
+    && Number.isFinite(localSavedAt)
+    && Number.isFinite(serverUpdatedAt)
+    && localSavedAt <= serverUpdatedAt) {
+    return { source: "SERVER" as const, conflict: false, payload: server.payload, updatedAt: new Date(server.updatedAt).toISOString(), checkoutRequestId: local.checkoutRequestId, serverDraft: server };
+  }
   return { source: "LOCAL" as const, conflict: true, payload: local.payload, updatedAt: local.savedAt, checkoutRequestId: local.checkoutRequestId, serverDraft: server };
 }

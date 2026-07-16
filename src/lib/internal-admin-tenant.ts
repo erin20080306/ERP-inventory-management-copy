@@ -11,9 +11,23 @@ export const INTERNAL_ADMIN_TENANT_NAME = "艾琳設計內部管理帳套";
 export async function ensureInternalAdminTenant(userId: string) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, isSuperAdmin: true },
+    select: { id: true, tenantId: true, isSuperAdmin: true },
   });
   if (!user?.isSuperAdmin) throw new Error("僅平台超級管理員可使用內部管理帳套");
+
+  // 正常登入走快速路徑。過去每次登入都執行 seedTenantDefaults，會重跑
+  // 會計科目、商品、庫存、POS 與桌位的數十筆資料庫操作，讓 Vercel
+  // 登入卡住數秒甚至逾時。初始化只應在帳套第一次建立時執行。
+  const existing = await prisma.tenant.findUnique({
+    where: { companyCode: INTERNAL_ADMIN_COMPANY_CODE },
+    select: { id: true, name: true, businessMode: true },
+  });
+  if (existing) {
+    if (user.tenantId !== existing.id) {
+      await prisma.user.update({ where: { id: userId }, data: { tenantId: existing.id } });
+    }
+    return existing;
+  }
 
   const tenant = await prisma.tenant.upsert({
     where: { companyCode: INTERNAL_ADMIN_COMPANY_CODE },
@@ -34,10 +48,9 @@ export async function ensureInternalAdminTenant(userId: string) {
     select: { id: true, name: true, businessMode: true },
   });
 
-  await prisma.user.update({
-    where: { id: userId },
-    data: { tenantId: tenant.id },
-  });
+  if (user.tenantId !== tenant.id) {
+    await prisma.user.update({ where: { id: userId }, data: { tenantId: tenant.id } });
+  }
 
   await seedTenantDefaults(tenant.id);
   await prisma.companySetting.updateMany({

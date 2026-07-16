@@ -1,5 +1,7 @@
 import { NextResponse, NextRequest } from "next/server";
-import { getServerSession } from "next-auth";
+import { getServerSession, type Session } from "next-auth";
+import { AsyncLocalStorage } from "node:async_hooks";
+import { cache } from "react";
 import { authOptions, hasPermission } from "./auth";
 import { prisma } from "./prisma";
 import { reportError } from "./error-report";
@@ -9,19 +11,39 @@ import { normalizeBusinessMode } from "./product-editions";
 
 const TENANT_EXISTS_TTL_MS = 60_000;
 const tenantExistsCache = new Map<string, { exists: boolean; expiresAt: number }>();
+type ActiveSession = Session | null;
+type ApiRequestContext = {
+  sessionPromise?: Promise<ActiveSession>;
+  authPromise?: Promise<NonNullable<ActiveSession>>;
+};
+const apiRequestContext = new AsyncLocalStorage<ApiRequestContext>();
+const getServerComponentSession = cache(
+  () => getServerSession(authOptions) as Promise<ActiveSession>,
+);
 
 export async function getSession() {
-  return await getServerSession(authOptions);
+  const context = apiRequestContext.getStore();
+  if (context?.sessionPromise) return await context.sessionPromise;
+  if (!context) return await getServerComponentSession();
+  const sessionPromise = getServerSession(authOptions) as Promise<ActiveSession>;
+  context.sessionPromise = sessionPromise;
+  return await sessionPromise;
 }
 
 export async function requireAuth() {
-  const session = await getSession();
-  if (!session?.user) throw new ApiError(401, "未登入");
-  const access = await getLicenseAccessForUser(session.user.id);
-  if (!access.allowed) {
-    throw new ApiError(402, access.reason ?? "公司授權已到期，請聯絡艾琳設計開通");
-  }
-  return session;
+  const context = apiRequestContext.getStore();
+  if (context?.authPromise) return await context.authPromise;
+  const authPromise = (async () => {
+    const session = await getSession();
+    if (!session?.user) throw new ApiError(401, "未登入");
+    const access = await getLicenseAccessForUser(session.user.id);
+    if (!access.allowed) {
+      throw new ApiError(402, access.reason ?? "公司授權已到期，請聯絡艾琳設計開通");
+    }
+    return session;
+  })();
+  if (context) context.authPromise = authPromise;
+  return await authPromise;
 }
 
 export async function requirePermission(code: string) {
@@ -95,43 +117,45 @@ export function apiHandler<T extends (...args: any[]) => Promise<any>>(fn: T) {
     const resolvedContext = context
       ? { ...context, params: await context.params }
       : undefined;
-    try {
-      if (process.env.LOCAL_LICENSE_MODE === "true") {
-        const activeSession = await getSession();
-        const tenantId = activeSession?.user?.tenantId;
-        if (tenantId && !activeSession?.user?.isSuperAdmin) {
-          const workstation = await verifyLocalWorkstationRequest(tenantId, {
-            method: req.method,
-            path: `${req.nextUrl.pathname}${req.nextUrl.search}`,
-            headers: req.headers,
-          });
-          if (!workstation.allowed) throw new ApiError(403, workstation.reason);
-        }
-      }
-      return await fn(req, resolvedContext);
-    } catch (e: any) {
-      if (e?.digest === "DYNAMIC_SERVER_USAGE" || e?.message?.includes("Dynamic server usage")) {
-        throw e;
-      }
-      if (e instanceof ApiError) {
-        return NextResponse.json({ error: e.message }, { status: e.status });
-      }
-      console.error("[API Error]", e);
-      let ctx: { tenantId?: string | null; userId?: string | null; method?: string | null; path?: string | null; status: number; ip?: string | null; userAgent?: string | null } = { status: 500 };
+    return apiRequestContext.run({}, async () => {
       try {
-        if (req && typeof (req as any).headers?.get === "function") {
-          ctx.method = req.method ?? null;
-          ctx.path = req.nextUrl?.pathname ?? null;
-          ctx.ip = req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || req.headers.get("cf-connecting-ip") || null;
-          ctx.userAgent = req.headers.get("user-agent") || null;
+        if (process.env.LOCAL_LICENSE_MODE === "true") {
+          const activeSession = await getSession();
+          const tenantId = activeSession?.user?.tenantId;
+          if (tenantId && !activeSession?.user?.isSuperAdmin) {
+            const workstation = await verifyLocalWorkstationRequest(tenantId, {
+              method: req.method,
+              path: `${req.nextUrl.pathname}${req.nextUrl.search}`,
+              headers: req.headers,
+            });
+            if (!workstation.allowed) throw new ApiError(403, workstation.reason);
+          }
         }
-        const session = await getSession();
-        ctx.tenantId = (session?.user as any)?.tenantId ?? null;
-        ctx.userId = (session?.user as any)?.id ?? null;
-      } catch {}
-      void reportError(e, ctx);
-      return NextResponse.json({ error: e?.message ?? "伺服器錯誤" }, { status: 500 });
-    }
+        return await fn(req, resolvedContext);
+      } catch (e: any) {
+        if (e?.digest === "DYNAMIC_SERVER_USAGE" || e?.message?.includes("Dynamic server usage")) {
+          throw e;
+        }
+        if (e instanceof ApiError) {
+          return NextResponse.json({ error: e.message }, { status: e.status });
+        }
+        console.error("[API Error]", e);
+        let ctx: { tenantId?: string | null; userId?: string | null; method?: string | null; path?: string | null; status: number; ip?: string | null; userAgent?: string | null } = { status: 500 };
+        try {
+          if (req && typeof (req as any).headers?.get === "function") {
+            ctx.method = req.method ?? null;
+            ctx.path = req.nextUrl?.pathname ?? null;
+            ctx.ip = req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || req.headers.get("cf-connecting-ip") || null;
+            ctx.userAgent = req.headers.get("user-agent") || null;
+          }
+          const session = await getSession();
+          ctx.tenantId = (session?.user as any)?.tenantId ?? null;
+          ctx.userId = (session?.user as any)?.id ?? null;
+        } catch {}
+        void reportError(e, ctx);
+        return NextResponse.json({ error: e?.message ?? "伺服器錯誤" }, { status: 500 });
+      }
+    });
   };
 }
 

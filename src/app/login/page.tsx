@@ -50,17 +50,19 @@ function LoginInner() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    const res = await signIn("credentials", { username, password, redirect: false, callbackUrl });
-    setLoading(false);
-    if (res?.error) {
-      toast.error(res.error === "CredentialsSignin" ? "帳號或密碼錯誤" : res.error);
-      return;
-    }
-    toast.success("登入成功");
-    // 標記首次登入，讓手機版選單自動展開
-    try { sessionStorage.setItem("erp_just_logged_in", "1"); } catch {}
-    // 登入後依平台管理者／公司模式進入正確工作區。
     try {
+      const res = await Promise.race([
+        signIn("credentials", { username, password, redirect: false, callbackUrl }),
+        new Promise<never>((_, reject) => window.setTimeout(() => reject(new Error("登入連線逾時，請重新嘗試")), 20_000)),
+      ]);
+      if (res?.error) {
+        toast.error(res.error === "CredentialsSignin" ? "帳號或密碼錯誤" : res.error);
+        return;
+      }
+      toast.success("登入成功");
+      // 標記首次登入，讓手機版選單自動展開
+      try { sessionStorage.setItem("erp_just_logged_in", "1"); } catch {}
+      // 登入後依平台管理者／公司模式進入正確工作區。
       const sess = await fetch("/api/auth/session").then((r) => r.json());
       if (sess?.user?.isSuperAdmin) {
         window.location.href = "/admin";
@@ -70,9 +72,13 @@ function LoginInner() {
         window.location.href = "/workspace";
         return;
       }
-    } catch {}
-    // 整頁導航，避免 push+refresh 需要按兩次的問題
-    window.location.href = callbackUrl;
+      // 整頁導航，避免 push+refresh 需要按兩次的問題
+      window.location.href = callbackUrl;
+    } catch (error: any) {
+      toast.error(error?.message || "登入失敗，請檢查網路後重試");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (

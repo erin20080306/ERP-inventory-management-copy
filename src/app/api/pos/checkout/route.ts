@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { ApiError, apiHandler, audit, getCurrentUserId, requirePosPermission, requireTenantId } from "@/lib/api";
+import { ApiError, apiHandler, audit, requirePosPermission, requireTenantId } from "@/lib/api";
 import { createPostedJournal, nextNumberInTransaction } from "@/lib/documents";
 import { createEInvoiceOutbox, processEInvoiceEvent } from "@/lib/e-invoice";
 import { hasPermission } from "@/lib/auth";
@@ -39,7 +39,9 @@ const CheckoutInput = z.object({
 export const POST = apiHandler(async (req: NextRequest) => {
   const session = await requirePosPermission("create", "sales.create");
   const tenantId = await requireTenantId(session);
-  const currentUser = await getCurrentUserId();
+  // requirePosPermission 已取得完整 session；不要在每次結帳再做第二次
+  // getServerSession + 授權查詢。
+  const currentUser = (session.user as any).name || (session.user as any).username || session.user.id;
   const body = CheckoutInput.parse(await req.json());
 
   const priorSale = await prisma.posSale.findFirst({
