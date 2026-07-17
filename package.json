@@ -5,6 +5,9 @@
   "author": "艾琳設計",
   "description": "專業 ERP 進銷存會計管理系統",
   "scripts": {
+    "generate:host-installers": "node scripts/generate-embedded-host-installers.mjs",
+    "predev": "npm run generate:host-installers",
+    "prebuild": "npm run generate:host-installers",
     "dev": "next dev",
     "build": "prisma generate && next build",
     "start": "next start",

@@ -1,8 +1,9 @@
 import path from "node:path";
 import { NextRequest, NextResponse } from "next/server";
 import { ApiError, apiHandler, requireAuth } from "@/lib/api";
+import { getEmbeddedHostInstaller } from "@/lib/embedded-host-release";
 import { getLicenseAccessForUser } from "@/lib/license";
-import { getInstallerRelease, getPrivateInstallerBlob, INSTALLER_METADATA, INSTALLER_NAME } from "@/lib/installer-release";
+import { getInstallerRelease, getPrivateInstallerBlob, INSTALLER_METADATA, INSTALLER_NAME } from "@/lib/installer-release-current";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,6 +34,18 @@ export const GET = apiHandler(async (req: NextRequest) => {
   if (safeName !== requested || (!file && !target) || (!INSTALLER_NAME.test(safeName) && !INSTALLER_METADATA.test(safeName))) {
     throw new ApiError(404, "找不到安裝包");
   }
+
+  const embedded = getEmbeddedHostInstaller(safeName);
+  if (embedded) {
+    return new Response(embedded.buffer, { headers: {
+      "Content-Type": "application/zip",
+      "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(safeName)}`,
+      "Content-Length": String(embedded.size),
+      "Cache-Control": "private, no-store",
+      "X-Content-SHA256": embedded.sha256,
+    } });
+  }
+
   if (release.storage === "blob") {
     const blob = await getPrivateInstallerBlob(release, safeName);
     if (!blob || blob.statusCode !== 200) throw new ApiError(404, "找不到私人安裝包");
