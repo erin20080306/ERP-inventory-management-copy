@@ -23,8 +23,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     <>
       {children}
       {session.user.isSuperAdmin && (
-        <Link href="/admin/license-key" className="fixed bottom-5 right-5 z-[1200] inline-flex items-center gap-2 rounded-full border border-amber-300/30 bg-amber-400 px-4 py-3 text-sm font-bold text-slate-950 shadow-2xl transition hover:bg-amber-300">
-          <KeyRound className="h-4 w-4" />啟用碼管理
+        <Link href="/admin/license-activation?release=20260717-3" className="fixed bottom-5 right-5 z-[1200] inline-flex items-center gap-2 rounded-full border border-amber-300/30 bg-amber-400 px-4 py-3 text-sm font-bold text-slate-950 shadow-2xl transition hover:bg-amber-300">
+          <KeyRound className="h-4 w-4" />方案開通／啟用碼
         </Link>
       )}
     </>
