@@ -28,8 +28,9 @@ assert.match(workflow, /--publish=never/);
 assert.match(workflow, /--dir/);
 assert.match(workflow, /unset GH_TOKEN GITHUB_TOKEN/);
 assert.match(workflow, /builder_status=\$\{PIPESTATUS\[0\]\}/);
-assert.match(workflow, /將以實際產生的 App 與 codesign 驗證結果判定/);
-assert.match(workflow, /test -d "\$app_path"/);
+assert.match(workflow, /將以實際產生的 App 與最終 DMG 驗證結果判定/);
+assert.match(workflow, /if \[ ! -d "\$app_path" \]/);
+assert.match(workflow, /workflow\.log/);
 assert.match(workflow, /ditto -c -k --sequesterRsrc --keepParent/);
 assert.match(workflow, /hdiutil create/);
 assert.match(workflow, /actions\/upload-artifact@v4/);
@@ -41,4 +42,4 @@ assert.match(workflow, /codesign --verify/);
 assert.match(workflow, /cancel-in-progress: true/);
 assert.match(workflow, /RELEASE_TAG: v1\.0\.3-desktop/);
 
-console.log("Desktop connection UI and verified macOS app packaging: PASS");
+console.log("Desktop connection UI and final macOS DMG verification: PASS");
