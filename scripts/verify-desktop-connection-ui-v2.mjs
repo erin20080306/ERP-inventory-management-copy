@@ -25,12 +25,17 @@ for (const scriptName of ["dist:mac", "dist:mac:manual", "dist:mac:test", "dist:
 assert.match(workflow, /cd desktop/);
 assert.match(workflow, /\.\/node_modules\/\.bin\/electron-builder/);
 assert.match(workflow, /--publish=never/);
+assert.match(workflow, /--dir/);
 assert.match(workflow, /unset GH_TOKEN GITHUB_TOKEN/);
+assert.match(workflow, /ditto -c -k --sequesterRsrc --keepParent/);
+assert.match(workflow, /hdiutil create/);
 assert.match(workflow, /actions\/upload-artifact@v4/);
+assert.match(workflow, /if: always\(\)/);
+assert.match(workflow, /electron-builder\.log/);
 assert.match(workflow, /ErinERP-Desktop-macOS-arm64\.dmg/);
 assert.match(workflow, /notarytool submit/);
 assert.match(workflow, /codesign --verify/);
 assert.match(workflow, /cancel-in-progress: true/);
 assert.match(workflow, /RELEASE_TAG: v1\.0\.3-desktop/);
 
-console.log("Desktop connection UI and macOS builder v2: PASS");
+console.log("Desktop connection UI and native macOS DMG packaging: PASS");
