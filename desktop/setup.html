@@ -47,7 +47,11 @@
         </label>
       </div>
       <p class="security">啟用碼與裝置私鑰會使用 macOS Keychain 或 Windows DPAPI 加密保存。私鑰不會傳送到中央或公司主機。</p>
-      <button id="saveButton" class="primary" type="submit">自動尋找公司並驗證席次</button>
+      <div class="setup-actions">
+        <button id="saveButton" class="primary" type="submit">自動尋找公司並驗證席次</button>
+        <button id="clearButton" class="secondary" type="button">清除舊連線設定</button>
+      </div>
+      <p class="clear-help">已曾經測試或畫面預先帶出舊資料時，可先清除後再重新輸入；裝置身分會保留，不會新增席次。</p>
     </form>
   </main>
   <script src="setup.js"></script>
