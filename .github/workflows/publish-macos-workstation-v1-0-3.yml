@@ -134,3 +134,23 @@ jobs:
           grep -qx 'release-manifest.json' <<< "$assets"
           grep -qx 'SHA256SUMS.txt' <<< "$assets"
           echo "macOS workstation v1.0.3 published successfully"
+
+      - name: Record successful publication on main
+        run: |
+          set -euo pipefail
+          cat > desktop-release-status.json <<EOF
+          {
+            "version": "$RELEASE_TAG",
+            "publishedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "sourceCommit": "$GITHUB_SHA",
+            "macDmg": "ErinERP-Desktop-macOS-arm64.dmg",
+            "macZip": "ErinERP-Desktop-macOS-arm64.zip",
+            "signedAndNotarized": ${{ steps.build.outputs.signed }},
+            "status": "published-and-verified"
+          }
+          EOF
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add desktop-release-status.json
+          git commit -m "chore: record macOS workstation v1.0.3 publication [skip ci]" || exit 0
+          git push origin HEAD:main
