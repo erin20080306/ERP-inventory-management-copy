@@ -7,13 +7,13 @@
   "main": "main.cjs",
   "scripts": {
     "start": "electron .",
-    "pack": "electron-builder --dir",
-    "dist:mac": "electron-builder --mac dmg zip",
-    "dist:mac:manual": "CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg zip --arm64 --config.directories.output=/tmp/erin-erp-manual-dist",
-    "dist:mac:test": "CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg zip --arm64",
-    "dist:win": "electron-builder --win nsis --x64",
-    "dist:win:manual": "electron-builder --win nsis --x64 --config.win.signExecutable=false --config.directories.output=/tmp/erin-erp-manual-dist",
-    "dist:win:test": "electron-builder --win nsis --x64 --config.win.signExecutable=false"
+    "pack": "electron-builder --dir --publish never",
+    "dist:mac": "electron-builder --mac dmg zip --publish never",
+    "dist:mac:manual": "CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg zip --arm64 --config.directories.output=/tmp/erin-erp-manual-dist --publish never",
+    "dist:mac:test": "CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg zip --arm64 --publish never",
+    "dist:win": "electron-builder --win nsis --x64 --publish never",
+    "dist:win:manual": "electron-builder --win nsis --x64 --config.win.signExecutable=false --config.directories.output=/tmp/erin-erp-manual-dist --publish never",
+    "dist:win:test": "electron-builder --win nsis --x64 --config.win.signExecutable=false --publish never"
   },
   "devDependencies": {
     "electron": "43.1.1",
