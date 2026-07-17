@@ -1,0 +1,131 @@
+name: Publish repaired macOS workstation v1.0.3
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "desktop/**"
+      - "scripts/write-release-manifest.mjs"
+      - ".github/workflows/publish-macos-workstation-v1-0-3.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-macos-workstation-v1-0-3
+  cancel-in-progress: false
+
+env:
+  RELEASE_TAG: v1.0.3-desktop
+  SOURCE_RELEASE_TAG: v1.0.1-manual
+
+jobs:
+  publish-macos-workstation:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Install desktop dependencies
+        run: npm --prefix desktop ci
+
+      - name: Build Apple Silicon DMG and ZIP
+        id: build
+        env:
+          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          rm -rf dist/desktop /tmp/erin-erp-manual-dist build-output
+          mkdir -p build-output
+
+          if [ -n "${CSC_LINK:-}" ] && [ -n "${CSC_KEY_PASSWORD:-}" ] && [ -n "${APPLE_ID:-}" ] && [ -n "${APPLE_APP_SPECIFIC_PASSWORD:-}" ] && [ -n "${APPLE_TEAM_ID:-}" ]; then
+            echo "使用 Apple Developer ID 簽章建置"
+            npm --prefix desktop run dist:mac -- --arm64
+            cp dist/desktop/ErinERP-Desktop-macOS-arm64.dmg build-output/
+            cp dist/desktop/ErinERP-Desktop-macOS-arm64.zip build-output/
+            xcrun notarytool submit build-output/ErinERP-Desktop-macOS-arm64.dmg \
+              --apple-id "$APPLE_ID" \
+              --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+              --team-id "$APPLE_TEAM_ID" \
+              --wait
+            xcrun stapler staple build-output/ErinERP-Desktop-macOS-arm64.dmg
+            echo "signed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "未設定 Apple Developer ID，建立已清除 xattr 並驗證完整性的手動安裝版"
+            npm --prefix desktop run dist:mac:manual
+            cp /tmp/erin-erp-manual-dist/ErinERP-Desktop-macOS-arm64.dmg build-output/
+            cp /tmp/erin-erp-manual-dist/ErinERP-Desktop-macOS-arm64.zip build-output/
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          test "$(stat -f%z build-output/ErinERP-Desktop-macOS-arm64.dmg)" -gt 50000000
+          test "$(stat -f%z build-output/ErinERP-Desktop-macOS-arm64.zip)" -gt 50000000
+
+      - name: Verify DMG application bundle
+        run: |
+          set -euo pipefail
+          mount_dir="$(mktemp -d)"
+          device="$(hdiutil attach build-output/ErinERP-Desktop-macOS-arm64.dmg -nobrowse -readonly -mountpoint "$mount_dir" | tail -1 | awk '{print $1}')"
+          app_path="$mount_dir/艾琳 ERP.app"
+          test -d "$app_path"
+          codesign --verify --deep --strict --verbose=2 "$app_path"
+          hdiutil detach "$device"
+
+      - name: Prepare complete workstation release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          rm -rf release-assets
+          mkdir -p release-assets
+
+          source_tag="$SOURCE_RELEASE_TAG"
+          if ! gh release view "$source_tag" >/dev/null 2>&1; then
+            source_tag="$(gh release list --limit 20 --json tagName --jq '[.[] | select(.tagName != env.RELEASE_TAG)][0].tagName')"
+          fi
+          test -n "$source_tag"
+          gh release download "$source_tag" --dir release-assets --clobber
+
+          rm -f release-assets/ErinERP-Desktop-macOS-*.dmg
+          rm -f release-assets/ErinERP-Desktop-macOS-*.zip
+          rm -f release-assets/ErinERP-Host-*.zip
+          rm -f release-assets/release-manifest.json release-assets/SHA256SUMS.txt
+          cp build-output/ErinERP-Desktop-macOS-arm64.dmg release-assets/
+          cp build-output/ErinERP-Desktop-macOS-arm64.zip release-assets/
+
+          test -n "$(find release-assets -maxdepth 1 -type f -name 'ErinERP-Desktop-Windows-*.exe' -print -quit)"
+          RELEASE_MANUAL=true node scripts/write-release-manifest.mjs release-assets "$RELEASE_TAG"
+
+      - name: Publish repaired workstation release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh release view "$RELEASE_TAG" >/dev/null 2>&1 || gh release create "$RELEASE_TAG" \
+            --target "$GITHUB_SHA" \
+            --title "艾琳 ERP 工作站 v1.0.3" \
+            --notes "修正 macOS 啟動殘留錯誤、加入清除舊連線設定、顯示友善的公司主機尚未完成提示，並重新封裝 Apple Silicon DMG／ZIP。"
+          gh release upload "$RELEASE_TAG" release-assets/* --clobber
+          gh release edit "$RELEASE_TAG" --latest
+
+      - name: Verify published files
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          assets="$(gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name')"
+          grep -qx 'ErinERP-Desktop-macOS-arm64.dmg' <<< "$assets"
+          grep -qx 'ErinERP-Desktop-macOS-arm64.zip' <<< "$assets"
+          grep -qx 'release-manifest.json' <<< "$assets"
+          grep -qx 'SHA256SUMS.txt' <<< "$assets"
+          echo "macOS workstation v1.0.3 published successfully"
