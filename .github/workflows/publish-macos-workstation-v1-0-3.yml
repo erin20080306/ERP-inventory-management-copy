@@ -6,6 +6,7 @@ on:
     paths:
       - "desktop/**"
       - "scripts/verify-desktop-connection-ui.mjs"
+      - "scripts/verify-desktop-connection-ui-v2.mjs"
       - "scripts/write-release-manifest.mjs"
       - ".github/workflows/publish-macos-workstation-v1-0-3.yml"
   workflow_dispatch:
@@ -23,6 +24,7 @@ env:
 jobs:
   publish-macos-workstation:
     runs-on: macos-14
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
@@ -36,7 +38,7 @@ jobs:
         run: npm --prefix desktop ci
 
       - name: Verify connection setup behavior
-        run: node scripts/verify-desktop-connection-ui.mjs
+        run: node scripts/verify-desktop-connection-ui-v2.mjs
 
       - name: Build Apple Silicon DMG and ZIP
         id: build
@@ -53,7 +55,13 @@ jobs:
 
           if [ -n "${CSC_LINK:-}" ] && [ -n "${CSC_KEY_PASSWORD:-}" ] && [ -n "${APPLE_ID:-}" ] && [ -n "${APPLE_APP_SPECIFIC_PASSWORD:-}" ] && [ -n "${APPLE_TEAM_ID:-}" ]; then
             echo "使用 Apple Developer ID 簽章建置"
-            npm --prefix desktop run dist:mac -- --arm64
+            (
+              cd desktop
+              ./node_modules/.bin/electron-builder \
+                --publish=never \
+                --mac dmg zip \
+                --arm64
+            )
             cp dist/desktop/ErinERP-Desktop-macOS-arm64.dmg build-output/
             cp dist/desktop/ErinERP-Desktop-macOS-arm64.zip build-output/
             xcrun notarytool submit build-output/ErinERP-Desktop-macOS-arm64.dmg \
@@ -64,8 +72,17 @@ jobs:
             xcrun stapler staple build-output/ErinERP-Desktop-macOS-arm64.dmg
             echo "signed=true" >> "$GITHUB_OUTPUT"
           else
-            echo "未設定 Apple Developer ID，建立已清除 xattr 並驗證完整性的手動安裝版"
-            npm --prefix desktop run dist:mac:manual
+            echo "未設定 Apple Developer ID，建立 ad-hoc 手動安裝版"
+            (
+              cd desktop
+              unset GH_TOKEN GITHUB_TOKEN
+              export CSC_IDENTITY_AUTO_DISCOVERY=false
+              ./node_modules/.bin/electron-builder \
+                --publish=never \
+                --mac dmg zip \
+                --arm64 \
+                --config.directories.output=/tmp/erin-erp-manual-dist
+            )
             cp /tmp/erin-erp-manual-dist/ErinERP-Desktop-macOS-arm64.dmg build-output/
             cp /tmp/erin-erp-manual-dist/ErinERP-Desktop-macOS-arm64.zip build-output/
             echo "signed=false" >> "$GITHUB_OUTPUT"
@@ -85,6 +102,14 @@ jobs:
           test -d "$app_path"
           codesign --verify --deep --strict --verbose=2 "$app_path"
 
+      - name: Upload build artifact for diagnostics
+        uses: actions/upload-artifact@v4
+        with:
+          name: erin-erp-macos-arm64-v1.0.3
+          path: build-output/*
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Prepare macOS workstation release
         run: |
           set -euo pipefail
@@ -102,7 +127,7 @@ jobs:
           gh release view "$RELEASE_TAG" >/dev/null 2>&1 || gh release create "$RELEASE_TAG" \
             --target "$GITHUB_SHA" \
             --title "艾琳 ERP 工作站 v1.0.3" \
-            --notes "修正 macOS 啟動殘留錯誤、加入清除舊連線設定、顯示友善的公司主機尚未完成提示，並重新封裝 Apple Silicon DMG／ZIP。Windows 工作站仍由既有私人安裝包提供。"
+            --notes "修正 macOS 啟動殘留錯誤、加入清除舊連線設定、改善公司主機尚未完成提示，並使用明確的 desktop 工作目錄重新封裝 Apple Silicon DMG／ZIP。未設定 Apple Developer ID 時為 ad-hoc 手動安裝版。"
           gh release upload "$RELEASE_TAG" release-assets/* --clobber
           gh release edit "$RELEASE_TAG" --latest
 
