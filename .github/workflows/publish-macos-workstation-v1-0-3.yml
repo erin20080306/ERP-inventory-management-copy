@@ -67,8 +67,7 @@ jobs:
             export CSC_IDENTITY_AUTO_DISCOVERY=false
           fi
 
-          set +e
-          (
+          if ! (
             cd desktop
             unset GH_TOKEN GITHUB_TOKEN
             ./node_modules/.bin/electron-builder \
@@ -77,13 +76,10 @@ jobs:
               --mac \
               --arm64 \
               --config.directories.output="$app_output"
-          ) 2>&1 | tee "$build_output/electron-builder.log"
-          builder_status=${PIPESTATUS[0]}
-          set -e
-
-          if [ "$builder_status" -ne 0 ]; then
-            echo "::warning::electron-builder 回傳 $builder_status；將以實際產生的 App 與最終 DMG 驗證結果判定是否可發布。"
+          ) >"$build_output/electron-builder.log" 2>&1; then
+            echo "::warning::electron-builder 最後回傳非零狀態；將以實際產生的 App 與最終 DMG 驗證結果判定是否可發布。"
           fi
+          cat "$build_output/electron-builder.log"
 
           if [ ! -d "$app_path" ]; then
             echo "找不到已產生的 App：$app_path"
