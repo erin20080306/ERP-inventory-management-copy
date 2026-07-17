@@ -1,0 +1,90 @@
+name: Publish refreshed Host installers
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/publish-host-hotfix.yml"
+      - "installer/**"
+      - "docker-compose.local.yml"
+      - "docker/Caddyfile"
+      - "scripts/build-host-installers.mjs"
+      - "scripts/write-release-manifest.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-host-v1-0-2
+  cancel-in-progress: false
+
+jobs:
+  publish-host:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve current installer release
+        id: release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if gh release view v1.0.1-manual >/dev/null 2>&1; then
+            target="v1.0.1-manual"
+          else
+            target="$(gh release list --limit 1 --json tagName --jq '.[0].tagName')"
+          fi
+          test -n "$target"
+          echo "tag=$target" >> "$GITHUB_OUTPUT"
+          echo "Updating release: $target"
+
+      - name: Download existing workstation installers
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TARGET_TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist/desktop
+          gh release download "$TARGET_TAG" --dir dist/desktop --clobber
+          rm -f dist/desktop/ErinERP-Host-*.zip
+          rm -f dist/desktop/release-manifest.json dist/desktop/SHA256SUMS.txt
+          test -n "$(find dist/desktop -maxdepth 1 -type f -name 'ErinERP-Desktop-*' -print -quit)"
+
+      - name: Build current Windows and macOS Host packages
+        run: node scripts/build-host-installers.mjs v1.0.2-manual latest
+
+      - name: Regenerate complete manual release manifest
+        env:
+          RELEASE_MANUAL: "true"
+        run: node scripts/write-release-manifest.mjs dist/desktop v1.0.2-manual
+
+      - name: Replace Host assets and release metadata
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TARGET_TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          set -euo pipefail
+          gh release view "$TARGET_TAG" --json assets --jq '.assets[].name | select(startswith("ErinERP-Host-"))' | while read -r asset; do
+            [ -z "$asset" ] || gh release delete-asset "$TARGET_TAG" "$asset" --yes
+          done
+          gh release upload "$TARGET_TAG" \
+            dist/desktop/ErinERP-Host-Windows-v1.0.2-manual.zip \
+            dist/desktop/ErinERP-Host-macOS-v1.0.2-manual.zip \
+            dist/desktop/release-manifest.json \
+            dist/desktop/SHA256SUMS.txt \
+            --clobber
+
+      - name: Verify published Host assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TARGET_TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          set -euo pipefail
+          assets="$(gh release view "$TARGET_TAG" --json assets --jq '.assets[].name')"
+          grep -qx 'ErinERP-Host-Windows-v1.0.2-manual.zip' <<< "$assets"
+          grep -qx 'ErinERP-Host-macOS-v1.0.2-manual.zip' <<< "$assets"
+          grep -qx 'release-manifest.json' <<< "$assets"
+          grep -qx 'SHA256SUMS.txt' <<< "$assets"
+          echo "Host installer v1.0.2-manual published successfully"
