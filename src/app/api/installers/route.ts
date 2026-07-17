@@ -4,9 +4,20 @@ import { ApiError, apiHandler, requireAuth } from "@/lib/api";
 import { getEmbeddedHostInstaller } from "@/lib/embedded-host-release";
 import { getLicenseAccessForUser } from "@/lib/license";
 import { getInstallerRelease, getPrivateInstallerBlob, INSTALLER_METADATA, INSTALLER_NAME } from "@/lib/installer-release-current";
+import { getPrivateInstallerBlobPath, isPrivateInstallerBlobPath } from "@/lib/private-installer-blob";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+function blobResponse(blob: Awaited<ReturnType<typeof getPrivateInstallerBlobPath>>, safeName: string) {
+  if (!blob || blob.statusCode !== 200) throw new ApiError(404, "找不到私人安裝包");
+  return new Response(blob.stream, { headers: {
+    "Content-Type": blob.blob.contentType || "application/octet-stream",
+    "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(safeName)}`,
+    "Content-Length": String(blob.blob.size),
+    "Cache-Control": "private, no-store",
+  } });
+}
 
 export const GET = apiHandler(async (req: NextRequest) => {
   const session = await requireAuth();
@@ -46,15 +57,11 @@ export const GET = apiHandler(async (req: NextRequest) => {
     } });
   }
 
-  if (release.storage === "blob") {
-    const blob = await getPrivateInstallerBlob(release, safeName);
-    if (!blob || blob.statusCode !== 200) throw new ApiError(404, "找不到私人安裝包");
-    return new Response(blob.stream, { headers: {
-      "Content-Type": blob.blob.contentType || "application/octet-stream",
-      "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(safeName)}`,
-      "Content-Length": String(blob.blob.size),
-      "Cache-Control": "private, no-store",
-    } });
+  if (isPrivateInstallerBlobPath(target)) {
+    return blobResponse(await getPrivateInstallerBlobPath(target!), safeName);
   }
-  return NextResponse.redirect(target, 307);
+  if (release.storage === "blob") {
+    return blobResponse(await getPrivateInstallerBlob(release, safeName), safeName);
+  }
+  return NextResponse.redirect(target!, 307);
 });
