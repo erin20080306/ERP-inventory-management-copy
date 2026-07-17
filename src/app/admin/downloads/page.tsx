@@ -61,7 +61,7 @@ function InstallerCard({ file }: { file: Installer }) {
           {file.sha256 ? <div className="mt-1 truncate font-mono text-[10px] text-slate-600" title={file.sha256}>SHA-256 {file.sha256}</div> : null}
         </div>
       </div>
-      <a href={`/api/admin/installers?file=${encodeURIComponent(file.name)}`} className="inline-flex shrink-0 items-center justify-center gap-1 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-bold hover:bg-emerald-500"><Download className="h-3.5 w-3.5" />下載</a>
+      <a href={`/api/admin/installers-current?file=${encodeURIComponent(file.name)}`} className="inline-flex shrink-0 items-center justify-center gap-1 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-bold hover:bg-emerald-500"><Download className="h-3.5 w-3.5" />下載</a>
     </div>
   );
 }
@@ -73,7 +73,7 @@ export default function AdminDownloadsPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/admin/installers", { cache: "no-store" })
+    fetch("/api/admin/installers-current", { cache: "no-store" })
       .then(async (response) => {
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || "載入失敗");
@@ -114,7 +114,7 @@ export default function AdminDownloadsPage() {
           {loading ? <div className="flex h-28 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin" /></div> : error ? null : workstationFiles.length ? <div className="mt-4 grid gap-3">{workstationFiles.map((file) => <InstallerCard key={file.name} file={file} />)}</div> : <div className="mt-4 rounded-xl border border-dashed border-amber-400/30 bg-amber-400/5 p-6 text-sm text-amber-200">尚未發布工作站安裝包。</div>}
 
           {files.some((file) => file.codeSigning === "ad-hoc-manual") ? <div className="mt-4 rounded-xl border border-amber-400/30 bg-amber-400/5 p-3 text-xs leading-6 text-amber-100">目前為手動安裝版：macOS 將 App 拖入「應用程式」後第一次右鍵選「打開」；Windows 遇 SmartScreen 時選「其他資訊 → 仍要執行」。已做 bundle 完整性與 SHA-256 核對，但不是商業憑證免提示版本。</div> : release?.prerelease ? <div className="mt-4 rounded-xl border border-rose-400/30 bg-rose-400/5 p-3 text-xs text-rose-200">目前只有內部測試檔，不提供客戶下載。</div> : null}
-          {release ? <div className="mt-3 flex gap-3 text-xs"><a className="text-sky-300 hover:text-sky-200" href="/api/admin/installers?file=release-manifest.json">下載版本清單</a><a className="text-sky-300 hover:text-sky-200" href="/api/admin/installers?file=SHA256SUMS.txt">下載 SHA-256 核對檔</a></div> : null}
+          {release ? <div className="mt-3 flex gap-3 text-xs"><a className="text-sky-300 hover:text-sky-200" href="/api/admin/installers-current?file=release-manifest.json">下載版本清單</a><a className="text-sky-300 hover:text-sky-200" href="/api/admin/installers-current?file=SHA256SUMS.txt">下載 SHA-256 核對檔</a></div> : null}
           <div className="mt-4 rounded-xl bg-slate-950 p-4 text-xs leading-6 text-slate-400"><MonitorSmartphone className="mr-2 inline h-4 w-4" />同一個桌面安裝包支援三種業態；實際畫面由公司授權業態與使用者角色權限決定。桌面工作站用公司代碼＋啟用碼取得中央簽章設定，成功後才占用一個席次。</div>
         </section>
 
