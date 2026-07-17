@@ -88,3 +88,25 @@ jobs:
           grep -qx 'release-manifest.json' <<< "$assets"
           grep -qx 'SHA256SUMS.txt' <<< "$assets"
           echo "Host installer v1.0.2-manual published successfully"
+
+      - name: Record successful publication on main
+        env:
+          TARGET_TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          set -euo pipefail
+          cat > host-release-status.json <<EOF
+          {
+            "version": "v1.0.2-manual",
+            "releaseTag": "$TARGET_TAG",
+            "publishedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "sourceCommit": "$GITHUB_SHA",
+            "windowsHost": "ErinERP-Host-Windows-v1.0.2-manual.zip",
+            "macHost": "ErinERP-Host-macOS-v1.0.2-manual.zip",
+            "status": "published-and-verified"
+          }
+          EOF
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add host-release-status.json
+          git commit -m "chore: record Host v1.0.2 publication [skip ci]" || exit 0
+          git push origin HEAD:main
