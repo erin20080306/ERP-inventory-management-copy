@@ -1,4 +1,4 @@
-name: Publish repaired macOS workstation v1.0.4
+name: Publish repaired macOS workstation v1.0.3
 
 on:
   push:
@@ -14,11 +14,11 @@ permissions:
   contents: write
 
 concurrency:
-  group: publish-macos-workstation-v1-0-4
+  group: publish-macos-workstation-v1-0-3
   cancel-in-progress: true
 
 env:
-  RELEASE_TAG: v1.0.4-desktop
+  RELEASE_TAG: v1.0.3-desktop
 
 jobs:
   publish-macos-workstation:
@@ -104,7 +104,7 @@ jobs:
       - name: Upload build artifact for diagnostics
         uses: actions/upload-artifact@v4
         with:
-          name: erin-erp-macos-arm64-v1.0.4
+          name: erin-erp-macos-arm64-v1.0.3
           path: build-output/*
           if-no-files-found: error
           retention-days: 14
@@ -125,8 +125,8 @@ jobs:
           set -euo pipefail
           gh release view "$RELEASE_TAG" >/dev/null 2>&1 || gh release create "$RELEASE_TAG" \
             --target "$GITHUB_SHA" \
-            --title "艾琳 ERP 工作站 v1.0.4" \
-            --notes "修正 macOS 啟動殘留錯誤、加入清除舊連線設定、改善公司主機尚未完成提示，並使用明確的工作目錄重新封裝 Apple Silicon DMG／ZIP。未設定 Apple Developer ID 時為 ad-hoc 手動安裝版。"
+            --title "艾琳 ERP 工作站 v1.0.3" \
+            --notes "修正 macOS 啟動殘留錯誤、加入清除舊連線設定、改善公司主機尚未完成提示，並使用明確的 desktop 工作目錄重新封裝 Apple Silicon DMG／ZIP。未設定 Apple Developer ID 時為 ad-hoc 手動安裝版。"
           gh release upload "$RELEASE_TAG" release-assets/* --clobber
           gh release edit "$RELEASE_TAG" --latest
 
@@ -140,7 +140,7 @@ jobs:
           grep -qx 'ErinERP-Desktop-macOS-arm64.zip' <<< "$assets"
           grep -qx 'release-manifest.json' <<< "$assets"
           grep -qx 'SHA256SUMS.txt' <<< "$assets"
-          echo "macOS workstation v1.0.4 published successfully"
+          echo "macOS workstation v1.0.3 published successfully"
 
       - name: Record successful publication on main
         run: |
@@ -159,5 +159,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add desktop-release-status.json
-          git commit -m "chore: record macOS workstation v1.0.4 publication [skip ci]" || exit 0
+          git commit -m "chore: record macOS workstation v1.0.3 publication [skip ci]" || exit 0
           git push origin HEAD:main
