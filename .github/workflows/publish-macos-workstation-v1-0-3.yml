@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "desktop/**"
+      - "scripts/verify-desktop-connection-ui.mjs"
       - "scripts/write-release-manifest.mjs"
       - ".github/workflows/publish-macos-workstation-v1-0-3.yml"
   workflow_dispatch:
@@ -34,6 +35,9 @@ jobs:
 
       - name: Install desktop dependencies
         run: npm --prefix desktop ci
+
+      - name: Verify connection setup behavior
+        run: node scripts/verify-desktop-connection-ui.mjs
 
       - name: Build Apple Silicon DMG and ZIP
         id: build
@@ -75,11 +79,12 @@ jobs:
         run: |
           set -euo pipefail
           mount_dir="$(mktemp -d)"
-          device="$(hdiutil attach build-output/ErinERP-Desktop-macOS-arm64.dmg -nobrowse -readonly -mountpoint "$mount_dir" | tail -1 | awk '{print $1}')"
+          cleanup() { hdiutil detach "$mount_dir" >/dev/null 2>&1 || true; rm -rf "$mount_dir"; }
+          trap cleanup EXIT
+          hdiutil attach build-output/ErinERP-Desktop-macOS-arm64.dmg -nobrowse -readonly -mountpoint "$mount_dir" >/dev/null
           app_path="$mount_dir/艾琳 ERP.app"
           test -d "$app_path"
           codesign --verify --deep --strict --verbose=2 "$app_path"
-          hdiutil detach "$device"
 
       - name: Prepare complete workstation release
         env:
@@ -91,7 +96,7 @@ jobs:
 
           source_tag="$SOURCE_RELEASE_TAG"
           if ! gh release view "$source_tag" >/dev/null 2>&1; then
-            source_tag="$(gh release list --limit 20 --json tagName --jq '[.[] | select(.tagName != env.RELEASE_TAG)][0].tagName')"
+            source_tag="$(gh release list --limit 20 --json tagName --jq ".[] | select(.tagName != \"$RELEASE_TAG\") | .tagName" | head -1)"
           fi
           test -n "$source_tag"
           gh release download "$source_tag" --dir release-assets --clobber
