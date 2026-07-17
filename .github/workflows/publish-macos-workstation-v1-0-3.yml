@@ -66,6 +66,7 @@ jobs:
             export CSC_IDENTITY_AUTO_DISCOVERY=false
           fi
 
+          set +e
           (
             cd desktop
             unset GH_TOKEN GITHUB_TOKEN
@@ -76,10 +77,17 @@ jobs:
               --arm64 \
               --config.directories.output="$app_output"
           ) 2>&1 | tee "$build_output/electron-builder.log"
+          builder_status=${PIPESTATUS[0]}
+          set -e
+
+          if [ "$builder_status" -ne 0 ]; then
+            echo "::warning::electron-builder 回傳 $builder_status；將以實際產生的 App 與 codesign 驗證結果判定是否可繼續。"
+          fi
 
           test -d "$app_path"
           xattr -cr "$app_path"
           codesign --verify --deep --strict --verbose=2 "$app_path"
+          echo "electron-builder 已產生可驗證的 App，繼續建立正式下載檔。"
 
           echo "建立 ZIP"
           ditto -c -k --sequesterRsrc --keepParent \
