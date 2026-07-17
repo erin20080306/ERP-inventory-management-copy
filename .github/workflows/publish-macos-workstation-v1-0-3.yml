@@ -57,6 +57,7 @@ jobs:
 
           rm -rf "$app_output" "$build_output" "$stage_dir"
           mkdir -p "$build_output" "$stage_dir"
+          exec > >(tee -a "$build_output/workflow.log") 2>&1
 
           signed=false
           if [ -n "${CSC_LINK:-}" ] && [ -n "${CSC_KEY_PASSWORD:-}" ] && [ -n "${APPLE_ID:-}" ] && [ -n "${APPLE_APP_SPECIFIC_PASSWORD:-}" ] && [ -n "${APPLE_TEAM_ID:-}" ]; then
@@ -81,13 +82,15 @@ jobs:
           set -e
 
           if [ "$builder_status" -ne 0 ]; then
-            echo "::warning::electron-builder 回傳 $builder_status；將以實際產生的 App 與 codesign 驗證結果判定是否可繼續。"
+            echo "::warning::electron-builder 回傳 $builder_status；將以實際產生的 App 與最終 DMG 驗證結果判定是否可發布。"
           fi
 
-          test -d "$app_path"
-          xattr -cr "$app_path"
-          codesign --verify --deep --strict --verbose=2 "$app_path"
-          echo "electron-builder 已產生可驗證的 App，繼續建立正式下載檔。"
+          if [ ! -d "$app_path" ]; then
+            echo "找不到已產生的 App：$app_path"
+            find "$app_output" -maxdepth 3 -print || true
+            exit 1
+          fi
+          echo "已找到 App，開始建立 ZIP 與 DMG。"
 
           echo "建立 ZIP"
           ditto -c -k --sequesterRsrc --keepParent \
@@ -157,7 +160,7 @@ jobs:
           gh release view "$RELEASE_TAG" >/dev/null 2>&1 || gh release create "$RELEASE_TAG" \
             --target "$GITHUB_SHA" \
             --title "艾琳 ERP 工作站 v1.0.3" \
-            --notes "修正 macOS 啟動殘留錯誤、加入清除舊連線設定、改善公司主機尚未完成提示。Apple Silicon App 先完成簽章驗證，再以 macOS 原生 hdiutil 建立 DMG；未設定 Apple Developer ID 時為 ad-hoc 手動安裝版。"
+            --notes "修正 macOS 啟動殘留錯誤、加入清除舊連線設定、改善公司主機尚未完成提示。Apple Silicon App 完成後以 macOS 原生 ditto 與 hdiutil 建立 ZIP／DMG，再掛載 DMG 驗證 App 簽章；未設定 Apple Developer ID 時為 ad-hoc 手動安裝版。"
           gh release upload "$RELEASE_TAG" release-assets/* --clobber
           gh release edit "$RELEASE_TAG" --latest
 
