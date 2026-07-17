@@ -19,7 +19,6 @@ concurrency:
 
 env:
   RELEASE_TAG: v1.0.3-desktop
-  SOURCE_RELEASE_TAG: v1.0.1-manual
 
 jobs:
   publish-macos-workstation:
@@ -86,29 +85,13 @@ jobs:
           test -d "$app_path"
           codesign --verify --deep --strict --verbose=2 "$app_path"
 
-      - name: Prepare complete workstation release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Prepare macOS workstation release
         run: |
           set -euo pipefail
           rm -rf release-assets
           mkdir -p release-assets
-
-          source_tag="$SOURCE_RELEASE_TAG"
-          if ! gh release view "$source_tag" >/dev/null 2>&1; then
-            source_tag="$(gh release list --limit 20 --json tagName --jq ".[] | select(.tagName != \"$RELEASE_TAG\") | .tagName" | head -1)"
-          fi
-          test -n "$source_tag"
-          gh release download "$source_tag" --dir release-assets --clobber
-
-          rm -f release-assets/ErinERP-Desktop-macOS-*.dmg
-          rm -f release-assets/ErinERP-Desktop-macOS-*.zip
-          rm -f release-assets/ErinERP-Host-*.zip
-          rm -f release-assets/release-manifest.json release-assets/SHA256SUMS.txt
           cp build-output/ErinERP-Desktop-macOS-arm64.dmg release-assets/
           cp build-output/ErinERP-Desktop-macOS-arm64.zip release-assets/
-
-          test -n "$(find release-assets -maxdepth 1 -type f -name 'ErinERP-Desktop-Windows-*.exe' -print -quit)"
           RELEASE_MANUAL=true node scripts/write-release-manifest.mjs release-assets "$RELEASE_TAG"
 
       - name: Publish repaired workstation release
@@ -119,7 +102,7 @@ jobs:
           gh release view "$RELEASE_TAG" >/dev/null 2>&1 || gh release create "$RELEASE_TAG" \
             --target "$GITHUB_SHA" \
             --title "艾琳 ERP 工作站 v1.0.3" \
-            --notes "修正 macOS 啟動殘留錯誤、加入清除舊連線設定、顯示友善的公司主機尚未完成提示，並重新封裝 Apple Silicon DMG／ZIP。"
+            --notes "修正 macOS 啟動殘留錯誤、加入清除舊連線設定、顯示友善的公司主機尚未完成提示，並重新封裝 Apple Silicon DMG／ZIP。Windows 工作站仍由既有私人安裝包提供。"
           gh release upload "$RELEASE_TAG" release-assets/* --clobber
           gh release edit "$RELEASE_TAG" --latest
 

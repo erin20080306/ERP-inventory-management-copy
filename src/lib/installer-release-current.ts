@@ -10,6 +10,10 @@ import { getPreferredGithubWorkstationRelease } from "./github-workstation-relea
 
 export { getPrivateInstallerBlob, INSTALLER_METADATA, INSTALLER_NAME };
 
+function isCustomerInstallable(codeSigning: string | null) {
+  return codeSigning === "signed" || codeSigning === "ad-hoc-manual";
+}
+
 export async function getInstallerRelease(options: { allowPrerelease: boolean; localFallback?: boolean }) {
   let preferred: InstallerRelease | null = null;
   try {
@@ -18,7 +22,25 @@ export async function getInstallerRelease(options: { allowPrerelease: boolean; l
     console.error("[installer-release] repaired workstation release lookup failed", error);
   }
 
-  const release = preferred ?? await getBaseInstallerRelease(options);
+  const base = await getBaseInstallerRelease(options);
+  let release: InstallerRelease | null = preferred ?? base;
+  if (preferred && base) {
+    const filesByName = new Map(
+      base.files
+        .filter((file) => file.kind === "workstation" && !/macos/i.test(file.name))
+        .map((file) => [file.name, file]),
+    );
+    for (const file of preferred.files.filter((item) => item.kind === "workstation")) {
+      filesByName.set(file.name, file);
+    }
+    const workstations = [...filesByName.values()];
+    release = {
+      ...preferred,
+      prefix: base.prefix,
+      files: workstations,
+      readyForCustomers: workstations.length > 0 && workstations.every((file) => isCustomerInstallable(file.codeSigning)),
+    };
+  }
   if (!release) return null;
 
   const hosts = listEmbeddedHostInstallers();
