@@ -40,16 +40,32 @@ export const PUT = apiHandler(async (req: NextRequest) => {
   if (!session.user.isSuperAdmin) throw new ApiError(403, "僅限超級管理員");
   const body = Input.parse(await req.json());
   const companyCode = await ensureTenantCompanyCode(body.tenantId);
-  const serverUrl = body.serverUrl?.trim() ? normalizeServerUrl(body.serverUrl.trim()) : null;
-  const caCertificate = body.caCertificate?.trim() ? validateCertificate(body.caCertificate) : null;
-  if (body.enabled && (!serverUrl || !caCertificate)) throw new ApiError(400, "啟用自動連線前，必須填寫公司主機網址與 CA 憑證");
+
+  const hasServerUrl = Boolean(body.serverUrl?.trim());
+  const hasCaCertificate = Boolean(body.caCertificate?.trim());
+  if (hasServerUrl !== hasCaCertificate) {
+    throw new ApiError(400, "若要人工設定公司主機，網址與 CA 憑證必須同時填寫");
+  }
+
+  const hasManualConnection = hasServerUrl && hasCaCertificate;
+  const serverUrl = hasManualConnection ? normalizeServerUrl(body.serverUrl!.trim()) : null;
+  const caCertificate = hasManualConnection ? validateCertificate(body.caCertificate!.trim()) : null;
+
+  // 正常流程是先完成付款開通並交付啟用碼，再由客戶執行 Host 安裝包。
+  // Host 安裝程式會自行偵測內網網址、讀取 Caddy CA，並呼叫
+  // /api/license/register-server 回寫中央；客戶不應手動尋找這兩項資料。
+  // 因此管理者在主機尚未安裝時勾選自動連線，不再阻擋授權開通。
+  const pendingHostRegistration = body.enabled && !hasManualConnection;
+  const discoveryEnabled = hasManualConnection ? body.enabled : false;
 
   const tenant = await prisma.tenant.update({
     where: { id: body.tenantId },
     data: {
-      discoveryServerUrl: serverUrl,
-      discoveryCaCertificate: caCertificate,
-      discoveryEnabled: body.enabled,
+      ...(hasManualConnection ? {
+        discoveryServerUrl: serverUrl,
+        discoveryCaCertificate: caCertificate,
+      } : {}),
+      discoveryEnabled,
       discoveryVersion: { increment: 1 },
       discoveryUpdatedAt: new Date(),
     },
@@ -57,9 +73,23 @@ export const PUT = apiHandler(async (req: NextRequest) => {
   });
   await appendLicenseEvent({
     tenantId: body.tenantId,
-    action: "COMPANY_DISCOVERY_CONFIGURED",
+    action: pendingHostRegistration ? "COMPANY_DISCOVERY_AWAITING_HOST" : "COMPANY_DISCOVERY_CONFIGURED",
     actorUserId: session.user.id,
-    payload: { companyCode, serverUrl, enabled: body.enabled, discoveryVersion: tenant.discoveryVersion },
+    payload: {
+      companyCode,
+      serverUrl,
+      enabled: discoveryEnabled,
+      pendingHostRegistration,
+      discoveryVersion: tenant.discoveryVersion,
+    },
   });
-  return NextResponse.json({ ok: true, companyCode, ...tenant });
+  return NextResponse.json({
+    ok: true,
+    companyCode,
+    ...tenant,
+    pendingHostRegistration,
+    message: pendingHostRegistration
+      ? "授權可先完成；公司主機安裝後會自動回寫網址與 CA 憑證"
+      : null,
+  });
 });
