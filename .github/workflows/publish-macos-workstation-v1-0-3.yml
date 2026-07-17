@@ -15,7 +15,7 @@ permissions:
 
 concurrency:
   group: publish-macos-workstation-v1-0-3
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 env:
   RELEASE_TAG: v1.0.3-desktop
