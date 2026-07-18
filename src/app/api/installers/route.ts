@@ -63,5 +63,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
   if (release.storage === "blob") {
     return blobResponse(await getPrivateInstallerBlob(release, safeName), safeName);
   }
-  return NextResponse.redirect(target!, 307);
+  // 302 對 Safari 的大型跨網域下載相容性較好；下載頁本身也會優先
+  // 使用 Release 原始網址，這裡保留作為舊書籤與 API 呼叫的相容入口。
+  return NextResponse.redirect(target!, 302);
 });
