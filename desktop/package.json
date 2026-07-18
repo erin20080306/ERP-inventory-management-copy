@@ -26,12 +26,13 @@
     "asar": true,
     "npmRebuild": false,
     "extraMetadata": {
-      "main": "network-bootstrap.cjs"
+      "main": "v106-bootstrap.cjs"
     },
     "directories": {
       "output": "../dist/desktop"
     },
     "files": [
+      "v106-bootstrap.cjs",
       "network-bootstrap.cjs",
       "bootstrap.cjs",
       "main.cjs",
