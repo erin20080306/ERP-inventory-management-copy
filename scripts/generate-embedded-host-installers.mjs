@@ -4,9 +4,10 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 const root = process.cwd();
-const version = "v1.1.0-update-center";
+const version = "v1.1.1-updater-runtime";
 const generatedAt = new Date().toISOString();
 const outputPath = path.join(root, "src", "generated", "embedded-host-installers.ts");
+const updaterImage = "erin-erp-host-updater:2";
 
 const crcTable = Array.from({ length: 256 }, (_, index) => {
   let value = index;
@@ -80,9 +81,16 @@ function text(file) {
   return readFileSync(path.join(root, file));
 }
 
+function installerCompose() {
+  const source = readFileSync(path.join(root, "docker-compose.local.yml"), "utf8");
+  const updated = source.replace(/image:\s*erin-erp-host-updater:\d+/u, `image: ${updaterImage}`);
+  if (updated === source) throw new Error("Updater image marker was not found in docker-compose.local.yml");
+  return Buffer.from(updated, "utf8");
+}
+
 const common = [
   { name: "主機安裝說明.txt", content: text("installer/主機安裝說明.txt") },
-  { name: "docker-compose.local.yml", content: text("docker-compose.local.yml") },
+  { name: "docker-compose.local.yml", content: installerCompose() },
   { name: "docker/Caddyfile", content: text("docker/Caddyfile") },
   { name: "updater/Dockerfile", content: text("updater/Dockerfile") },
   { name: "updater/health", content: text("updater/health") },
