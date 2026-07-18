@@ -2,13 +2,9 @@ import assert from "node:assert/strict";
 import { prisma } from "../src/lib/prisma";
 import { refundPosSale } from "../src/lib/pos-refunds";
 import { seedTenantDefaults } from "../src/lib/seed-tenant";
+import { assertTestDatabase } from "./assert-test-database";
 
-const databaseUrl = process.env.DATABASE_URL;
-if (!databaseUrl) throw new Error("請設定 DATABASE_URL");
-const databaseName = new URL(databaseUrl).pathname.replace(/^\//, "");
-if (!/^erp_pos_test_[a-z0-9_]+$/.test(databaseName)) {
-  throw new Error(`只允許在 erp_pos_test_* 測試資料庫執行，目前為 ${databaseName}`);
-}
+assertTestDatabase(/^erp_pos_test_[a-z0-9_]+$/, "erp_pos_test_*");
 
 async function createFixture(suffix: string) {
   const tenant = await prisma.tenant.create({ data: { name: `POS 退款測試-${suffix}`, businessMode: "POS" } });
