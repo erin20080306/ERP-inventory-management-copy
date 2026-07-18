@@ -191,7 +191,15 @@ async function main() {
   );
   assert.equal(await prisma.purchaseReceipt.count({ where: { orderId: rollbackPurchase.id } }), 0);
   assert.equal(await prisma.accountsPayable.count({ where: { purchaseOrderId: rollbackPurchase.id } }), 0);
-  assert.equal(await prisma.inventoryStock.count({ where: { tenantId: rollbackFixture.tenant.id } }), 0);
+  // 租戶初始化現在會建立 ERP 範例商品與期初庫存；回滾驗證必須只檢查本次測試商品，
+  // 不能再以整個租戶的庫存筆數為 0 作為條件。
+  assert.equal(await prisma.inventoryStock.count({
+    where: {
+      tenantId: rollbackFixture.tenant.id,
+      productId: rollbackFixture.product.id,
+      warehouseId: rollbackFixture.warehouse.id,
+    },
+  }), 0);
   assert.equal(Number((await prisma.purchaseOrderItem.findUniqueOrThrow({ where: { id: rollbackPurchase.items[0].id } })).receivedQty), 0);
 
   process.stdout.write(`${JSON.stringify({
