@@ -4,7 +4,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 const root = process.cwd();
-const version = "v1.0.2-manual";
+const version = "v1.0.3-assisted";
 const generatedAt = new Date().toISOString();
 const outputPath = path.join(root, "src", "generated", "embedded-host-installers.ts");
 
@@ -81,10 +81,17 @@ function text(file) {
 }
 
 const common = [
+  { name: "主機安裝說明.txt", content: text("installer/主機安裝說明.txt") },
   { name: "docker-compose.local.yml", content: text("docker-compose.local.yml") },
   { name: "docker/Caddyfile", content: text("docker/Caddyfile") },
   { name: "image-tag.txt", content: "latest\n" },
 ];
+
+const macInstaller = text("installer/安裝艾琳ERP.command");
+const macRootLauncher = "#!/bin/bash\nset -e\nSCRIPT_DIR=\"$(cd \"$(dirname \"$0\")\" && pwd)\"\nexec \"$SCRIPT_DIR/installer/Install-ErinERP.command\"\n";
+const windowsInstaller = text("installer/安裝艾琳ERP.ps1");
+const windowsRootLauncher = "@echo off\r\nchcp 65001 >nul\r\npowershell.exe -NoProfile -ExecutionPolicy Bypass -File \"%~dp0installer\\Install-ErinERP.ps1\"\r\nif errorlevel 1 pause\r\n";
+const windowsNestedLauncher = "@echo off\r\nchcp 65001 >nul\r\npowershell.exe -NoProfile -ExecutionPolicy Bypass -File \"%~dp0Install-ErinERP.ps1\"\r\nif errorlevel 1 pause\r\n";
 
 const packages = [
   {
@@ -92,16 +99,18 @@ const packages = [
     platform: "Windows 公司主機（需 Docker Desktop）",
     entries: [
       ...common,
-      { name: "installer/Install-ErinERP.ps1", content: text("installer/安裝艾琳ERP.ps1") },
-      { name: "installer/Install-ErinERP.bat", content: "@echo off\r\nchcp 65001 >nul\r\npowershell.exe -NoProfile -ExecutionPolicy Bypass -File \"%~dp0Install-ErinERP.ps1\"\r\nif errorlevel 1 pause\r\n" },
+      { name: "安裝艾琳ERP.bat", content: windowsRootLauncher },
+      { name: "installer/Install-ErinERP.ps1", content: windowsInstaller },
+      { name: "installer/Install-ErinERP.bat", content: windowsNestedLauncher },
     ],
   },
   {
     name: `ErinERP-Host-macOS-${version}.zip`,
-    platform: "macOS 公司主機（需 Docker Desktop）",
+    platform: "macOS 公司主機（一鍵檢查並引導 Docker Desktop）",
     entries: [
       ...common,
-      { name: "installer/Install-ErinERP.command", content: text("installer/安裝艾琳ERP.command"), mode: 0o100755 },
+      { name: "安裝艾琳ERP.command", content: macRootLauncher, mode: 0o100755 },
+      { name: "installer/Install-ErinERP.command", content: macInstaller, mode: 0o100755 },
     ],
   },
 ];
