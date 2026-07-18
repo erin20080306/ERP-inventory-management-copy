@@ -231,10 +231,12 @@ if [ "$READY" != "true" ]; then
 fi
 
 echo "驗證中央授權並同步公司版本…"
-if ! curl -kfsS -X POST -H "x-erin-installer-token: $LOCAL_INSTALLER_TOKEN" "https://$LAN_IP:3443/api/license/local-status" >/dev/null; then
+if ! STATUS_RESPONSE="$(curl -kfsS -X POST -H "x-erin-installer-token: $LOCAL_INSTALLER_TOKEN" "https://$LAN_IP:3443/api/license/local-status")"; then
   echo "啟用失敗：啟用碼、付款狀態或中央授權無法驗證。主機服務已保留。"
   pause_exit 1
 fi
+LOGIN_USERNAME="$(printf '%s' "$STATUS_RESPONSE" | sed -n 's/.*"loginAccount":{"username":"\([^"]*\)".*/\1/p')"
+LOGIN_EMAIL="$(printf '%s' "$STATUS_RESPONSE" | sed -n 's/.*"loginAccount":{"username":"[^"]*","email":"\([^"]*\)".*/\1/p')"
 
 PAIR_DIR="$HOME/Desktop/艾琳ERP-工作站配對"
 mkdir -p "$PAIR_DIR"
@@ -259,8 +261,22 @@ fi
 } > "$PAIR_DIR/艾琳ERP-備份解密金鑰.txt"
 chmod 600 "$PAIR_DIR/艾琳ERP-備份解密金鑰.txt"
 {
+  echo "艾琳 ERP 公司主機登入資料"
+  if [ -n "$LOGIN_EMAIL" ]; then
+    echo "原本帳號／Email：$LOGIN_EMAIL"
+    echo "公司主機帳號名稱：$LOGIN_USERNAME"
+    echo "密碼：使用原本網站註冊密碼"
+    echo ""
+  fi
+  echo "備用管理員帳號：admin"
+  echo "備用管理員密碼：$ADMIN_PASSWORD"
+  echo "此備用密碼只屬於這套安裝，重新執行安裝程式不會改變。"
+} > "$PAIR_DIR/管理員登入資料.txt"
+chmod 600 "$PAIR_DIR/管理員登入資料.txt"
+{
   echo "公司代碼：$COMPANY_CODE"
   echo "公司主機網址：https://$LAN_IP:3443"
+  echo "原本註冊帳號與原本密碼可直接登入公司主機。"
   echo "同一台 Mac 可以同時執行公司主機與艾琳 ERP 工作站。"
   echo "工作站只需輸入公司代碼與啟用碼；一般客戶不需手動匯入 ca.crt。"
   echo "每日加密備份目錄：$BACKUP_DIR（預設保留 30 日）。"
@@ -270,8 +286,9 @@ echo ""
 echo "安裝完成"
 echo "主機網址：https://$LAN_IP:3443"
 echo "公司代碼：$COMPANY_CODE"
-echo "帳號：admin"
-echo "密碼：$ADMIN_PASSWORD"
+if [ -n "$LOGIN_EMAIL" ]; then echo "原本帳號：$LOGIN_EMAIL（使用原本密碼）"; fi
+echo "備用帳號：admin"
+echo "備用密碼：$ADMIN_PASSWORD"
 echo "工作站配對檔：$PAIR_DIR"
 echo "每日加密備份：$BACKUP_DIR"
 echo "現在可在同一台 Mac 開啟艾琳 ERP 工作站，輸入公司代碼與啟用碼。"

@@ -33,6 +33,80 @@ export type SignedOfflineLease = {
   algorithm: "ed25519" | "hmac-sha256";
 };
 
+type PrimaryAccountSnapshot = {
+  username: string;
+  email: string;
+  name: string;
+  passwordHash: string;
+};
+
+function readPrimaryAccount(payload: Record<string, unknown>): PrimaryAccountSnapshot | null {
+  const value = payload.primaryAccount;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const source = value as Record<string, unknown>;
+  const username = String(source.username || "").trim().toLowerCase();
+  const email = String(source.email || "").trim().toLowerCase();
+  const name = String(source.name || "").trim();
+  const passwordHash = String(source.passwordHash || "");
+  if (username.length < 3 || username.length > 50 || /\s/.test(username)) throw new Error("中央授權帳號格式無效");
+  if (!/^\S+@\S+\.\S+$/.test(email) || email.length > 200) throw new Error("中央授權 Email 格式無效");
+  if (!name || name.length > 100) throw new Error("中央授權帳號名稱無效");
+  if (!/^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/.test(passwordHash)) throw new Error("中央授權密碼資料無效");
+  return { username, email, name, passwordHash };
+}
+
+async function syncPrimaryAccount(tx: Prisma.TransactionClient, tenantId: string, payload: Record<string, unknown>) {
+  const account = readPrimaryAccount(payload);
+  if (!account) return;
+  const adminRole = await tx.role.findUnique({ where: { name: "系統管理員" }, select: { id: true } });
+  if (!adminRole) throw new Error("本機系統管理員角色尚未初始化");
+
+  const [usernameOwner, emailOwner] = await Promise.all([
+    tx.user.findUnique({ where: { username: account.username }, select: { id: true, tenantId: true, email: true } }),
+    tx.user.findUnique({ where: { email: account.email }, select: { id: true, tenantId: true, email: true } }),
+  ]);
+  const usernameMatchesEmail = usernameOwner?.email.toLowerCase() === account.email;
+  const existing = emailOwner ?? (usernameMatchesEmail ? usernameOwner : null);
+  if (existing?.tenantId && existing.tenantId !== tenantId) throw new Error("中央帳號已屬於其他本機公司");
+
+  // 保留安裝時建立的備用 admin。若客戶原帳號也叫 admin，仍可使用原 Email
+  // 與原密碼登入；本機內部帳號名稱改用不可猜測的穩定別名，避免覆寫備用密碼。
+  const localUsername = usernameOwner && usernameOwner.id !== existing?.id
+    ? `remote-${createHash("sha256").update(account.email).digest("hex").slice(0, 24)}`
+    : account.username;
+  const aliasOwner = localUsername === account.username
+    ? null
+    : await tx.user.findUnique({ where: { username: localUsername }, select: { id: true } });
+  if (aliasOwner && aliasOwner.id !== existing?.id) throw new Error("中央帳號的本機別名已被使用");
+
+  const user = existing
+    ? await tx.user.update({
+        where: { id: existing.id },
+        data: { tenantId, username: localUsername, email: account.email, name: account.name, passwordHash: account.passwordHash, isActive: true, isPaid: true },
+        select: { id: true },
+      })
+    : await tx.user.create({
+        data: { tenantId, username: localUsername, email: account.email, name: account.name, passwordHash: account.passwordHash, isActive: true, isPaid: true },
+        select: { id: true },
+      });
+  await tx.userRole.upsert({
+    where: { userId_roleId: { userId: user.id, roleId: adminRole.id } },
+    update: {},
+    create: { userId: user.id, roleId: adminRole.id },
+  });
+  await tx.loginLog.deleteMany({
+    where: {
+      success: false,
+      OR: [
+        { userId: user.id },
+        { username: { equals: account.username, mode: "insensitive" } },
+        { username: { equals: account.email, mode: "insensitive" } },
+        { username: { equals: localUsername, mode: "insensitive" } },
+      ],
+    },
+  });
+}
+
 const licenseAccessCache = new Map<string, { access: LicenseAccess; tenantId: string | null; expiresAt: number }>();
 
 export function invalidateLicenseAccessCache(tenantId: string) {
@@ -705,15 +779,16 @@ export async function refreshLocalLicenseLease(tenantId: string) {
     if (!tenantName || tenantName.length > 200) throw new Error("中央授權公司名稱無效");
     const currentTenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { businessMode: true } });
     if (!currentTenant) throw new Error("找不到本機公司資料");
-    await prisma.$transaction([
-      prisma.offlineLicenseLease.upsert({
+    await prisma.$transaction(async (tx) => {
+      await tx.offlineLicenseLease.upsert({
         where: { tenantId },
         update: { remoteTenantId, payload: lease.payload as Prisma.InputJsonValue, signature: lease.signature, algorithm: lease.algorithm, issuedAt, expiresAt, checkedAt: new Date(), lastObservedAt: new Date(), lastError: null },
         create: { tenantId, remoteTenantId, payload: lease.payload as Prisma.InputJsonValue, signature: lease.signature, algorithm: lease.algorithm, issuedAt, expiresAt, lastObservedAt: new Date() },
-      }),
-      prisma.tenant.update({ where: { id: tenantId }, data: { name: tenantName, businessMode } }),
-      prisma.companySetting.updateMany({ where: { tenantId }, data: { name: tenantName } }),
-    ]);
+      });
+      await tx.tenant.update({ where: { id: tenantId }, data: { name: tenantName, businessMode } });
+      await tx.companySetting.updateMany({ where: { tenantId }, data: { name: tenantName } });
+      await syncPrimaryAccount(tx, tenantId, lease.payload);
+    });
     if (normalizeBusinessMode(currentTenant.businessMode) !== businessMode) await seedTenantDefaults(tenantId);
   })().catch(async (error) => {
     await prisma.offlineLicenseLease.updateMany({ where: { tenantId }, data: { lastError: error instanceof Error ? error.message.slice(0, 500) : "中央授權驗證失敗" } });

@@ -87,6 +87,17 @@ export async function POST(req: NextRequest) {
     if (device.firstSeenAt.getTime() === device.lastSeenAt.getTime()) {
       await appendLicenseEvent({ tenantId: tenant.id, action: "DEVICE_BOUND", payload: { deviceId: device.id, deviceRole: device.deviceRole, displayName: device.displayName, platform: device.platform } });
     }
+    const primaryAccount = parsed.data.deviceRole === "SERVER"
+      ? await prisma.user.findFirst({
+          where: { tenantId: tenant.id, isActive: true, userRoles: { some: { role: { name: "系統管理員" } } } },
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+          select: { username: true, email: true, name: true, passwordHash: true },
+        }) ?? await prisma.user.findFirst({
+          where: { tenantId: tenant.id, isActive: true },
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+          select: { username: true, email: true, name: true, passwordHash: true },
+        })
+      : null;
     const issuedAt = new Date();
     const expiresAt = clampOfflineLeaseExpiry(issuedAt, access.expiresAt);
     const lease = signOfflineLease({
@@ -100,6 +111,7 @@ export async function POST(req: NextRequest) {
       planCode: tenant.licensePlan,
       seatLimit: tenant.licenseSeatLimit,
       licenseVersion: tenant.licenseVersion,
+      ...(parsed.data.deviceRole === "SERVER" ? { primaryAccount } : {}),
       issuedAt: issuedAt.toISOString(),
       expiresAt: expiresAt.toISOString(),
     });

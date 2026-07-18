@@ -38,11 +38,31 @@ export async function POST(req: NextRequest) {
     if (!access.allowed || !synced) {
       return NextResponse.json({ error: access.reason || "本機授權不可用", access }, { status: 402 });
     }
+    const storedLease = await prisma.offlineLicenseLease.findUnique({ where: { tenantId: tenant.id }, select: { payload: true } });
+    const leasePayload = storedLease?.payload && typeof storedLease.payload === "object" && !Array.isArray(storedLease.payload)
+      ? storedLease.payload as Record<string, unknown>
+      : null;
+    const primaryAccount = leasePayload?.primaryAccount && typeof leasePayload.primaryAccount === "object" && !Array.isArray(leasePayload.primaryAccount)
+      ? leasePayload.primaryAccount as Record<string, unknown>
+      : null;
+    const primaryEmail = typeof primaryAccount?.email === "string" ? primaryAccount.email.trim().toLowerCase() : "";
+    const loginAccount = primaryEmail
+      ? await prisma.user.findFirst({
+          where: {
+            tenantId: tenant.id,
+            email: { equals: primaryEmail, mode: "insensitive" },
+            isActive: true,
+            userRoles: { some: { role: { name: "系統管理員" } } },
+          },
+          select: { username: true, email: true },
+        })
+      : null;
     return NextResponse.json({
       ok: true,
       companyName: synced.name,
       businessMode: normalizeBusinessMode(synced.businessMode),
       leaseExpiresAt: access.expiresAt,
+      loginAccount,
     });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "本機授權驗證失敗" }, { status: 502 });

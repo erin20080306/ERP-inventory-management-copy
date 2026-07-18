@@ -38,11 +38,25 @@ function LoginInner() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [isLocalPreview, setIsLocalPreview] = useState(false);
+  const [runtimeMode, setRuntimeMode] = useState<"loading" | "local" | "online">("loading");
+  const [showDemoPreview, setShowDemoPreview] = useState(false);
+  const isLocalCompanyHost = runtimeMode === "local";
+  const isOnlineRuntime = runtimeMode === "online";
   const registered = sp.get("registered") === "1";
 
   useEffect(() => {
-    setIsLocalPreview(["127.0.0.1", "localhost"].includes(window.location.hostname));
+    const localHost = ["127.0.0.1", "localhost"].includes(window.location.hostname);
+    fetch("/api/runtime-mode", { cache: "no-store" })
+      .then((response) => response.json())
+      .then((runtime) => {
+        setRuntimeMode(runtime.localLicenseMode === true ? "local" : "online");
+        setShowDemoPreview(localHost && runtime.demoLoginEnabled === true);
+      })
+      .catch(() => {
+        // 正式工作站無法判定模式時採安全預設，不顯示任何模擬帳號或密碼。
+        setRuntimeMode("loading");
+        setShowDemoPreview(false);
+      });
     const registeredUsername = sp.get("username")?.trim();
     if (registeredUsername) setUsername(registeredUsername);
   }, [sp]);
@@ -201,7 +215,13 @@ function LoginInner() {
               </Button>
             </form>
 
-            {isLocalPreview && (
+            {isLocalCompanyHost && (
+              <div className="mt-5 rounded-xl border border-emerald-300/20 bg-emerald-300/5 p-3 text-xs leading-5 text-emerald-100">
+                公司主機登入：請使用原本註冊的帳號或 Email 與原本密碼。備用 admin 登入資料保存在桌面的「艾琳ERP-工作站配對」資料夾。
+              </div>
+            )}
+
+            {showDemoPreview && (
               <div className="mt-5 rounded-xl border border-amber-300/20 bg-amber-300/5 p-3">
                 <div className="mb-2 text-center text-[11px] font-semibold text-amber-200">本機預覽・模擬客戶快速登入</div>
                 <div className="grid grid-cols-3 gap-1.5">
@@ -217,16 +237,16 @@ function LoginInner() {
               </div>
             )}
 
-            <div className="mt-4 text-center">
+            {isOnlineRuntime && <div className="mt-4 text-center">
               <Link href="/solutions" className="text-sm text-slate-400 hover:text-white transition">
                 還沒有帳號？<span className="text-indigo-400 font-medium">選擇模式並試用</span>
               </Link>
-            </div>
+            </div>}
 
-            <div className="mt-4 rounded-xl border border-sky-300/20 bg-sky-300/5 p-3 text-xs leading-5 text-slate-400">
+            {isOnlineRuntime && <div className="mt-4 rounded-xl border border-sky-300/20 bg-sky-300/5 p-3 text-xs leading-5 text-slate-400">
               <div className="flex items-start gap-2"><Download className="mt-0.5 h-4 w-4 shrink-0 text-sky-300" /><p><span className="font-semibold text-sky-200">線上版只供 3 日試用。</span>正式使用請先選擇方案並聯絡付款，開通後才提供 macOS／Windows 公司主機與工作站安裝包。</p></div>
               <div className="mt-2 flex flex-wrap gap-3 pl-6"><Link href="/plans" className="text-emerald-300 hover:underline">費率與開通方式</Link><Link href="/terms" className="text-indigo-300 hover:underline">產品條款</Link><Link href="/refund" className="text-indigo-300 hover:underline">退款政策</Link></div>
-            </div>
+            </div>}
 
             <p className="mt-5 text-center text-[11px] leading-5 text-slate-500">
               登入即表示你已閱讀
