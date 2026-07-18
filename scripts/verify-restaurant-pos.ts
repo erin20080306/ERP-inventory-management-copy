@@ -57,6 +57,7 @@ async function main() {
       await tx.restaurantArea.deleteMany({ where: { tenantId: tenant.id } });
       await tx.posRegister.deleteMany({ where: { tenantId: tenant.id } });
       await tx.inventoryStock.deleteMany({ where: { tenantId: tenant.id } });
+      await tx.inventoryTransaction.deleteMany({ where: { tenantId: tenant.id } });
       await tx.product.deleteMany({ where: { tenantId: tenant.id } });
       await tx.productCategory.deleteMany({ where: { tenantId: tenant.id } });
       await tx.productUnit.deleteMany({ where: { tenantId: tenant.id } });
