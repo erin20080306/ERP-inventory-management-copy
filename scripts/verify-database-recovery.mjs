@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -43,7 +43,9 @@ if (!pgUser) throw new Error("找不到 PGUSER、DATABASE_URL 使用者或 USER"
 if (![sourceDb, restoreDb, freshDb].every((database) => safeName.test(database))) throw new Error("測試資料庫名稱不符合安全規則");
 
 const workDir = mkdtempSync(join(tmpdir(), "erin-erp-rehearsal-"));
-const oldSchemaPath = join(workDir, "schema-before.prisma");
+const baselineProjectDir = join(workDir, "baseline-prisma");
+const baselineSchemaPath = join(baselineProjectDir, "schema.prisma");
+const baselineMigrationsDir = join(baselineProjectDir, "migrations");
 const preBackup = join(workDir, "before-migration.dump");
 const postBackup = join(workDir, "after-migration.dump");
 const pgOptions = [
@@ -143,6 +145,24 @@ function dropDatabase(database, options = {}) {
   });
 }
 
+function prepareBaselineProject() {
+  const sourceSchemaPath = join(process.cwd(), "prisma", "schema.prisma");
+  const sourceMigrationsDir = join(process.cwd(), "prisma", "migrations");
+  const sourceMigrationPath = join(sourceMigrationsDir, baselineMigration, "migration.sql");
+  const sourceLockPath = join(sourceMigrationsDir, "migration_lock.toml");
+  const targetMigrationDir = join(baselineMigrationsDir, baselineMigration);
+
+  if (!existsSync(sourceSchemaPath)) throw new Error(`找不到 Prisma schema：${sourceSchemaPath}`);
+  if (!existsSync(sourceMigrationPath)) throw new Error(`找不到 baseline migration：${sourceMigrationPath}`);
+
+  mkdirSync(targetMigrationDir, { recursive: true });
+  copyFileSync(sourceSchemaPath, baselineSchemaPath);
+  copyFileSync(sourceMigrationPath, join(targetMigrationDir, "migration.sql"));
+  if (existsSync(sourceLockPath)) {
+    copyFileSync(sourceLockPath, join(baselineMigrationsDir, "migration_lock.toml"));
+  }
+}
+
 try {
   psql(adminDb, "SELECT 1", "確認 PostgreSQL 連線與密碼");
   dropDatabase(sourceDb);
@@ -150,9 +170,15 @@ try {
   dropDatabase(freshDb);
   createDatabase(sourceDb);
 
-  const oldSchema = run("git", ["show", "HEAD:prisma/schema.prisma"], { label: "讀取變更前 Prisma schema", capture: true });
-  writeFileSync(oldSchemaPath, oldSchema);
-  prisma(["db", "push", "--schema", oldSchemaPath, "--skip-generate", "--accept-data-loss"], "建立變更前資料庫結構", sourceDb);
+  prepareBaselineProject();
+  prisma(["migrate", "deploy", "--schema", baselineSchemaPath], "只套用 baseline migration 建立舊版資料庫", sourceDb);
+  const baselineCount = Number(psql(sourceDb, `
+    SELECT count(*)
+    FROM "_prisma_migrations"
+    WHERE "finished_at" IS NOT NULL
+      AND "rolled_back_at" IS NULL;
+  `, "確認舊版資料庫只有 baseline migration").trim());
+  if (baselineCount !== 1) throw new Error(`舊版資料庫 migration 數量應為 1，實際為 ${baselineCount}`);
 
   psql(sourceDb, `
     INSERT INTO "Tenant" ("id", "name", "createdAt") VALUES ('rehearsal-tenant', '遷移演練公司', CURRENT_TIMESTAMP);
@@ -163,8 +189,7 @@ try {
   `, "寫入舊版保留樣本");
 
   run("pg_dump", ["--no-password", "--format", "custom", "--file", preBackup, sourceDb], { label: "建立 migration 前備份" });
-  prisma(["migrate", "resolve", "--applied", baselineMigration], "標記既有資料庫 baseline", sourceDb);
-  prisma(["migrate", "deploy"], "套用正式 migration", sourceDb);
+  prisma(["migrate", "deploy"], "從 baseline 套用後續正式 migration", sourceDb);
 
   const migrated = psql(sourceDb, `
     SELECT json_build_object(
