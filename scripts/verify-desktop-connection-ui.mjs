@@ -18,12 +18,12 @@ assert.match(setupJs, /if \(!hasAttemptedConnection\) return/);
 assert.match(setupJs, /clearStoredConnection/);
 assert.match(setupHtml, /id="clearButton"/);
 assert.match(setupHtml, /清除舊連線設定/);
-assert.equal(packageJson.version, "1.0.1");
+assert.equal(packageJson.version, "1.0.4");
 for (const scriptName of ["dist:mac", "dist:mac:manual", "dist:mac:test", "dist:win", "dist:win:manual", "dist:win:test"]) {
-  assert.match(packageJson.scripts[scriptName], /--publish never/, `${scriptName} 必須停用 electron-builder CI 自動發布`);
+  assert.match(packageJson.scripts[scriptName], /--publish=never/, `${scriptName} 必須停用 electron-builder CI 自動發布`);
 }
 assert.match(currentRelease, /getPreferredGithubWorkstationRelease/);
-assert.match(githubRelease, /v1\.0\.3-desktop/);
+assert.match(githubRelease, /v1\.0\.4-desktop/);
 assert.match(workflow, /ErinERP-Desktop-macOS-arm64\.dmg/);
 assert.match(workflow, /notarytool submit/);
 assert.match(workflow, /codesign --verify/);
