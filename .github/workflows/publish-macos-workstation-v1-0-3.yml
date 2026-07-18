@@ -1,14 +1,6 @@
-name: Publish repaired macOS workstation v1.0.3
+name: Legacy macOS workstation v1.0.3 (manual only)
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "desktop/**"
-      - "scripts/verify-desktop-connection-ui.mjs"
-      - "scripts/verify-desktop-connection-ui-v2.mjs"
-      - "scripts/write-release-manifest.mjs"
-      - ".github/workflows/publish-macos-workstation-v1-0-3.yml"
   workflow_dispatch:
 
 permissions:
