@@ -7,6 +7,7 @@ const { X509Certificate, createHash, createPublicKey, verify: cryptoVerify } = r
 const { app, BrowserWindow, safeStorage, shell } = require("electron");
 
 const CENTRAL_URL = "https://erp-inventory-management-copy.vercel.app";
+const REGISTRATION_REFRESH_MS = 15 * 60_000;
 let statusWindow = null;
 
 function log(message, detail = "") {
@@ -23,6 +24,10 @@ function hostDir() {
   return process.platform === "win32"
     ? path.join(process.env.LOCALAPPDATA || app.getPath("userData"), "ErinERP")
     : path.join(app.getPath("home"), "ErinERP");
+}
+
+function desktopConfigPath() {
+  return path.join(app.getPath("userData"), "desktop-config.json");
 }
 
 function parseEnv(file) {
@@ -84,13 +89,20 @@ function run(docker, args, cwd, timeout = 180_000) {
 async function ensureDocker(docker) {
   let result = spawnSync(docker, ["info"], { encoding: "utf8", timeout: 10_000, windowsHide: true });
   if (!result.error && result.status === 0) return;
+
+  await showStatus("Docker Desktop 尚未啟動，正在自動開啟並等待公司主機服務。");
   if (process.platform === "darwin" && fs.existsSync("/Applications/Docker.app")) {
     await shell.openPath("/Applications/Docker.app");
   } else if (process.platform === "win32") {
-    const target = path.join(process.env.ProgramFiles || "", "Docker", "Docker", "Docker Desktop.exe");
-    if (fs.existsSync(target)) await shell.openPath(target);
+    const candidates = [
+      path.join(process.env.ProgramFiles || "", "Docker", "Docker", "Docker Desktop.exe"),
+      path.join(process.env.LOCALAPPDATA || "", "Docker", "Docker Desktop.exe"),
+    ];
+    const target = candidates.find((item) => item && fs.existsSync(item));
+    if (target) await shell.openPath(target);
   }
-  const deadline = Date.now() + 120_000;
+
+  const deadline = Date.now() + 150_000;
   while (Date.now() < deadline) {
     result = spawnSync(docker, ["info"], { encoding: "utf8", timeout: 10_000, windowsHide: true });
     if (!result.error && result.status === 0) return;
@@ -122,6 +134,13 @@ function request(urlValue, options = {}) {
   });
 }
 
+function escapeHtml(value) {
+  return String(value || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}
+
 async function showStatus(message) {
   if (!statusWindow || statusWindow.isDestroyed()) {
     statusWindow = new BrowserWindow({
@@ -133,25 +152,76 @@ async function showStatus(message) {
       webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
     });
   }
-  const safe = String(message).replace(/[&<>]/g, "");
-  const html = `<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#07111f;color:#e5edf7;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:30px;box-sizing:border-box}main{border:1px solid #334155;border-radius:18px;background:#0f172a;padding:28px}h1{margin:0 0 14px}p{color:#cbd5e1;line-height:1.7}.loader{width:32px;height:32px;border:4px solid #334155;border-top-color:white;border-radius:50%;animation:s 1s linear infinite;margin-bottom:18px}@keyframes s{to{transform:rotate(360deg)}}</style><main><div class="loader"></div><h1>正在自動修復 ERP 連線</h1><p>${safe}</p></main></html>`;
+  const html = `<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#07111f;color:#e5edf7;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:30px;box-sizing:border-box}main{border:1px solid #334155;border-radius:18px;background:#0f172a;padding:28px}h1{margin:0 0 14px}p{color:#cbd5e1;line-height:1.7}.loader{width:32px;height:32px;border:4px solid #334155;border-top-color:white;border-radius:50%;animation:s 1s linear infinite;margin-bottom:18px}@keyframes s{to{transform:rotate(360deg)}}</style><main><div class="loader"></div><h1>正在準備艾琳 ERP</h1><p>${escapeHtml(message)}</p></main></html>`;
   await statusWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
   statusWindow.show();
+  statusWindow.focus();
 }
 
 async function waitHost(ip) {
-  const deadline = Date.now() + 90_000;
+  const deadline = Date.now() + 150_000;
+  let lastError = null;
   while (Date.now() < deadline) {
     try {
-      const response = await request(`https://${ip}:3443/login`, { rejectUnauthorized: false, timeout: 4_000 });
+      const response = await request(`https://${ip}:3443/login`, { rejectUnauthorized: false, timeout: 5_000 });
       if (response.status >= 200 && response.status < 500) return;
-    } catch {}
+      lastError = new Error(`公司主機回覆 ${response.status}`);
+    } catch (error) {
+      lastError = error;
+    }
     await new Promise((resolve) => setTimeout(resolve, 2_000));
   }
-  throw new Error("公司主機在更新 IP 後仍未完成啟動");
+  throw new Error(`公司主機啟動逾時：${lastError?.message || "無回應"}`);
+}
+
+function readDesktopConfig() {
+  try {
+    return JSON.parse(fs.readFileSync(desktopConfigPath(), "utf8"));
+  } catch {
+    return {};
+  }
+}
+
+function certificateFingerprint(certificate) {
+  const normalized = String(certificate || "").trim();
+  if (!normalized) return "";
+  try {
+    new X509Certificate(normalized);
+    return createHash("sha256").update(normalized).digest("base64url");
+  } catch {
+    return "";
+  }
+}
+
+function registrationStatePath() {
+  return path.join(hostDir(), ".network-registration.json");
+}
+
+function registrationRefreshDue() {
+  try {
+    const state = JSON.parse(fs.readFileSync(registrationStatePath(), "utf8"));
+    const recorded = new Date(String(state.registeredAt || "")).getTime();
+    return !Number.isFinite(recorded) || Date.now() - recorded >= REGISTRATION_REFRESH_MS;
+  } catch {
+    return true;
+  }
+}
+
+function rememberRegistration(ip, caFingerprint) {
+  const target = registrationStatePath();
+  const temporary = `${target}.tmp`;
+  fs.writeFileSync(temporary, `${JSON.stringify({
+    serverUrl: `https://${ip}:3443`,
+    caFingerprint,
+    registeredAt: new Date().toISOString(),
+  }, null, 2)}\n`, { mode: 0o600 });
+  fs.renameSync(temporary, target);
 }
 
 async function registerHost(env, ip, ca) {
+  if (!env.LOCAL_ACTIVATION_KEY || !env.LOCAL_DEVICE_ID) {
+    throw new Error("公司主機缺少啟用碼或裝置識別，無法更新中央連線資料");
+  }
   const body = new URLSearchParams({
     activationKey: env.LOCAL_ACTIVATION_KEY,
     deviceId: env.LOCAL_DEVICE_ID,
@@ -162,9 +232,13 @@ async function registerHost(env, ip, ca) {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded", "Content-Length": Buffer.byteLength(body) },
     body,
-    timeout: 20_000,
+    timeout: 25_000,
   });
-  if (response.status < 200 || response.status >= 300) throw new Error(`中央主機登錄失敗 (${response.status})`);
+  if (response.status < 200 || response.status >= 300) {
+    let detail = "";
+    try { detail = JSON.parse(response.body.toString("utf8")).error || ""; } catch {}
+    throw new Error(`中央主機登錄失敗 (${response.status})${detail ? `：${detail}` : ""}`);
+  }
 }
 
 async function repairHostIp() {
@@ -172,30 +246,75 @@ async function repairHostIp() {
   const envFile = path.join(directory, ".env.local");
   const composeFile = path.join(directory, "docker-compose.local.yml");
   if (!fs.existsSync(envFile) || !fs.existsSync(composeFile)) return false;
-  const ip = lanIp();
-  const env = parseEnv(envFile);
-  if (!ip || !env.SERVER_HOST || env.SERVER_HOST === ip) return false;
 
-  await showStatus(`偵測到主機網路由 ${env.SERVER_HOST} 變更為 ${ip}，正在自動更新，不需重新安裝。`);
-  let source = fs.readFileSync(envFile, "utf8");
-  source = setEnv(source, "SERVER_HOST", ip);
-  source = setEnv(source, "NEXTAUTH_URL", `https://${ip}:3443`);
-  const temp = `${envFile}.network.tmp`;
-  fs.writeFileSync(temp, source, { mode: 0o600 });
-  fs.renameSync(temp, envFile);
+  const ip = lanIp();
+  if (!ip) throw new Error("目前找不到可用的區域網路 IPv4 位址");
+  const before = parseEnv(envFile);
+  const ipChanged = before.SERVER_HOST !== ip || before.NEXTAUTH_URL !== `https://${ip}:3443`;
+
+  await showStatus(ipChanged
+    ? `偵測到公司主機網路由 ${before.SERVER_HOST || "未設定"} 變更為 ${ip}，正在自動更新。`
+    : `正在確認 Docker Desktop 與公司主機 ${ip} 可正常連線。`);
+
+  if (ipChanged) {
+    let source = fs.readFileSync(envFile, "utf8");
+    source = setEnv(source, "SERVER_HOST", ip);
+    source = setEnv(source, "NEXTAUTH_URL", `https://${ip}:3443`);
+    const temporary = `${envFile}.network.tmp`;
+    fs.writeFileSync(temporary, source, { mode: 0o600 });
+    fs.renameSync(temporary, envFile);
+  }
 
   const docker = dockerBinary();
   if (!docker) throw new Error("找不到 Docker Desktop");
   await ensureDocker(docker);
-  run(docker, ["compose", "--env-file", ".env.local", "-f", "docker-compose.local.yml", "up", "-d", "--force-recreate", "app", "caddy"], directory);
+
+  if (ipChanged) {
+    await showStatus(`正在套用新的公司主機位址 ${ip}，資料庫與既有資料都會保留。`);
+    run(docker, [
+      "compose", "--env-file", ".env.local", "-f", "docker-compose.local.yml",
+      "up", "-d", "--force-recreate", "app", "caddy",
+    ], directory, 240_000);
+  } else {
+    run(docker, [
+      "compose", "--env-file", ".env.local", "-f", "docker-compose.local.yml",
+      "up", "-d",
+    ], directory, 240_000);
+  }
+
+  await showStatus("公司主機正在啟動，第一次或網路剛變更時可能需要 1～2 分鐘。");
   await waitHost(ip);
 
   const caFile = path.join(app.getPath("temp"), `erin-erp-ca-${process.pid}.crt`);
-  run(docker, ["compose", "--env-file", ".env.local", "-f", "docker-compose.local.yml", "cp", "caddy:/data/caddy/pki/authorities/local/root.crt", caFile], directory, 30_000);
-  const ca = fs.readFileSync(caFile, "utf8");
-  try { fs.unlinkSync(caFile); } catch {}
-  await registerHost(parseEnv(envFile), ip, ca);
-  log("automatic host IP repair completed:", ip);
+  try {
+    run(docker, [
+      "compose", "--env-file", ".env.local", "-f", "docker-compose.local.yml",
+      "cp", "caddy:/data/caddy/pki/authorities/local/root.crt", caFile,
+    ], directory, 30_000);
+    const ca = fs.readFileSync(caFile, "utf8");
+    const caFingerprint = certificateFingerprint(ca);
+    if (!caFingerprint) throw new Error("公司主機 CA 憑證無法讀取");
+
+    const config = readDesktopConfig();
+    let configuredHost = "";
+    try { configuredHost = new URL(String(config.serverUrl || "")).hostname; } catch {}
+    const configuredCaFingerprint = certificateFingerprint(config.caCertificate);
+    const mustRegister = ipChanged
+      || configuredHost !== ip
+      || configuredCaFingerprint !== caFingerprint
+      || registrationRefreshDue();
+
+    if (mustRegister) {
+      await showStatus("正在同步最新公司主機網址與安全憑證，不需要重新輸入帳號密碼。");
+      await registerHost(parseEnv(envFile), ip, ca);
+      rememberRegistration(ip, caFingerprint);
+      log("central host registration refreshed:", ip);
+    }
+  } finally {
+    try { fs.unlinkSync(caFile); } catch {}
+  }
+
+  log("local company host ready:", ip);
   return true;
 }
 
@@ -228,7 +347,7 @@ function verifyDiscovery(envelope, publicKey, companyCode) {
 }
 
 async function refreshDiscovery() {
-  const file = path.join(app.getPath("userData"), "desktop-config.json");
+  const file = desktopConfigPath();
   if (!fs.existsSync(file) || !safeStorage.isEncryptionAvailable()) return false;
   const config = JSON.parse(fs.readFileSync(file, "utf8"));
   if (!config.companyCode || !config.encryptedActivationKey) return false;
@@ -242,8 +361,16 @@ async function refreshDiscovery() {
     body,
     timeout: 20_000,
   });
-  if (response.status !== 200) throw new Error(`公司連線資料更新失敗 (${response.status})`);
-  const discovery = verifyDiscovery(JSON.parse(response.body.toString("utf8")).discovery, keyResponse.body.toString("utf8").trim(), config.companyCode);
+  if (response.status !== 200) {
+    let detail = "";
+    try { detail = JSON.parse(response.body.toString("utf8")).error || ""; } catch {}
+    throw new Error(`公司連線資料更新失敗 (${response.status})${detail ? `：${detail}` : ""}`);
+  }
+  const discovery = verifyDiscovery(
+    JSON.parse(response.body.toString("utf8")).discovery,
+    keyResponse.body.toString("utf8").trim(),
+    config.companyCode,
+  );
   if (config.serverUrl === discovery.serverUrl && config.caCertificate === discovery.caCertificate) return false;
   const temp = `${file}.discovery.tmp`;
   fs.writeFileSync(temp, `${JSON.stringify({ ...config, ...discovery }, null, 2)}\n`, { mode: 0o600 });
@@ -267,6 +394,7 @@ function ensureMacInstall() {
   const realSource = fs.realpathSync(source);
   const stable = realSource.startsWith("/Applications/") || realSource.startsWith(`${homeApps}/`);
   let installed = source;
+
   if (!stable) {
     fs.mkdirSync(homeApps, { recursive: true });
     fs.rmSync(target, { recursive: true, force: true });
@@ -275,6 +403,7 @@ function ensureMacInstall() {
     spawnSync("/usr/bin/xattr", ["-dr", "com.apple.quarantine", target], { encoding: "utf8", timeout: 30_000 });
     installed = target;
   }
+
   if (fs.existsSync(desktop)) {
     const stat = fs.lstatSync(desktop);
     if (stat.isSymbolicLink()) fs.unlinkSync(desktop);
@@ -282,6 +411,7 @@ function ensureMacInstall() {
   }
   fs.symlinkSync(installed, desktop, "dir");
   log("desktop ERP icon ready:", desktop);
+
   if (!stable) {
     const child = spawn("/usr/bin/open", [installed], { detached: true, stdio: "ignore" });
     child.unref();
@@ -298,9 +428,23 @@ async function start() {
   } catch (error) {
     log("automatic app installation failed:", error?.message || String(error));
   }
-  try { await repairHostIp(); } catch (error) { log("automatic host IP repair failed:", error?.message || String(error)); }
-  try { await refreshDiscovery(); } catch (error) { log("automatic discovery refresh skipped:", error?.message || String(error)); }
+
+  let hostRepairError = null;
+  try {
+    await repairHostIp();
+  } catch (error) {
+    hostRepairError = error;
+    log("automatic host preparation failed:", error?.message || String(error));
+  }
+
+  try {
+    await refreshDiscovery();
+  } catch (error) {
+    log("automatic discovery refresh skipped:", error?.message || String(error));
+  }
+
   if (statusWindow && !statusWindow.isDestroyed()) statusWindow.close();
+  if (hostRepairError) log("continuing to desktop recovery page after host preparation error");
   require("./bootstrap.cjs");
 }
 
