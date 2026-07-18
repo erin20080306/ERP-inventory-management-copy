@@ -1,10 +1,10 @@
 {
   "version": "v1.0.5-desktop",
-  "publishedAt": "2026-07-18T13:47:42Z",
-  "sourceCommit": "c8834a503a7c32b4e121006ab3fd95aefd3aae86",
+  "publishedAt": "2026-07-18T15:06:20Z",
+  "sourceCommit": "f8b8f34a86918f45477733df772da954c2f52733",
   "macDmg": "ErinERP-Desktop-macOS-arm64.dmg",
   "macZip": "ErinERP-Desktop-macOS-arm64.zip",
   "windowsExe": "ErinERP-Desktop-Windows-x64-Setup.exe",
   "signedAndNotarized": false,
-  "status": "published-and-verified"
+  "status": "published-auto-network-recovery"
 }
