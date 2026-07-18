@@ -10,9 +10,17 @@ const version = rawVersion.replace(/[^A-Za-z0-9._-]/g, "-");
 const imageTag = process.argv[3] || (process.env.GITHUB_REF_NAME ? rawVersion : "latest");
 const outputDir = path.join(root, "dist", "desktop");
 const stagingDir = path.join(root, "dist", ".host-installer-staging");
+const updaterImage = "erin-erp-host-updater:2";
 
 rmSync(stagingDir, { recursive: true, force: true });
 mkdirSync(outputDir, { recursive: true });
+
+function installerCompose() {
+  const source = readFileSync(path.join(root, "docker-compose.local.yml"), "utf8");
+  const updated = source.replace(/image:\s*erin-erp-host-updater:\d+/u, `image: ${updaterImage}`);
+  if (updated === source) throw new Error("Updater image marker was not found in docker-compose.local.yml");
+  return updated;
+}
 
 function prepare(platform) {
   const target = path.join(stagingDir, platform);
@@ -20,7 +28,7 @@ function prepare(platform) {
   mkdirSync(path.join(target, "docker"), { recursive: true });
   mkdirSync(path.join(target, "updater"), { recursive: true });
   cpSync(path.join(root, "installer", "主機安裝說明.txt"), path.join(target, "主機安裝說明.txt"));
-  cpSync(path.join(root, "docker-compose.local.yml"), path.join(target, "docker-compose.local.yml"));
+  writeFileSync(path.join(target, "docker-compose.local.yml"), installerCompose());
   cpSync(path.join(root, "docker", "Caddyfile"), path.join(target, "docker", "Caddyfile"));
   cpSync(path.join(root, "updater", "Dockerfile"), path.join(target, "updater", "Dockerfile"));
   cpSync(path.join(root, "updater", "health"), path.join(target, "updater", "health"));
