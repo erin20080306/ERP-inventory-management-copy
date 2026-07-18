@@ -20,6 +20,7 @@ export async function getPrivateInstallerSignedUrl(pathname: string) {
     validUntil,
   });
   const { presignedUrl } = await presignUrl(token, {
+    access: "private",
     pathname,
     operation: "get",
     validUntil,
