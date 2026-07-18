@@ -1,0 +1,71 @@
+name: Publish desktop recovery v1.0.4
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/publish-desktop-v1.0.4.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-desktop-v1.0.4
+  cancel-in-progress: false
+
+jobs:
+  desktop-clients:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            artifact: desktop-macos-v1.0.4
+          - os: windows-latest
+            artifact: desktop-windows-v1.0.4
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - run: npm --prefix desktop ci
+      - name: Verify desktop source syntax
+        run: node --check desktop/main.cjs
+      - name: Build macOS Apple Silicon client
+        if: runner.os == 'macOS'
+        run: npm --prefix desktop run dist:mac:test
+      - name: Build Windows x64 client
+        if: runner.os == 'Windows'
+        run: npm --prefix desktop run dist:win:test
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: |
+            dist/desktop/*.dmg
+            dist/desktop/*.zip
+            dist/desktop/*.exe
+          if-no-files-found: error
+
+  release:
+    needs: desktop-clients
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+      - name: Generate release manifest and checksums
+        env:
+          RELEASE_MANUAL: "true"
+        run: node scripts/write-release-manifest.mjs release-assets v1.0.4-desktop
+      - name: Publish repaired desktop clients
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view v1.0.4-desktop >/dev/null 2>&1 || \
+            gh release create v1.0.4-desktop --target "$GITHUB_SHA" --title "艾琳 ERP 工作站 v1.0.4" --notes "修正桌面 App 開啟空白、公司主機逾時時無法操作，以及同一台電腦主機 IP 變更後無法自動恢復的問題。"
+          gh release upload v1.0.4-desktop release-assets/* --clobber
