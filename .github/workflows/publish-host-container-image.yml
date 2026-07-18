@@ -73,6 +73,12 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Verify published multi-platform manifest
+        run: |
+          docker buildx imagetools inspect "ghcr.io/${IMAGE_NAME}:latest" | tee /tmp/erin-erp-manifest.txt
+          grep -q "linux/amd64" /tmp/erin-erp-manifest.txt
+          grep -q "linux/arm64" /tmp/erin-erp-manifest.txt
+
       - name: Show required package visibility setting
         run: |
           echo "Image published: ghcr.io/${IMAGE_NAME}:latest"
