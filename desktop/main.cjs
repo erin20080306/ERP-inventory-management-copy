@@ -12,8 +12,10 @@ const {
 const fs = require("node:fs");
 const http = require("node:http");
 const https = require("node:https");
+const net = require("node:net");
 const os = require("node:os");
 const path = require("node:path");
+const tls = require("node:tls");
 
 const PRODUCTION_CENTRAL_URL = "https://erp-inventory-management-copy.vercel.app";
 const CENTRAL_URL = app.isPackaged
@@ -27,6 +29,7 @@ let appWindow = null;
 let customerDisplayWindow = null;
 let proxyServer = null;
 let proxyOrigin = null;
+let upstreamConnection = null;
 let lastRefreshAttempt = 0;
 
 class ServiceError extends Error {
@@ -141,20 +144,50 @@ function validateCaCertificate(value) {
   return `${certificate}\n`;
 }
 
+function hasHeader(headers, name) {
+  return Object.keys(headers || {}).some((key) => key.toLowerCase() === name.toLowerCase());
+}
+
+function hostInstallDirectory() {
+  if (process.platform === "win32") {
+    return path.join(process.env.LOCALAPPDATA || app.getPath("userData"), "ErinERP");
+  }
+  return path.join(app.getPath("home"), "ErinERP");
+}
+
+function localHostInstallPresent() {
+  const installDirectory = hostInstallDirectory();
+  return fs.existsSync(path.join(installDirectory, "docker-compose.local.yml"))
+    && fs.existsSync(path.join(installDirectory, ".env.local"));
+}
+
+function tlsRequestOptions(target, caCertificate, connectHostname) {
+  const originalHostname = target.hostname;
+  return {
+    hostname: connectHostname || originalHostname,
+    servername: net.isIP(originalHostname) ? undefined : originalHostname,
+    checkServerIdentity: (_hostname, certificate) => tls.checkServerIdentity(originalHostname, certificate),
+    agent: new https.Agent({ ca: caCertificate, keepAlive: true }),
+  };
+}
+
 function requestBuffer(urlValue, options = {}) {
   return new Promise((resolve, reject) => {
     const url = new URL(urlValue);
     const transport = url.protocol === "https:" ? https : http;
+    const connectHostname = options.connectHostname || url.hostname;
+    const headers = { ...(options.headers || {}) };
+    if (connectHostname !== url.hostname && !hasHeader(headers, "host")) headers.host = url.host;
+    const secureOptions = url.protocol === "https:" && options.ca
+      ? tlsRequestOptions(url, options.ca, connectHostname)
+      : { hostname: connectHostname };
     const request = transport.request({
       protocol: url.protocol,
-      hostname: url.hostname,
+      ...secureOptions,
       port: url.port || undefined,
       path: `${url.pathname}${url.search}`,
       method: options.method || "GET",
-      headers: options.headers,
-      agent: url.protocol === "https:" && options.ca
-        ? new https.Agent({ ca: options.ca, keepAlive: true })
-        : undefined,
+      headers,
       timeout: options.timeout || 15_000,
     }, (response) => {
       const chunks = [];
@@ -301,10 +334,146 @@ function privateDeviceKey(config) {
   });
 }
 
+function appPage(title, message, actions = "") {
+  return `data:text/html;charset=utf-8,${encodeURIComponent(`<!doctype html>
+<html lang="zh-Hant">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${title}</title>
+<style>
+  *{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:48px;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#07111f;color:#e5edf7}
+  main{width:min(720px,100%);padding:34px;border:1px solid #334155;border-radius:20px;background:#0f172a;box-shadow:0 22px 60px rgba(0,0,0,.28)}
+  h1{margin:0 0 18px;font-size:32px}p{margin:0 0 14px;line-height:1.7;color:#cbd5e1}.loader{width:34px;height:34px;margin-bottom:22px;border:4px solid #334155;border-top-color:#e2e8f0;border-radius:50%;animation:spin 1s linear infinite}
+  .actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:24px}button{border:0;border-radius:10px;padding:11px 18px;font-size:16px;cursor:pointer}button.primary{background:#f8fafc;color:#0f172a}button.secondary{background:#334155;color:#f8fafc}
+  @keyframes spin{to{transform:rotate(360deg)}}
+</style>
+<main>${actions ? "" : '<div class="loader"></div>'}<h1>${title}</h1><p>${message}</p>${actions}</main>
+</html>`)}`;
+}
+
+function ensureAppWindow() {
+  if (appWindow && !appWindow.isDestroyed()) return appWindow;
+  appWindow = new BrowserWindow({
+    width: 1440,
+    height: 920,
+    minWidth: 1080,
+    minHeight: 700,
+    title: "艾琳 ERP",
+    backgroundColor: "#07111f",
+    show: true,
+    webPreferences: {
+      preload: path.join(__dirname, "hardware-preload.cjs"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  });
+  appWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (proxyOrigin && url.startsWith(proxyOrigin)) return { action: "allow" };
+    if (url.startsWith("http://") || url.startsWith("https://")) void shell.openExternal(url);
+    return { action: "deny" };
+  });
+  appWindow.webContents.on("will-navigate", (event, url) => {
+    if (url.startsWith("data:text/html") || (proxyOrigin && url.startsWith(proxyOrigin))) return;
+    event.preventDefault();
+    if (url.startsWith("http://") || url.startsWith("https://")) void shell.openExternal(url);
+  });
+  appWindow.on("closed", () => { appWindow = null; });
+  return appWindow;
+}
+
+async function showAppStatus(title, message) {
+  const window = ensureAppWindow();
+  if (window.isMinimized()) window.restore();
+  window.show();
+  window.focus();
+  await window.loadURL(appPage(title, message));
+}
+
+async function showAppFailure(error) {
+  const message = String(error?.message || error || "未知錯誤").replace(/[<>&]/g, "");
+  const actions = `<div class="actions">
+    <button class="primary" onclick="retry()">重新連線</button>
+    <button class="secondary" onclick="settings()">連線設定</button>
+  </div>
+  <script>
+    async function retry(){document.querySelector('main').innerHTML='<div class="loader"></div><h1>正在重新連線</h1><p>正在檢查 Docker Desktop 與公司主機，請稍候。</p>';await window.erinDesktop.retry();}
+    async function settings(){await window.erinDesktop.openSettings();}
+  </script>`;
+  await ensureAppWindow().loadURL(appPage("無法連線公司主機", `${message}<br><br>程式會自動嘗試啟動本機公司主機；若仍失敗，請確認 Docker Desktop 已完成啟動。`, actions));
+}
+
+async function launchDockerDesktop() {
+  if (process.platform === "darwin") {
+    const target = "/Applications/Docker.app";
+    if (!fs.existsSync(target)) return false;
+    const result = await shell.openPath(target);
+    return result === "";
+  }
+  if (process.platform === "win32") {
+    const candidates = [
+      path.join(process.env.ProgramFiles || "", "Docker", "Docker", "Docker Desktop.exe"),
+      path.join(process.env.LOCALAPPDATA || "", "Docker", "Docker Desktop.exe"),
+    ].filter(Boolean);
+    for (const target of candidates) {
+      if (!fs.existsSync(target)) continue;
+      const result = await shell.openPath(target);
+      if (result === "") return true;
+    }
+  }
+  return false;
+}
+
+async function probeHost(config, connectHostname, timeout = 6_000) {
+  const target = new URL(config.serverUrl);
+  const response = await requestBuffer(`${target.origin}/login`, {
+    ca: config.caCertificate,
+    connectHostname,
+    timeout,
+  });
+  if (response.status < 200 || response.status >= 400) throw new Error(`公司主機回覆 ${response.status}`);
+  return { serverUrl: config.serverUrl, connectHostname };
+}
+
+async function resolveUpstreamConnection(config, { force = false, startLocalHost = true } = {}) {
+  if (!force && upstreamConnection?.serverUrl === config.serverUrl) return upstreamConnection;
+  upstreamConnection = null;
+  const target = new URL(config.serverUrl);
+  const candidates = [target.hostname];
+  if (localHostInstallPresent()) candidates.push("127.0.0.1");
+  const uniqueCandidates = [...new Set(candidates)];
+  try {
+    upstreamConnection = await Promise.any(uniqueCandidates.map((hostname) => probeHost(config, hostname)));
+    return upstreamConnection;
+  } catch (initialError) {
+    if (!startLocalHost || !localHostInstallPresent()) {
+      throw new Error(`公司主機無法連線：${initialError?.errors?.[0]?.message || initialError?.message || "連線失敗"}`);
+    }
+  }
+
+  await showAppStatus("正在啟動公司主機", "已偵測到本機公司主機，正在開啟 Docker Desktop 並等待 ERP 服務完成啟動，第一次可能需要 1～2 分鐘。");
+  const launched = await launchDockerDesktop();
+  if (!launched) throw new Error("找不到或無法開啟 Docker Desktop");
+
+  let lastError = null;
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    try {
+      upstreamConnection = await probeHost(config, "127.0.0.1", 4_000);
+      return upstreamConnection;
+    } catch (error) {
+      lastError = error;
+      await new Promise((resolve) => setTimeout(resolve, 2_000));
+    }
+  }
+  throw new Error(`Docker Desktop 已開啟，但公司主機仍未完成啟動：${lastError?.message || "等待逾時"}`);
+}
+
 function proxyFailure(response, error) {
+  upstreamConnection = null;
   if (response.headersSent) return response.destroy();
   response.writeHead(502, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
-  response.end(`<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><title>連線失敗</title><style>body{font-family:system-ui;background:#07111f;color:#e5edf7;padding:48px}main{max-width:680px;margin:auto;padding:28px;border:1px solid #334155;border-radius:18px;background:#0f172a}button{padding:10px 16px}</style><main><h1>無法連線公司主機</h1><p>${String(error?.message || error || "未知錯誤").replace(/[<>&]/g, "")}</p><p>請確認公司主機與網路正常，或由選單開啟「連線設定」。</p><button onclick="location.reload()">重新整理</button></main></html>`);
+  const message = String(error?.message || error || "未知錯誤").replace(/[<>&]/g, "");
+  response.end(`<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><title>連線失敗</title><style>body{font-family:system-ui;background:#07111f;color:#e5edf7;padding:48px}main{max-width:680px;margin:auto;padding:28px;border:1px solid #334155;border-radius:18px;background:#0f172a}.actions{display:flex;gap:12px;margin-top:20px}button{padding:10px 16px;border:0;border-radius:8px;cursor:pointer}</style><main><h1>無法連線公司主機</h1><p>${message}</p><p>可直接重新連線；程式會檢查並嘗試啟動本機 Docker Desktop。</p><div class="actions"><button onclick="retry()">重新連線</button><button onclick="settings()">連線設定</button></div><script>async function retry(){await window.erinDesktop.retry()}async function settings(){await window.erinDesktop.openSettings()}</script></main></html>`);
 }
 
 async function startProxy() {
@@ -313,6 +482,7 @@ async function startProxy() {
     void (async () => {
       const config = await ensureUsableLease();
       const target = new URL(config.serverUrl);
+      const connection = await resolveUpstreamConnection(config, { startLocalHost: false });
       const requestPath = incoming.url || "/";
       const timestamp = String(Date.now());
       const nonce = randomBytes(18).toString("base64url");
@@ -342,12 +512,11 @@ async function startProxy() {
 
       const upstream = https.request({
         protocol: target.protocol,
-        hostname: target.hostname,
+        ...tlsRequestOptions(target, config.caCertificate, connection.connectHostname),
         port: target.port || 443,
         method: incoming.method,
         path: requestPath,
         headers,
-        agent: new https.Agent({ ca: config.caCertificate, keepAlive: true }),
         timeout: 60_000,
       }, (response) => {
         const responseHeaders = { ...response.headers };
@@ -414,42 +583,20 @@ function createSetupWindow(error = null) {
   return setupWindow;
 }
 
-async function openApplication() {
-  const origin = await startProxy();
-  await ensureUsableLease();
-  if (appWindow && !appWindow.isDestroyed()) {
-    appWindow.show();
-    appWindow.focus();
-    return;
+async function openApplication({ forceReconnect = false } = {}) {
+  ensureAppWindow();
+  await showAppStatus("正在連線艾琳 ERP", "正在確認授權與公司主機狀態，請稍候。");
+  try {
+    const config = await ensureUsableLease({ forceRefresh: forceReconnect });
+    await showAppStatus("正在連線公司主機", "正在確認公司主機服務；若 Docker Desktop 尚未啟動，程式會自動開啟。");
+    await resolveUpstreamConnection(config, { force: forceReconnect, startLocalHost: true });
+    const origin = await startProxy();
+    await appWindow.loadURL(`${origin}/login`);
+    setupWindow?.hide();
+  } catch (error) {
+    console.error("desktop application connection failed", error);
+    await showAppFailure(error);
   }
-  appWindow = new BrowserWindow({
-    width: 1440,
-    height: 920,
-    minWidth: 1080,
-    minHeight: 700,
-    title: "艾琳 ERP",
-    backgroundColor: "#f8fafc",
-    webPreferences: {
-      preload: path.join(__dirname, "hardware-preload.cjs"),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-    },
-  });
-  appWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith(origin)) return { action: "allow" };
-    if (url.startsWith("http://") || url.startsWith("https://")) void shell.openExternal(url);
-    return { action: "deny" };
-  });
-  appWindow.webContents.on("will-navigate", (event, url) => {
-    if (!url.startsWith(origin)) {
-      event.preventDefault();
-      if (url.startsWith("http://") || url.startsWith("https://")) void shell.openExternal(url);
-    }
-  });
-  appWindow.loadURL(`${origin}/login`);
-  appWindow.on("closed", () => { appWindow = null; });
-  setupWindow?.hide();
 }
 
 function requireApplicationSender(event) {
@@ -529,9 +676,9 @@ function registerIpc() {
     };
     writeConfig(config);
     lastRefreshAttempt = 0;
+    upstreamConnection = null;
     config = await refreshLease(config);
-    const health = await requestBuffer(`${config.serverUrl}/login`, { ca: config.caCertificate, timeout: 15_000 });
-    if (health.status < 200 || health.status >= 400) throw new Error(`公司主機回覆 ${health.status}`);
+    await resolveUpstreamConnection(config, { force: true, startLocalHost: true });
     if (proxyServer) {
       await new Promise((resolve) => proxyServer.close(resolve));
       proxyServer = null;
@@ -552,8 +699,20 @@ function registerIpc() {
       encryptedDevicePrivateKey: current.encryptedDevicePrivateKey,
     });
     lastRefreshAttempt = 0;
+    upstreamConnection = null;
     appWindow?.close();
     return safeConfigView(readConfig());
+  });
+  ipcMain.handle("desktop:retry", async (event) => {
+    requireApplicationSender(event);
+    upstreamConnection = null;
+    await openApplication({ forceReconnect: true });
+    return { ok: true };
+  });
+  ipcMain.handle("desktop:open-settings", async (event) => {
+    requireApplicationSender(event);
+    createSetupWindow();
+    return { ok: true };
   });
   ipcMain.handle("hardware:state", async (event) => {
     requireApplicationSender(event);
@@ -601,13 +760,16 @@ else {
     const config = ensureIdentity(readConfig());
     writeConfig(config);
     if (config.serverUrl && config.caCertificate && config.encryptedActivationKey) {
-      try { await openApplication(); } catch (error) { createSetupWindow(error?.message || String(error)); }
+      await openApplication();
     } else createSetupWindow();
   });
 }
 
 app.on("activate", () => {
-  if (BrowserWindow.getAllWindows().length === 0) createSetupWindow();
+  if (BrowserWindow.getAllWindows().length !== 0) return;
+  const config = readConfig();
+  if (config.serverUrl && config.caCertificate && config.encryptedActivationKey) void openApplication();
+  else createSetupWindow();
 });
 
 app.on("before-quit", () => {
