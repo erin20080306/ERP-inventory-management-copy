@@ -19,13 +19,9 @@ import {
 } from "../src/lib/license";
 import { refundPosSale } from "../src/lib/pos-refunds";
 import { seedTenantDefaults } from "../src/lib/seed-tenant";
+import { assertTestDatabase } from "./assert-test-database";
 
-const databaseUrl = process.env.DATABASE_URL;
-if (!databaseUrl) throw new Error("請設定 DATABASE_URL");
-const databaseName = new URL(databaseUrl).pathname.replace(/^\//, "");
-if (!/^erp_resilience_test_[a-z0-9_]+$/.test(databaseName)) {
-  throw new Error(`只允許在 erp_resilience_test_* 測試資料庫執行，目前為 ${databaseName}`);
-}
+assertTestDatabase(/^erp_resilience_test_[a-z0-9_]+$/, "erp_resilience_test_*");
 
 const keys = generateKeyPairSync("ed25519");
 process.env.LICENSE_ED25519_PRIVATE_KEY_B64 = keys.privateKey.export({ format: "der", type: "pkcs8" }).toString("base64");

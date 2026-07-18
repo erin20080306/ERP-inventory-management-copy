@@ -3,13 +3,9 @@ import { prisma } from "../src/lib/prisma";
 import { buildClosingDraft } from "../src/lib/auto-journal";
 import { createPostedJournal } from "../src/lib/documents";
 import { seedTenantDefaults } from "../src/lib/seed-tenant";
+import { assertTestDatabase } from "./assert-test-database";
 
-const databaseUrl = process.env.DATABASE_URL;
-if (!databaseUrl) throw new Error("請設定 DATABASE_URL");
-const databaseName = new URL(databaseUrl).pathname.replace(/^\//, "");
-if (!/^erp_accounting_test_[a-z0-9_]+$/.test(databaseName)) {
-  throw new Error(`只允許在 erp_accounting_test_* 測試資料庫執行，目前為 ${databaseName}`);
-}
+assertTestDatabase(/^erp_accounting_test_[a-z0-9_]+$/, "erp_accounting_test_*");
 
 function atTaipei(value: string) {
   return new Date(`${value}T12:00:00+08:00`);
