@@ -1,7 +1,7 @@
 import type { InstallerFile, InstallerRelease } from "./installer-release";
 
 const REPOSITORY = "erin20080306/ERP-inventory-management-copy";
-const WORKSTATION_RELEASE_TAG = "v1.0.4-desktop";
+const WORKSTATION_RELEASE_TAG = "v1.0.5-desktop";
 
 type GithubAsset = {
   name: string;
