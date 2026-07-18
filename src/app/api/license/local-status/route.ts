@@ -61,7 +61,8 @@ export async function POST(req: NextRequest) {
       ok: true,
       companyName: synced.name,
       businessMode: normalizeBusinessMode(synced.businessMode),
-      leaseExpiresAt: access.expiresAt,
+      leaseExpiresAt: typeof leasePayload?.expiresAt === "string" ? leasePayload.expiresAt : null,
+      subscriptionExpiresAt: access.expiresAt,
       loginAccount,
     });
   } catch (error) {

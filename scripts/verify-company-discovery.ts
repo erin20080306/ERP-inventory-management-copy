@@ -13,6 +13,7 @@ import {
   activateTenantLicense,
   normalizeLicenseAccountUsername,
   refreshLocalLicenseLease,
+  resolveLocalLicenseAccess,
   verifyLicensePaymentRecords,
   verifyOfflineLease,
   workstationDeviceIdFromPublicKey,
@@ -147,6 +148,12 @@ async function main() {
   assert.equal(serverLeaseResponse.status, 200);
   const serverLeaseBody = await serverLeaseResponse.json();
   assert.equal(verifyOfflineLease(serverLeaseBody.lease), true);
+  assert.equal(serverLeaseBody.lease.payload.subscriptionExpiresAt, activation.expiresAt?.toISOString());
+  assert.equal(serverLeaseBody.lease.payload.paymentType, "MONTHLY");
+  assert.ok(
+    new Date(serverLeaseBody.lease.payload.expiresAt).getTime() < new Date(serverLeaseBody.lease.payload.subscriptionExpiresAt).getTime(),
+    "24 小時離線租約不得被誤當成中央訂閱到期日",
+  );
   assert.equal(serverLeaseBody.lease.payload.primaryAccount.email, owner.email);
   assert.equal(
     serverLeaseBody.lease.payload.primaryAccount.username,
@@ -190,6 +197,9 @@ async function main() {
     headers: { "Content-Type": "application/json" },
   })) as typeof fetch;
   await refreshLocalLicenseLease(localTenant.id);
+  const localAccess = await resolveLocalLicenseAccess(localTenant.id);
+  assert.equal(localAccess.expiresAt, activation.expiresAt?.toISOString());
+  assert.ok((localAccess.subscriptionRemainMs ?? 0) > 7 * 86_400_000);
   const syncedLocal = await prisma.tenant.findUniqueOrThrow({ where: { id: localTenant.id } });
   const syncedCompany = await prisma.companySetting.findFirstOrThrow({ where: { tenantId: localTenant.id } });
   assert.equal(syncedLocal.name, tenant.name);

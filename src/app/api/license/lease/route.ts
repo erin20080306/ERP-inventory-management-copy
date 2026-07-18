@@ -116,6 +116,8 @@ export async function POST(req: NextRequest) {
       devicePublicKey: device.devicePublicKey,
       deviceFingerprint: fingerprintDeviceId(parsed.data.deviceId),
       planCode: tenant.licensePlan,
+      paymentType: access.paymentType,
+      subscriptionExpiresAt: access.expiresAt,
       seatLimit: tenant.licenseSeatLimit,
       licenseVersion: tenant.licenseVersion,
       ...(parsed.data.deviceRole === "SERVER" ? { primaryAccount } : {}),

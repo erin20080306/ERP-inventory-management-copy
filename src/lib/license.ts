@@ -849,7 +849,24 @@ export async function resolveLocalLicenseAccess(tenantId: string): Promise<Licen
   }
   if (now.getTime() >= signedExpiresAt.getTime()) return { status: "locked", allowed: false, serverTime: now.toISOString(), expiresAt: signedExpiresAt.toISOString(), seatLimit: Number(signed.payload.seatLimit || 1), licenseVersion: Number(signed.payload.licenseVersion || 0), reason: "離線授權租約已到期，請恢復網路連線" };
   if (now.getTime() - lease.lastObservedAt.getTime() > 60_000) await prisma.offlineLicenseLease.update({ where: { tenantId }, data: { lastObservedAt: now } });
-  return { status: "paid", allowed: true, serverTime: now.toISOString(), paymentType: "LEGACY", planCode: String(signed.payload.planCode || ""), expiresAt: signedExpiresAt.toISOString(), subscriptionRemainMs: signedExpiresAt.getTime() - now.getTime(), seatLimit: Number(signed.payload.seatLimit || 1), licenseVersion: Number(signed.payload.licenseVersion || 0) };
+  const subscriptionExpiresAt = asDate(
+    typeof signed.payload.subscriptionExpiresAt === "string" ? signed.payload.subscriptionExpiresAt : null,
+  );
+  const signedPaymentType = String(signed.payload.paymentType || "");
+  const paymentType: BillingCycle | "LEGACY" = ["MONTHLY", "ANNUAL", "ONCE"].includes(signedPaymentType)
+    ? signedPaymentType as BillingCycle
+    : "LEGACY";
+  return {
+    status: "paid",
+    allowed: true,
+    serverTime: now.toISOString(),
+    paymentType,
+    planCode: String(signed.payload.planCode || ""),
+    expiresAt: subscriptionExpiresAt?.toISOString() ?? null,
+    ...(subscriptionExpiresAt ? { subscriptionRemainMs: subscriptionExpiresAt.getTime() - now.getTime() } : {}),
+    seatLimit: Number(signed.payload.seatLimit || 1),
+    licenseVersion: Number(signed.payload.licenseVersion || 0),
+  };
 }
 
 type RequestHeaders = { get(name: string): string | null };
