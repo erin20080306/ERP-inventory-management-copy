@@ -5,10 +5,19 @@ import { seedTenantDefaults } from "../src/lib/seed-tenant";
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) throw new Error("請設定 DATABASE_URL");
-const databaseName = new URL(databaseUrl).pathname.replace(/^\//, "");
-if (!/^erp_stage2_test_[a-z0-9_]+$/.test(databaseName)) {
-  throw new Error(`只允許在 erp_stage2_test_* 測試資料庫執行，目前為 ${databaseName}`);
+const parsedDatabaseUrl = new URL(databaseUrl);
+const databaseName = parsedDatabaseUrl.pathname.replace(/^\//, "");
+const isNamedTestDatabase = /^erp_stage2_test_[a-z0-9_]+$/.test(databaseName);
+const isGithubActionsEphemeralDatabase =
+  process.env.GITHUB_ACTIONS === "true"
+  && process.env.CI === "true"
+  && databaseName === "erp"
+  && ["127.0.0.1", "localhost"].includes(parsedDatabaseUrl.hostname)
+  && decodeURIComponent(parsedDatabaseUrl.username) === "postgres";
+if (!isNamedTestDatabase && !isGithubActionsEphemeralDatabase) {
+  throw new Error(`只允許在 erp_stage2_test_* 測試資料庫，或 GitHub Actions 的本機暫存 erp 資料庫執行；目前為 ${parsedDatabaseUrl.hostname}/${databaseName}`);
 }
+process.stdout.write(`部分履約測試資料庫安全檢查：${isNamedTestDatabase ? "命名測試資料庫" : "GitHub Actions 暫存資料庫"}\n`);
 
 async function createFixture(suffix: string) {
   const tenant = await prisma.tenant.create({ data: { name: `部分履約測試-${suffix}` } });
