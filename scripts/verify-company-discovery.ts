@@ -41,9 +41,22 @@ function workstation() {
 
 async function deleteLocalFixture(tenantId: string) {
   await prisma.$transaction(async (tx) => {
+    await tx.restaurantOrder.deleteMany({ where: { tenantId } });
+    await tx.posShift.deleteMany({ where: { tenantId } });
     await tx.restaurantTable.deleteMany({ where: { tenantId } });
     await tx.restaurantArea.deleteMany({ where: { tenantId } });
     await tx.posRegister.deleteMany({ where: { tenantId } });
+    await tx.salesOrder.deleteMany({ where: { tenantId } });
+    await tx.purchaseOrder.deleteMany({ where: { tenantId } });
+    await tx.inventoryStock.deleteMany({ where: { tenantId } });
+    await tx.inventoryTransaction.deleteMany({ where: { tenantId } });
+    await tx.product.deleteMany({ where: { tenantId } });
+    await tx.productCategory.deleteMany({ where: { tenantId } });
+    await tx.productUnit.deleteMany({ where: { tenantId } });
+    await tx.customer.deleteMany({ where: { tenantId } });
+    await tx.supplier.deleteMany({ where: { tenantId } });
+    await tx.cashAccount.deleteMany({ where: { tenantId } });
+    await tx.bankAccount.deleteMany({ where: { tenantId } });
     await tx.warehouse.deleteMany({ where: { tenantId } });
     await tx.chartOfAccount.deleteMany({ where: { tenantId } });
     await tx.taxRate.deleteMany({ where: { tenantId } });
@@ -139,7 +152,7 @@ async function main() {
   assert.equal(syncedLocal.name, tenant.name);
   assert.equal(syncedLocal.businessMode, "POS_RESTAURANT");
   assert.equal(syncedCompany.name, tenant.name);
-  assert.equal(await prisma.restaurantTable.count({ where: { tenantId: localTenant.id, isActive: true } }), 8);
+  assert.equal(await prisma.restaurantTable.count({ where: { tenantId: localTenant.id, isActive: true } }), 12);
   globalThis.fetch = originalFetch;
 
   const invalidResponse = await discover(request("/api/license/discover", {
