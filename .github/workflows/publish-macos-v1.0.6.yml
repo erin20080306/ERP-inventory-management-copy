@@ -1,0 +1,108 @@
+name: Publish macOS desktop v1.0.6
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/publish-macos-v1.0.6.yml
+      - desktop/v106-bootstrap.cjs
+      - desktop/package.json
+      - desktop/scripts/after-pack.cjs
+      - src/lib/github-workstation-release.ts
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-desktop-v1.0.6
+  cancel-in-progress: true
+
+jobs:
+  publish-macos:
+    runs-on: macos-14
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - run: npm --prefix desktop ci
+      - name: Verify v1.0.6 source
+        run: |
+          set -euo pipefail
+          node --check desktop/v106-bootstrap.cjs
+          node --check desktop/bootstrap.cjs
+          node - <<'NODE'
+          const p = require('./desktop/package.json');
+          if (p.version !== '1.0.6') throw new Error('desktop version must be 1.0.6');
+          if (p.build.extraMetadata.main !== 'v106-bootstrap.cjs') throw new Error('v1.0.6 bootstrap is not packaged');
+          if (!p.build.mac.artifactName.includes('${version}')) throw new Error('mac artifact name must include version');
+          NODE
+          grep -q 'waitForLocalHost' desktop/v106-bootstrap.cjs
+          grep -q '127.0.0.1' desktop/v106-bootstrap.cjs
+          grep -q 'createDesktopLauncher' desktop/v106-bootstrap.cjs
+          grep -q 'design.erin.erp.desktop.launcher' desktop/v106-bootstrap.cjs
+      - name: Build Apple Silicon DMG and ZIP
+        run: npm --prefix desktop run dist:mac:test
+      - name: Verify application bundle and version
+        run: |
+          set -euo pipefail
+          dmg='dist/desktop/ErinERP-Desktop-macOS-arm64-v1.0.6.dmg'
+          zip='dist/desktop/ErinERP-Desktop-macOS-arm64-v1.0.6.zip'
+          test -s "$dmg"
+          test -s "$zip"
+          mount_dir="$(mktemp -d)"
+          cleanup() { hdiutil detach "$mount_dir" >/dev/null 2>&1 || true; rm -rf "$mount_dir"; }
+          trap cleanup EXIT
+          hdiutil attach "$dmg" -nobrowse -readonly -mountpoint "$mount_dir" >/dev/null
+          app_path="$mount_dir/艾琳 ERP.app"
+          test -d "$app_path"
+          version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app_path/Contents/Info.plist")"
+          test "$version" = '1.0.6'
+          test -f "$app_path/Contents/Resources/app.asar"
+          codesign --verify --deep --strict --verbose=2 "$app_path"
+      - name: Prepare release assets
+        run: |
+          set -euo pipefail
+          rm -rf release-assets
+          mkdir -p release-assets
+          cp dist/desktop/ErinERP-Desktop-macOS-arm64-v1.0.6.dmg release-assets/
+          cp dist/desktop/ErinERP-Desktop-macOS-arm64-v1.0.6.zip release-assets/
+          RELEASE_MANUAL=true node scripts/write-release-manifest.mjs release-assets v1.0.6-desktop
+      - name: Publish v1.0.6 release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh release view v1.0.6-desktop >/dev/null 2>&1 || \
+            gh release create v1.0.6-desktop --target "$GITHUB_SHA" --title '艾琳 ERP 工作站 v1.0.6' --notes '桌面改為真正可雙擊的啟動器 App；同一台公司主機優先使用 127.0.0.1，不再因 Wi-Fi IP 改變而無法開啟。安裝檔與 Finder 版本皆明確顯示 1.0.6。'
+          gh release upload v1.0.6-desktop release-assets/* --clobber
+          gh release edit v1.0.6-desktop --latest --notes 'v1.0.6 修正：一、桌面不再使用易失效的符號連結，改為真正的啟動器 App；二、本機公司主機先透過 127.0.0.1 啟動，IP 更新只做背景同步；三、安裝檔名稱帶 v1.0.6，避免下載快取與舊 DMG 混淆；四、Finder 版本必須驗證為 1.0.6 才發布。'
+          assets="$(gh release view v1.0.6-desktop --json assets --jq '.assets[].name')"
+          grep -qx 'ErinERP-Desktop-macOS-arm64-v1.0.6.dmg' <<< "$assets"
+          grep -qx 'ErinERP-Desktop-macOS-arm64-v1.0.6.zip' <<< "$assets"
+          grep -qx 'release-manifest.json' <<< "$assets"
+          grep -qx 'SHA256SUMS.txt' <<< "$assets"
+      - name: Record v1.0.6 publication
+        run: |
+          set -euo pipefail
+          git pull --rebase origin main
+          cat > desktop-release-status.json <<EOF
+          {
+            "version": "v1.0.6-desktop",
+            "publishedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "sourceCommit": "$GITHUB_SHA",
+            "macDmg": "ErinERP-Desktop-macOS-arm64-v1.0.6.dmg",
+            "macZip": "ErinERP-Desktop-macOS-arm64-v1.0.6.zip",
+            "windowsExe": "ErinERP-Desktop-Windows-x64-v1.0.6-Setup.exe",
+            "signedAndNotarized": false,
+            "status": "published-v1.0.6-loopback-launcher"
+          }
+          EOF
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add desktop-release-status.json
+          git commit -m 'chore: record desktop v1.0.6 publication [skip ci]' || exit 0
+          git push origin HEAD:main
