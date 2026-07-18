@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input, Label } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Download, Database, AlertTriangle, Loader2, Mail, MonitorCog, Plus, Store } from "lucide-react";
+import { Download, Database, AlertTriangle, Loader2, Mail, MonitorCog, Plus, Store, RefreshCw, ShieldCheck } from "lucide-react";
 
 export function SettingsClient() {
   const [form, setForm] = useState<any>({ name: "", currency: "TWD", smtpSecure: true, smtpPort: 465 });
@@ -114,8 +114,125 @@ export function SettingsClient() {
         </CardContent>
       </Card>
       <PosRegisterCard />
+      <UpdateCenterCard />
       <BackupCard />
     </div>
+  );
+}
+
+type UpdateModel = {
+  localHost: boolean;
+  updaterReady?: boolean;
+  currentVersion?: string;
+  latestVersion?: string | null;
+  updateAvailable?: boolean;
+  publishedAt?: string;
+  checkError?: string;
+  status?: { state: string; message: string; fromVersion?: string; toVersion?: string; updatedAt?: string };
+};
+
+function displayVersion(value?: string | null) {
+  if (!value) return "—";
+  return /^[a-f0-9]{12,}$/i.test(value) ? value.slice(0, 12) : value;
+}
+
+function UpdateCenterCard() {
+  const [model, setModel] = useState<UpdateModel | null>(null);
+  const [checking, setChecking] = useState(true);
+  const [updating, setUpdating] = useState(false);
+
+  async function load(silent = false) {
+    if (!silent) setChecking(true);
+    try {
+      const response = await fetch("/api/system/update", { cache: "no-store" });
+      const result = await response.json();
+      if (!response.ok) {
+        if (response.status === 403) return setModel(null);
+        throw new Error(result.error || "無法查詢更新");
+      }
+      setModel(result);
+      return result as UpdateModel;
+    } catch (error) {
+      if (!silent) toast.error(error instanceof Error ? error.message : "無法查詢更新");
+      return null;
+    } finally {
+      if (!silent) setChecking(false);
+    }
+  }
+
+  useEffect(() => { void load(); }, []);
+
+  async function backupAndUpdate() {
+    if (!window.confirm("系統會先建立加密完整備份，再重新啟動 ERP 約 1–5 分鐘。現在執行嗎？")) return;
+    setUpdating(true);
+    try {
+      const response = await fetch("/api/system/update", { method: "POST" });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "無法啟動更新");
+      toast.success("更新前加密備份已完成，背景更新已開始");
+      const deadline = Date.now() + 8 * 60_000;
+      while (Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 5_000));
+        const next = await load(true);
+        if (!next) continue;
+        if (["healthy", "current"].includes(next.status?.state || "") && !next.updateAvailable) {
+          toast.success("艾琳 ERP 已更新完成並通過健康檢查");
+          setUpdating(false);
+          return;
+        }
+        if (["rolled_back", "failed"].includes(next.status?.state || "")) {
+          throw new Error(next.status?.message || "更新未完成");
+        }
+      }
+      throw new Error("更新仍在背景執行，請稍後按「重新檢查」確認結果");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "更新失敗");
+    } finally {
+      setUpdating(false);
+    }
+  }
+
+  if (!model?.localHost) return null;
+  const busyState = ["queued", "pulling", "restarting", "rolling_back"].includes(model.status?.state || "");
+  const busy = updating || busyState;
+
+  return (
+    <>
+      {busy && (
+        <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-black/65 px-6 text-center backdrop-blur-sm">
+          <Loader2 className="mb-4 h-12 w-12 animate-spin text-white" />
+          <div className="text-xl font-semibold text-white">{model.status?.message || "正在安全更新艾琳 ERP…"}</div>
+          <div className="mt-2 text-sm text-white/70">請保持 Docker Desktop 與電腦電源開啟；ERP 重新連線後會自動顯示結果。</div>
+        </div>
+      )}
+      <Card id="system-update">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><RefreshCw className="h-5 w-5" />系統更新中心</CardTitle>
+          <CardDescription>公司主機、工作站授權與中央版本維持綁定；功能更新不會清除資料庫，也不需要重新安裝公司主機。</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 md:grid-cols-3">
+            <div className="rounded-lg border bg-muted/20 p-4"><div className="text-xs text-muted-foreground">目前公司主機版本</div><div className="mt-1 font-mono font-semibold">{displayVersion(model.currentVersion)}</div></div>
+            <div className="rounded-lg border bg-muted/20 p-4"><div className="text-xs text-muted-foreground">中央最新版本</div><div className="mt-1 font-mono font-semibold">{displayVersion(model.latestVersion)}</div></div>
+            <div className="rounded-lg border bg-muted/20 p-4"><div className="text-xs text-muted-foreground">狀態</div><div className="mt-1 font-semibold">{model.updateAvailable ? "有新版可更新" : model.checkError ? "中央版本暫時無法查詢" : "已是最新版本"}</div></div>
+          </div>
+          {model.status?.message && model.status.state !== "idle" && (
+            <div className={`rounded-md border p-3 text-sm ${model.status.state === "rolled_back" || model.status.state === "failed" ? "border-amber-300 bg-amber-50 text-amber-900 dark:bg-amber-950/30 dark:text-amber-100" : "bg-muted/30"}`}>
+              {model.status.message}
+            </div>
+          )}
+          {model.checkError && <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950/30 dark:text-amber-200">{model.checkError}</div>}
+          {!model.updaterReady && <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950/30 dark:text-amber-200">需先執行新版 Host 安裝包一次以安裝背景更新服務；既有資料、帳號、密碼與授權都會保留。完成後往後直接在此更新。</div>}
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={() => void backupAndUpdate()} disabled={busy || checking || !model.updaterReady || Boolean(model.checkError)}>
+              <ShieldCheck className="h-4 w-4" />{busy ? "更新中…" : model.updateAvailable ? "備份並更新" : "備份並檢查更新"}
+            </Button>
+            <Button variant="outline" onClick={() => void load()} disabled={busy || checking}><RefreshCw className={`h-4 w-4 ${checking ? "animate-spin" : ""}`} />重新檢查</Button>
+          </div>
+          <p className="text-xs text-muted-foreground">流程：加密完整備份 → 下載新版 → 重新啟動 → 健康檢查；若檢查失敗會自動恢復舊版。</p>
+        </CardContent>
+      </Card>
+    </>
   );
 }
 

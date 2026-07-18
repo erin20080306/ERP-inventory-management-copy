@@ -756,7 +756,7 @@ export async function refreshLocalLicenseLease(tenantId: string) {
     const response = await fetch(`${baseUrl}/api/license/lease`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ activationKey, deviceId, deviceRole: "SERVER", displayName: process.env.LOCAL_DEVICE_NAME, platform: process.platform === "darwin" ? "macos" : process.platform === "win32" ? "windows" : "linux", appVersion: process.env.npm_package_version || "1.0.0" }),
+      body: JSON.stringify({ activationKey, deviceId, deviceRole: "SERVER", displayName: process.env.LOCAL_DEVICE_NAME, platform: process.platform === "darwin" ? "macos" : process.platform === "win32" ? "windows" : "linux", appVersion: process.env.ERIN_RELEASE_SHA || process.env.npm_package_version || "1.0.0" }),
       cache: "no-store",
     });
     const result = await response.json();

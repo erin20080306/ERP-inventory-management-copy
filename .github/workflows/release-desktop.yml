@@ -54,6 +54,7 @@ jobs:
       - run: npm run test:resilience
       - run: npm run test:release
       - run: npm run test:desktop
+      - run: npm run test:update
       - run: npm run test:discovery
       - run: npx tsc --noEmit
       - run: npm run build
@@ -87,6 +88,8 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            ERIN_RELEASE_SHA=${{ github.sha }}
 
       - name: Smoke test Apple Silicon Host startup
         env:

@@ -137,6 +137,50 @@ pull_erp_image() {
   pause_exit 1
 }
 
+install_workstation_app() {
+  local arch temp_dir mount_dir app_source app_target shortcut bootstrap_info download_url
+  case "$(uname -m)" in
+    arm64) arch="arm64" ;;
+    x86_64) arch="x64" ;;
+    *) echo "目前處理器尚未提供自動工作站安裝，略過桌面 App。"; return 0 ;;
+  esac
+  temp_dir="$(mktemp -d "${TMPDIR:-/tmp}/erin-erp-workstation.XXXXXX")"
+  mount_dir="$temp_dir/mount"
+  mkdir -p "$mount_dir" "$HOME/Applications"
+  echo "下載並安裝艾琳 ERP 工作站與桌面圖示…"
+  bootstrap_info="$(curl -fLsS -H "x-erin-activation-key: $ACTIVATION_KEY" \
+    "$CENTRAL_URL/api/installers/bootstrap?platform=macos&arch=$arch&delivery=location" 2>/dev/null || true)"
+  download_url="$(printf '%s' "$bootstrap_info" | sed -n 's/.*"downloadUrl":"\([^"]*\)".*/\1/p')"
+  if [ -n "$download_url" ]; then
+    curl -fLsS "$download_url" -o "$temp_dir/ErinERP.dmg" || download_url=""
+  fi
+  if [ -z "$download_url" ] && ! curl -fLsS -H "x-erin-activation-key: $ACTIVATION_KEY" \
+    "$CENTRAL_URL/api/installers/bootstrap?platform=macos&arch=$arch" -o "$temp_dir/ErinERP.dmg"; then
+    echo "工作站 App 暫時無法自動下載；公司主機不受影響，可稍後從 ERP 的『桌面版』下載。"
+    rm -rf "$temp_dir"
+    return 0
+  fi
+  if ! hdiutil attach -nobrowse -readonly -mountpoint "$mount_dir" "$temp_dir/ErinERP.dmg" >/dev/null; then
+    echo "工作站 DMG 無法掛載；公司主機不受影響。"
+    rm -rf "$temp_dir"
+    return 0
+  fi
+  app_source="$(find "$mount_dir" -maxdepth 2 -type d -name '*.app' -print -quit)"
+  app_target="$HOME/Applications/艾琳 ERP.app"
+  shortcut="$HOME/Desktop/艾琳 ERP.app"
+  if [ -n "$app_source" ]; then
+    rm -rf "$app_target"
+    ditto "$app_source" "$app_target"
+    rm -f "$shortcut"
+    ln -s "$app_target" "$shortcut"
+    echo "已建立桌面『艾琳 ERP』圖示。"
+  else
+    echo "DMG 內找不到艾琳 ERP.app；公司主機不受影響。"
+  fi
+  hdiutil detach "$mount_dir" >/dev/null 2>&1 || true
+  rm -rf "$temp_dir"
+}
+
 echo "艾琳 ERP 公司主機 macOS 輔助安裝程式"
 echo "同一台 Mac 可以同時安裝『公司主機』與『艾琳 ERP 工作站』。"
 ensure_docker
@@ -147,9 +191,13 @@ if [ ${#ACTIVATION_KEY} -lt 24 ]; then
   pause_exit 1
 fi
 
-mkdir -p "$INSTALL_DIR" "$DEVICE_DIR" "$BACKUP_DIR"
+mkdir -p "$INSTALL_DIR" "$DEVICE_DIR" "$BACKUP_DIR" "$INSTALL_DIR/updater"
 cp "$PACKAGE_DIR/docker-compose.local.yml" "$INSTALL_DIR/docker-compose.local.yml"
 cp "$PACKAGE_DIR/docker/Caddyfile" "$INSTALL_DIR/Caddyfile"
+cp "$PACKAGE_DIR/updater/Dockerfile" "$INSTALL_DIR/updater/Dockerfile"
+cp "$PACKAGE_DIR/updater/health" "$INSTALL_DIR/updater/health"
+cp "$PACKAGE_DIR/updater/update.cgi" "$INSTALL_DIR/updater/update.cgi"
+chmod 755 "$INSTALL_DIR/updater/update.cgi"
 if [ ! -f "$DEVICE_DIR/device-id" ]; then uuidgen | tr '[:upper:]' '[:lower:]' > "$DEVICE_DIR/device-id"; fi
 DEVICE_ID="$(tr -d '\r\n' < "$DEVICE_DIR/device-id")"
 LAN_IP="$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || echo 127.0.0.1)"
@@ -158,6 +206,7 @@ POSTGRES_PASSWORD="$(existing_env_value POSTGRES_PASSWORD)"
 NEXTAUTH_SECRET="$(existing_env_value NEXTAUTH_SECRET)"
 INTEGRITY_SECRET="$(existing_env_value INTEGRITY_SECRET)"
 LOCAL_INSTALLER_TOKEN="$(existing_env_value LOCAL_INSTALLER_TOKEN)"
+HOST_UPDATE_TOKEN="$(existing_env_value HOST_UPDATE_TOKEN)"
 BACKUP_ENCRYPTION_KEY="$(existing_env_value BACKUP_ENCRYPTION_KEY)"
 if [ -n "$POSTGRES_PASSWORD" ]; then
   echo "偵測到既有公司主機資料，將保留資料庫密碼、管理員密碼與備份金鑰。"
@@ -167,11 +216,13 @@ if [ -z "$POSTGRES_PASSWORD" ]; then POSTGRES_PASSWORD="$(openssl rand -hex 24)"
 if [ -z "$NEXTAUTH_SECRET" ]; then NEXTAUTH_SECRET="$(openssl rand -hex 32)"; fi
 if [ -z "$INTEGRITY_SECRET" ]; then INTEGRITY_SECRET="$(openssl rand -hex 32)"; fi
 if [ -z "$LOCAL_INSTALLER_TOKEN" ]; then LOCAL_INSTALLER_TOKEN="$(openssl rand -hex 32)"; fi
+if [ -z "$HOST_UPDATE_TOKEN" ]; then HOST_UPDATE_TOKEN="$(openssl rand -hex 32)"; fi
 if [ -z "$BACKUP_ENCRYPTION_KEY" ]; then BACKUP_ENCRYPTION_KEY="$(openssl rand -hex 32)"; fi
 PUBLIC_KEY="$(curl -fsS "$CENTRAL_URL/api/license/public-key")"
 
 cat > "$INSTALL_DIR/.env.local" <<EOF
 ERP_HTTPS_PORT=3443
+COMPOSE_PROJECT_NAME=erinerp
 SERVER_HOST=$LAN_IP
 ERP_IMAGE=$ERP_IMAGE
 POSTGRES_PASSWORD=$POSTGRES_PASSWORD
@@ -187,6 +238,7 @@ LOCAL_ACTIVATION_KEY=$ACTIVATION_KEY
 LOCAL_DEVICE_ID=$DEVICE_ID
 LOCAL_DEVICE_NAME=$(scutil --get ComputerName 2>/dev/null || hostname)
 LOCAL_INSTALLER_TOKEN=$LOCAL_INSTALLER_TOKEN
+HOST_UPDATE_TOKEN=$HOST_UPDATE_TOKEN
 HOST_BACKUP_DIR=$BACKUP_DIR
 BACKUP_ENCRYPTION_KEY=$BACKUP_ENCRYPTION_KEY
 BACKUP_RETENTION_DAYS=30
@@ -259,6 +311,8 @@ if [ -z "$COMPANY_CODE" ]; then
   pause_exit 1
 fi
 
+install_workstation_app
+
 {
   echo "艾琳 ERP 加密備份解密金鑰"
   echo "$BACKUP_ENCRYPTION_KEY"
@@ -296,6 +350,6 @@ echo "備用帳號：admin"
 echo "備用密碼：$ADMIN_PASSWORD"
 echo "工作站配對檔：$PAIR_DIR"
 echo "每日加密備份：$BACKUP_DIR"
-echo "現在可在同一台 Mac 開啟艾琳 ERP 工作站，輸入公司代碼與啟用碼。"
+echo "桌面已建立『艾琳 ERP』圖示；第一次開啟時輸入公司代碼與啟用碼即可完成安全綁定。"
 open "$PAIR_DIR"
 read -r -p "請保存管理員密碼後按 Enter 關閉…"

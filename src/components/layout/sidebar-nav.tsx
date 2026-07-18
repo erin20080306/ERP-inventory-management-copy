@@ -292,7 +292,7 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
 export function SidebarFooter() {
   return (
     <div className="border-t border-white/10 p-4 text-[10px] text-white/40 shrink-0">
-      v1.0.0 · © {new Date().getFullYear()}
+      艾琳 ERP · © {new Date().getFullYear()}
     </div>
   );
 }

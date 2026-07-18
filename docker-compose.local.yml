@@ -40,6 +40,10 @@ services:
       BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
       LICENSE_ED25519_PUBLIC_KEY_B64: ${LICENSE_ED25519_PUBLIC_KEY_B64}
       INTEGRITY_SECRET: ${INTEGRITY_SECRET}
+      ERP_IMAGE: ${ERP_IMAGE:-ghcr.io/erin20080306/erp-inventory-management-copy:latest}
+      HOST_UPDATE_TOKEN: ${HOST_UPDATE_TOKEN}
+      HOST_UPDATE_URL: http://updater:8080/cgi-bin/update
+      UPDATE_STATE_DIR: /update-state
       EINVOICE_PROVIDER: ${EINVOICE_PROVIDER:-}
       EINVOICE_ALLOW_MOCK: ${EINVOICE_ALLOW_MOCK:-false}
       EINVOICE_ENV: ${EINVOICE_ENV:-TEST}
@@ -55,6 +59,26 @@ services:
       - erp_exports:/app/exports
       - erp_uploads:/app/public/uploads
       - "${HOST_BACKUP_DIR}:/backups"
+      - erp_update_state:/update-state
+
+  updater:
+    build:
+      context: ./updater
+    image: erin-erp-host-updater:1
+    restart: unless-stopped
+    environment:
+      HOME: /tmp
+      ERP_IMAGE: ${ERP_IMAGE:-ghcr.io/erin20080306/erp-inventory-management-copy:latest}
+      HOST_UPDATE_TOKEN: ${HOST_UPDATE_TOKEN}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./:/workspace:ro
+      - erp_update_state:/state
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
 
   backup:
     image: ${ERP_IMAGE:-ghcr.io/erin20080306/erp-inventory-management-copy:latest}
@@ -92,3 +116,4 @@ volumes:
   erp_uploads:
   erp_caddy_data:
   erp_caddy_config:
+  erp_update_state:

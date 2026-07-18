@@ -20,10 +20,13 @@ if ($LASTEXITCODE -ne 0) { throw "Docker Desktop 尚未啟動" }
 $ActivationKey = Read-Host "輸入艾琳設計提供的啟用碼"
 if ($ActivationKey.Length -lt 24) { throw "啟用碼格式錯誤，請向艾琳設計確認" }
 
-New-Item -ItemType Directory -Force -Path $InstallDir, $DeviceDir, $BackupDir | Out-Null
+New-Item -ItemType Directory -Force -Path $InstallDir, $DeviceDir, $BackupDir, (Join-Path $InstallDir "updater") | Out-Null
 Copy-Item (Join-Path $PackageDir "docker-compose.local.yml") (Join-Path $InstallDir "docker-compose.local.yml") -Force
 New-Item -ItemType Directory -Force -Path (Join-Path $InstallDir "docker") | Out-Null
 Copy-Item (Join-Path $PackageDir "docker\Caddyfile") (Join-Path $InstallDir "Caddyfile") -Force
+Copy-Item (Join-Path $PackageDir "updater\Dockerfile") (Join-Path $InstallDir "updater\Dockerfile") -Force
+Copy-Item (Join-Path $PackageDir "updater\health") (Join-Path $InstallDir "updater\health") -Force
+Copy-Item (Join-Path $PackageDir "updater\update.cgi") (Join-Path $InstallDir "updater\update.cgi") -Force
 $DeviceFile = Join-Path $DeviceDir "device-id"
 if (-not (Test-Path $DeviceFile)) { [guid]::NewGuid().ToString() | Set-Content -NoNewline $DeviceFile }
 $DeviceId = (Get-Content $DeviceFile -Raw).Trim()
@@ -51,6 +54,7 @@ $PostgresPassword = Get-ExistingEnvValue "POSTGRES_PASSWORD"
 $NextAuthSecret = Get-ExistingEnvValue "NEXTAUTH_SECRET"
 $IntegritySecret = Get-ExistingEnvValue "INTEGRITY_SECRET"
 $LocalInstallerToken = Get-ExistingEnvValue "LOCAL_INSTALLER_TOKEN"
+$HostUpdateToken = Get-ExistingEnvValue "HOST_UPDATE_TOKEN"
 $BackupEncryptionKey = Get-ExistingEnvValue "BACKUP_ENCRYPTION_KEY"
 if ($PostgresPassword) {
   Write-Host "偵測到既有公司主機資料，將保留資料庫密碼、管理員密碼與備份金鑰。" -ForegroundColor Cyan
@@ -60,6 +64,7 @@ if (-not $PostgresPassword) { $PostgresPassword = New-HexSecret 24 }
 if (-not $NextAuthSecret) { $NextAuthSecret = New-HexSecret 32 }
 if (-not $IntegritySecret) { $IntegritySecret = New-HexSecret 32 }
 if (-not $LocalInstallerToken) { $LocalInstallerToken = New-HexSecret 32 }
+if (-not $HostUpdateToken) { $HostUpdateToken = New-HexSecret 32 }
 if (-not $BackupEncryptionKey) { $BackupEncryptionKey = New-HexSecret 32 }
 $PublicKey = (Invoke-RestMethod "$CentralUrl/api/license/public-key").Trim()
 $DeviceName = $env:COMPUTERNAME
@@ -67,6 +72,7 @@ $BackupDirDocker = $BackupDir.Replace("\", "/")
 
 @"
 ERP_HTTPS_PORT=3443
+COMPOSE_PROJECT_NAME=erinerp
 SERVER_HOST=$LanIp
 ERP_IMAGE=ghcr.io/erin20080306/erp-inventory-management-copy:$ImageTag
 POSTGRES_PASSWORD=$PostgresPassword
@@ -82,6 +88,7 @@ LOCAL_ACTIVATION_KEY=$ActivationKey
 LOCAL_DEVICE_ID=$DeviceId
 LOCAL_DEVICE_NAME=$DeviceName
 LOCAL_INSTALLER_TOKEN=$LocalInstallerToken
+HOST_UPDATE_TOKEN=$HostUpdateToken
 HOST_BACKUP_DIR=$BackupDirDocker
 BACKUP_ENCRYPTION_KEY=$BackupEncryptionKey
 BACKUP_RETENTION_DAYS=30
@@ -102,7 +109,7 @@ EINVOICE_VAN_CLIENT_SECRET=
 "@ | Set-Content -Encoding UTF8 (Join-Path $InstallDir ".env.local")
 
 Push-Location $InstallDir
-docker compose --env-file .env.local -f docker-compose.local.yml pull
+docker compose --env-file .env.local -f docker-compose.local.yml pull postgres app backup caddy
 docker compose --env-file .env.local -f docker-compose.local.yml up -d
 docker compose --env-file .env.local -f docker-compose.local.yml restart caddy
 Pop-Location
@@ -161,6 +168,24 @@ $Registration = Invoke-RestMethod -Method Post -Uri "$CentralUrl/api/license/reg
 }
 if (-not $Registration.ok -or -not $Registration.companyCode) { throw "中央自動連線登錄失敗，請聯絡艾琳設計" }
 $CompanyCode = $Registration.companyCode
+
+Write-Host "下載並安裝艾琳 ERP 工作站與桌面圖示…" -ForegroundColor Cyan
+$WorkstationInstaller = Join-Path $env:TEMP "ErinERP-Desktop-Setup.exe"
+try {
+  $Bootstrap = Invoke-RestMethod -Headers @{ "x-erin-activation-key" = $ActivationKey } -Uri "$CentralUrl/api/installers/bootstrap?platform=windows&arch=x64&delivery=location"
+  if ($Bootstrap.downloadUrl) {
+    Invoke-WebRequest -UseBasicParsing -Uri $Bootstrap.downloadUrl -OutFile $WorkstationInstaller
+  } else {
+    Invoke-WebRequest -UseBasicParsing -Headers @{ "x-erin-activation-key" = $ActivationKey } -Uri "$CentralUrl/api/installers/bootstrap?platform=windows&arch=x64" -OutFile $WorkstationInstaller
+  }
+  $InstallerProcess = Start-Process -FilePath $WorkstationInstaller -ArgumentList "/S" -Wait -PassThru
+  if ($InstallerProcess.ExitCode -ne 0) { throw "工作站安裝程式回覆 $($InstallerProcess.ExitCode)" }
+  Write-Host "已建立桌面『艾琳 ERP』圖示。" -ForegroundColor Green
+} catch {
+  Write-Host "工作站 App 暫時無法自動安裝；公司主機不受影響，可稍後從 ERP 的『桌面版』下載。$($_.Exception.Message)" -ForegroundColor Yellow
+} finally {
+  Remove-Item $WorkstationInstaller -Force -ErrorAction SilentlyContinue
+}
 @"
 艾琳 ERP 加密備份解密金鑰
 $BackupEncryptionKey
@@ -193,6 +218,6 @@ Write-Host "備用帳號：admin"
 Write-Host "備用密碼：$AdminPassword" -ForegroundColor Yellow
 Write-Host "工作站配對檔：$PairDir"
 Write-Host "每日加密備份：$BackupDir"
-Write-Host "請從已授權的桌面客戶端連線；一般瀏覽器不具工作站私鑰，無法操作。"
+Write-Host "桌面已建立『艾琳 ERP』圖示；第一次開啟時輸入公司代碼與啟用碼即可完成安全綁定。"
 Start-Process $PairDir
 Read-Host "請保存管理員密碼後按 Enter 關閉"

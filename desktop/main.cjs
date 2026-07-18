@@ -41,6 +41,18 @@ function configPath() {
   return path.join(app.getPath("userData"), "desktop-config.json");
 }
 
+function ensureDesktopShortcut() {
+  if (process.platform !== "darwin" || !app.isPackaged) return;
+  try {
+    const appBundle = path.dirname(path.dirname(path.dirname(process.execPath)));
+    if (!appBundle.endsWith(".app")) return;
+    const shortcut = path.join(app.getPath("desktop"), "艾琳 ERP.app");
+    if (!fs.existsSync(shortcut)) fs.symlinkSync(appBundle, shortcut, "dir");
+  } catch (error) {
+    console.error("desktop shortcut creation failed", error);
+  }
+}
+
 function readConfig() {
   try {
     return JSON.parse(fs.readFileSync(configPath(), "utf8"));
@@ -581,6 +593,7 @@ else {
   });
 
   app.whenReady().then(async () => {
+    ensureDesktopShortcut();
     registerIpc();
     session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
       callback(permission === "media" && Boolean(proxyOrigin && webContents.getURL().startsWith(proxyOrigin)));

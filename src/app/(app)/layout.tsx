@@ -5,6 +5,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { PrintCompanyHeader } from "@/components/print-company-header";
 import { TrialGate } from "@/components/trial-gate";
+import { UpdateNotice } from "@/components/update-notice";
 import { getLicenseAccessForUser, verifyLocalWorkstationRequest } from "@/lib/license";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -28,6 +29,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <Sidebar />
         <div className="flex-1 flex flex-col min-w-0">
           <Header showDownloads={initialAccess.status === "paid"} />
+          <UpdateNotice />
           <main className="flex-1 p-6" data-erp-keyboard-scope>
             <PrintCompanyHeader />
             {children}

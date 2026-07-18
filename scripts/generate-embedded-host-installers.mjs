@@ -4,7 +4,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 const root = process.cwd();
-const version = "v1.0.3-assisted";
+const version = "v1.1.0-update-center";
 const generatedAt = new Date().toISOString();
 const outputPath = path.join(root, "src", "generated", "embedded-host-installers.ts");
 
@@ -84,6 +84,9 @@ const common = [
   { name: "主機安裝說明.txt", content: text("installer/主機安裝說明.txt") },
   { name: "docker-compose.local.yml", content: text("docker-compose.local.yml") },
   { name: "docker/Caddyfile", content: text("docker/Caddyfile") },
+  { name: "updater/Dockerfile", content: text("updater/Dockerfile") },
+  { name: "updater/health", content: text("updater/health") },
+  { name: "updater/update.cgi", content: text("updater/update.cgi"), mode: 0o100755 },
   { name: "image-tag.txt", content: "latest\n" },
 ];
 
