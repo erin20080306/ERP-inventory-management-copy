@@ -1,0 +1,23 @@
+艾琳 ERP 公司主機安裝說明
+
+這個 ZIP 是「公司主機安裝包」，不是工作站程式，也不會重新散布 Docker Desktop。
+
+同一台電腦可以同時安裝：
+1. 艾琳 ERP 公司主機
+2. 艾琳 ERP 工作站
+
+安裝順序：
+1. 雙擊 ZIP 根目錄的「安裝艾琳ERP.command」（macOS）或「安裝艾琳ERP.bat」（Windows）。
+2. 若尚未安裝 Docker Desktop，安裝程式會自動開啟 Docker 官方安裝頁並停在原視窗等待。
+3. 安裝並開啟 Docker Desktop，第一次啟動請接受 Docker 條款並完成系統權限設定。
+4. 回到艾琳 ERP 安裝視窗繼續，不必重新下載 ZIP。
+5. 輸入艾琳設計提供的啟用碼。
+6. 等待畫面顯示「安裝完成」、公司代碼、主機網址、管理員帳號與密碼。
+7. 管理後台顯示「公司主機 1/1」後，再開啟艾琳 ERP 工作站輸入公司代碼與啟用碼。
+
+重要：
+- macOS 工作站請使用 ErinERP-Desktop-macOS-arm64.dmg。
+- 公司主機與工作站可裝在同一台電腦，但主機需要 Docker Desktop 保持執行。
+- Docker Desktop 是 Docker 公司提供的第三方軟體，授權條款由 Docker 提供。
+- 上方若出現 google-cloud-sdk 的 .zshrc 路徑警告，與艾琳 ERP 安裝無關。
+- 安裝完成後請立即保存管理員密碼與備份解密金鑰。
