@@ -11,6 +11,7 @@ DOCKER_DOCS_URL="https://docs.docker.com/desktop/setup/install/mac-install/"
 IMAGE_TAG="latest"
 DOCKER_BIN=""
 if [ -f "$PACKAGE_DIR/image-tag.txt" ]; then IMAGE_TAG="$(tr -d '\r\n' < "$PACKAGE_DIR/image-tag.txt")"; fi
+ERP_IMAGE="ghcr.io/erin20080306/erp-inventory-management-copy:$IMAGE_TAG"
 
 pause_exit() {
   echo ""
@@ -90,6 +91,29 @@ docker_cli() {
   "$DOCKER_BIN" "$@"
 }
 
+pull_erp_image() {
+  local log_file
+  log_file="$(mktemp "${TMPDIR:-/tmp}/erin-erp-image-pull.XXXXXX")"
+  echo "下載艾琳 ERP 公司主機映像：$ERP_IMAGE"
+  if docker_cli pull "$ERP_IMAGE" 2>&1 | tee "$log_file"; then
+    rm -f "$log_file"
+    return 0
+  fi
+
+  echo ""
+  if grep -Eqi "denied|unauthorized|forbidden" "$log_file"; then
+    echo "【公司主機映像下載權限錯誤】"
+    echo "Docker Desktop 已正常執行，但 GitHub Container Registry 拒絕下載艾琳 ERP 映像。"
+    echo "這通常表示映像尚未發布，或 GHCR Package 尚未設為 Public；不是你的 Mac 或啟用碼錯誤。"
+    echo "請將這個畫面提供給艾琳設計，待映像發布權限修正後，重新執行同一個 Host 安裝包即可。"
+  else
+    echo "【公司主機映像下載失敗】"
+    echo "請確認網路連線正常，再重新執行同一個 Host 安裝包。"
+  fi
+  rm -f "$log_file"
+  pause_exit 1
+}
+
 echo "艾琳 ERP 公司主機 macOS 輔助安裝程式"
 echo "同一台 Mac 可以同時安裝『公司主機』與『艾琳 ERP 工作站』。"
 ensure_docker
@@ -117,7 +141,7 @@ PUBLIC_KEY="$(curl -fsS "$CENTRAL_URL/api/license/public-key")"
 cat > "$INSTALL_DIR/.env.local" <<EOF
 ERP_HTTPS_PORT=3443
 SERVER_HOST=$LAN_IP
-ERP_IMAGE=ghcr.io/erin20080306/erp-inventory-management-copy:$IMAGE_TAG
+ERP_IMAGE=$ERP_IMAGE
 POSTGRES_PASSWORD=$POSTGRES_PASSWORD
 NEXTAUTH_URL=https://$LAN_IP:3443
 NEXTAUTH_SECRET=$NEXTAUTH_SECRET
@@ -153,7 +177,8 @@ chmod 600 "$INSTALL_DIR/.env.local" "$DEVICE_DIR/device-id"
 
 cd "$INSTALL_DIR"
 echo "下載並啟動艾琳 ERP 公司主機服務…"
-docker_cli compose --env-file .env.local -f docker-compose.local.yml pull
+pull_erp_image
+docker_cli compose --env-file .env.local -f docker-compose.local.yml pull postgres caddy
 docker_cli compose --env-file .env.local -f docker-compose.local.yml up -d
 
 echo "等待 HTTPS 公司主機啟動…"
