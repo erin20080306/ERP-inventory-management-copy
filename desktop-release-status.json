@@ -1,7 +1,7 @@
 {
   "version": "v1.0.3-desktop",
-  "publishedAt": "2026-07-17T09:16:31Z",
-  "sourceCommit": "47338337bd8dc9977dcf9f78ff3294f16783e4f1",
+  "publishedAt": "2026-07-18T11:58:53Z",
+  "sourceCommit": "6e7bd6f3ca9faeff3639c2191aa953d950d75ccf",
   "macDmg": "ErinERP-Desktop-macOS-arm64.dmg",
   "macZip": "ErinERP-Desktop-macOS-arm64.zip",
   "signedAndNotarized": false,
