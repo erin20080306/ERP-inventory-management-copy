@@ -1,6 +1,6 @@
 {
   "name": "erin-erp-pos-desktop",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "private": true,
   "description": "艾琳 ERP macOS 與 Windows 安全工作站（依授權提供 ERP／零售 POS／餐飲 POS）",
   "author": "艾琳設計",
@@ -26,12 +26,13 @@
     "asar": true,
     "npmRebuild": false,
     "extraMetadata": {
-      "main": "network-bootstrap.cjs"
+      "main": "v106-bootstrap.cjs"
     },
     "directories": {
       "output": "../dist/desktop"
     },
     "files": [
+      "v106-bootstrap.cjs",
       "network-bootstrap.cjs",
       "bootstrap.cjs",
       "main.cjs",
@@ -49,7 +50,7 @@
       "icon": "assets/icon.png",
       "hardenedRuntime": true,
       "gatekeeperAssess": false,
-      "artifactName": "ErinERP-Desktop-macOS-${arch}.${ext}"
+      "artifactName": "ErinERP-Desktop-macOS-${arch}-v${version}.${ext}"
     },
     "win": {
       "icon": "assets/icon.png",
@@ -59,7 +60,7 @@
           "arch": ["x64"]
         }
       ],
-      "artifactName": "ErinERP-Desktop-Windows-${arch}-Setup.${ext}"
+      "artifactName": "ErinERP-Desktop-Windows-${arch}-v${version}-Setup.${ext}"
     },
     "nsis": {
       "oneClick": true,

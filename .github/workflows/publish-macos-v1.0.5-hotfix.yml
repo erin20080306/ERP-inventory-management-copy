@@ -1,93 +1,13 @@
-name: Publish macOS automatic recovery v1.0.5
+name: Superseded macOS desktop v1.0.5 workflow
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - .github/workflows/publish-macos-v1.0.5-hotfix.yml
-      - desktop/network-bootstrap.cjs
-      - desktop/package.json
+  workflow_dispatch:
 
 permissions:
-  contents: write
-
-concurrency:
-  group: publish-desktop-v1.0.5
-  cancel-in-progress: true
+  contents: read
 
 jobs:
-  publish-macos:
-    runs-on: macos-14
-    timeout-minutes: 45
+  superseded:
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: desktop/package-lock.json
-      - run: npm --prefix desktop ci
-      - name: Verify automatic recovery source
-        run: |
-          set -euo pipefail
-          node --check desktop/network-bootstrap.cjs
-          node --check desktop/bootstrap.cjs
-          node -e "const p=require('./desktop/package.json'); if(p.version!=='1.0.5') throw new Error('desktop version must be 1.0.5'); if(p.build.extraMetadata.main!=='network-bootstrap.cjs') throw new Error('network bootstrap is not packaged')"
-          grep -q 'repairHostIp' desktop/network-bootstrap.cjs
-          grep -q 'refreshDiscovery' desktop/network-bootstrap.cjs
-          grep -q 'ensureMacInstall' desktop/network-bootstrap.cjs
-          grep -q 'localHostTlsRoute' desktop/bootstrap.cjs
-      - name: Build Apple Silicon DMG and ZIP
-        run: npm --prefix desktop run dist:mac:test
-      - name: Verify application bundle
-        run: |
-          set -euo pipefail
-          mount_dir="$(mktemp -d)"
-          cleanup() { hdiutil detach "$mount_dir" >/dev/null 2>&1 || true; rm -rf "$mount_dir"; }
-          trap cleanup EXIT
-          hdiutil attach dist/desktop/ErinERP-Desktop-macOS-arm64.dmg -nobrowse -readonly -mountpoint "$mount_dir" >/dev/null
-          test -d "$mount_dir/艾琳 ERP.app"
-          codesign --verify --deep --strict --verbose=2 "$mount_dir/艾琳 ERP.app"
-      - name: Prepare release assets
-        run: |
-          set -euo pipefail
-          rm -rf release-assets
-          mkdir -p release-assets
-          cp dist/desktop/ErinERP-Desktop-macOS-arm64.dmg release-assets/
-          cp dist/desktop/ErinERP-Desktop-macOS-arm64.zip release-assets/
-          RELEASE_MANUAL=true node scripts/write-release-manifest.mjs release-assets v1.0.5-desktop
-      - name: Publish repaired macOS installer
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          gh release view v1.0.5-desktop >/dev/null 2>&1 || \
-            gh release create v1.0.5-desktop --target "$GITHUB_SHA" --title "艾琳 ERP 工作站 v1.0.5" --notes "Mac 工作站自動安裝、桌面圖示、自動主機 IP 修復與空白畫面診斷。"
-          gh release upload v1.0.5-desktop release-assets/* --clobber
-          gh release edit v1.0.5-desktop --latest --notes "修正下載後開啟空白、未建立桌面 ERP 圖示，以及公司主機更換 Wi-Fi、手機分享網路或路由器後 IP 改變造成無法連線。新版開啟 ERP 時會自動安裝到使用者應用程式、自動建立桌面圖示、自動更新主機 IP 與中央連線資料，不需重新執行終端機安裝。"
-          assets="$(gh release view v1.0.5-desktop --json assets --jq '.assets[].name')"
-          grep -qx 'ErinERP-Desktop-macOS-arm64.dmg' <<< "$assets"
-          grep -qx 'ErinERP-Desktop-macOS-arm64.zip' <<< "$assets"
-          grep -qx 'release-manifest.json' <<< "$assets"
-          grep -qx 'SHA256SUMS.txt' <<< "$assets"
-      - name: Record repaired v1.0.5 publication
-        run: |
-          set -euo pipefail
-          git pull --rebase origin main
-          cat > desktop-release-status.json <<EOF
-          {
-            "version": "v1.0.5-desktop",
-            "publishedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-            "sourceCommit": "$GITHUB_SHA",
-            "macDmg": "ErinERP-Desktop-macOS-arm64.dmg",
-            "macZip": "ErinERP-Desktop-macOS-arm64.zip",
-            "windowsExe": "ErinERP-Desktop-Windows-x64-Setup.exe",
-            "signedAndNotarized": false,
-            "status": "published-auto-network-recovery"
-          }
-          EOF
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add desktop-release-status.json
-          git commit -m "chore: record repaired desktop v1.0.5 publication [skip ci]" || exit 0
-          git push origin HEAD:main
+      - run: echo 'v1.0.5 publishing is disabled. Use publish-macos-v1.0.6.yml.'
