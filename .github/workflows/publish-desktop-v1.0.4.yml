@@ -11,7 +11,7 @@ permissions:
 
 concurrency:
   group: publish-desktop-v1.0.4
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   desktop-clients:
@@ -32,8 +32,13 @@ jobs:
           cache: npm
           cache-dependency-path: desktop/package-lock.json
       - run: npm --prefix desktop ci
-      - name: Verify desktop source syntax
-        run: node --check desktop/main.cjs
+      - name: Verify desktop recovery source
+        shell: bash
+        run: |
+          node --check desktop/bootstrap.cjs
+          node --check desktop/main.cjs
+          node --check desktop/hardware-preload.cjs
+          node -e "const p=require('./desktop/package.json'); if(p.version!=='1.0.4') throw new Error('desktop version must be 1.0.4')"
       - name: Build macOS Apple Silicon client
         if: runner.os == 'macOS'
         run: npm --prefix desktop run dist:mac:test
