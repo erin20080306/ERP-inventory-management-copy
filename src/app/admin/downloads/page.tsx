@@ -13,7 +13,6 @@ type Installer = {
   kind: "company-host" | "workstation";
   sha256: string | null;
   codeSigning: string | null;
-  downloadUrl?: string;
 };
 type Release = { version?: string; generatedAt?: string; prerelease?: boolean; readyForCustomers?: boolean } | null;
 
@@ -45,9 +44,7 @@ function InstallerCard({ file }: { file: Installer }) {
         : backup
           ? "Mac 備用格式，與 DMG 二選一，不必重複下載"
           : "操作工作站";
-  const href = file.kind === "workstation" && file.downloadUrl
-    ? file.downloadUrl
-    : `/api/admin/installers-current?file=${encodeURIComponent(file.name)}`;
+  const href = `/api/admin/installers-current?file=${encodeURIComponent(file.name)}`;
 
   return (
     <div className="flex flex-col gap-4 rounded-xl border border-slate-700 bg-slate-950 p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -61,7 +58,7 @@ function InstallerCard({ file }: { file: Installer }) {
           </div>
           <div className="mt-1 text-xs text-slate-500">{file.platform}・{formatFileSize(file.size)}</div>
           <div className="mt-2 text-xs font-medium leading-5 text-slate-300">{description}</div>
-          {file.kind === "workstation" && file.downloadUrl ? <div className="mt-1 text-[11px] text-sky-300">直接下載已驗證原檔，避免 Safari 產生 0 byte 檔案</div> : null}
+          {file.kind === "workstation" ? <div className="mt-1 text-[11px] text-sky-300">登入驗證後產生短效安全下載連結</div> : null}
           {file.codeSigning === "ad-hoc-manual" ? <div className="mt-1 text-xs font-medium text-amber-300">手動安裝版・第一次需允許系統安全提示</div> : file.codeSigning === "unsigned-test" ? <div className="mt-1 text-xs font-medium text-rose-300">內部測試檔，不可交付客戶</div> : null}
           {file.sha256 ? <div className="mt-1 truncate font-mono text-[10px] text-slate-600" title={file.sha256}>SHA-256 {file.sha256}</div> : null}
         </div>
