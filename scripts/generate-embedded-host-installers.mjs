@@ -89,7 +89,8 @@ const common = [
 
 const macInstaller = text("installer/安裝艾琳ERP.command");
 const windowsInstaller = text("installer/安裝艾琳ERP.ps1");
-const windowsLauncher = "@echo off\r\nchcp 65001 >nul\r\npowershell.exe -NoProfile -ExecutionPolicy Bypass -File \"%~dp0installer\\Install-ErinERP.ps1\"\r\nif errorlevel 1 pause\r\n";
+const windowsRootLauncher = "@echo off\r\nchcp 65001 >nul\r\npowershell.exe -NoProfile -ExecutionPolicy Bypass -File \"%~dp0installer\\Install-ErinERP.ps1\"\r\nif errorlevel 1 pause\r\n";
+const windowsNestedLauncher = "@echo off\r\nchcp 65001 >nul\r\npowershell.exe -NoProfile -ExecutionPolicy Bypass -File \"%~dp0Install-ErinERP.ps1\"\r\nif errorlevel 1 pause\r\n";
 
 const packages = [
   {
@@ -97,9 +98,9 @@ const packages = [
     platform: "Windows 公司主機（一鍵檢查並引導 Docker Desktop）",
     entries: [
       ...common,
-      { name: "安裝艾琳ERP.bat", content: windowsLauncher },
+      { name: "安裝艾琳ERP.bat", content: windowsRootLauncher },
       { name: "installer/Install-ErinERP.ps1", content: windowsInstaller },
-      { name: "installer/Install-ErinERP.bat", content: windowsLauncher },
+      { name: "installer/Install-ErinERP.bat", content: windowsNestedLauncher },
     ],
   },
   {
