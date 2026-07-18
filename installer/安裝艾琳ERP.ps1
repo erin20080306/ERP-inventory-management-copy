@@ -136,10 +136,13 @@ if (-not $Ready) {
 }
 
 Write-Host "驗證中央授權並同步公司版本…"
-$StatusJson = curl.exe -k -f -s -X POST -H "x-erin-installer-token: $LocalInstallerToken" "https://${LanIp}:3443/api/license/local-status"
-if ($LASTEXITCODE -ne 0) { throw "啟用失敗：啟用碼、付款狀態或中央授權無法驗證。主機服務已保留，請將 docker compose logs 提供給艾琳設計" }
+$StatusJson = curl.exe -k -s -X POST -H "x-erin-installer-token: $LocalInstallerToken" "https://${LanIp}:3443/api/license/local-status"
+if ($LASTEXITCODE -ne 0) { throw "啟用失敗：無法連線公司主機授權端點。主機服務已保留，請將 docker compose logs 提供給艾琳設計" }
 $Status = $StatusJson | ConvertFrom-Json
-if (-not $Status.ok) { throw "本機授權驗證未完成" }
+if (-not $Status.ok) {
+  $StatusError = if ($Status.error) { $Status.error } else { "啟用碼、付款狀態或中央授權無法驗證" }
+  throw "啟用失敗：$StatusError。主機服務已保留，請將此訊息提供給艾琳設計"
+}
 $LoginUsername = $Status.loginAccount.username
 $LoginEmail = $Status.loginAccount.email
 

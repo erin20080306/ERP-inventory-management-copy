@@ -11,6 +11,7 @@ import { POST as lease } from "../src/app/api/license/lease/route";
 import { POST as registerServer } from "../src/app/api/license/register-server/route";
 import {
   activateTenantLicense,
+  normalizeLicenseAccountUsername,
   refreshLocalLicenseLease,
   verifyLicensePaymentRecords,
   verifyOfflineLease,
@@ -107,7 +108,7 @@ async function main() {
   const owner = await prisma.user.create({
     data: {
       tenantId,
-      username: "admin",
+      username: "x",
       email: `owner-${tenantId}@example.test`,
       name: "原本註冊管理員",
       passwordHash: await bcrypt.hash(ownerPassword, 4),
@@ -147,6 +148,10 @@ async function main() {
   const serverLeaseBody = await serverLeaseResponse.json();
   assert.equal(verifyOfflineLease(serverLeaseBody.lease), true);
   assert.equal(serverLeaseBody.lease.payload.primaryAccount.email, owner.email);
+  assert.equal(
+    serverLeaseBody.lease.payload.primaryAccount.username,
+    normalizeLicenseAccountUsername(owner.username, owner.email),
+  );
   assert.equal(await bcrypt.compare(ownerPassword, serverLeaseBody.lease.payload.primaryAccount.passwordHash), true);
   await prisma.userRole.deleteMany({ where: { userId: owner.id } });
   await prisma.user.delete({ where: { id: owner.id } });

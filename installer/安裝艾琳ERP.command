@@ -231,8 +231,13 @@ if [ "$READY" != "true" ]; then
 fi
 
 echo "驗證中央授權並同步公司版本…"
-if ! STATUS_RESPONSE="$(curl -kfsS -X POST -H "x-erin-installer-token: $LOCAL_INSTALLER_TOKEN" "https://$LAN_IP:3443/api/license/local-status")"; then
-  echo "啟用失敗：啟用碼、付款狀態或中央授權無法驗證。主機服務已保留。"
+if ! STATUS_RESPONSE="$(curl -ksS -X POST -H "x-erin-installer-token: $LOCAL_INSTALLER_TOKEN" "https://$LAN_IP:3443/api/license/local-status")"; then
+  echo "啟用失敗：無法連線公司主機授權端點。主機服務已保留。"
+  pause_exit 1
+fi
+if ! printf '%s' "$STATUS_RESPONSE" | grep -q '"ok":true'; then
+  STATUS_ERROR="$(printf '%s' "$STATUS_RESPONSE" | sed -n 's/.*"error":"\([^"]*\)".*/\1/p')"
+  echo "啟用失敗：${STATUS_ERROR:-啟用碼、付款狀態或中央授權無法驗證}。主機服務已保留。"
   pause_exit 1
 fi
 LOGIN_USERNAME="$(printf '%s' "$STATUS_RESPONSE" | sed -n 's/.*"loginAccount":{"username":"\([^"]*\)".*/\1/p')"

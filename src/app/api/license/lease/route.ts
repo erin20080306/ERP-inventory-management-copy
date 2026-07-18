@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import {
   ONLINE_REFRESH_MINUTES, appendLicenseEvent, computeLicenseAccess, hashActivationKey,
-  clampOfflineLeaseExpiry, fingerprintDeviceId, hashDeviceId, signOfflineLease, workstationDeviceIdFromPublicKey,
+  clampOfflineLeaseExpiry, fingerprintDeviceId, hashDeviceId, normalizeLicenseAccountUsername,
+  signOfflineLease, workstationDeviceIdFromPublicKey,
 } from "@/lib/license";
 import { prisma } from "@/lib/prisma";
 import { normalizeBusinessMode } from "@/lib/product-editions";
@@ -87,7 +88,7 @@ export async function POST(req: NextRequest) {
     if (device.firstSeenAt.getTime() === device.lastSeenAt.getTime()) {
       await appendLicenseEvent({ tenantId: tenant.id, action: "DEVICE_BOUND", payload: { deviceId: device.id, deviceRole: device.deviceRole, displayName: device.displayName, platform: device.platform } });
     }
-    const primaryAccount = parsed.data.deviceRole === "SERVER"
+    const primaryAccountRecord = parsed.data.deviceRole === "SERVER"
       ? await prisma.user.findFirst({
           where: { tenantId: tenant.id, isActive: true, userRoles: { some: { role: { name: "系統管理員" } } } },
           orderBy: [{ createdAt: "asc" }, { id: "asc" }],
@@ -97,6 +98,12 @@ export async function POST(req: NextRequest) {
           orderBy: [{ createdAt: "asc" }, { id: "asc" }],
           select: { username: true, email: true, name: true, passwordHash: true },
         })
+      : null;
+    const primaryAccount = primaryAccountRecord
+      ? {
+          ...primaryAccountRecord,
+          username: normalizeLicenseAccountUsername(primaryAccountRecord.username, primaryAccountRecord.email),
+        }
       : null;
     const issuedAt = new Date();
     const expiresAt = clampOfflineLeaseExpiry(issuedAt, access.expiresAt);

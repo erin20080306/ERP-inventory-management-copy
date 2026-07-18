@@ -40,16 +40,21 @@ type PrimaryAccountSnapshot = {
   passwordHash: string;
 };
 
+export function normalizeLicenseAccountUsername(value: unknown, email: string) {
+  const username = String(value || "").trim().toLowerCase();
+  if (username.length >= 3 && username.length <= 50 && !/\s/.test(username)) return username;
+  return `remote-${createHash("sha256").update(email.trim().toLowerCase()).digest("hex").slice(0, 24)}`;
+}
+
 function readPrimaryAccount(payload: Record<string, unknown>): PrimaryAccountSnapshot | null {
   const value = payload.primaryAccount;
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const source = value as Record<string, unknown>;
-  const username = String(source.username || "").trim().toLowerCase();
   const email = String(source.email || "").trim().toLowerCase();
   const name = String(source.name || "").trim();
   const passwordHash = String(source.passwordHash || "");
-  if (username.length < 3 || username.length > 50 || /\s/.test(username)) throw new Error("中央授權帳號格式無效");
   if (!/^\S+@\S+\.\S+$/.test(email) || email.length > 200) throw new Error("中央授權 Email 格式無效");
+  const username = normalizeLicenseAccountUsername(source.username, email);
   if (!name || name.length > 100) throw new Error("中央授權帳號名稱無效");
   if (!/^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/.test(passwordHash)) throw new Error("中央授權密碼資料無效");
   return { username, email, name, passwordHash };

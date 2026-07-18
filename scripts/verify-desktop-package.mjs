@@ -87,6 +87,7 @@ for (const installer of [macInstaller, windowsInstaller]) {
   assert.match(installer, /EINVOICE_PROVIDER|EInvoiceProvider/);
   assert.match(installer, /管理員登入資料\.txt/);
   assert.match(installer, /使用原本網站註冊密碼/);
+  assert.match(installer, /STATUS_ERROR|StatusError/);
   assert.doesNotMatch(installer, /選擇系統/);
 }
 assert.match(registerServer, /hashActivationKey/);
