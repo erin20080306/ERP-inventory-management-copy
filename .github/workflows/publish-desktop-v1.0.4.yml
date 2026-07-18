@@ -71,6 +71,43 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -euo pipefail
           gh release view v1.0.4-desktop >/dev/null 2>&1 || \
             gh release create v1.0.4-desktop --target "$GITHUB_SHA" --title "艾琳 ERP 工作站 v1.0.4" --notes "修正桌面 App 開啟空白、公司主機逾時時無法操作，以及同一台電腦主機 IP 變更後無法自動恢復的問題。"
           gh release upload v1.0.4-desktop release-assets/* --clobber
+          gh release edit v1.0.4-desktop --latest
+      - name: Verify published files
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          assets="$(gh release view v1.0.4-desktop --json assets --jq '.assets[].name')"
+          grep -qx 'ErinERP-Desktop-macOS-arm64.dmg' <<< "$assets"
+          grep -qx 'ErinERP-Desktop-macOS-arm64.zip' <<< "$assets"
+          grep -qx 'ErinERP-Desktop-Windows-x64-Setup.exe' <<< "$assets"
+          grep -qx 'release-manifest.json' <<< "$assets"
+          grep -qx 'SHA256SUMS.txt' <<< "$assets"
+          echo "Desktop workstation v1.0.4 published successfully"
+      - name: Record successful publication on main
+        run: |
+          set -euo pipefail
+          source_commit="$GITHUB_SHA"
+          git fetch origin main
+          git checkout -B main origin/main
+          cat > desktop-release-status.json <<EOF
+          {
+            "version": "v1.0.4-desktop",
+            "publishedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "sourceCommit": "$source_commit",
+            "macDmg": "ErinERP-Desktop-macOS-arm64.dmg",
+            "macZip": "ErinERP-Desktop-macOS-arm64.zip",
+            "windowsExe": "ErinERP-Desktop-Windows-x64-Setup.exe",
+            "signedAndNotarized": false,
+            "status": "published-and-verified"
+          }
+          EOF
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add desktop-release-status.json
+          git commit -m "chore: record desktop v1.0.4 publication [skip ci]" || exit 0
+          git push origin main
