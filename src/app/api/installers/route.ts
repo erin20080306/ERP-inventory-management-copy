@@ -3,21 +3,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { ApiError, apiHandler, requireAuth } from "@/lib/api";
 import { getEmbeddedHostInstaller } from "@/lib/embedded-host-release";
 import { getLicenseAccessForUser } from "@/lib/license";
-import { getInstallerRelease, getPrivateInstallerBlob, INSTALLER_METADATA, INSTALLER_NAME } from "@/lib/installer-release-current";
-import { getPrivateInstallerBlobPath, isPrivateInstallerBlobPath } from "@/lib/private-installer-blob";
+import { getInstallerRelease, INSTALLER_METADATA, INSTALLER_NAME } from "@/lib/installer-release-current";
+import { getPrivateInstallerSignedUrl, isPrivateInstallerBlobPath } from "@/lib/private-installer-blob";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-function blobResponse(blob: Awaited<ReturnType<typeof getPrivateInstallerBlobPath>>, safeName: string) {
-  if (!blob || blob.statusCode !== 200) throw new ApiError(404, "找不到私人安裝包");
-  return new Response(blob.stream, { headers: {
-    "Content-Type": blob.blob.contentType || "application/octet-stream",
-    "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(safeName)}`,
-    "Content-Length": String(blob.blob.size),
-    "Cache-Control": "private, no-store",
-  } });
-}
 
 export const GET = apiHandler(async (req: NextRequest) => {
   const session = await requireAuth();
@@ -58,12 +48,10 @@ export const GET = apiHandler(async (req: NextRequest) => {
   }
 
   if (isPrivateInstallerBlobPath(target)) {
-    return blobResponse(await getPrivateInstallerBlobPath(target!), safeName);
+    const signedUrl = await getPrivateInstallerSignedUrl(target!);
+    if (!signedUrl) throw new ApiError(404, "找不到私人安裝包");
+    return NextResponse.redirect(signedUrl, 302);
   }
-  if (release.storage === "blob") {
-    return blobResponse(await getPrivateInstallerBlob(release, safeName), safeName);
-  }
-  // 302 對 Safari 的大型跨網域下載相容性較好；下載頁本身也會優先
-  // 使用 Release 原始網址，這裡保留作為舊書籤與 API 呼叫的相容入口。
-  return NextResponse.redirect(target!, 302);
+  if (!target || !/^https?:\/\//i.test(target)) throw new ApiError(404, "安裝包下載位置無效");
+  return NextResponse.redirect(target, 302);
 });
