@@ -38,12 +38,29 @@ function New-SecureBytes([int]$Length) {
 function New-HexSecret([int]$Length) {
   return -join ((New-SecureBytes $Length) | ForEach-Object { $_.ToString("x2") })
 }
-$AdminPassword = ([Convert]::ToBase64String((New-SecureBytes 18)).Replace("/", "A").Replace("+", "B").Replace("=", "")).Substring(0,16)
-$PostgresPassword = New-HexSecret 24
-$NextAuthSecret = New-HexSecret 32
-$IntegritySecret = New-HexSecret 32
-$LocalInstallerToken = New-HexSecret 32
-$BackupEncryptionKey = New-HexSecret 32
+$EnvFile = Join-Path $InstallDir ".env.local"
+function Get-ExistingEnvValue([string]$Name) {
+  if (-not (Test-Path $EnvFile)) { return $null }
+  $Prefix = "$Name="
+  $Line = Get-Content $EnvFile | Where-Object { $_.StartsWith($Prefix) } | Select-Object -First 1
+  if ($null -eq $Line) { return $null }
+  return $Line.Substring($Prefix.Length)
+}
+$AdminPassword = Get-ExistingEnvValue "ADMIN_PASSWORD"
+$PostgresPassword = Get-ExistingEnvValue "POSTGRES_PASSWORD"
+$NextAuthSecret = Get-ExistingEnvValue "NEXTAUTH_SECRET"
+$IntegritySecret = Get-ExistingEnvValue "INTEGRITY_SECRET"
+$LocalInstallerToken = Get-ExistingEnvValue "LOCAL_INSTALLER_TOKEN"
+$BackupEncryptionKey = Get-ExistingEnvValue "BACKUP_ENCRYPTION_KEY"
+if ($PostgresPassword) {
+  Write-Host "偵測到既有公司主機資料，將保留資料庫密碼、管理員密碼與備份金鑰。" -ForegroundColor Cyan
+}
+if (-not $AdminPassword) { $AdminPassword = ([Convert]::ToBase64String((New-SecureBytes 18)).Replace("/", "A").Replace("+", "B").Replace("=", "")).Substring(0,16) }
+if (-not $PostgresPassword) { $PostgresPassword = New-HexSecret 24 }
+if (-not $NextAuthSecret) { $NextAuthSecret = New-HexSecret 32 }
+if (-not $IntegritySecret) { $IntegritySecret = New-HexSecret 32 }
+if (-not $LocalInstallerToken) { $LocalInstallerToken = New-HexSecret 32 }
+if (-not $BackupEncryptionKey) { $BackupEncryptionKey = New-HexSecret 32 }
 $PublicKey = (Invoke-RestMethod "$CentralUrl/api/license/public-key").Trim()
 $DeviceName = $env:COMPUTERNAME
 $BackupDirDocker = $BackupDir.Replace("\", "/")
@@ -89,14 +106,33 @@ docker compose --env-file .env.local -f docker-compose.local.yml pull
 docker compose --env-file .env.local -f docker-compose.local.yml up -d
 Pop-Location
 
-Write-Host "等待 HTTPS 公司主機啟動…"
+Write-Host "等待 HTTPS 公司主機啟動（第一次建立資料庫可能需要數分鐘）…"
 $Ready = $false
-for ($i = 0; $i -lt 60; $i++) {
+for ($i = 1; $i -le 150; $i++) {
   curl.exe -k -f -s "https://${LanIp}:3443/login" -o NUL
   if ($LASTEXITCODE -eq 0) { $Ready = $true; break }
+  if (($i % 15) -eq 0) { Write-Host "仍在初始化…已等待 $($i * 2) 秒" }
   Start-Sleep -Seconds 2
 }
-if (-not $Ready) { throw "公司主機未能在 120 秒內啟動，請將 docker compose logs 提供給艾琳設計" }
+if (-not $Ready) {
+  $DiagnosticLog = Join-Path $InstallDir "startup-diagnostics.log"
+  Write-Host ""
+  Write-Host "【公司主機啟動診斷】" -ForegroundColor Yellow
+  Push-Location $InstallDir
+  try {
+    $Diagnostics = @(
+      "=== docker compose ps ==="
+      (docker compose --env-file .env.local -f docker-compose.local.yml ps 2>&1 | Out-String)
+      "=== postgres / app / caddy logs ==="
+      (docker compose --env-file .env.local -f docker-compose.local.yml logs --no-color --tail=160 postgres app caddy 2>&1 | Out-String)
+    ) -join [Environment]::NewLine
+    $Diagnostics | Tee-Object -FilePath $DiagnosticLog | Write-Host
+  } finally {
+    Pop-Location
+  }
+  Write-Host "診斷記錄已儲存：$DiagnosticLog" -ForegroundColor Yellow
+  throw "公司主機未能在 300 秒內啟動。請勿刪除 ErinERP 資料或 Docker volumes；請將上方診斷畫面提供給艾琳設計"
+}
 
 Write-Host "驗證中央授權並同步公司版本…"
 $StatusJson = curl.exe -k -f -s -X POST -H "x-erin-installer-token: $LocalInstallerToken" "https://${LanIp}:3443/api/license/local-status"
