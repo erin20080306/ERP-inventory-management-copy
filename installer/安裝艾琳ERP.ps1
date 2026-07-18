@@ -104,6 +104,7 @@ EINVOICE_VAN_CLIENT_SECRET=
 Push-Location $InstallDir
 docker compose --env-file .env.local -f docker-compose.local.yml pull
 docker compose --env-file .env.local -f docker-compose.local.yml up -d
+docker compose --env-file .env.local -f docker-compose.local.yml restart caddy
 Pop-Location
 
 Write-Host "等待 HTTPS 公司主機啟動（第一次建立資料庫可能需要數分鐘）…"

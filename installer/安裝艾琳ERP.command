@@ -212,6 +212,7 @@ echo "下載並啟動艾琳 ERP 公司主機服務…"
 pull_erp_image
 docker_cli compose --env-file .env.local -f docker-compose.local.yml pull postgres caddy
 docker_cli compose --env-file .env.local -f docker-compose.local.yml up -d
+docker_cli compose --env-file .env.local -f docker-compose.local.yml restart caddy
 
 echo "等待 HTTPS 公司主機啟動（第一次建立資料庫可能需要數分鐘）…"
 READY="false"

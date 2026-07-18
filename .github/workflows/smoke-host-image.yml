@@ -5,6 +5,7 @@ on:
   push:
     paths:
       - ".github/workflows/smoke-host-image.yml"
+      - "docker/Caddyfile"
 
 permissions:
   contents: read
