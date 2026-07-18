@@ -1,7 +1,9 @@
 const fs = require("node:fs");
 const http = require("node:http");
 const https = require("node:https");
+const net = require("node:net");
 const path = require("node:path");
+const tls = require("node:tls");
 const { app, BrowserWindow, shell } = require("electron");
 
 function appendStartupLog(message, detail = "") {
@@ -25,17 +27,108 @@ function replaceHeader(headers, name, value) {
   return next;
 }
 
+function readHeader(headers, name) {
+  for (const [key, value] of Object.entries(headers || {})) {
+    if (key.toLowerCase() === name.toLowerCase()) return Array.isArray(value) ? value[0] : value;
+  }
+  return undefined;
+}
+
+function replaceOriginHeader(headers, name, fromOrigin, toOrigin) {
+  const value = readHeader(headers, name);
+  if (typeof value !== "string" || !value.startsWith(fromOrigin)) return headers;
+  return replaceHeader(headers, name, `${toOrigin}${value.slice(fromOrigin.length)}`);
+}
+
+function hostInstallDirectory() {
+  if (process.platform === "win32") {
+    return path.join(process.env.LOCALAPPDATA || app.getPath("userData"), "ErinERP");
+  }
+  return path.join(app.getPath("home"), "ErinERP");
+}
+
+function localHostTlsRoute(options) {
+  try {
+    const connectHostname = String(options.hostname || options.host || "").replace(/^\[|\]$/g, "");
+    if (!["127.0.0.1", "::1", "localhost"].includes(connectHostname)) return null;
+
+    const envPath = path.join(hostInstallDirectory(), ".env.local");
+    const composePath = path.join(hostInstallDirectory(), "docker-compose.local.yml");
+    if (!fs.existsSync(envPath) || !fs.existsSync(composePath)) return null;
+
+    const env = Object.fromEntries(
+      fs.readFileSync(envPath, "utf8")
+        .split(/\r?\n/)
+        .filter((line) => line && !line.startsWith("#") && line.includes("="))
+        .map((line) => {
+          const index = line.indexOf("=");
+          return [line.slice(0, index), line.slice(index + 1)];
+        }),
+    );
+    const certificateHost = String(env.SERVER_HOST || "").trim();
+    if (!certificateHost) return null;
+
+    const originalAuthority = String(readHeader(options.headers, "host") || "").trim();
+    if (!originalAuthority) return null;
+    const requested = new URL(`https://${originalAuthority}`);
+    const expectedPort = String(env.ERP_HTTPS_PORT || "3443").trim();
+    const requestedPort = requested.port || "443";
+    if (requestedPort !== expectedPort) return null;
+
+    const certificateAuthority = net.isIP(certificateHost) === 6
+      ? `[${certificateHost}]:${requestedPort}`
+      : `${certificateHost}:${requestedPort}`;
+    const requestedOrigin = requested.origin;
+    const certificateOrigin = `https://${certificateAuthority}`;
+
+    let headers = replaceHeader(options.headers, "host", certificateAuthority);
+    headers = replaceOriginHeader(headers, "origin", requestedOrigin, certificateOrigin);
+    headers = replaceOriginHeader(headers, "referer", requestedOrigin, certificateOrigin);
+
+    return {
+      options: {
+        ...options,
+        headers,
+        servername: net.isIP(certificateHost) ? undefined : certificateHost,
+        checkServerIdentity: (_hostname, certificate) => tls.checkServerIdentity(certificateHost, certificate),
+      },
+      requestedOrigin,
+      certificateOrigin,
+      certificateHost,
+    };
+  } catch (error) {
+    appendStartupLog("local host TLS compatibility check failed:", error?.message || String(error));
+    return null;
+  }
+}
+
 // Caddy may select zstd/gzip from Chromium's Accept-Encoding header. The desktop
 // proxy forwards the response body byte-for-byte, so request identity encoding
 // to avoid a renderer-side content decoding failure and a completely white page.
+// When the Mac changes Wi-Fi networks, the current company-host IP can differ
+// from the IP stored in Caddy's existing certificate. For loopback connections
+// only, keep full CA and hostname verification against the certificate's original
+// SERVER_HOST while translating Host/Origin/redirect headers for the new address.
 const originalHttpsRequest = https.request;
 https.request = function patchedHttpsRequest(options, callback) {
   if (options && typeof options === "object" && !(options instanceof URL)) {
+    const route = localHostTlsRoute(options);
+    const baseOptions = route?.options || options;
     const patchedOptions = {
-      ...options,
-      headers: replaceHeader(options.headers, "accept-encoding", "identity"),
+      ...baseOptions,
+      headers: replaceHeader(baseOptions.headers, "accept-encoding", "identity"),
     };
-    return originalHttpsRequest.call(this, patchedOptions, callback);
+    const patchedCallback = route && typeof callback === "function"
+      ? (response) => {
+        const location = response?.headers?.location;
+        if (typeof location === "string" && location.startsWith(route.certificateOrigin)) {
+          response.headers.location = `${route.requestedOrigin}${location.slice(route.certificateOrigin.length)}`;
+        }
+        callback(response);
+      }
+      : callback;
+    if (route) appendStartupLog("using local host certificate route:", `${route.certificateHost} -> ${route.requestedOrigin}`);
+    return originalHttpsRequest.call(this, patchedOptions, patchedCallback);
   }
   return originalHttpsRequest.apply(this, arguments);
 };
