@@ -7,26 +7,97 @@ INSTALL_DIR="$HOME/ErinERP"
 DEVICE_DIR="$HOME/Library/Application Support/ErinERP"
 BACKUP_DIR="$HOME/ErinERP-Backups"
 CENTRAL_URL="https://erp-inventory-management-copy.vercel.app"
+DOCKER_DOCS_URL="https://docs.docker.com/desktop/setup/install/mac-install/"
 IMAGE_TAG="latest"
+DOCKER_BIN=""
 if [ -f "$PACKAGE_DIR/image-tag.txt" ]; then IMAGE_TAG="$(tr -d '\r\n' < "$PACKAGE_DIR/image-tag.txt")"; fi
 
-echo "艾琳 ERP 公司主機 macOS 安裝程式"
-if ! command -v docker >/dev/null 2>&1; then
-  echo "請先安裝並啟動 Docker Desktop：https://www.docker.com/products/docker-desktop/"
-  read -r -p "按 Enter 結束…"
-  exit 1
-fi
-if ! docker info >/dev/null 2>&1; then
-  echo "Docker Desktop 尚未啟動，請啟動後再執行本檔。"
-  read -r -p "按 Enter 結束…"
-  exit 1
-fi
+pause_exit() {
+  echo ""
+  read -r -p "按 Enter 結束…" || true
+  exit "${1:-1}"
+}
+
+resolve_docker() {
+  local candidate
+  if command -v docker >/dev/null 2>&1; then
+    DOCKER_BIN="$(command -v docker)"
+    return 0
+  fi
+  for candidate in \
+    "/Applications/Docker.app/Contents/Resources/bin/docker" \
+    "/usr/local/bin/docker" \
+    "/opt/homebrew/bin/docker" \
+    "$HOME/.docker/bin/docker"; do
+    if [ -x "$candidate" ]; then
+      DOCKER_BIN="$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
+docker_ready() {
+  resolve_docker || return 1
+  "$DOCKER_BIN" info >/dev/null 2>&1
+}
+
+wait_for_docker() {
+  echo "等待 Docker Desktop 啟動…"
+  echo "第一次啟動時，請在 Docker 視窗接受條款並完成系統權限設定。"
+  for _ in $(seq 1 100); do
+    if docker_ready; then
+      echo "Docker Desktop 已就緒。"
+      return 0
+    fi
+    sleep 3
+  done
+  return 1
+}
+
+ensure_docker() {
+  if docker_ready; then return 0; fi
+
+  if [ -d "/Applications/Docker.app" ]; then
+    echo "已找到 Docker Desktop，正在自動開啟…"
+    open -ga Docker >/dev/null 2>&1 || open "/Applications/Docker.app" >/dev/null 2>&1 || true
+    if wait_for_docker; then return 0; fi
+    echo "Docker Desktop 尚未完成啟動。請確認 Docker 視窗是否仍在等待接受條款或輸入 Mac 密碼。"
+    pause_exit 1
+  fi
+
+  echo ""
+  echo "【尚缺一個必要程式：Docker Desktop】"
+  echo "你下載的 ErinERP-Host ZIP 是艾琳 ERP 公司主機安裝包；Docker Desktop 是執行資料庫與主機服務的必要環境。"
+  echo "這兩者是不同程式，因此 Host ZIP 不會把 Docker Desktop 重新包在裡面。"
+  echo ""
+  echo "即將開啟 Docker 官方安裝頁，請選『Mac with Apple silicon』。"
+  open "$DOCKER_DOCS_URL" >/dev/null 2>&1 || true
+  echo "安裝步驟：下載 Docker.dmg → 拖到『應用程式』→ 開啟 Docker → 接受條款。"
+  echo "完成後不必重新下載 Host ZIP；回到這個視窗按 Enter，安裝程式會再次檢查。"
+  read -r -p "Docker Desktop 已安裝並開啟後，按 Enter 繼續…" || true
+
+  if [ -d "/Applications/Docker.app" ]; then
+    open -ga Docker >/dev/null 2>&1 || true
+  fi
+  if wait_for_docker; then return 0; fi
+
+  echo "仍無法連線 Docker Desktop。請確認 Docker 上方選單顯示正在執行，再重新執行本安裝程式。"
+  pause_exit 1
+}
+
+docker_cli() {
+  "$DOCKER_BIN" "$@"
+}
+
+echo "艾琳 ERP 公司主機 macOS 輔助安裝程式"
+echo "同一台 Mac 可以同時安裝『公司主機』與『艾琳 ERP 工作站』。"
+ensure_docker
 
 read -r -p "輸入艾琳設計提供的啟用碼：" ACTIVATION_KEY
 if [ ${#ACTIVATION_KEY} -lt 24 ]; then
   echo "啟用碼格式錯誤，請向艾琳設計確認。"
-  read -r -p "按 Enter 結束…"
-  exit 1
+  pause_exit 1
 fi
 
 mkdir -p "$INSTALL_DIR" "$DEVICE_DIR" "$BACKUP_DIR"
@@ -81,8 +152,9 @@ EOF
 chmod 600 "$INSTALL_DIR/.env.local" "$DEVICE_DIR/device-id"
 
 cd "$INSTALL_DIR"
-docker compose --env-file .env.local -f docker-compose.local.yml pull
-docker compose --env-file .env.local -f docker-compose.local.yml up -d
+echo "下載並啟動艾琳 ERP 公司主機服務…"
+docker_cli compose --env-file .env.local -f docker-compose.local.yml pull
+docker_cli compose --env-file .env.local -f docker-compose.local.yml up -d
 
 echo "等待 HTTPS 公司主機啟動…"
 READY="false"
@@ -91,21 +163,19 @@ for _ in $(seq 1 60); do
   sleep 2
 done
 if [ "$READY" != "true" ]; then
-  echo "公司主機未能在 120 秒內啟動，請將 docker compose logs 提供給艾琳設計。"
-  read -r -p "按 Enter 結束…"
-  exit 1
+  echo "公司主機未能在 120 秒內啟動，請將安裝畫面提供給艾琳設計。"
+  pause_exit 1
 fi
 
 echo "驗證中央授權並同步公司版本…"
 if ! curl -kfsS -X POST -H "x-erin-installer-token: $LOCAL_INSTALLER_TOKEN" "https://$LAN_IP:3443/api/license/local-status" >/dev/null; then
-  echo "啟用失敗：啟用碼、付款狀態或中央授權無法驗證。主機服務已保留，請將 docker compose logs 提供給艾琳設計。"
-  read -r -p "按 Enter 結束…"
-  exit 1
+  echo "啟用失敗：啟用碼、付款狀態或中央授權無法驗證。主機服務已保留。"
+  pause_exit 1
 fi
 
 PAIR_DIR="$HOME/Desktop/艾琳ERP-工作站配對"
 mkdir -p "$PAIR_DIR"
-docker compose --env-file .env.local -f docker-compose.local.yml cp caddy:/data/caddy/pki/authorities/local/root.crt "$PAIR_DIR/ca.crt"
+docker_cli compose --env-file .env.local -f docker-compose.local.yml cp caddy:/data/caddy/pki/authorities/local/root.crt "$PAIR_DIR/ca.crt"
 CA_B64="$(base64 < "$PAIR_DIR/ca.crt" | tr -d '\r\n')"
 echo "自動登錄公司主機網址與安全憑證…"
 REGISTER_RESPONSE="$(curl -fsS -X POST "$CENTRAL_URL/api/license/register-server" \
@@ -116,9 +186,9 @@ REGISTER_RESPONSE="$(curl -fsS -X POST "$CENTRAL_URL/api/license/register-server
 COMPANY_CODE="$(printf '%s' "$REGISTER_RESPONSE" | sed -n 's/.*"companyCode":"\([^"]*\)".*/\1/p')"
 if [ -z "$COMPANY_CODE" ]; then
   echo "公司主機已啟動，但中央自動連線登錄失敗，請將安裝畫面提供給艾琳設計。"
-  read -r -p "按 Enter 結束…"
-  exit 1
+  pause_exit 1
 fi
+
 {
   echo "艾琳 ERP 加密備份解密金鑰"
   echo "$BACKUP_ENCRYPTION_KEY"
@@ -128,9 +198,9 @@ chmod 600 "$PAIR_DIR/艾琳ERP-備份解密金鑰.txt"
 {
   echo "公司代碼：$COMPANY_CODE"
   echo "公司主機網址：https://$LAN_IP:3443"
-  echo "請在每台已購買席次的 Windows／macOS 電腦安裝『艾琳 ERP』桌面客戶端，只需輸入公司代碼與啟用碼，主機網址與 CA 憑證會由中央安全帶入。"
-  echo "ca.crt 只供艾琳設計維修驗收；一般客戶不需手動匯入。啟用碼不要寫入或轉傳此配對檔。"
-  echo "每日加密備份目錄：$BACKUP_DIR（預設保留 30 日）。解密金鑰必須另外離線保存。"
+  echo "同一台 Mac 可以同時執行公司主機與艾琳 ERP 工作站。"
+  echo "工作站只需輸入公司代碼與啟用碼；一般客戶不需手動匯入 ca.crt。"
+  echo "每日加密備份目錄：$BACKUP_DIR（預設保留 30 日）。"
 } > "$PAIR_DIR/連線說明.txt"
 
 echo ""
@@ -141,6 +211,6 @@ echo "帳號：admin"
 echo "密碼：$ADMIN_PASSWORD"
 echo "工作站配對檔：$PAIR_DIR"
 echo "每日加密備份：$BACKUP_DIR"
-echo "請從已授權的桌面客戶端連線；一般瀏覽器不具工作站私鑰，無法操作。"
+echo "現在可在同一台 Mac 開啟艾琳 ERP 工作站，輸入公司代碼與啟用碼。"
 open "$PAIR_DIR"
 read -r -p "請保存管理員密碼後按 Enter 關閉…"
