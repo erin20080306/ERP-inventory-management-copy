@@ -54,9 +54,9 @@ export const GET = apiHandler(async (req: NextRequest) => {
       "Cache-Control": "private, no-store",
     } });
   }
-  if (target && /^https?:\/\//i.test(target)) return NextResponse.redirect(target, 307);
+  if (target && /^https?:\/\//i.test(target)) return NextResponse.redirect(target, 302);
 
   const fallback = new URL("/api/admin/installers", req.url);
   fallback.searchParams.set("file", safeName);
-  return NextResponse.redirect(fallback, 307);
+  return NextResponse.redirect(fallback, 302);
 });
