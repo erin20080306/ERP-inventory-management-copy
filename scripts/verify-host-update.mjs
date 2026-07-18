@@ -14,7 +14,8 @@ const notice = readFileSync("src/components/update-notice.tsx", "utf8");
 const macInstaller = readFileSync("installer/安裝艾琳ERP.command", "utf8");
 const windowsInstaller = readFileSync("installer/安裝艾琳ERP.ps1", "utf8");
 const desktopMain = readFileSync("desktop/main.cjs", "utf8");
-const workflow = readFileSync(".github/workflows/release-desktop.yml", "utf8");
+const workflow = readFileSync(".github/workflows/publish-host-container-image.yml", "utf8");
+const releaseMarker = readFileSync("src/generated/current-host-release.ts", "utf8");
 const dockerfile = readFileSync("Dockerfile", "utf8");
 
 execFileSync("sh", ["-n", "updater/update.cgi"], { stdio: "pipe" });
@@ -39,6 +40,9 @@ assert.ok(updateRoute.indexOf("createEncryptedDatabaseBackup") < updateRoute.ind
 assert.match(updateRoute, /requirePermission\("settings\.manage"\)/);
 assert.match(releaseRoute, /signOfflineLease/);
 assert.match(releaseRoute, /ERIN_ERP_HOST_RELEASE_V1/);
+assert.match(releaseRoute, /CURRENT_HOST_RELEASE/);
+assert.doesNotMatch(releaseRoute, /VERCEL_GIT_COMMIT_SHA/);
+assert.match(releaseMarker, /version:/);
 assert.match(updateLibrary, /verifyOfflineLease/);
 assert.match(updateLibrary, /image !== IMAGE/);
 assert.match(settings, /備份並更新/);
@@ -59,5 +63,7 @@ assert.match(windowsInstaller, /ArgumentList "\/S"/);
 assert.match(desktopMain, /ensureDesktopShortcut/);
 assert.match(dockerfile, /ARG ERIN_RELEASE_SHA/);
 assert.match(workflow, /ERIN_RELEASE_SHA=\$\{\{ github\.sha \}\}/);
+assert.match(workflow, /Record released Host image version/);
+assert.match(workflow, /Smoke test Apple Silicon Host startup/);
 
 console.log("Host update center, rollback, and desktop bootstrap: PASS");

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { signOfflineLease } from "@/lib/license";
+import { CURRENT_HOST_RELEASE } from "@/generated/current-host-release";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,13 +11,13 @@ export async function GET() {
   if (process.env.LOCAL_LICENSE_MODE === "true") return NextResponse.json({ error: "本機主機不簽發中央版本" }, { status: 404 });
   const issuedAt = new Date();
   const expiresAt = new Date(issuedAt.getTime() + 15 * 60_000);
-  const candidate = String(process.env.VERCEL_GIT_COMMIT_SHA || process.env.ERIN_RELEASE_SHA || "development").trim();
+  const candidate = String(CURRENT_HOST_RELEASE.version || "development").trim();
   const version = /^(?:[a-f0-9]{7,64}|development)$/i.test(candidate) ? candidate : "development";
   const release = signOfflineLease({
     type: "ERIN_ERP_HOST_RELEASE_V1",
     version,
     image: IMAGE,
-    publishedAt: issuedAt.toISOString(),
+    publishedAt: CURRENT_HOST_RELEASE.publishedAt,
     issuedAt: issuedAt.toISOString(),
     expiresAt: expiresAt.toISOString(),
   });

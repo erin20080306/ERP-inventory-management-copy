@@ -16,7 +16,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   packages: write
 
 concurrency:
@@ -41,6 +41,9 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Build isolated updater sidecar
+        run: docker build -t erin-erp-host-updater:test ./updater
+
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -62,6 +65,7 @@ jobs:
             org.opencontainers.image.source=https://github.com/erin20080306/ERP-inventory-management-copy
 
       - name: Build and push multi-platform image
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -70,6 +74,8 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            ERIN_RELEASE_SHA=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -78,6 +84,96 @@ jobs:
           docker buildx imagetools inspect "ghcr.io/${IMAGE_NAME}:latest" | tee /tmp/erin-erp-manifest.txt
           grep -q "linux/amd64" /tmp/erin-erp-manifest.txt
           grep -q "linux/arm64" /tmp/erin-erp-manifest.txt
+
+      - name: Smoke test Apple Silicon Host startup
+        env:
+          ERP_IMAGE: ghcr.io/erin20080306/erp-inventory-management-copy@${{ steps.build.outputs.digest }}
+          COMPOSE_PROJECT_NAME: erinerp-smoke-${{ github.run_id }}
+        run: |
+          set -eu
+          cp docker/Caddyfile Caddyfile
+          ENV_FILE=/tmp/erin-erp-smoke.env
+          cat > "$ENV_FILE" <<EOF
+          ERP_HTTPS_PORT=3443
+          SERVER_HOST=127.0.0.1
+          ERP_IMAGE=$ERP_IMAGE
+          POSTGRES_PASSWORD=github-actions-postgres-password
+          NEXTAUTH_URL=https://127.0.0.1:3443
+          NEXTAUTH_SECRET=github-actions-nextauth-secret-at-least-32-characters
+          ADMIN_USERNAME=admin
+          ADMIN_PASSWORD=GithubActions1234
+          ADMIN_EMAIL=local-admin@erin-erp.local
+          COMPANY_NAME=GitHub Actions
+          BUSINESS_MODE=ERP
+          CENTRAL_LICENSE_URL=https://example.invalid
+          LOCAL_ACTIVATION_KEY=github-actions-local-activation-key
+          LOCAL_DEVICE_ID=github-actions-arm64
+          LOCAL_DEVICE_NAME=GitHub-Actions
+          LOCAL_INSTALLER_TOKEN=github-actions-installer-token
+          HOST_UPDATE_TOKEN=github-actions-host-update-token-at-least-32-characters
+          HOST_BACKUP_DIR=/tmp/erin-erp-smoke-backups
+          BACKUP_ENCRYPTION_KEY=github-actions-backup-encryption-key
+          BACKUP_RETENTION_DAYS=30
+          BACKUP_INTERVAL_HOURS=24
+          LICENSE_ED25519_PUBLIC_KEY_B64=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+          INTEGRITY_SECRET=github-actions-integrity-secret-at-least-32-characters
+          EINVOICE_PROVIDER=
+          EINVOICE_ALLOW_MOCK=false
+          EINVOICE_ENV=TEST
+          EINVOICE_MIG_VERSION=4.1
+          EINVOICE_SELLER_TAX_ID=
+          EINVOICE_TURNKEY_OUTBOX_DIR=
+          EINVOICE_TURNKEY_ACK_DIR=
+          EINVOICE_VAN_NAME=
+          EINVOICE_VAN_BASE_URL=
+          EINVOICE_VAN_CLIENT_ID=
+          EINVOICE_VAN_CLIENT_SECRET=
+          EOF
+          cleanup() {
+            result=$?
+            if [ "$result" -ne 0 ]; then
+              docker compose --env-file "$ENV_FILE" -f docker-compose.local.yml ps || true
+              docker compose --env-file "$ENV_FILE" -f docker-compose.local.yml logs --no-color --tail=200 postgres app caddy || true
+            fi
+            docker compose --env-file "$ENV_FILE" -f docker-compose.local.yml down -v --remove-orphans || true
+          }
+          trap cleanup EXIT
+          DOCKER_DEFAULT_PLATFORM=linux/arm64 docker compose --env-file "$ENV_FILE" -f docker-compose.local.yml up -d postgres app caddy
+          for attempt in $(seq 1 90); do
+            if curl -kfsS https://127.0.0.1:3443/login >/dev/null; then
+              echo "Apple Silicon Host became ready after $((attempt * 2)) seconds."
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Apple Silicon Host did not become ready within 180 seconds." >&2
+          exit 1
+
+      - name: Record released Host image version
+        if: github.ref == 'refs/heads/main'
+        env:
+          RELEASE_SHA: ${{ github.sha }}
+        run: |
+          set -eu
+          git fetch origin main
+          git checkout -B main origin/main
+          published_at="$(date -u +%Y-%m-%dT%H:%M:%S.000Z)"
+          mkdir -p src/generated
+          printf '%s\n' \
+            '// This file is advanced only after the multi-platform Host image passes its smoke test.' \
+            'export const CURRENT_HOST_RELEASE = {' \
+            "  version: \"$RELEASE_SHA\"," \
+            "  publishedAt: \"$published_at\"," \
+            '} as const;' > src/generated/current-host-release.ts
+          if git diff --quiet -- src/generated/current-host-release.ts; then
+            echo "Host release marker already current."
+            exit 0
+          fi
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add src/generated/current-host-release.ts
+          git commit -m "chore: record Host image $RELEASE_SHA [skip ci]"
+          git push origin HEAD:main
 
       - name: Show required package visibility setting
         run: |
