@@ -229,7 +229,7 @@ async function testLocalOfflineLease() {
 
   const tenant = await prisma.tenant.create({ data: { name: "本機離線租約測試" } });
   const user = await prisma.user.create({
-    data: { tenantId: tenant.id, username: `local-license-${tenant.id}`, email: `local-license-${tenant.id}@example.invalid`, name: "本機授權測試員", passwordHash: "not-a-real-password", isSuperAdmin: true },
+    data: { tenantId: tenant.id, username: `local-license-${tenant.id}`, email: `local-license-${tenant.id}@example.invalid`, name: "本機授權測試員", passwordHash: "not-a-real-password", isSuperAdmin: false },
   });
   const issuedAt = new Date();
   const expiresAt = new Date(issuedAt.getTime() + 24 * 60 * 60_000);
