@@ -94,6 +94,7 @@ jobs:
           COMPOSE_PROJECT_NAME: erinerp-smoke-${{ github.run_id }}
         run: |
           set -eu
+          cp docker/Caddyfile Caddyfile
           ENV_FILE=/tmp/erin-erp-smoke.env
           cat > "$ENV_FILE" <<EOF
           ERP_HTTPS_PORT=3443

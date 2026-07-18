@@ -1,0 +1,81 @@
+name: Smoke published ERP Host image
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/smoke-host-image.yml"
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  apple-silicon:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      COMPOSE_PROJECT_NAME: erinerp-published-smoke-${{ github.run_id }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - name: Start and verify the published arm64 Host image
+        run: |
+          set -eu
+          cp docker/Caddyfile Caddyfile
+          ENV_FILE=/tmp/erin-erp-published-smoke.env
+          cat > "$ENV_FILE" <<EOF
+          ERP_HTTPS_PORT=3443
+          SERVER_HOST=127.0.0.1
+          ERP_IMAGE=ghcr.io/erin20080306/erp-inventory-management-copy:latest
+          POSTGRES_PASSWORD=github-actions-postgres-password
+          NEXTAUTH_URL=https://127.0.0.1:3443
+          NEXTAUTH_SECRET=github-actions-nextauth-secret-at-least-32-characters
+          ADMIN_USERNAME=admin
+          ADMIN_PASSWORD=GithubActions1234
+          ADMIN_EMAIL=local-admin@erin-erp.local
+          COMPANY_NAME=GitHub Actions
+          BUSINESS_MODE=ERP
+          CENTRAL_LICENSE_URL=https://example.invalid
+          LOCAL_ACTIVATION_KEY=github-actions-local-activation-key
+          LOCAL_DEVICE_ID=github-actions-arm64
+          LOCAL_DEVICE_NAME=GitHub-Actions
+          LOCAL_INSTALLER_TOKEN=github-actions-installer-token
+          HOST_BACKUP_DIR=/tmp/erin-erp-smoke-backups
+          BACKUP_ENCRYPTION_KEY=github-actions-backup-encryption-key
+          BACKUP_RETENTION_DAYS=30
+          BACKUP_INTERVAL_HOURS=24
+          LICENSE_ED25519_PUBLIC_KEY_B64=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+          INTEGRITY_SECRET=github-actions-integrity-secret-at-least-32-characters
+          EINVOICE_PROVIDER=
+          EINVOICE_ALLOW_MOCK=false
+          EINVOICE_ENV=TEST
+          EINVOICE_MIG_VERSION=4.1
+          EINVOICE_SELLER_TAX_ID=
+          EINVOICE_TURNKEY_OUTBOX_DIR=
+          EINVOICE_TURNKEY_ACK_DIR=
+          EINVOICE_VAN_NAME=
+          EINVOICE_VAN_BASE_URL=
+          EINVOICE_VAN_CLIENT_ID=
+          EINVOICE_VAN_CLIENT_SECRET=
+          EOF
+          cleanup() {
+            result=$?
+            if [ "$result" -ne 0 ]; then
+              docker compose --env-file "$ENV_FILE" -f docker-compose.local.yml ps || true
+              docker compose --env-file "$ENV_FILE" -f docker-compose.local.yml logs --no-color --tail=240 postgres app caddy || true
+            fi
+            docker compose --env-file "$ENV_FILE" -f docker-compose.local.yml down -v --remove-orphans || true
+          }
+          trap cleanup EXIT
+          DOCKER_DEFAULT_PLATFORM=linux/arm64 docker compose --env-file "$ENV_FILE" -f docker-compose.local.yml pull postgres app caddy
+          DOCKER_DEFAULT_PLATFORM=linux/arm64 docker compose --env-file "$ENV_FILE" -f docker-compose.local.yml up -d postgres app caddy
+          for attempt in $(seq 1 150); do
+            if curl -kfsS https://127.0.0.1:3443/login >/dev/null; then
+              echo "Published Apple Silicon Host became ready after $((attempt * 2)) seconds."
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Published Apple Silicon Host did not become ready within 300 seconds." >&2
+          exit 1
