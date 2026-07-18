@@ -19,7 +19,7 @@ assert.match(setupJs, /if \(!hasAttemptedConnection\) return/);
 assert.match(setupJs, /clearStoredConnection/);
 assert.match(setupHtml, /id="clearButton"/);
 assert.match(setupHtml, /清除舊連線設定/);
-assert.equal(packageJson.version, "1.0.2");
+assert.equal(packageJson.version, "1.0.4");
 assert.equal(packageJson.build.extraMetadata.main, "bootstrap.cjs");
 assert.ok(packageJson.build.files.includes("bootstrap.cjs"));
 assert.match(bootstrap, /accept-encoding", "identity"/);
