@@ -10,7 +10,6 @@ type Installer = {
   kind: "company-host" | "workstation";
   sha256: string | null;
   codeSigning: string | null;
-  downloadUrl?: string;
 };
 type Release = { version?: string; generatedAt?: string; prerelease?: boolean; readyForCustomers?: boolean } | null;
 
@@ -46,11 +45,7 @@ function InstallerCard({ file }: { file: Installer }) {
   const flags = fileFlags(file);
   const recommended = file.kind === "workstation" && flags.isMac && flags.isDmg && flags.isArm64;
   const backup = file.kind === "workstation" && flags.isMac && flags.isZip && flags.isArm64;
-  // 大型桌面安裝檔直接使用已驗證 Release 的原始網址。Safari 經過
-  // 登入 API 再跨網域 307 轉址時，偶爾只建立 0-byte 暫存檔。
-  const href = file.kind === "workstation" && file.downloadUrl
-    ? file.downloadUrl
-    : `/api/installers?file=${encodeURIComponent(file.name)}`;
+  const href = `/api/installers?file=${encodeURIComponent(file.name)}`;
 
   return (
     <div className="flex flex-col gap-4 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -64,7 +59,7 @@ function InstallerCard({ file }: { file: Installer }) {
           </div>
           <div className="mt-1 text-xs text-muted-foreground">{file.platform}・{size(file.size)}</div>
           <div className="mt-2 text-xs font-medium text-foreground/80">{downloadNote(file)}</div>
-          {file.kind === "workstation" && file.downloadUrl ? <div className="mt-1 text-[11px] text-sky-700">直接下載已驗證原檔，避免產生 0 byte 檔案</div> : null}
+          {file.kind === "workstation" ? <div className="mt-1 text-[11px] text-sky-700">通過登入驗證後產生短效安全下載連結</div> : null}
           {file.codeSigning === "ad-hoc-manual" ? <div className="mt-1 text-xs font-medium text-amber-700">手動安裝版・第一次需依上方步驟允許</div> : file.codeSigning === "unsigned-test" ? <div className="mt-1 text-xs font-medium text-rose-600">內部測試檔，不可交付</div> : null}
           {file.sha256 ? <div className="mt-1 truncate font-mono text-[10px] text-muted-foreground" title={file.sha256}>SHA-256 {file.sha256}</div> : null}
         </div>
