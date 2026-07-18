@@ -25,10 +25,14 @@
     "afterPack": "scripts/after-pack.cjs",
     "asar": true,
     "npmRebuild": false,
+    "extraMetadata": {
+      "main": "bootstrap.cjs"
+    },
     "directories": {
       "output": "../dist/desktop"
     },
     "files": [
+      "bootstrap.cjs",
       "main.cjs",
       "preload.cjs",
       "hardware-preload.cjs",

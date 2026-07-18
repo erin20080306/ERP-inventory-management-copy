@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 
 const packageJson = JSON.parse(readFileSync("desktop/package.json", "utf8"));
 const afterPack = readFileSync("desktop/scripts/after-pack.cjs", "utf8");
+const bootstrap = readFileSync("desktop/bootstrap.cjs", "utf8");
 const main = readFileSync("desktop/main.cjs", "utf8");
 const hardwarePreload = readFileSync("desktop/hardware-preload.cjs", "utf8");
 const compose = readFileSync("docker-compose.local.yml", "utf8");
@@ -22,11 +23,13 @@ const downloadPage = readFileSync("src/app/(app)/downloads/page.tsx", "utf8");
 const dockerfile = readFileSync("Dockerfile", "utf8");
 const backupEntrypoint = readFileSync("docker/backup-entrypoint.sh", "utf8");
 
-for (const file of ["desktop/main.cjs", "desktop/preload.cjs", "desktop/hardware-preload.cjs", "desktop/setup.js"]) {
+for (const file of ["desktop/bootstrap.cjs", "desktop/main.cjs", "desktop/preload.cjs", "desktop/hardware-preload.cjs", "desktop/setup.js"]) {
   execFileSync(process.execPath, ["--check", file], { stdio: "pipe" });
 }
 
 assert.equal(packageJson.main, "main.cjs");
+assert.equal(packageJson.build.extraMetadata.main, "bootstrap.cjs");
+assert.ok(packageJson.build.files.includes("bootstrap.cjs"));
 assert.equal(packageJson.build.appId, "design.erin.erp.desktop");
 assert.equal(packageJson.build.productName, "艾琳 ERP");
 assert.equal(packageJson.build.afterPack, "scripts/after-pack.cjs");
@@ -42,6 +45,14 @@ assert.match(packageJson.scripts["dist:win:test"], /signExecutable=false/);
 assert.match(afterPack, /xattr/);
 assert.match(afterPack, /codesign/);
 assert.match(afterPack, /CSC_IDENTITY_AUTO_DISCOVERY/);
+
+assert.match(bootstrap, /accept-encoding", "identity"/);
+assert.match(bootstrap, /removeAllListeners\("will-navigate"\)/);
+assert.match(bootstrap, /serverOrigin && parsed\.origin === serverOrigin/);
+assert.match(bootstrap, /did-fail-load/);
+assert.match(bootstrap, /render-process-gone/);
+assert.match(bootstrap, /desktop-startup\.log/);
+assert.match(bootstrap, /require\("\.\/main\.cjs"\)/);
 
 assert.match(main, /safeStorage\.encryptString/);
 assert.match(main, /generateKeyPairSync\("ed25519"\)/);
@@ -120,4 +131,4 @@ for (const secretName of ["MAC_CSC_LINK", "APPLE_APP_SPECIFIC_PASSWORD", "WIN_CS
 }
 assert.match(workflow, /needs: \[host-installers, desktop-clients\]/);
 
-console.log("Desktop package and security configuration: PASS");
+console.log("Desktop package, blank-screen recovery and security configuration: PASS");

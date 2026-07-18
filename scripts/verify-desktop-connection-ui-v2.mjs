@@ -4,10 +4,13 @@ import { readFileSync } from "node:fs";
 
 const setupJs = readFileSync("desktop/setup.js", "utf8");
 const setupHtml = readFileSync("desktop/setup.html", "utf8");
+const bootstrap = readFileSync("desktop/bootstrap.cjs", "utf8");
 const packageJson = JSON.parse(readFileSync("desktop/package.json", "utf8"));
 const workflow = readFileSync(".github/workflows/publish-macos-workstation-v1-0-3.yml", "utf8");
 
-execFileSync(process.execPath, ["--check", "desktop/setup.js"], { stdio: "pipe" });
+for (const file of ["desktop/setup.js", "desktop/bootstrap.cjs"]) {
+  execFileSync(process.execPath, ["--check", file], { stdio: "pipe" });
+}
 
 assert.match(setupJs, /hasAttemptedConnection/);
 assert.match(setupJs, /Error invoking remote method/);
@@ -17,6 +20,14 @@ assert.match(setupJs, /clearStoredConnection/);
 assert.match(setupHtml, /id="clearButton"/);
 assert.match(setupHtml, /清除舊連線設定/);
 assert.equal(packageJson.version, "1.0.2");
+assert.equal(packageJson.build.extraMetadata.main, "bootstrap.cjs");
+assert.ok(packageJson.build.files.includes("bootstrap.cjs"));
+assert.match(bootstrap, /accept-encoding", "identity"/);
+assert.match(bootstrap, /removeAllListeners\("will-navigate"\)/);
+assert.match(bootstrap, /serverOrigin && parsed\.origin === serverOrigin/);
+assert.match(bootstrap, /did-fail-load/);
+assert.match(bootstrap, /desktop-startup\.log/);
+assert.match(bootstrap, /網頁已完成載入，但登入畫面與前端資源沒有顯示/);
 
 for (const scriptName of ["dist:mac", "dist:mac:manual", "dist:mac:test", "dist:win", "dist:win:manual", "dist:win:test"]) {
   assert.match(packageJson.scripts[scriptName], /--publish=never/, `${scriptName} 必須以 --publish=never 停用 electron-builder CI 自動發布`);
@@ -44,4 +55,4 @@ assert.match(workflow, /codesign --verify/);
 assert.match(workflow, /cancel-in-progress: true/);
 assert.match(workflow, /RELEASE_TAG: v1\.0\.3-desktop/);
 
-console.log("Desktop connection UI and stable macOS shell workflow: PASS");
+console.log("Desktop connection UI, blank-screen bootstrap and stable macOS shell workflow: PASS");
