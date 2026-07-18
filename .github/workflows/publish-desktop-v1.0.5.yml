@@ -1,0 +1,120 @@
+name: Publish desktop network recovery v1.0.5
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/publish-desktop-v1.0.5.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-desktop-v1.0.5
+  cancel-in-progress: true
+
+jobs:
+  desktop-clients:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            artifact: desktop-macos-v1.0.5
+          - os: windows-latest
+            artifact: desktop-windows-v1.0.5
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - run: npm --prefix desktop ci
+      - name: Verify desktop network recovery source
+        shell: bash
+        run: |
+          node --check desktop/bootstrap.cjs
+          node --check desktop/main.cjs
+          node --check desktop/hardware-preload.cjs
+          node -e "const p=require('./desktop/package.json'); if(p.version!=='1.0.5') throw new Error('desktop version must be 1.0.5')"
+          grep -q 'localHostTlsRoute' desktop/bootstrap.cjs
+          grep -q 'tls.checkServerIdentity(certificateHost' desktop/bootstrap.cjs
+          grep -q 'using local host certificate route' desktop/bootstrap.cjs
+      - name: Build macOS Apple Silicon client
+        if: runner.os == 'macOS'
+        run: npm --prefix desktop run dist:mac:test
+      - name: Build Windows x64 client
+        if: runner.os == 'Windows'
+        run: npm --prefix desktop run dist:win:test
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: |
+            dist/desktop/*.dmg
+            dist/desktop/*.zip
+            dist/desktop/*.exe
+          if-no-files-found: error
+
+  release:
+    needs: desktop-clients
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+      - name: Generate release manifest and checksums
+        env:
+          RELEASE_MANUAL: "true"
+        run: node scripts/write-release-manifest.mjs release-assets v1.0.5-desktop
+      - name: Publish repaired desktop clients
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh release view v1.0.5-desktop >/dev/null 2>&1 || \
+            gh release create v1.0.5-desktop --target "$GITHUB_SHA" --title "艾琳 ERP 工作站 v1.0.5" --notes "修正公司主機在 Wi-Fi、分享網路或路由器變更後，因新 IP 與既有安全憑證不一致而無法連線。新版僅在同一台主機電腦的 loopback 安全通道套用相容路由，仍完整驗證本機 Caddy CA 與原憑證主機名稱，不會關閉 TLS 驗證。"
+          gh release upload v1.0.5-desktop release-assets/* --clobber
+          gh release edit v1.0.5-desktop --latest
+      - name: Verify published files
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          assets="$(gh release view v1.0.5-desktop --json assets --jq '.assets[].name')"
+          grep -qx 'ErinERP-Desktop-macOS-arm64.dmg' <<< "$assets"
+          grep -qx 'ErinERP-Desktop-macOS-arm64.zip' <<< "$assets"
+          grep -qx 'ErinERP-Desktop-Windows-x64-Setup.exe' <<< "$assets"
+          grep -qx 'release-manifest.json' <<< "$assets"
+          grep -qx 'SHA256SUMS.txt' <<< "$assets"
+      - name: Record successful publication and activate downloads
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const path = 'src/lib/github-workstation-release.ts';
+          const source = fs.readFileSync(path, 'utf8');
+          const updated = source.replace(/const WORKSTATION_RELEASE_TAG = "[^"]+";/, 'const WORKSTATION_RELEASE_TAG = "v1.0.5-desktop";');
+          if (updated === source) throw new Error('workstation release tag marker not found');
+          fs.writeFileSync(path, updated);
+          NODE
+          cat > desktop-release-status.json <<EOF
+          {
+            "version": "v1.0.5-desktop",
+            "publishedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "sourceCommit": "$GITHUB_SHA",
+            "macDmg": "ErinERP-Desktop-macOS-arm64.dmg",
+            "macZip": "ErinERP-Desktop-macOS-arm64.zip",
+            "windowsExe": "ErinERP-Desktop-Windows-x64-Setup.exe",
+            "signedAndNotarized": false,
+            "status": "published-and-verified"
+          }
+          EOF
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/lib/github-workstation-release.ts desktop-release-status.json
+          git commit -m "chore: activate desktop v1.0.5 downloads [skip ci]" || exit 0
+          git push origin HEAD:main
