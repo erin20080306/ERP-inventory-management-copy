@@ -91,6 +91,29 @@ docker_cli() {
   "$DOCKER_BIN" "$@"
 }
 
+existing_env_value() {
+  local key="$1"
+  if [ -f "$INSTALL_DIR/.env.local" ]; then
+    sed -n "s/^$key=//p" "$INSTALL_DIR/.env.local" | head -n 1
+  fi
+  return 0
+}
+
+show_startup_diagnostics() {
+  local log_file="$INSTALL_DIR/startup-diagnostics.log"
+  echo ""
+  echo "【公司主機啟動診斷】"
+  {
+    echo "=== docker compose ps ==="
+    docker_cli compose --env-file .env.local -f docker-compose.local.yml ps || true
+    echo ""
+    echo "=== postgres / app / caddy logs ==="
+    docker_cli compose --env-file .env.local -f docker-compose.local.yml logs --no-color --tail=160 postgres app caddy || true
+  } 2>&1 | tee "$log_file" || true
+  echo ""
+  echo "診斷記錄已儲存：$log_file"
+}
+
 pull_erp_image() {
   local log_file
   log_file="$(mktemp "${TMPDIR:-/tmp}/erin-erp-image-pull.XXXXXX")"
@@ -130,12 +153,21 @@ cp "$PACKAGE_DIR/docker/Caddyfile" "$INSTALL_DIR/Caddyfile"
 if [ ! -f "$DEVICE_DIR/device-id" ]; then uuidgen | tr '[:upper:]' '[:lower:]' > "$DEVICE_DIR/device-id"; fi
 DEVICE_ID="$(tr -d '\r\n' < "$DEVICE_DIR/device-id")"
 LAN_IP="$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || echo 127.0.0.1)"
-ADMIN_PASSWORD="$(openssl rand -base64 18 | tr -d '/+=' | cut -c1-16)"
-POSTGRES_PASSWORD="$(openssl rand -hex 24)"
-NEXTAUTH_SECRET="$(openssl rand -hex 32)"
-INTEGRITY_SECRET="$(openssl rand -hex 32)"
-LOCAL_INSTALLER_TOKEN="$(openssl rand -hex 32)"
-BACKUP_ENCRYPTION_KEY="$(openssl rand -hex 32)"
+ADMIN_PASSWORD="$(existing_env_value ADMIN_PASSWORD)"
+POSTGRES_PASSWORD="$(existing_env_value POSTGRES_PASSWORD)"
+NEXTAUTH_SECRET="$(existing_env_value NEXTAUTH_SECRET)"
+INTEGRITY_SECRET="$(existing_env_value INTEGRITY_SECRET)"
+LOCAL_INSTALLER_TOKEN="$(existing_env_value LOCAL_INSTALLER_TOKEN)"
+BACKUP_ENCRYPTION_KEY="$(existing_env_value BACKUP_ENCRYPTION_KEY)"
+if [ -n "$POSTGRES_PASSWORD" ]; then
+  echo "偵測到既有公司主機資料，將保留資料庫密碼、管理員密碼與備份金鑰。"
+fi
+if [ -z "$ADMIN_PASSWORD" ]; then ADMIN_PASSWORD="$(openssl rand -base64 18 | tr -d '/+=' | cut -c1-16)"; fi
+if [ -z "$POSTGRES_PASSWORD" ]; then POSTGRES_PASSWORD="$(openssl rand -hex 24)"; fi
+if [ -z "$NEXTAUTH_SECRET" ]; then NEXTAUTH_SECRET="$(openssl rand -hex 32)"; fi
+if [ -z "$INTEGRITY_SECRET" ]; then INTEGRITY_SECRET="$(openssl rand -hex 32)"; fi
+if [ -z "$LOCAL_INSTALLER_TOKEN" ]; then LOCAL_INSTALLER_TOKEN="$(openssl rand -hex 32)"; fi
+if [ -z "$BACKUP_ENCRYPTION_KEY" ]; then BACKUP_ENCRYPTION_KEY="$(openssl rand -hex 32)"; fi
 PUBLIC_KEY="$(curl -fsS "$CENTRAL_URL/api/license/public-key")"
 
 cat > "$INSTALL_DIR/.env.local" <<EOF
@@ -181,14 +213,19 @@ pull_erp_image
 docker_cli compose --env-file .env.local -f docker-compose.local.yml pull postgres caddy
 docker_cli compose --env-file .env.local -f docker-compose.local.yml up -d
 
-echo "等待 HTTPS 公司主機啟動…"
+echo "等待 HTTPS 公司主機啟動（第一次建立資料庫可能需要數分鐘）…"
 READY="false"
-for _ in $(seq 1 60); do
+for attempt in $(seq 1 150); do
   if curl -kfsS "https://$LAN_IP:3443/login" >/dev/null 2>&1; then READY="true"; break; fi
+  if [ $((attempt % 15)) -eq 0 ]; then
+    echo "仍在初始化…已等待 $((attempt * 2)) 秒"
+  fi
   sleep 2
 done
 if [ "$READY" != "true" ]; then
-  echo "公司主機未能在 120 秒內啟動，請將安裝畫面提供給艾琳設計。"
+  echo "公司主機未能在 300 秒內啟動。"
+  show_startup_diagnostics
+  echo "請勿刪除 ErinERP 資料或 Docker volumes；請將上方診斷畫面提供給艾琳設計。"
   pause_exit 1
 fi
 
