@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { validateObjectForSQLInjection } from "@/lib/sql-validation";
-import { ensureTenantBaseline } from "@/lib/tenant-baseline";
 
 export async function POST(req: NextRequest) {
   try {
@@ -101,7 +100,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "系統角色尚未初始化，請聯絡艾琳設計" }, { status: 503 });
     }
 
-    // 每個新公司第一個帳號固定為公司系統管理員，避免新租戶無法管理使用者與設定。
+    // 同步階段只建立公司、第一位使用者與系統管理員角色，完成後立即回傳。
     const result = await prisma.$transaction(async (tx) => {
       const tenant = await tx.tenant.create({
         data: { name: normalizedCompanyName, businessMode: normalizedMode },
@@ -125,25 +124,12 @@ export async function POST(req: NextRequest) {
       return { tenant, user };
     });
 
-    // 帳號與公司已建立後，即使範例／基礎資料初始化失敗，也不可再回傳「註冊失敗」。
-    // 登入與 Session 更新流程原本就會再次執行 ensureTenantBaseline，能自動補建缺少資料。
-    let baselineReady = true;
-    try {
-      await ensureTenantBaseline(result.tenant.id);
-    } catch (baselineError) {
-      baselineReady = false;
-      console.error("[register] tenant baseline initialization failed; retry will occur on login", {
-        tenantId: result.tenant.id,
-        error: baselineError,
-      });
-    }
-
     return NextResponse.json(
       {
         success: true,
         username: result.user.username,
         email: result.user.email,
-        baselineReady,
+        initializationRequired: true,
       },
       { status: 201 },
     );
