@@ -28,7 +28,8 @@ for (const file of ["desktop/bootstrap.cjs", "desktop/main.cjs", "desktop/preloa
 }
 
 assert.equal(packageJson.main, "main.cjs");
-assert.equal(packageJson.build.extraMetadata.main, "bootstrap.cjs");
+assert.equal(packageJson.build.extraMetadata.main, "v107-bootstrap.cjs");
+assert.ok(packageJson.build.files.includes("v107-bootstrap.cjs"));
 assert.ok(packageJson.build.files.includes("bootstrap.cjs"));
 assert.equal(packageJson.build.appId, "design.erin.erp.desktop");
 assert.equal(packageJson.build.productName, "艾琳 ERP");
