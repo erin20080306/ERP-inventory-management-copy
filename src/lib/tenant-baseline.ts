@@ -1,42 +1,49 @@
 import { prisma } from "./prisma";
-import { seedTenantDefaults } from "./seed-tenant";
+import { seedTenantDefaultsBatched } from "./seed-tenant-batched";
 
 const BASELINE_MARKER_ACTION = "tenant_baseline_v2_seeded";
 const readyTenants = new Set<string>();
 const pendingTenants = new Map<string, Promise<void>>();
 
 /**
- * 確保公司帳套具有與平台管理者相同的基礎初始化流程。
+ * 只檢查初始化完成標記，不建立任何資料。
+ * 可安全用於工作台路由守門，避免登入流程再次被初始化拖慢。
+ */
+export async function isTenantBaselineReady(tenantId: string | null | undefined) {
+  if (!tenantId) return false;
+  if (readyTenants.has(tenantId)) return true;
+
+  const marker = await prisma.auditLog.findFirst({
+    where: { tenantId, action: BASELINE_MARKER_ACTION },
+    select: { id: true },
+  });
+  if (!marker) return false;
+
+  readyTenants.add(tenantId);
+  return true;
+}
+
+/**
+ * 確保公司帳套具有完整基礎資料。
  *
- * - 新租戶註冊時立即建立。
- * - 舊租戶（包含胖鴨公司）在下一次登入／Session 更新時自動補齊。
- * - 實際商品範例仍依 ERP、零售 POS、餐飲 POS 業態建立，避免不相關商品
- *   出現在客戶的操作畫面。
- * - AuditLog 作為一次性版本標記；使用者之後自行刪除範例資料時不會被重建。
+ * 此函式只能由獨立初始化 API／維護腳本呼叫；註冊與 NextAuth 不再同步等待。
+ * AuditLog 是一次性版本標記，初始化失敗時可安全重試，使用者日後自行刪除
+ * 範例資料也不會被自動重建。
  */
 export async function ensureTenantBaseline(tenantId: string | null | undefined) {
-  if (!tenantId || readyTenants.has(tenantId)) return;
+  if (!tenantId || await isTenantBaselineReady(tenantId)) return;
 
   const pending = pendingTenants.get(tenantId);
   if (pending) return await pending;
 
   const work = (async () => {
-    const marker = await prisma.auditLog.findFirst({
-      where: { tenantId, action: BASELINE_MARKER_ACTION },
-      select: { id: true },
-    });
-    if (marker) {
-      readyTenants.add(tenantId);
-      return;
-    }
-
     const tenant = await prisma.tenant.findUnique({
       where: { id: tenantId },
-      select: { id: true, isInternal: true },
+      select: { id: true },
     });
-    if (!tenant) return;
+    if (!tenant) throw new Error("租戶不存在，無法初始化");
 
-    await seedTenantDefaults(tenant.id);
+    await seedTenantDefaultsBatched(tenant.id);
     await prisma.auditLog.create({
       data: {
         tenantId: tenant.id,
