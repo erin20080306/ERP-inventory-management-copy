@@ -1,5 +1,6 @@
 import { readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { verifySignedEnvelopeWithPublicKey } from "./ed25519-signature";
 import { verifyOfflineLease, type SignedOfflineLease } from "./license";
 
 export type HostUpdateState = {
@@ -54,6 +55,23 @@ export async function writeHostUpdateState(state: HostUpdateState) {
   await rename(temporary, target);
 }
 
+async function verifyCurrentReleaseSignature(central: string, signed: SignedOfflineLease) {
+  if (verifyOfflineLease(signed)) return true;
+
+  try {
+    const response = await fetch(`${central}/api/license/public-key`, {
+      cache: "no-store",
+      headers: { "Cache-Control": "no-cache" },
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!response.ok) return false;
+    const currentPublicKey = (await response.text()).trim();
+    return Boolean(currentPublicKey) && verifySignedEnvelopeWithPublicKey(signed, currentPublicKey);
+  } catch {
+    return false;
+  }
+}
+
 export async function fetchCurrentHostRelease(): Promise<HostRelease> {
   const central = process.env.CENTRAL_LICENSE_URL?.replace(/\/$/, "");
   if (!central) throw new Error("尚未設定中央版本服務");
@@ -61,7 +79,9 @@ export async function fetchCurrentHostRelease(): Promise<HostRelease> {
   const result = await response.json().catch(() => null) as { release?: SignedOfflineLease; error?: string } | null;
   if (!response.ok) throw new Error(result?.error || `中央版本服務回覆 ${response.status}`);
   const signed = result?.release;
-  if (!signed || !verifyOfflineLease(signed)) throw new Error("中央版本簽章無效");
+  if (!signed || !(await verifyCurrentReleaseSignature(central, signed))) {
+    throw new Error("中央版本簽章無效；請重新執行現有 Host 安裝程式一次以同步簽章公鑰");
+  }
   const payload = signed.payload;
   if (payload.type !== "ERIN_ERP_HOST_RELEASE_V1") throw new Error("中央版本資料格式錯誤");
   const issuedAt = new Date(String(payload.issuedAt || ""));
