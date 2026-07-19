@@ -1,51 +1,176 @@
 import { prisma } from "./prisma";
-import { seedTenantDefaults } from "./seed-tenant";
+import { seedTenantDefaultsBatched } from "./seed-tenant-batched";
 
-const BASELINE_MARKER_ACTION = "tenant_baseline_v2_seeded";
+export const BASELINE_STARTED_ACTION = "tenant_baseline_v2_started";
+export const BASELINE_MARKER_ACTION = "tenant_baseline_v2_seeded";
+export const BASELINE_FAILED_ACTION = "tenant_baseline_v2_failed";
+
 const readyTenants = new Set<string>();
-const pendingTenants = new Map<string, Promise<void>>();
+
+export type TenantBaselineResult = {
+  ready: true;
+  status: "READY";
+  startedAt: string;
+  completedAt: string;
+  durationMs: number;
+};
+
+export type TenantBaselineStatus =
+  | TenantBaselineResult
+  | {
+      ready: false;
+      status: "PENDING" | "RUNNING";
+      startedAt?: string;
+    }
+  | {
+      ready: false;
+      status: "FAILED";
+      startedAt?: string;
+      failedAt: string;
+      durationMs?: number;
+    };
+
+const pendingTenants = new Map<string, Promise<TenantBaselineResult>>();
+
+function parseDetail(detail: string | null | undefined) {
+  if (!detail) return {} as Record<string, unknown>;
+  try {
+    return JSON.parse(detail) as Record<string, unknown>;
+  } catch {
+    return {} as Record<string, unknown>;
+  }
+}
+
+/** 只檢查完成標記，不在登入或工作台路由中建立資料。 */
+export async function isTenantBaselineReady(tenantId: string | null | undefined) {
+  if (!tenantId) return false;
+  if (readyTenants.has(tenantId)) return true;
+
+  const marker = await prisma.auditLog.findFirst({
+    where: { tenantId, action: BASELINE_MARKER_ACTION },
+    select: { id: true },
+  });
+  if (!marker) return false;
+
+  readyTenants.add(tenantId);
+  return true;
+}
+
+export async function getTenantBaselineStatus(tenantId: string | null | undefined): Promise<TenantBaselineStatus> {
+  if (!tenantId) return { ready: false, status: "PENDING" };
+
+  const logs = await prisma.auditLog.findMany({
+    where: {
+      tenantId,
+      action: { in: [BASELINE_STARTED_ACTION, BASELINE_MARKER_ACTION, BASELINE_FAILED_ACTION] },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 10,
+    select: { action: true, detail: true, createdAt: true },
+  });
+
+  const completed = logs.find((log) => log.action === BASELINE_MARKER_ACTION);
+  if (completed) {
+    const detail = parseDetail(completed.detail);
+    return {
+      ready: true,
+      status: "READY",
+      startedAt: typeof detail.startedAt === "string" ? detail.startedAt : completed.createdAt.toISOString(),
+      completedAt: typeof detail.completedAt === "string" ? detail.completedAt : completed.createdAt.toISOString(),
+      durationMs: typeof detail.durationMs === "number" ? detail.durationMs : 0,
+    };
+  }
+
+  const latest = logs[0];
+  if (latest?.action === BASELINE_FAILED_ACTION) {
+    const detail = parseDetail(latest.detail);
+    return {
+      ready: false,
+      status: "FAILED",
+      startedAt: typeof detail.startedAt === "string" ? detail.startedAt : undefined,
+      failedAt: typeof detail.failedAt === "string" ? detail.failedAt : latest.createdAt.toISOString(),
+      durationMs: typeof detail.durationMs === "number" ? detail.durationMs : undefined,
+    };
+  }
+
+  const started = logs.find((log) => log.action === BASELINE_STARTED_ACTION);
+  return started
+    ? { ready: false, status: "RUNNING", startedAt: started.createdAt.toISOString() }
+    : { ready: false, status: "PENDING" };
+}
 
 /**
- * 確保公司帳套具有與平台管理者相同的基礎初始化流程。
- *
- * - 新租戶註冊時立即建立。
- * - 舊租戶（包含胖鴨公司）在下一次登入／Session 更新時自動補齊。
- * - 實際商品範例仍依 ERP、零售 POS、餐飲 POS 業態建立，避免不相關商品
- *   出現在客戶的操作畫面。
- * - AuditLog 作為一次性版本標記；使用者之後自行刪除範例資料時不會被重建。
+ * 由登入後的獨立初始化 API 呼叫。
+ * 固定代碼、createMany 與同一交易讓失敗後可安全重試且不重複建立。
  */
-export async function ensureTenantBaseline(tenantId: string | null | undefined) {
-  if (!tenantId || readyTenants.has(tenantId)) return;
+export async function ensureTenantBaseline(tenantId: string): Promise<TenantBaselineResult> {
+  const current = await getTenantBaselineStatus(tenantId);
+  if (current.ready) {
+    readyTenants.add(tenantId);
+    return current;
+  }
 
   const pending = pendingTenants.get(tenantId);
   if (pending) return await pending;
 
-  const work = (async () => {
-    const marker = await prisma.auditLog.findFirst({
-      where: { tenantId, action: BASELINE_MARKER_ACTION },
-      select: { id: true },
-    });
-    if (marker) {
-      readyTenants.add(tenantId);
-      return;
-    }
-
+  const work = (async (): Promise<TenantBaselineResult> => {
+    const startedAt = new Date();
     const tenant = await prisma.tenant.findUnique({
       where: { id: tenantId },
-      select: { id: true, isInternal: true },
+      select: { id: true },
     });
-    if (!tenant) return;
+    if (!tenant) throw new Error("租戶不存在，無法初始化");
 
-    await seedTenantDefaults(tenant.id);
     await prisma.auditLog.create({
       data: {
         tenantId: tenant.id,
-        action: BASELINE_MARKER_ACTION,
+        action: BASELINE_STARTED_ACTION,
         module: "system",
-        detail: "已建立公司基礎資料：科目、倉庫、商品、庫存、客戶、供應商、範例單據與業態設定",
+        detail: JSON.stringify({ startedAt: startedAt.toISOString() }),
       },
     });
-    readyTenants.add(tenant.id);
+
+    try {
+      await seedTenantDefaultsBatched(tenant.id);
+      const completedAt = new Date();
+      const result: TenantBaselineResult = {
+        ready: true,
+        status: "READY",
+        startedAt: startedAt.toISOString(),
+        completedAt: completedAt.toISOString(),
+        durationMs: completedAt.getTime() - startedAt.getTime(),
+      };
+
+      await prisma.auditLog.create({
+        data: {
+          tenantId: tenant.id,
+          action: BASELINE_MARKER_ACTION,
+          module: "system",
+          detail: JSON.stringify({
+            ...result,
+            summary: "科目、倉庫、商品、庫存、客戶、供應商、範例單據與業態設定已建立",
+          }),
+        },
+      });
+      readyTenants.add(tenant.id);
+      return result;
+    } catch (error) {
+      const failedAt = new Date();
+      await prisma.auditLog.create({
+        data: {
+          tenantId: tenant.id,
+          action: BASELINE_FAILED_ACTION,
+          module: "system",
+          detail: JSON.stringify({
+            startedAt: startedAt.toISOString(),
+            failedAt: failedAt.toISOString(),
+            durationMs: failedAt.getTime() - startedAt.getTime(),
+            error: error instanceof Error ? error.message.slice(0, 500) : "unknown",
+          }),
+        },
+      }).catch(() => {});
+      throw error;
+    }
   })().finally(() => {
     pendingTenants.delete(tenantId);
   });
