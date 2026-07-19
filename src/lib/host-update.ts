@@ -80,11 +80,17 @@ export async function triggerHostUpdater() {
   const url = process.env.HOST_UPDATE_URL;
   const token = process.env.HOST_UPDATE_TOKEN;
   if (!url || !token || token.length < 32) throw new Error("背景更新服務尚未安裝，請先執行新版 Host 安裝包一次");
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
-    signal: AbortSignal.timeout(10 * 60_000),
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(10 * 60_000),
+    });
+  } catch (error) {
+    const detail = error instanceof Error && error.name === "TimeoutError" ? "連線逾時" : "服務尚未啟動";
+    throw new Error(`背景更新服務無法連線（${detail}）。請關閉並重新開啟艾琳 ERP，桌面程式會自動修復後再試`);
+  }
   const result = await response.json().catch(() => null) as { error?: string } | null;
   if (!response.ok) throw new Error(result?.error || `背景更新服務回覆 ${response.status}`);
 }
