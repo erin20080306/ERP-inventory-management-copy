@@ -1,14 +1,30 @@
 import { prisma } from "./prisma";
 import { seedTenantDefaultsBatched } from "./seed-tenant-batched";
 
-const BASELINE_MARKER_ACTION = "tenant_baseline_v2_seeded";
-const readyTenants = new Set<string>();
-const pendingTenants = new Map<string, Promise<void>>();
+export const BASELINE_STARTED_ACTION = "tenant_baseline_v2_started";
+export const BASELINE_MARKER_ACTION = "tenant_baseline_v2_seeded";
+export const BASELINE_FAILED_ACTION = "tenant_baseline_v2_failed";
 
-/**
- * 只檢查初始化完成標記，不建立任何資料。
- * 可安全用於工作台路由守門，避免登入流程再次被初始化拖慢。
- */
+const readyTenants = new Set<string>();
+const pendingTenants = new Map<string, Promise<TenantBaselineResult>>();
+
+export type TenantBaselineResult = {
+  ready: true;
+  startedAt: string;
+  completedAt: string;
+  durationMs: number;
+};
+
+function parseDetail(detail: string | null | undefined) {
+  if (!detail) return {} as Record<string, unknown>;
+  try {
+    return JSON.parse(detail) as Record<string, unknown>;
+  } catch {
+    return {} as Record<string, unknown>;
+  }
+}
+
+/** 只檢查完成標記，不建立任何資料。 */
 export async function isTenantBaselineReady(tenantId: string | null | undefined) {
   if (!tenantId) return false;
   if (readyTenants.has(tenantId)) return true;
@@ -23,36 +39,128 @@ export async function isTenantBaselineReady(tenantId: string | null | undefined)
   return true;
 }
 
+export async function getTenantBaselineStatus(tenantId: string | null | undefined) {
+  if (!tenantId) return { ready: false, status: "PENDING" as const };
+
+  const logs = await prisma.auditLog.findMany({
+    where: {
+      tenantId,
+      action: { in: [BASELINE_STARTED_ACTION, BASELINE_MARKER_ACTION, BASELINE_FAILED_ACTION] },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 10,
+    select: { action: true, detail: true, createdAt: true },
+  });
+
+  const completed = logs.find((log) => log.action === BASELINE_MARKER_ACTION);
+  if (completed) {
+    const detail = parseDetail(completed.detail);
+    return {
+      ready: true,
+      status: "READY" as const,
+      startedAt: typeof detail.startedAt === "string" ? detail.startedAt : undefined,
+      completedAt: typeof detail.completedAt === "string" ? detail.completedAt : completed.createdAt.toISOString(),
+      durationMs: typeof detail.durationMs === "number" ? detail.durationMs : undefined,
+    };
+  }
+
+  const latest = logs[0];
+  if (latest?.action === BASELINE_FAILED_ACTION) {
+    const detail = parseDetail(latest.detail);
+    return {
+      ready: false,
+      status: "FAILED" as const,
+      startedAt: typeof detail.startedAt === "string" ? detail.startedAt : undefined,
+      failedAt: typeof detail.failedAt === "string" ? detail.failedAt : latest.createdAt.toISOString(),
+      durationMs: typeof detail.durationMs === "number" ? detail.durationMs : undefined,
+    };
+  }
+
+  const started = logs.find((log) => log.action === BASELINE_STARTED_ACTION);
+  return {
+    ready: false,
+    status: started ? "RUNNING" as const : "PENDING" as const,
+    startedAt: started?.createdAt.toISOString(),
+  };
+}
+
 /**
- * 確保公司帳套具有完整基礎資料。
- *
- * 此函式只能由獨立初始化 API／維護腳本呼叫；註冊與 NextAuth 不再同步等待。
- * AuditLog 是一次性版本標記，初始化失敗時可安全重試，使用者日後自行刪除
- * 範例資料也不會被自動重建。
+ * 由獨立初始化 API 呼叫。固定代碼、createMany 與 transaction 讓失敗後可安全重試。
  */
-export async function ensureTenantBaseline(tenantId: string | null | undefined) {
-  if (!tenantId || await isTenantBaselineReady(tenantId)) return;
+export async function ensureTenantBaseline(tenantId: string | null | undefined): Promise<TenantBaselineResult | null> {
+  if (!tenantId) return null;
+  const existingStatus = await getTenantBaselineStatus(tenantId);
+  if (existingStatus.ready) {
+    readyTenants.add(tenantId);
+    return {
+      ready: true,
+      startedAt: existingStatus.startedAt ?? existingStatus.completedAt,
+      completedAt: existingStatus.completedAt,
+      durationMs: existingStatus.durationMs ?? 0,
+    };
+  }
 
   const pending = pendingTenants.get(tenantId);
   if (pending) return await pending;
 
   const work = (async () => {
+    const startedAt = new Date();
     const tenant = await prisma.tenant.findUnique({
       where: { id: tenantId },
       select: { id: true },
     });
     if (!tenant) throw new Error("租戶不存在，無法初始化");
 
-    await seedTenantDefaultsBatched(tenant.id);
     await prisma.auditLog.create({
       data: {
         tenantId: tenant.id,
-        action: BASELINE_MARKER_ACTION,
+        action: BASELINE_STARTED_ACTION,
         module: "system",
-        detail: "已建立公司基礎資料：科目、倉庫、商品、庫存、客戶、供應商、範例單據與業態設定",
+        detail: JSON.stringify({ startedAt: startedAt.toISOString() }),
       },
     });
-    readyTenants.add(tenant.id);
+
+    try {
+      await seedTenantDefaultsBatched(tenant.id);
+      const completedAt = new Date();
+      const durationMs = completedAt.getTime() - startedAt.getTime();
+      await prisma.auditLog.create({
+        data: {
+          tenantId: tenant.id,
+          action: BASELINE_MARKER_ACTION,
+          module: "system",
+          detail: JSON.stringify({
+            startedAt: startedAt.toISOString(),
+            completedAt: completedAt.toISOString(),
+            durationMs,
+            summary: "科目、倉庫、商品、庫存、客戶、供應商、範例單據與業態設定已建立",
+          }),
+        },
+      });
+      readyTenants.add(tenant.id);
+      return {
+        ready: true as const,
+        startedAt: startedAt.toISOString(),
+        completedAt: completedAt.toISOString(),
+        durationMs,
+      };
+    } catch (error) {
+      const failedAt = new Date();
+      await prisma.auditLog.create({
+        data: {
+          tenantId: tenant.id,
+          action: BASELINE_FAILED_ACTION,
+          module: "system",
+          detail: JSON.stringify({
+            startedAt: startedAt.toISOString(),
+            failedAt: failedAt.toISOString(),
+            durationMs: failedAt.getTime() - startedAt.getTime(),
+            error: error instanceof Error ? error.message.slice(0, 500) : "unknown",
+          }),
+        },
+      }).catch(() => {});
+      throw error;
+    }
   })().finally(() => {
     pendingTenants.delete(tenantId);
   });
