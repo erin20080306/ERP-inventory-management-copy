@@ -32,6 +32,7 @@
       "output": "../dist/desktop"
     },
     "files": [
+      "runtime-repair.cjs",
       "v107-bootstrap.cjs",
       "v106-bootstrap.cjs",
       "network-bootstrap.cjs",
