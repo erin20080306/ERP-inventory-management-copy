@@ -59,6 +59,33 @@ export const POST = apiHandler(async () => {
     throw new ApiError(500, `更新前備份失敗，已取消更新：${error instanceof Error ? error.message : "未知錯誤"}`);
   }
   const currentVersion = currentHostVersion();
+
+  // 已是最新版時只完成備份與版本確認，不再呼叫 updater。舊 updater 若尚未
+  // 完成修復，也不會因為沒有實際更新需求而顯示無意義的「fetch failed」。
+  if (latest.version === currentVersion) {
+    await writeHostUpdateState({
+      state: "current",
+      message: "加密完整備份已完成，目前已是最新版本",
+      fromVersion: currentVersion,
+      toVersion: latest.version,
+      updatedAt: new Date().toISOString(),
+    });
+    await audit({
+      userId: session.user.id,
+      action: "backup_and_check_host_update",
+      module: "settings",
+      detail: `${currentVersion}; backup=${backup.name}; current=true`,
+    });
+    return NextResponse.json({
+      ok: true,
+      accepted: true,
+      current: true,
+      backup,
+      currentVersion,
+      targetVersion: latest.version,
+    }, { status: 202 });
+  }
+
   await writeHostUpdateState({
     state: "queued",
     message: "加密完整備份已完成，等待背景更新服務接手",
