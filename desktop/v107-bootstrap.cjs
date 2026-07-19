@@ -2,6 +2,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { spawn, spawnSync } = require("node:child_process");
 const { app } = require("electron");
+const { repairWorkstationIdentity, scheduleUpdaterRepair } = require("./runtime-repair.cjs");
 
 function log(message, detail = "") {
   const line = `${new Date().toISOString()} ${message}${detail ? ` ${detail}` : ""}\n`;
@@ -134,6 +135,13 @@ function signDesktopLauncherWhenCreated() {
 
 async function start() {
   await app.whenReady();
+  try {
+    repairWorkstationIdentity();
+  } catch (error) {
+    log("workstation signing identity repair failed:", error?.message || String(error));
+  }
+  scheduleUpdaterRepair();
+
   const bundle = macBundle();
   if (bundle && !isStableInstall(bundle)) {
     try {
