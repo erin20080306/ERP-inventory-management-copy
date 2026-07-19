@@ -42,7 +42,8 @@ function normalizedMode(value: string | null | undefined): BusinessMode {
 
 /**
  * 建立能直接操作的基礎資料，不覆寫使用者已修改的庫存與交易。
- * 所有代碼固定且使用 upsert／存在檢查，因此可在註冊、管理者登入與補資料腳本重複執行。
+ * 商品、庫存與桌位使用 createMany 批次建立，固定代碼與 skipDuplicates
+ * 讓初始化失敗後可安全重試。
  */
 export async function seedOperationalBaseline(tx: any, input: {
   tenantId: string;
@@ -117,68 +118,106 @@ export async function seedOperationalBaseline(tx: any, input: {
     ...(includeRetail ? RETAIL_PRODUCTS : []),
     ...(includeRestaurant ? RESTAURANT_PRODUCTS : []),
   ];
-  const products: any[] = [];
-  for (const definition of definitions) {
-    const category = await tx.productCategory.upsert({
-      where: { tenantId_code: { tenantId: input.tenantId, code: definition.categoryCode } },
-      update: {},
-      create: { tenantId: input.tenantId, code: definition.categoryCode, name: definition.categoryName },
-    });
-    const product = await tx.product.upsert({
-      where: { tenantId_sku: { tenantId: input.tenantId, sku: definition.sku } },
-      update: {
-        barcode: definition.barcode,
-        name: definition.name,
-        categoryId: category.id,
-        unitId: unit.id,
-        costPrice: definition.cost,
-        salePrice: definition.price,
-        safetyStock: definition.safetyStock,
-        taxRateId: tax?.id,
-        imageUrl: definition.imageUrl,
-        isActive: true,
-      },
-      create: {
+
+  const categoryDefinitions = Array.from(
+    new Map(definitions.map((definition) => [definition.categoryCode, {
+      code: definition.categoryCode,
+      name: definition.categoryName,
+    }])).values(),
+  );
+  if (categoryDefinitions.length > 0) {
+    await tx.productCategory.createMany({
+      data: categoryDefinitions.map((category) => ({
         tenantId: input.tenantId,
-        sku: definition.sku,
-        barcode: definition.barcode,
-        name: definition.name,
-        categoryId: category.id,
-        unitId: unit.id,
-        costPrice: definition.cost,
-        salePrice: definition.price,
-        safetyStock: definition.safetyStock,
-        taxRateId: tax?.id,
-        imageUrl: definition.imageUrl,
-        remark: "系統基礎資料，可自行修改或刪除",
-      },
+        code: category.code,
+        name: category.name,
+      })),
+      skipDuplicates: true,
     });
-    products.push(product);
-    const stock = await tx.inventoryStock.findUnique({
-      where: { productId_warehouseId: { productId: product.id, warehouseId: input.mainWarehouseId } },
-      select: { id: true },
-    });
-    if (!stock) {
-      await tx.inventoryStock.create({
-        data: { tenantId: input.tenantId, productId: product.id, warehouseId: input.mainWarehouseId, quantity: definition.quantity },
-      });
-      await tx.inventoryTransaction.create({
-        data: {
-          tenantId: input.tenantId,
-          productId: product.id,
-          warehouseId: input.mainWarehouseId,
-          type: "MANUAL",
-          quantity: definition.quantity,
-          unitCost: definition.cost,
-          refType: "BASELINE",
-          refId: product.id,
-          remark: "系統建立期初範例庫存",
-        },
-      });
-    }
   }
 
-  const primary = products[0];
+  const categories = await tx.productCategory.findMany({
+    where: {
+      tenantId: input.tenantId,
+      code: { in: categoryDefinitions.map((category) => category.code) },
+    },
+    select: { id: true, code: true },
+  });
+  const categoryIdByCode = new Map<string, string>(categories.map((category: any) => [category.code, category.id]));
+
+  if (definitions.length > 0) {
+    await tx.product.createMany({
+      data: definitions.map((definition) => {
+        const categoryId = categoryIdByCode.get(definition.categoryCode);
+        if (!categoryId) throw new Error(`找不到商品分類 ${definition.categoryCode}`);
+        return {
+          tenantId: input.tenantId,
+          sku: definition.sku,
+          barcode: definition.barcode,
+          name: definition.name,
+          categoryId,
+          unitId: unit.id,
+          costPrice: definition.cost,
+          salePrice: definition.price,
+          safetyStock: definition.safetyStock,
+          taxRateId: tax?.id,
+          imageUrl: definition.imageUrl,
+          remark: "系統基礎資料，可自行修改或刪除",
+        };
+      }),
+      skipDuplicates: true,
+    });
+  }
+
+  const products = await tx.product.findMany({
+    where: {
+      tenantId: input.tenantId,
+      sku: { in: definitions.map((definition) => definition.sku) },
+    },
+    select: { id: true, sku: true, costPrice: true, salePrice: true },
+  });
+  const productBySku = new Map<string, any>(products.map((product: any) => [product.sku, product]));
+
+  const existingStocks = products.length > 0
+    ? await tx.inventoryStock.findMany({
+        where: {
+          warehouseId: input.mainWarehouseId,
+          productId: { in: products.map((product: any) => product.id) },
+        },
+        select: { productId: true },
+      })
+    : [];
+  const stockedProductIds = new Set<string>(existingStocks.map((stock: any) => stock.productId));
+  const missingStocks = definitions
+    .map((definition) => ({ definition, product: productBySku.get(definition.sku) }))
+    .filter((item) => item.product && !stockedProductIds.has(item.product.id));
+
+  if (missingStocks.length > 0) {
+    await tx.inventoryStock.createMany({
+      data: missingStocks.map(({ definition, product }) => ({
+        tenantId: input.tenantId,
+        productId: product.id,
+        warehouseId: input.mainWarehouseId,
+        quantity: definition.quantity,
+      })),
+      skipDuplicates: true,
+    });
+    await tx.inventoryTransaction.createMany({
+      data: missingStocks.map(({ definition, product }) => ({
+        tenantId: input.tenantId,
+        productId: product.id,
+        warehouseId: input.mainWarehouseId,
+        type: "MANUAL",
+        quantity: definition.quantity,
+        unitCost: definition.cost,
+        refType: "BASELINE",
+        refId: product.id,
+        remark: "系統建立期初範例庫存",
+      })),
+    });
+  }
+
+  const primary = definitions[0] ? productBySku.get(definitions[0].sku) : undefined;
   if (primary) {
     const purchaseNumber = "DEMO-PO-001";
     const purchase = await tx.purchaseOrder.findUnique({
@@ -248,14 +287,20 @@ export async function seedOperationalBaseline(tx: any, input: {
       update: { isActive: true },
       create: { tenantId: input.tenantId, code: "PATIO", name: "窗邊區", sortOrder: 2 },
     });
-    for (let index = 9; index <= 12; index += 1) {
-      const code = `T${String(index).padStart(2, "0")}`;
-      await tx.restaurantTable.upsert({
-        where: { tenantId_code: { tenantId: input.tenantId, code } },
-        update: { areaId: patio.id, isActive: true },
-        create: { tenantId: input.tenantId, areaId: patio.id, code, name: `${index} 號桌`, seats: 4, sortOrder: index },
-      });
-    }
+    await tx.restaurantTable.createMany({
+      data: Array.from({ length: 4 }, (_, offset) => {
+        const index = offset + 9;
+        return {
+          tenantId: input.tenantId,
+          areaId: patio.id,
+          code: `T${String(index).padStart(2, "0")}`,
+          name: `${index} 號桌`,
+          seats: 4,
+          sortOrder: index,
+        };
+      }),
+      skipDuplicates: true,
+    });
   }
 
   await tx.companySetting.updateMany({
