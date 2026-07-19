@@ -7,10 +7,17 @@ import { PrintCompanyHeader } from "@/components/print-company-header";
 import { TrialGate } from "@/components/trial-gate";
 import { UpdateNotice } from "@/components/update-notice";
 import { getLicenseAccessForUser, verifyLocalWorkstationRequest } from "@/lib/license";
+import { isTenantBaselineReady } from "@/lib/tenant-baseline";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
   if (!session?.user) redirect("/login");
+
+  if (!session.user.isSuperAdmin && session.user.tenantId) {
+    const baselineReady = await isTenantBaselineReady(session.user.tenantId);
+    if (!baselineReady) redirect("/initialize");
+  }
+
   let initialAccess = await getLicenseAccessForUser(session.user.id);
   if (initialAccess.allowed && process.env.LOCAL_LICENSE_MODE === "true" && session.user.tenantId && !session.user.isSuperAdmin) {
     const requestHeaders = await headers();
