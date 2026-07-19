@@ -21,6 +21,31 @@ const getServerComponentSession = cache(
   () => getServerSession(authOptions) as Promise<ActiveSession>,
 );
 
+function comparableRequestTarget(value: string) {
+  if (!value.startsWith("/") || value.startsWith("//") || value.includes("#")) return null;
+  try {
+    const url = new URL(value, "http://erin-workstation.local");
+    if (url.origin !== "http://erin-workstation.local") return null;
+    return {
+      pathname: url.pathname.replace(/%[0-9a-f]{2}/gi, (encoded) => encoded.toUpperCase()),
+      query: JSON.stringify([...url.searchParams.entries()]),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function sameRequestTarget(left: string, right: string) {
+  const normalizedLeft = comparableRequestTarget(left);
+  const normalizedRight = comparableRequestTarget(right);
+  return Boolean(
+    normalizedLeft &&
+    normalizedRight &&
+    normalizedLeft.pathname === normalizedRight.pathname &&
+    normalizedLeft.query === normalizedRight.query
+  );
+}
+
 export async function getSession() {
   const context = apiRequestContext.getStore();
   if (context?.sessionPromise) return await context.sessionPromise;
@@ -123,11 +148,46 @@ export function apiHandler<T extends (...args: any[]) => Promise<any>>(fn: T) {
           const activeSession = await getSession();
           const tenantId = activeSession?.user?.tenantId;
           if (tenantId && !activeSession?.user?.isSuperAdmin) {
-            const workstation = await verifyLocalWorkstationRequest(tenantId, {
-              method: req.method,
-              path: `${req.nextUrl.pathname}${req.nextUrl.search}`,
+            const actualMethod = req.method.toUpperCase();
+            const actualPath = `${req.nextUrl.pathname}${req.nextUrl.search}`;
+            const originalMethodHeader = req.headers.get("x-erin-original-method");
+            const originalPathHeader = req.headers.get("x-erin-original-path");
+            let signedMethod = actualMethod;
+            let signedPath = actualPath;
+
+            // 桌面代理簽署的是瀏覽器送進代理器時的原始 method/path。Caddy、
+            // Node 或 Next.js 可能重新編碼查詢字串；先確認仍是同一 API，再用
+            // 原始內容驗章，避免合法 v1.0.7 工作站被誤判為簽章無效。
+            if (originalMethodHeader || originalPathHeader) {
+              if (!originalMethodHeader || !originalPathHeader) {
+                throw new ApiError(403, "工作站原始請求驗證資料不完整");
+              }
+              const originalMethod = originalMethodHeader.trim().toUpperCase();
+              if (!/^[A-Z]+$/.test(originalMethod) || originalMethod !== actualMethod) {
+                throw new ApiError(403, "工作站原始請求方法與實際請求不一致");
+              }
+              if (!sameRequestTarget(originalPathHeader, actualPath)) {
+                throw new ApiError(403, "工作站原始請求路徑與實際請求不一致");
+              }
+              signedMethod = originalMethod;
+              signedPath = originalPathHeader;
+            }
+
+            let workstation = await verifyLocalWorkstationRequest(tenantId, {
+              method: signedMethod,
+              path: signedPath,
               headers: req.headers,
             });
+
+            // 相容未經路徑重編碼的舊代理／測試環境。只有原始與實際目標已確認
+            // 等價時才重試，因此不會讓簽章被挪用到其他 API。
+            if (!workstation.allowed && (signedMethod !== actualMethod || signedPath !== actualPath)) {
+              workstation = await verifyLocalWorkstationRequest(tenantId, {
+                method: actualMethod,
+                path: actualPath,
+                headers: req.headers,
+              });
+            }
             if (!workstation.allowed) throw new ApiError(403, workstation.reason);
           }
         }
