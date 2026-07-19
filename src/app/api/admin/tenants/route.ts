@@ -1,9 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ApiError, apiHandler, requireAuth } from "@/lib/api";
-import { computeLicenseAccess } from "@/lib/license";
+import { computeLicenseAccess, TRIAL_DAYS } from "@/lib/license";
 import { prisma } from "@/lib/prisma";
 import { normalizeBusinessMode } from "@/lib/product-editions";
+import { BASELINE_FAILED_ACTION, BASELINE_MARKER_ACTION, BASELINE_STARTED_ACTION } from "@/lib/tenant-baseline";
 import type { Prisma } from "@prisma/client";
+
+function parseInitializationDetail(detail: string | null) {
+  if (!detail) return {} as Record<string, unknown>;
+  try {
+    return JSON.parse(detail) as Record<string, unknown>;
+  } catch {
+    return {} as Record<string, unknown>;
+  }
+}
 
 export const GET = apiHandler(async (req: NextRequest) => {
   const session = await requireAuth();
@@ -57,7 +67,15 @@ export const GET = apiHandler(async (req: NextRequest) => {
           where: { isSuperAdmin: false },
           orderBy: { createdAt: "asc" },
           take: 1,
-          select: { username: true, name: true, email: true, isPaid: true, paymentType: true, subscriptionEnd: true },
+          select: {
+            username: true,
+            name: true,
+            email: true,
+            isPaid: true,
+            paymentType: true,
+            subscriptionEnd: true,
+            registrationIp: true,
+          },
         },
         licenseDevices: { where: { revokedAt: null }, select: { deviceRole: true } },
         licensePayments: {
@@ -81,6 +99,25 @@ export const GET = apiHandler(async (req: NextRequest) => {
     prisma.planInquiry.count({ where: { status: "NEW" } }),
   ]);
 
+  const initializationLogs = tenants.length > 0
+    ? await prisma.auditLog.findMany({
+        where: {
+          tenantId: { in: tenants.map((tenant) => tenant.id) },
+          action: { in: [BASELINE_STARTED_ACTION, BASELINE_MARKER_ACTION, BASELINE_FAILED_ACTION] },
+        },
+        orderBy: { createdAt: "desc" },
+        select: { tenantId: true, action: true, detail: true, createdAt: true },
+      })
+    : [];
+
+  const initializationByTenant = new Map<string, typeof initializationLogs>();
+  for (const log of initializationLogs) {
+    if (!log.tenantId) continue;
+    const rows = initializationByTenant.get(log.tenantId) ?? [];
+    rows.push(log);
+    initializationByTenant.set(log.tenantId, rows);
+  }
+
   return NextResponse.json({
     rows: tenants.map((tenant) => {
       const owner = tenant.users[0] ?? null;
@@ -98,17 +135,57 @@ export const GET = apiHandler(async (req: NextRequest) => {
         legacyPaymentType: owner?.paymentType,
         legacySubscriptionEnd: owner?.subscriptionEnd,
       });
+
+      const logs = initializationByTenant.get(tenant.id) ?? [];
+      const completedLog = logs.find((log) => log.action === BASELINE_MARKER_ACTION);
+      const failedLog = logs.find((log) => log.action === BASELINE_FAILED_ACTION);
+      const startedLog = logs.find((log) => log.action === BASELINE_STARTED_ACTION);
+      const failedAfterStarted = Boolean(
+        failedLog && (!startedLog || failedLog.createdAt.getTime() >= startedLog.createdAt.getTime()),
+      );
+      const initializationStatus = completedLog ? "READY" : failedAfterStarted ? "FAILED" : startedLog ? "RUNNING" : "PENDING";
+      const activeLog = completedLog ?? (failedAfterStarted ? failedLog : startedLog);
+      const initializationDetail = parseInitializationDetail(activeLog?.detail ?? null);
+      const trialExpiresAt = new Date(tenant.createdAt.getTime() + TRIAL_DAYS * 24 * 60 * 60 * 1000);
+
       return {
         id: tenant.id,
         name: tenant.name,
         businessMode: normalizeBusinessMode(tenant.businessMode),
         createdAt: tenant.createdAt,
-        owner: owner ? { username: owner.username, name: owner.name, email: owner.email } : null,
+        owner: owner ? {
+          username: owner.username,
+          name: owner.name,
+          email: owner.email,
+          registrationIp: owner.registrationIp,
+        } : null,
         userCount: tenant._count.users,
         deviceCount: tenant.licenseDevices.filter((device) => device.deviceRole === "WORKSTATION").length,
         serverCount: tenant.licenseDevices.filter((device) => device.deviceRole === "SERVER").length,
         transactionCount: tenant._count.salesOrders + tenant._count.posSales,
-        payments: tenant.licensePayments.map((payment) => ({ ...payment, quotedAmount: payment.quotedAmount.toString(), paidAmount: payment.paidAmount.toString() })),
+        payments: tenant.licensePayments.map((payment) => ({
+          ...payment,
+          quotedAmount: payment.quotedAmount.toString(),
+          paidAmount: payment.paidAmount.toString(),
+        })),
+        initialization: {
+          status: initializationStatus,
+          startedAt: typeof initializationDetail.startedAt === "string"
+            ? initializationDetail.startedAt
+            : startedLog?.createdAt.toISOString() ?? null,
+          completedAt: typeof initializationDetail.completedAt === "string"
+            ? initializationDetail.completedAt
+            : completedLog?.createdAt.toISOString() ?? null,
+          failedAt: typeof initializationDetail.failedAt === "string"
+            ? initializationDetail.failedAt
+            : failedLog?.createdAt.toISOString() ?? null,
+          durationMs: typeof initializationDetail.durationMs === "number" ? initializationDetail.durationMs : null,
+        },
+        trial: {
+          startedAt: tenant.createdAt,
+          expiresAt: trialExpiresAt,
+          registrationIp: owner?.registrationIp ?? null,
+        },
         license: {
           ...access,
           keyPrefix: tenant.licenseKeyPrefix,
