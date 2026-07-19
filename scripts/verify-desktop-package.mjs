@@ -4,6 +4,8 @@ import { readFileSync } from "node:fs";
 
 const packageJson = JSON.parse(readFileSync("desktop/package.json", "utf8"));
 const afterPack = readFileSync("desktop/scripts/after-pack.cjs", "utf8");
+const runtimeRepair = readFileSync("desktop/runtime-repair.cjs", "utf8");
+const v107Bootstrap = readFileSync("desktop/v107-bootstrap.cjs", "utf8");
 const bootstrap = readFileSync("desktop/bootstrap.cjs", "utf8");
 const main = readFileSync("desktop/main.cjs", "utf8");
 const hardwarePreload = readFileSync("desktop/hardware-preload.cjs", "utf8");
@@ -23,12 +25,13 @@ const downloadPage = readFileSync("src/app/(app)/downloads/page.tsx", "utf8");
 const dockerfile = readFileSync("Dockerfile", "utf8");
 const backupEntrypoint = readFileSync("docker/backup-entrypoint.sh", "utf8");
 
-for (const file of ["desktop/bootstrap.cjs", "desktop/main.cjs", "desktop/preload.cjs", "desktop/hardware-preload.cjs", "desktop/setup.js"]) {
+for (const file of ["desktop/runtime-repair.cjs", "desktop/v107-bootstrap.cjs", "desktop/bootstrap.cjs", "desktop/main.cjs", "desktop/preload.cjs", "desktop/hardware-preload.cjs", "desktop/setup.js"]) {
   execFileSync(process.execPath, ["--check", file], { stdio: "pipe" });
 }
 
 assert.equal(packageJson.main, "main.cjs");
 assert.equal(packageJson.build.extraMetadata.main, "v107-bootstrap.cjs");
+assert.ok(packageJson.build.files.includes("runtime-repair.cjs"));
 assert.ok(packageJson.build.files.includes("v107-bootstrap.cjs"));
 assert.ok(packageJson.build.files.includes("bootstrap.cjs"));
 assert.equal(packageJson.build.appId, "design.erin.erp.desktop");
@@ -46,6 +49,15 @@ assert.match(packageJson.scripts["dist:win:test"], /signExecutable=false/);
 assert.match(afterPack, /xattr/);
 assert.match(afterPack, /codesign/);
 assert.match(afterPack, /CSC_IDENTITY_AUTO_DISCOVERY/);
+
+assert.match(runtimeRepair, /repairWorkstationIdentity/);
+assert.match(runtimeRepair, /createPublicKey\(privateKey\)/);
+assert.match(runtimeRepair, /delete next\.lease/);
+assert.match(runtimeRepair, /ERIN-ERP-WORKSTATION-IDENTITY-CHECK-V1/);
+assert.match(runtimeRepair, /scheduleUpdaterRepair/);
+assert.match(runtimeRepair, /--build", "--force-recreate", "updater/);
+assert.match(v107Bootstrap, /repairWorkstationIdentity\(\)/);
+assert.match(v107Bootstrap, /scheduleUpdaterRepair\(\)/);
 
 assert.match(bootstrap, /accept-encoding", "identity"/);
 assert.match(bootstrap, /removeAllListeners\("will-navigate"\)/);
@@ -132,4 +144,4 @@ for (const secretName of ["MAC_CSC_LINK", "APPLE_APP_SPECIFIC_PASSWORD", "WIN_CS
 }
 assert.match(workflow, /needs: \[host-installers, desktop-clients\]/);
 
-console.log("Desktop package, blank-screen recovery and security configuration: PASS");
+console.log("Desktop package, signature repair, updater recovery and security configuration: PASS");
