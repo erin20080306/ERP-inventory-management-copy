@@ -125,10 +125,28 @@ export async function POST(req: NextRequest) {
       return { tenant, user };
     });
 
-    // 與平台管理者使用同一套初始化流程；內容依 ERP／零售 POS／餐飲 POS 業態建立。
-    await ensureTenantBaseline(result.tenant.id);
+    // 帳號與公司已建立後，即使範例／基礎資料初始化失敗，也不可再回傳「註冊失敗」。
+    // 登入與 Session 更新流程原本就會再次執行 ensureTenantBaseline，能自動補建缺少資料。
+    let baselineReady = true;
+    try {
+      await ensureTenantBaseline(result.tenant.id);
+    } catch (baselineError) {
+      baselineReady = false;
+      console.error("[register] tenant baseline initialization failed; retry will occur on login", {
+        tenantId: result.tenant.id,
+        error: baselineError,
+      });
+    }
 
-    return NextResponse.json({ success: true, username: result.user.username, email: result.user.email }, { status: 201 });
+    return NextResponse.json(
+      {
+        success: true,
+        username: result.user.username,
+        email: result.user.email,
+        baselineReady,
+      },
+      { status: 201 },
+    );
   } catch (err: any) {
     console.error("Register error:", err);
     return NextResponse.json({ error: "註冊失敗，請稍後再試" }, { status: 500 });
