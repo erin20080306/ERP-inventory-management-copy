@@ -5,9 +5,12 @@ import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
-export default async function KitchenTicketPrintPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function KitchenTicketPrintPage({ params, searchParams }: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ embedded?: string }>;
+}) {
   const session = await requireRestaurantPermission("view");
-  const [{ id }, tenantId] = await Promise.all([params, requireTenantId(session)]);
+  const [{ id }, query, tenantId] = await Promise.all([params, searchParams, requireTenantId(session)]);
   const [ticket, company] = await Promise.all([
     prisma.restaurantKitchenTicket.findFirst({
       where: { id, tenantId },
@@ -29,7 +32,7 @@ export default async function KitchenTicketPrintPage({ params }: { params: Promi
 
   return (
     <>
-      <AutoPrint />
+      {query.embedded !== "1" && <AutoPrint />}
       <article className="pos-receipt">
         <header className="pos-receipt-header">
           <h1>{company?.name || "餐飲門市"}</h1>
