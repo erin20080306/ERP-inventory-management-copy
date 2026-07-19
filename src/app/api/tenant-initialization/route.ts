@@ -1,49 +1,49 @@
 import { NextResponse } from "next/server";
 import { apiHandler, requireAuth, requireTenantId } from "@/lib/api";
-import { ensureTenantBaseline, isTenantBaselineReady } from "@/lib/tenant-baseline";
+import { ensureTenantBaseline, getTenantBaselineStatus } from "@/lib/tenant-baseline";
 
 export const dynamic = "force-dynamic";
+
+const noStore = { "Cache-Control": "no-store" };
 
 export const GET = apiHandler(async () => {
   const session = await requireAuth();
   if (session.user.isSuperAdmin) {
-    return NextResponse.json({ ready: true, status: "READY" }, { headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json({ ready: true, status: "READY", durationMs: 0 }, { headers: noStore });
   }
 
   const tenantId = await requireTenantId(session);
-  const ready = await isTenantBaselineReady(tenantId);
-  return NextResponse.json(
-    { ready, status: ready ? "READY" : "PENDING" },
-    { headers: { "Cache-Control": "no-store" } },
-  );
+  const status = await getTenantBaselineStatus(tenantId);
+  return NextResponse.json(status, { headers: noStore });
 });
 
 export const POST = apiHandler(async () => {
   const session = await requireAuth();
   if (session.user.isSuperAdmin) {
-    return NextResponse.json({ ready: true, status: "READY" }, { headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json({ ready: true, status: "READY", durationMs: 0 }, { headers: noStore });
   }
 
   const tenantId = await requireTenantId(session);
-  if (await isTenantBaselineReady(tenantId)) {
-    return NextResponse.json({ ready: true, status: "READY" }, { headers: { "Cache-Control": "no-store" } });
-  }
+  const current = await getTenantBaselineStatus(tenantId);
+  if (current.ready) return NextResponse.json(current, { headers: noStore });
 
   try {
-    await ensureTenantBaseline(tenantId);
+    const result = await ensureTenantBaseline(tenantId);
     return NextResponse.json(
-      { ready: true, status: "READY" },
-      { headers: { "Cache-Control": "no-store" } },
+      { ...result, status: "READY" },
+      { headers: noStore },
     );
   } catch (error) {
     console.error("[tenant-initialization] initialization failed", { tenantId, error });
+    const failed = await getTenantBaselineStatus(tenantId);
     return NextResponse.json(
       {
+        ...failed,
         ready: false,
         status: "FAILED",
         error: "系統初始化尚未完成，請重新嘗試；已建立的資料會保留，不會重複建立。",
       },
-      { status: 500, headers: { "Cache-Control": "no-store" } },
+      { status: 500, headers: noStore },
     );
   }
 });
