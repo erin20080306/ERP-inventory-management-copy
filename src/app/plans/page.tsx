@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { cloneElement, useState } from "react";
 import { ArrowLeft, Bot, Check, Loader2, Mail, MonitorSmartphone, Send } from "lucide-react";
+import { BillingDocumentNotice } from "@/components/billing-document-notice";
 import { BILLING_LABELS, PLAN_CATALOG, formatTwd, getPlanPrice, type BillingCycle, type PlanCode } from "@/lib/plans";
 import type { BusinessMode } from "@/lib/product-editions";
 
@@ -12,6 +13,7 @@ export default function PlansPage() {
   const [form, setForm] = useState({ name: "", email: "", company: "", lineId: "", businessMode: "ERP" as BusinessMode, notes: "", consent: false, website: "" });
   const [sending, setSending] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const selectedPlan = PLAN_CATALOG.find((plan) => plan.code === selected) ?? PLAN_CATALOG[0];
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -50,8 +52,10 @@ export default function PlansPage() {
 
         <p className="mt-4 text-center text-xs text-slate-500">一次買斷後續版本與 AI 維護為每年 {formatTwd(2_000)}；修改內容與交付範圍以雙方書面確認為準。</p>
 
+        <BillingDocumentNotice companyName={form.company} planName={selectedPlan.name} billing={billing} amount={getPlanPrice(selectedPlan, billing)} />
+
         <section className="mx-auto mt-14 grid max-w-5xl gap-8 rounded-3xl border border-white/10 bg-white/[0.04] p-6 md:grid-cols-[.8fr_1.2fr] md:p-9">
-          <div><Mail className="h-10 w-10 text-indigo-300" /><h2 className="mt-5 text-2xl font-bold">聯絡艾琳設計開通</h2><p className="mt-3 text-sm leading-6 text-slate-400">送出後通知會寄至 erin20080306@gmail.com。請勿在備註填寫密碼、信用卡或銀行帳戶資料。</p><div className="mt-6 rounded-xl bg-slate-900 p-4 text-sm text-slate-300"><div>已選：{PLAN_CATALOG.find((plan) => plan.code === selected)?.name}</div><div className="mt-1">付款：{BILLING_LABELS[billing]}</div></div></div>
+          <div><Mail className="h-10 w-10 text-indigo-300" /><h2 className="mt-5 text-2xl font-bold">聯絡艾琳設計開通</h2><p className="mt-3 text-sm leading-6 text-slate-400">送出後通知會寄至 erin20080306@gmail.com。請勿在備註填寫密碼、信用卡或銀行帳戶資料。</p><div className="mt-6 rounded-xl bg-slate-900 p-4 text-sm text-slate-300"><div>已選：{selectedPlan.name}</div><div className="mt-1">付款：{BILLING_LABELS[billing]}</div></div></div>
           <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
             <Field label="姓名"><input required minLength={2} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
             <Field label="公司／店名"><input required minLength={2} value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} /></Field>
