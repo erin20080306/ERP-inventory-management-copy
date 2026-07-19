@@ -1,7 +1,7 @@
 {
   "version": "v1.0.7-desktop",
-  "publishedAt": "2026-07-18T15:54:00Z",
-  "sourceCommit": "569690b21ce2b5bd29dcd4c86a166cf8ec0bf931",
+  "publishedAt": "2026-07-19T01:43:45Z",
+  "sourceCommit": "8aecbed8dc42fae4fa4f7a270542fc9baeaa70b6",
   "macDmg": "ErinERP-Desktop-macOS-arm64-v1.0.7.dmg",
   "macZip": "ErinERP-Desktop-macOS-arm64-v1.0.7.zip",
   "windowsExe": "ErinERP-Desktop-Windows-x64-v1.0.7-Setup.exe",
