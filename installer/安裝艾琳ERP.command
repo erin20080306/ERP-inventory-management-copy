@@ -19,6 +19,60 @@ pause_exit() {
   exit "${1:-1}"
 }
 
+valid_ipv4() {
+  printf '%s\n' "$1" | awk -F. '
+    NF != 4 { exit 1 }
+    {
+      for (i = 1; i <= 4; i++) {
+        if ($i !~ /^[0-9]+$/ || $i < 0 || $i > 255) exit 1
+      }
+    }
+    END { exit 0 }
+  '
+}
+
+detect_lan_ip() {
+  local interface candidate
+  interface="$(route -n get default 2>/dev/null | awk '/interface:/{print $2; exit}')"
+  if [ -n "$interface" ]; then
+    candidate="$(ipconfig getifaddr "$interface" 2>/dev/null || true)"
+    if valid_ipv4 "$candidate" && [[ "$candidate" != 127.* ]] && [[ "$candidate" != 169.254.* ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  fi
+
+  for interface in $(ifconfig -l 2>/dev/null); do
+    case "$interface" in
+      lo0|utun*|awdl*|llw*|bridge*|vmenet*) continue ;;
+    esac
+    candidate="$(ipconfig getifaddr "$interface" 2>/dev/null || true)"
+    if valid_ipv4 "$candidate" && [[ "$candidate" != 127.* ]] && [[ "$candidate" != 169.254.* ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
+resolve_lan_ip() {
+  local detected entered
+  detected="$(detect_lan_ip || true)"
+  if [ -n "$detected" ]; then
+    printf '%s\n' "$detected"
+    return 0
+  fi
+
+  echo "無法自動偵測可供工作站連線的區網 IPv4。" >&2
+  echo "請到『系統設定 → 網路 → 目前連線』查看 IP，例如 192.168.1.20。" >&2
+  read -r -p "請輸入這台 Mac 的區網 IPv4：" entered
+  if ! valid_ipv4 "$entered" || [[ "$entered" == 127.* ]] || [[ "$entered" == 169.254.* ]]; then
+    echo "IP 格式不正確，請重新執行安裝程式。" >&2
+    return 1
+  fi
+  printf '%s\n' "$entered"
+}
+
 resolve_docker() {
   local candidate
   if command -v docker >/dev/null 2>&1; then
@@ -56,7 +110,16 @@ wait_for_docker() {
   return 1
 }
 
+docker_download_label() {
+  case "$(uname -m)" in
+    arm64) printf '%s\n' "Mac with Apple silicon" ;;
+    x86_64) printf '%s\n' "Mac with Intel chip" ;;
+    *) printf '%s\n' "適用於此 Mac 的版本" ;;
+  esac
+}
+
 ensure_docker() {
+  local docker_label
   if docker_ready; then return 0; fi
 
   if [ -d "/Applications/Docker.app" ]; then
@@ -67,12 +130,13 @@ ensure_docker() {
     pause_exit 1
   fi
 
+  docker_label="$(docker_download_label)"
   echo ""
   echo "【尚缺一個必要程式：Docker Desktop】"
-  echo "你下載的 ErinERP-Host ZIP 是艾琳 ERP 公司主機安裝包；Docker Desktop 是執行資料庫與主機服務的必要環境。"
+  echo "你下載的 ErinERP-Host ZIP 是艾琳 ERP 公司主機手動安裝包；Docker Desktop 是執行資料庫與主機服務的必要環境。"
   echo "這兩者是不同程式，因此 Host ZIP 不會把 Docker Desktop 重新包在裡面。"
   echo ""
-  echo "即將開啟 Docker 官方安裝頁，請選『Mac with Apple silicon』。"
+  echo "即將開啟 Docker 官方安裝頁，請選『$docker_label』。"
   open "$DOCKER_DOCS_URL" >/dev/null 2>&1 || true
   echo "安裝步驟：下載 Docker.dmg → 拖到『應用程式』→ 開啟 Docker → 接受條款。"
   echo "完成後不必重新下載 Host ZIP；回到這個視窗按 Enter，安裝程式會再次檢查。"
@@ -181,7 +245,7 @@ install_workstation_app() {
   rm -rf "$temp_dir"
 }
 
-echo "艾琳 ERP 公司主機 macOS 輔助安裝程式"
+echo "艾琳 ERP 公司主機 macOS 手動安裝程式"
 echo "同一台 Mac 可以同時安裝『公司主機』與『艾琳 ERP 工作站』。"
 ensure_docker
 
@@ -200,7 +264,8 @@ cp "$PACKAGE_DIR/updater/update.cgi" "$INSTALL_DIR/updater/update.cgi"
 chmod 755 "$INSTALL_DIR/updater/update.cgi"
 if [ ! -f "$DEVICE_DIR/device-id" ]; then uuidgen | tr '[:upper:]' '[:lower:]' > "$DEVICE_DIR/device-id"; fi
 DEVICE_ID="$(tr -d '\r\n' < "$DEVICE_DIR/device-id")"
-LAN_IP="$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || echo 127.0.0.1)"
+if ! LAN_IP="$(resolve_lan_ip)"; then pause_exit 1; fi
+echo "公司主機將使用區網 IP：$LAN_IP"
 ADMIN_PASSWORD="$(existing_env_value ADMIN_PASSWORD)"
 POSTGRES_PASSWORD="$(existing_env_value POSTGRES_PASSWORD)"
 NEXTAUTH_SECRET="$(existing_env_value NEXTAUTH_SECRET)"
@@ -220,7 +285,7 @@ if [ -z "$HOST_UPDATE_TOKEN" ]; then HOST_UPDATE_TOKEN="$(openssl rand -hex 32)"
 if [ -z "$BACKUP_ENCRYPTION_KEY" ]; then BACKUP_ENCRYPTION_KEY="$(openssl rand -hex 32)"; fi
 PUBLIC_KEY="$(curl -fsS "$CENTRAL_URL/api/license/public-key")"
 
-cat > "$INSTALL_DIR/.env.local" <<EOF
+cat > "$INSTALL_DIR/.env.local" <<EOF_ENV
 ERP_HTTPS_PORT=3443
 COMPOSE_PROJECT_NAME=erinerp
 SERVER_HOST=$LAN_IP
@@ -256,7 +321,7 @@ EINVOICE_VAN_NAME=
 EINVOICE_VAN_BASE_URL=
 EINVOICE_VAN_CLIENT_ID=
 EINVOICE_VAN_CLIENT_SECRET=
-EOF
+EOF_ENV
 chmod 600 "$INSTALL_DIR/.env.local" "$DEVICE_DIR/device-id"
 
 cd "$INSTALL_DIR"
