@@ -164,9 +164,9 @@ function tenantTheme(tenant: string) {
   };
 }
 
-export function FashionStorefront({ tenant, initialView, managerAccess = false, managerBackHref = "/products", managerErpHref = "/dashboard" }: { tenant: string; initialView: string; managerAccess?: boolean; managerBackHref?: string; managerErpHref?: string }) {
+export function FashionStorefront({ tenant, initialView, initialStoreName, managerAccess = false, managerBackHref = "/products", managerErpHref = "/dashboard" }: { tenant: string; initialView: string; initialStoreName?: string; managerAccess?: boolean; managerBackHref?: string; managerErpHref?: string }) {
   const router = useRouter();
-  const theme = tenantTheme(tenant);
+  const [theme, setTheme] = useState(() => ({ ...tenantTheme(tenant), ...(initialStoreName ? { brand: initialStoreName } : {}) }));
   const view = VALID_VIEWS.has(initialView as ViewName) ? initialView as ViewName : "home";
   const [cart, setCart] = useState<CartLine[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
@@ -178,6 +178,7 @@ export function FashionStorefront({ tenant, initialView, managerAccess = false, 
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
+    setTheme({ ...tenantTheme(tenant), ...(initialStoreName ? { brand: initialStoreName } : {}) });
     try {
       const savedCart = window.localStorage.getItem(`fashion-cart:${tenant}`);
       const savedOrders = window.localStorage.getItem(`fashion-orders:${tenant}`);
@@ -185,7 +186,7 @@ export function FashionStorefront({ tenant, initialView, managerAccess = false, 
       if (savedOrders) setOrders(JSON.parse(savedOrders));
     } catch {}
     setHydrated(true);
-  }, [tenant]);
+  }, [initialStoreName, tenant]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -213,6 +214,11 @@ export function FashionStorefront({ tenant, initialView, managerAccess = false, 
         setProducts(liveProducts);
         setStoreLive(true);
         setAcceptingOrders(Boolean(result.acceptingOrders));
+        setTheme((current) => ({
+          ...current,
+          brand: result.store?.name || result.tenant.name || current.brand,
+          domain: result.store?.url || current.domain,
+        }));
         setSyncMessage(result.acceptingOrders ? `${result.tenant.name}・ERP 即時同步` : result.accessMessage || "商城目前暫停接單");
       })
       .catch((error) => {
@@ -271,7 +277,7 @@ export function FashionStorefront({ tenant, initialView, managerAccess = false, 
       )}
       <div className={styles.utilityBar}>
         <div><Zap size={14} /> 店取最快 2 小時 ・ 全館滿 NT$2,000 免運</div>
-        <div className={styles.tenantStatus}><span /> {storeLive ? `SaaS 租戶：${theme.domain}` : "功能展示"} ・ {syncMessage}</div>
+        <div className={styles.tenantStatus}><span /> {storeLive ? "品牌商城" : "功能展示"} ・ {syncMessage}</div>
       </div>
 
       <header className={styles.header}>

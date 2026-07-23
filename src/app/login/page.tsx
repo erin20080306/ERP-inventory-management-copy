@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Loader2, Lock, User, Building2, ShieldCheck, BarChart3, Package, Sparkles, Download } from "lucide-react";
+import { Loader2, Lock, User, Building2, ShieldCheck, BarChart3, Package, Sparkles, Download, Globe2 } from "lucide-react";
 import Link from "next/link";
 
 export default function LoginPage() {
@@ -298,6 +298,17 @@ function LoginInner() {
             {isOnlineRuntime && <div className="mt-4 rounded-xl border border-sky-300/20 bg-sky-300/5 p-3 text-xs leading-5 text-slate-400">
               <div className="flex items-start gap-2"><Download className="mt-0.5 h-4 w-4 shrink-0 text-sky-300" /><p><span className="font-semibold text-sky-200">線上版只供 3 日試用。</span>正式使用請先選擇方案並聯絡付款，開通後才提供 macOS／Windows 公司主機與工作站安裝包。</p></div>
               <div className="mt-2 flex flex-wrap gap-3 pl-6"><Link href="/plans" className="text-emerald-300 hover:underline">費率與開通方式</Link><Link href="/terms" className="text-indigo-300 hover:underline">產品條款</Link><Link href="/refund" className="text-indigo-300 hover:underline">退款政策</Link></div>
+            </div>}
+
+            {isOnlineRuntime && <div className="mt-4 rounded-xl border border-emerald-300/20 bg-emerald-300/5 p-3 text-xs leading-5 text-slate-300">
+              <div className="flex items-start gap-2">
+                <Globe2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" />
+                <div>
+                  <div className="font-semibold text-emerald-200">電商客戶｜您的專屬商城網址</div>
+                  <p className="mt-1 text-slate-400">登入後前往「系統設定 → 商城名稱與專屬網址」，即可修改商城名稱、複製網址或直接開啟商城；未使用自訂網域也會保留平台專屬網址。</p>
+                  <Link href="/settings" className="mt-1 inline-flex text-emerald-300 hover:underline">登入後查看專屬商城網址 →</Link>
+                </div>
+              </div>
             </div>}
 
             <p className="mt-5 text-center text-[11px] leading-5 text-slate-500">

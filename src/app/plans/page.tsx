@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { cloneElement, useState } from "react";
-import { ArrowLeft, Bot, Check, CreditCard, Loader2, Mail, MonitorSmartphone, Send } from "lucide-react";
+import { ArrowLeft, Bot, Check, CreditCard, Globe2, Loader2, Mail, MonitorSmartphone, Send } from "lucide-react";
 import { BillingDocumentNotice } from "@/components/billing-document-notice";
-import { BILLING_LABELS, PLAN_CATALOG, formatTwd, getPaymentGatewaySetupFee, getPlanPrice, getWebsiteDesignFee, type BillingCycle, type PlanCode } from "@/lib/plans";
+import { BILLING_LABELS, PLAN_CATALOG, formatTwd, getCustomDomainSetupFee, getPaymentGatewaySetupFee, getPlanPrice, getWebsiteDesignFee, type BillingCycle, type PlanCode } from "@/lib/plans";
 import type { BusinessMode } from "@/lib/product-editions";
 
 const PRICING_GROUP_OPTIONS = [
@@ -31,6 +31,7 @@ export default function PlansPage() {
   const selectedPlan = PLAN_CATALOG.find((plan) => plan.code === selected) ?? PLAN_CATALOG[0];
   const websiteDesignFee = getWebsiteDesignFee(billing, form.businessMode);
   const paymentGatewaySetupFee = getPaymentGatewaySetupFee(billing);
+  const customDomainSetupFee = getCustomDomainSetupFee(billing, form.businessMode);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -91,7 +92,7 @@ export default function PlansPage() {
             return <button key={plan.code} onClick={() => setSelected(plan.code)} className={`rounded-2xl border p-5 text-left transition ${active ? "border-emerald-400 bg-emerald-400/10 shadow-lg shadow-emerald-900/20" : "border-white/10 bg-white/[0.04] hover:border-white/25"}`}>
               <div className="flex items-start justify-between"><div><p className="text-xs text-slate-400">{plan.description}</p><h2 className="mt-2 text-xl font-bold">{plan.name}</h2></div>{active && <Check className="h-5 w-5 text-emerald-300" />}</div>
               <div className="mt-6 text-3xl font-black">{formatTwd(getPlanPrice(plan, billing, form.businessMode))}</div><p className="mt-1 text-xs text-slate-500">{billing === "MONTHLY" ? "每月" : billing === "ANNUAL" ? "每年（等同 10 個月）" : "一次買斷"}</p>
-              <ul className="mt-5 space-y-2 text-sm text-slate-300"><li className="flex gap-2"><MonitorSmartphone className="h-4 w-4 text-sky-300" />最多 {plan.seats} 台電腦</li><li className="flex gap-2"><Bot className="h-4 w-4 text-violet-300" />含 AI 輔助功能</li><li className="flex gap-2"><Check className="h-4 w-4 text-emerald-300" />{form.businessMode === "ECOMMERCE" && billing === "ONCE" ? "含官網修改設計" : billing === "ONCE" ? "含一次約定範圍修改設計" : "租期內版本維護"}</li><li className="flex gap-2"><CreditCard className="h-4 w-4 text-amber-300" />{paymentGatewaySetupFee > 0 ? `串接金流另加 ${formatTwd(paymentGatewaySetupFee)}` : "串接金流不另收費"}</li></ul>
+              <ul className="mt-5 space-y-2 text-sm text-slate-300"><li className="flex gap-2"><MonitorSmartphone className="h-4 w-4 text-sky-300" />最多 {plan.seats} 台電腦</li><li className="flex gap-2"><Bot className="h-4 w-4 text-violet-300" />含 AI 輔助功能</li><li className="flex gap-2"><Check className="h-4 w-4 text-emerald-300" />{form.businessMode === "ECOMMERCE" && billing === "ONCE" ? "含官網修改設計" : billing === "ONCE" ? "含一次約定範圍修改設計" : "租期內版本維護"}</li><li className="flex gap-2"><CreditCard className="h-4 w-4 text-amber-300" />{paymentGatewaySetupFee > 0 ? `串接金流另加 ${formatTwd(paymentGatewaySetupFee)}` : "串接金流不另收費"}</li>{form.businessMode === "ECOMMERCE" && <li className="flex gap-2"><Globe2 className="h-4 w-4 text-sky-300" />{customDomainSetupFee > 0 ? `使用自訂網域設定費 ${formatTwd(customDomainSetupFee)}` : "自訂網域設定費不另收"}</li>}</ul>
             </button>;
           })}
         </section>
@@ -109,6 +110,7 @@ export default function PlansPage() {
             <strong className="block text-base text-white">電商平台＋ERP 專用價格</strong>
             <span>{selectedPlan.name}：月租 {formatTwd(getPlanPrice(selectedPlan, "MONTHLY", "ECOMMERCE"))}；年租 {formatTwd(getPlanPrice(selectedPlan, "ANNUAL", "ECOMMERCE"))}，使用 12 個月、等同優惠 2 個月。</span>
             <span className="block">{billing === "ONCE" ? `買斷 ${formatTwd(getPlanPrice(selectedPlan, "ONCE", "ECOMMERCE"))}，包含官網修改設計；串接金流不另收費。` : `如需官網修改設計，本期另付 ${formatTwd(websiteDesignFee)}；未委託則不收取。串接金流${paymentGatewaySetupFee > 0 ? `另付 ${formatTwd(paymentGatewaySetupFee)}` : "不另收費"}。`}</span>
+            <span className="block">未使用自訂網域仍提供專屬商城網址；月租與年租如需自訂網域，另收一次設定費 {formatTwd(1_500)}，網域購買與續費由客戶另付。</span>
             <span className="block">其餘功能、維護與使用規則和一般企業 ERP、一般 POS、餐飲 POS 方案相同。</span>
           </section>
         )}

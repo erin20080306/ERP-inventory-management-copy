@@ -28,8 +28,10 @@ export default async function BalanceSheetPrint({
   const liabilities = trial.filter((a) => a.type === "LIABILITY");
   const equities = trial.filter((a) => a.type === "EQUITY");
 
-  const currentAssets = assets.filter((a) => a.code.startsWith("11") || a.code.startsWith("12") || a.code.startsWith("13") || a.code.startsWith("14"));
-  const fixedAssets = assets.filter((a) => a.code.startsWith("15") || a.code.startsWith("16") || a.code.startsWith("17") || a.code.startsWith("18") || a.code.startsWith("19"));
+  const currentAssets = assets.filter((a) => a.code.startsWith("11") || a.code.startsWith("12") || a.code.startsWith("13"));
+  // 新版標準科目由 14xx 起列固定資產；累計折舊為資產抵減科目，
+  // 過帳貸方後會以負數併入非流動資產與資產總額。
+  const fixedAssets = assets.filter((a) => a.code.startsWith("14") || a.code.startsWith("15") || a.code.startsWith("16") || a.code.startsWith("17") || a.code.startsWith("18") || a.code.startsWith("19"));
 
   const currentLiabilities = liabilities.filter((a) => a.code.startsWith("21") || a.code.startsWith("22") || a.code.startsWith("23") || a.code.startsWith("24") || a.code.startsWith("25"));
   const longTermLiabilities = liabilities.filter((a) => a.code.startsWith("28") || a.code.startsWith("29"));

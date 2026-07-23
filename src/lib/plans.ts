@@ -84,6 +84,11 @@ export const ECOMMERCE_PRICING = {
     ANNUAL: 15_000,
     ONCE: 0,
   } satisfies Record<BillingCycle, number>,
+  customDomainSetupFee: {
+    MONTHLY: 1_500,
+    ANNUAL: 1_500,
+    ONCE: 0,
+  } satisfies Record<BillingCycle, number>,
 } as const;
 
 export const PAYMENT_GATEWAY_SETUP_FEE = {
@@ -123,6 +128,10 @@ export function getWebsiteDesignFee(cycle: BillingCycle, businessMode?: string |
 
 export function getPaymentGatewaySetupFee(cycle: BillingCycle) {
   return PAYMENT_GATEWAY_SETUP_FEE[cycle];
+}
+
+export function getCustomDomainSetupFee(cycle: BillingCycle, businessMode?: string | null) {
+  return isEcommerceMode(businessMode) ? ECOMMERCE_PRICING.customDomainSetupFee[cycle] : 0;
 }
 
 export function formatTwd(amount: number) {

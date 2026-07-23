@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { apiHandler, requirePermission, requireTenantId, audit } from "@/lib/api";
+import { ApiError, apiHandler, requirePermission, requireTenantId, audit } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 
 export const GET = apiHandler(async (_req: NextRequest, { params }: { params: { id: string } }) => {
@@ -27,11 +27,7 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: {
       disposeAmount,
     };
   } else if (action === "depreciate") {
-    // 計提折舊一期
-    const monthlyDep = computeMonthlyDepreciation(a);
-    const newAccum = Number(a.accumulatedDepreciation) + monthlyDep;
-    const newBook = Math.max(Number(a.residualValue), Number(a.acquireCost) - newAccum);
-    data = { accumulatedDepreciation: newAccum, bookValue: newBook };
+    throw new ApiError(400, "請使用折舊確認流程提列，避免未經確認直接修改資產帳面價值");
   } else {
     data = {
       name: patch.name,
@@ -60,19 +56,9 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: {
 export const DELETE = apiHandler(async (_req: NextRequest, { params }: { params: { id: string } }) => {
   const session = await requirePermission("assets.delete");
   const tenantId = await requireTenantId();
+  const depreciationCount = await prisma.fixedAssetDepreciation.count({ where: { tenantId, fixedAssetId: params.id } });
+  if (depreciationCount > 0) throw new ApiError(409, "此資產已有折舊子帳，不可刪除；如有錯誤請以傳票沖銷並保留稽核軌跡");
   await prisma.fixedAsset.delete({ where: { id: params.id, tenantId } });
   await audit({ userId: session.user.id, action: "delete", module: "fixed-assets", refId: params.id });
   return NextResponse.json({ ok: true });
 });
-
-function computeMonthlyDepreciation(a: any): number {
-  const cost = Number(a.acquireCost);
-  const residual = Number(a.residualValue ?? 0);
-  const months = Number(a.usefulLifeMonths || 60);
-  if (a.method === "DOUBLE_DECLINING") {
-    const rate = (2 / months);
-    return +(Number(a.bookValue) * rate).toFixed(2);
-  }
-  // STRAIGHT_LINE
-  return +((cost - residual) / months).toFixed(2);
-}

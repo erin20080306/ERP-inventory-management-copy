@@ -6,6 +6,7 @@ import {
   lockAccountingPeriod,
 } from "@/lib/accounting-controls";
 import { createPostedJournal } from "@/lib/documents";
+import { roundDepreciationMoney } from "@/lib/fixed-asset-depreciation";
 import { prisma } from "@/lib/prisma";
 
 async function lockOpenDates(tx: any, tenantId: string, dates: Date[]) {
@@ -181,6 +182,48 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: {
         where: { id: entry.id },
         data: { reversedById: session.user.id, reversedAt: new Date() },
       });
+      const depreciation = await tx.fixedAssetDepreciation.findUnique({
+        where: { journalEntryId: entry.id },
+        include: { fixedAsset: true },
+      });
+      if (depreciation) {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`asset-depreciation-reverse:${tenantId}:${depreciation.fixedAssetId}`}))`;
+        const laterDepreciation = await tx.fixedAssetDepreciation.findFirst({
+          where: {
+            tenantId,
+            fixedAssetId: depreciation.fixedAssetId,
+            status: { not: "REVERSED" },
+            depreciationDate: { gt: depreciation.depreciationDate },
+          },
+          select: { period: true },
+          orderBy: { depreciationDate: "asc" },
+        });
+        if (laterDepreciation) throw new ApiError(409, `請先沖銷較後期的 ${laterDepreciation.period} 折舊，再沖銷本期折舊`);
+        await tx.fixedAssetDepreciation.update({
+          where: { id: depreciation.id },
+          data: { status: "REVERSED", reversedAt: new Date() },
+        });
+        // 只回復本次沖銷的金額，保留導入系統前已存在的期初累計折舊。
+        const reversedAmount = Number(depreciation.amount);
+        const accumulated = roundDepreciationMoney(Math.max(
+          0,
+          Number(depreciation.fixedAsset.accumulatedDepreciation) - reversedAmount,
+        ));
+        const bookValue = roundDepreciationMoney(Math.min(
+          Number(depreciation.fixedAsset.acquireCost),
+          Math.max(
+            Number(depreciation.fixedAsset.residualValue),
+            Number(depreciation.fixedAsset.bookValue) + reversedAmount,
+          ),
+        ));
+        await tx.fixedAsset.update({
+          where: { id: depreciation.fixedAssetId },
+          data: {
+            accumulatedDepreciation: accumulated,
+            bookValue,
+          },
+        });
+      }
       return { ...entry, reversal: { id: reversal.id, number: reversal.number } };
     }
 

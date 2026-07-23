@@ -92,7 +92,24 @@ for (const [sku, imageUrl] of Object.entries(ERP_DEMO_IMAGE_BY_SKU)) {
 
 const commerceDashboard = readFileSync("src/app/(app)/dashboard/page.tsx", "utf8");
 const commerceWorkspace = readFileSync("src/app/(app)/workspace/page.tsx", "utf8");
+const commerceStoreApi = readFileSync("src/app/api/store/[tenant]/route.ts", "utf8");
+const commerceStorefront = readFileSync("src/app/store/[tenant]/[[...view]]/storefront.tsx", "utf8");
+const settingsClient = readFileSync("src/app/(app)/settings/client.tsx", "utf8");
+const productApi = readFileSync("src/app/api/products/route.ts", "utf8");
+const loginPage = readFileSync("src/app/login/page.tsx", "utf8");
 assert.doesNotMatch(commerceDashboard, /商城已綁定公司代碼/);
 assert.doesNotMatch(commerceWorkspace, /商城與後台共用公司代碼/);
+assert.match(commerceStoreApi, /businessMode: "ECOMMERCE"/);
+assert.match(commerceStoreApi, /tenantId: tenant\.id/);
+assert.match(commerceStoreApi, /companySettings: \{ some: \{ storeSlug/);
+assert.match(commerceStoreApi, /storeName/);
+assert.match(commerceStoreApi, /isActive: true, isPublished: true/);
+assert.match(productApi, /isPublished: z\.boolean\(\)\.default\(true\)/);
+assert.doesNotMatch(commerceStorefront, /SaaS 租戶/);
+assert.match(settingsClient, /商城名稱與專屬網址/);
+assert.match(settingsClient, /商城網址已複製/);
+assert.match(settingsClient, /電商月租與年租方案另收一次設定費 NT\$1,500/);
+assert.match(loginPage, /電商客戶｜您的專屬商城網址/);
+assert.match(loginPage, /登入後查看專屬商城網址/);
 
 console.log("Tenant storefront / ERP switching access: PASS");

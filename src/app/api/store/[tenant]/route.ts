@@ -7,6 +7,7 @@ import { resolveDemoProductImage } from "@/lib/demo-product-media";
 import { createPostedJournal, nextNumberInTransaction } from "@/lib/documents";
 import { computeLicenseAccess } from "@/lib/license";
 import { prisma } from "@/lib/prisma";
+import { normalizeStoreSlug, storefrontUrl } from "@/lib/storefront-branding";
 
 const CheckoutInput = z.object({
   requestId: z.string().uuid(),
@@ -52,6 +53,7 @@ async function getCommerceTenant(rawKey: string) {
       OR: [
         { id: key },
         { companyCode: key.toUpperCase() },
+        { companySettings: { some: { storeSlug: normalizeStoreSlug(key) } } },
       ],
     },
     select: {
@@ -67,6 +69,10 @@ async function getCommerceTenant(rawKey: string) {
       licenseExpiresAt: true,
       licenseKeyHash: true,
       licenseVersion: true,
+      companySettings: {
+        select: { storeName: true, storeSlug: true },
+        take: 1,
+      },
     },
   });
   if (!tenant) throw new ApiError(404, "找不到已啟用的電商租戶");
@@ -124,8 +130,15 @@ export const GET = apiHandler(async (_req: NextRequest, { params }: { params: { 
     }),
   ]);
   const reserved = reservedByProduct(pendingLines);
+  const company = tenant.companySettings[0];
+  const storeKey = company?.storeSlug || normalizeStoreSlug(tenant.companyCode || tenant.id);
   return NextResponse.json({
-    tenant: { name: tenant.name, code: tenant.companyCode },
+    tenant: { name: tenant.name },
+    store: {
+      name: company?.storeName || tenant.name,
+      slug: storeKey,
+      url: storefrontUrl(storeKey),
+    },
     acceptingOrders: access.allowed,
     accessMessage: access.allowed ? null : access.reason,
     products: products.map((product) => ({

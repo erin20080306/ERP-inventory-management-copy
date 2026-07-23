@@ -70,6 +70,7 @@ model Tenant {
   employees                Employee[]
   payrollPeriods           PayrollPeriod[]
   fixedAssets              FixedAsset[]
+  fixedAssetDepreciations  FixedAssetDepreciation[]
   discountNotes            DiscountNote[]
   invoiceTracks            InvoiceTrack[]
   salaryStructures         SalaryStructure[]
@@ -1680,33 +1681,34 @@ enum JournalStatus {
 }
 
 model JournalEntry {
-  id               String             @id @default(cuid())
-  tenantId         String
-  number           String
-  entryDate        DateTime           @default(now())
-  summary          String
-  status           JournalStatus      @default(DRAFT)
-  attachment       String?
-  createdById      String?
-  submittedById    String?
-  submittedAt      DateTime?
-  approvedById     String?
-  approvedAt       DateTime?
-  postedById       String?
-  postedAt         DateTime?
-  reversedById     String?
-  reversedAt       DateTime?
-  reversalOfId     String?            @unique
-  reversalReason   String?
-  updatedBy        String?
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
-  tenant           Tenant             @relation(fields: [tenantId], references: [id])
-  createdBy        User?              @relation("JournalEntryCreator", fields: [createdById], references: [id])
-  lines            JournalEntryLine[]
-  reversalOf       JournalEntry?      @relation("JournalReversal", fields: [reversalOfId], references: [id])
-  reversal         JournalEntry?      @relation("JournalReversal")
-  closingForPeriod AccountingPeriod[] @relation("AccountingPeriodClosingJournal")
+  id                     String                  @id @default(cuid())
+  tenantId               String
+  number                 String
+  entryDate              DateTime                @default(now())
+  summary                String
+  status                 JournalStatus           @default(DRAFT)
+  attachment             String?
+  createdById            String?
+  submittedById          String?
+  submittedAt            DateTime?
+  approvedById           String?
+  approvedAt             DateTime?
+  postedById             String?
+  postedAt               DateTime?
+  reversedById           String?
+  reversedAt             DateTime?
+  reversalOfId           String?                 @unique
+  reversalReason         String?
+  updatedBy              String?
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  tenant                 Tenant                  @relation(fields: [tenantId], references: [id])
+  createdBy              User?                   @relation("JournalEntryCreator", fields: [createdById], references: [id])
+  lines                  JournalEntryLine[]
+  reversalOf             JournalEntry?           @relation("JournalReversal", fields: [reversalOfId], references: [id])
+  reversal               JournalEntry?           @relation("JournalReversal")
+  closingForPeriod       AccountingPeriod[]      @relation("AccountingPeriodClosingJournal")
+  fixedAssetDepreciation FixedAssetDepreciation? @relation("FixedAssetDepreciationJournal")
 
   @@unique([tenantId, number])
   @@index([tenantId])
@@ -2103,6 +2105,8 @@ model CompanySetting {
   email         String?
   logoUrl       String?
   currency      String   @default("TWD")
+  storeName     String?
+  storeSlug     String?  @unique
   smtpHost      String?
   smtpPort      Int?
   smtpSecure    Boolean  @default(true)
@@ -2614,36 +2618,75 @@ enum FixedAssetStatus {
   IMPAIRED // 減損
 }
 
+enum FixedAssetDepreciationStatus {
+  CONFIRMED // 已確認、尚未切製傳票
+  POSTED // 已切製並過帳傳票
+  REVERSED // 傳票已沖銷
+}
+
 /// 固定資產目錄
 model FixedAsset {
-  id                      String             @id @default(cuid())
+  id                      String                   @id @default(cuid())
   tenantId                String
   code                    String // 資產編號
   name                    String // 資產名稱
   category                String? // 分類 (土地/建築/設備...)
   accountCode             String? // 對應會計科目代碼 (1401, 1421...)
   acquireDate             DateTime // 取得日
-  acquireCost             Decimal            @db.Decimal(18, 2)
-  residualValue           Decimal            @default(0) @db.Decimal(18, 2)
-  usefulLifeMonths        Int                @default(60) // 耐用年限(月)
-  method                  DepreciationMethod @default(STRAIGHT_LINE)
-  accumulatedDepreciation Decimal            @default(0) @db.Decimal(18, 2)
-  bookValue               Decimal            @db.Decimal(18, 2)
+  acquireCost             Decimal                  @db.Decimal(18, 2)
+  residualValue           Decimal                  @default(0) @db.Decimal(18, 2)
+  usefulLifeMonths        Int                      @default(60) // 耐用年限(月)
+  method                  DepreciationMethod       @default(STRAIGHT_LINE)
+  accumulatedDepreciation Decimal                  @default(0) @db.Decimal(18, 2)
+  bookValue               Decimal                  @db.Decimal(18, 2)
   location                String?
   serialNumber            String?
   supplierId              String?
-  status                  FixedAssetStatus   @default(IN_USE)
+  status                  FixedAssetStatus         @default(IN_USE)
   disposeDate             DateTime?
-  disposeAmount           Decimal?           @db.Decimal(18, 2)
+  disposeAmount           Decimal?                 @db.Decimal(18, 2)
   remark                  String?
   sourceJournalId         String? // 來源傳票 (若由傳票自動建立)
   updatedBy               String?
-  createdAt               DateTime           @default(now())
-  updatedAt               DateTime           @updatedAt
-  tenant                  Tenant             @relation(fields: [tenantId], references: [id])
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  tenant                  Tenant                   @relation(fields: [tenantId], references: [id])
+  depreciations           FixedAssetDepreciation[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
   @@index([category])
   @@index([status])
+}
+
+/// 固定資產折舊子帳；先確認折舊明細，再由使用者決定是否切製傳票。
+model FixedAssetDepreciation {
+  id                     String                       @id @default(cuid())
+  tenantId               String
+  fixedAssetId           String
+  period                 String // YYYY-MM
+  depreciationDate       DateTime
+  amount                 Decimal                      @db.Decimal(18, 2)
+  openingBookValue       Decimal                      @db.Decimal(18, 2)
+  closingBookValue       Decimal                      @db.Decimal(18, 2)
+  method                 DepreciationMethod
+  expenseAccountCode     String
+  accumulatedAccountCode String
+  status                 FixedAssetDepreciationStatus @default(CONFIRMED)
+  journalEntryId         String?                      @unique
+  note                   String?
+  createdById            String?
+  postedById             String?
+  postedAt               DateTime?
+  reversedAt             DateTime?
+  createdAt              DateTime                     @default(now())
+  updatedAt              DateTime                     @updatedAt
+  tenant                 Tenant                       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  fixedAsset             FixedAsset                   @relation(fields: [fixedAssetId], references: [id], onDelete: Restrict)
+  journalEntry           JournalEntry?                @relation("FixedAssetDepreciationJournal", fields: [journalEntryId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, fixedAssetId, period])
+  @@index([tenantId, depreciationDate])
+  @@index([tenantId, status])
+  @@index([fixedAssetId])
 }

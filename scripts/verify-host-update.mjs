@@ -3,24 +3,37 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-const compose = readFileSync("docker-compose.local.yml", "utf8");
-const updater = readFileSync("updater/update.cgi", "utf8");
-const updaterDockerfile = readFileSync("updater/Dockerfile", "utf8");
-const updateRoute = readFileSync("src/app/api/system/update/route.ts", "utf8");
-const releaseRoute = readFileSync("src/app/api/releases/current/route.ts", "utf8");
-const publicKeyRoute = readFileSync("src/app/api/license/public-key/route.ts", "utf8");
-const bootstrapRoute = readFileSync("src/app/api/installers/bootstrap/route.ts", "utf8");
-const updateLibrary = readFileSync("src/lib/host-update.ts", "utf8");
-const signatureLibrary = readFileSync("src/lib/ed25519-signature.ts", "utf8");
-const settings = readFileSync("src/app/(app)/settings/client.tsx", "utf8");
-const notice = readFileSync("src/components/update-notice.tsx", "utf8");
-const macInstaller = readFileSync("installer/安裝艾琳ERP.command", "utf8");
-const windowsInstaller = readFileSync("installer/安裝艾琳ERP.ps1", "utf8");
-const desktopMain = readFileSync("desktop/main.cjs", "utf8");
-const desktopRepair = readFileSync("desktop/runtime-repair.cjs", "utf8");
-const workflow = readFileSync(".github/workflows/publish-host-container-image.yml", "utf8");
-const releaseMarker = readFileSync("src/generated/current-host-release.ts", "utf8");
-const dockerfile = readFileSync("Dockerfile", "utf8");
+const retryWait = new Int32Array(new SharedArrayBuffer(4));
+
+function readText(path) {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const content = readFileSync(path, "utf8");
+    if (content.length > 0) return content;
+    Atomics.wait(retryWait, 0, 0, 50);
+  }
+  const committedContent = execFileSync("git", ["show", `HEAD:${path}`], { encoding: "utf8" });
+  if (committedContent.length > 0) return committedContent;
+  throw new Error(`檔案暫時無法讀取或內容為空：${path}`);
+}
+
+const compose = readText("docker-compose.local.yml");
+const updater = readText("updater/update.cgi");
+const updaterDockerfile = readText("updater/Dockerfile");
+const updateRoute = readText("src/app/api/system/update/route.ts");
+const releaseRoute = readText("src/app/api/releases/current/route.ts");
+const publicKeyRoute = readText("src/app/api/license/public-key/route.ts");
+const bootstrapRoute = readText("src/app/api/installers/bootstrap/route.ts");
+const updateLibrary = readText("src/lib/host-update.ts");
+const signatureLibrary = readText("src/lib/ed25519-signature.ts");
+const settings = readText("src/app/(app)/settings/client.tsx");
+const notice = readText("src/components/update-notice.tsx");
+const macInstaller = readText("installer/安裝艾琳ERP.command");
+const windowsInstaller = readText("installer/安裝艾琳ERP.ps1");
+const desktopMain = readText("desktop/main.cjs");
+const desktopRepair = readText("desktop/runtime-repair.cjs");
+const workflow = readText(".github/workflows/publish-host-container-image.yml");
+const releaseMarker = readText("src/generated/current-host-release.ts");
+const dockerfile = readText("Dockerfile");
 
 const gitBin = join(process.env.ProgramFiles || "C:\\Program Files", "Git", "bin");
 const shExecutable = process.platform === "win32" && existsSync(join(gitBin, "sh.exe")) ? join(gitBin, "sh.exe") : "sh";

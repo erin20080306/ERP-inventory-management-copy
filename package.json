@@ -36,6 +36,7 @@
     "test:release": "node scripts/verify-release-config.mjs",
     "test:desktop": "node scripts/verify-desktop-package.mjs && node scripts/verify-activation-refresh.mjs",
     "test:update": "node scripts/verify-host-update.mjs",
+    "test:depreciation": "tsx scripts/verify-fixed-asset-depreciation.ts",
     "test:discovery": "tsx scripts/verify-company-discovery.ts",
     "release:check": "node scripts/check-release-env.mjs",
     "desktop:install": "npm --prefix desktop ci",

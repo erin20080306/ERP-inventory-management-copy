@@ -137,7 +137,7 @@ export default function AdminDownloadsPage() {
             <h3 className="font-bold text-rose-100">電商平台＋ERP 專用價格</h3>
             <p className="mt-1 text-xs text-slate-400">年租收取 10 個月費用、使用 12 個月，等同優惠 2 個月。</p>
             <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4">{PLAN_CATALOG.map((plan) => <div key={plan.code} className="rounded-lg bg-slate-950 p-3"><div className="text-xs text-slate-500">{plan.name}</div><div className="mt-2 text-slate-300">月租 {formatTwd(ECOMMERCE_PRICING.monthlyByPlan[plan.code])}</div><div className="text-slate-300">年租 {formatTwd(ECOMMERCE_PRICING.annualByPlan[plan.code])}</div><strong className="mt-1 block text-rose-200">買斷 {formatTwd(ECOMMERCE_PRICING.lifetimeByPlan[plan.code])}</strong></div>)}</div>
-            <p className="mt-3 text-xs leading-5 text-slate-400">買斷包含官網修改設計；月租如需官網修改設計另付 {formatTwd(ECOMMERCE_PRICING.websiteDesignFee.MONTHLY)}，年租另付 {formatTwd(ECOMMERCE_PRICING.websiteDesignFee.ANNUAL)}。金流串接費依上方所有方案通用規則計算；其他權益與一般企業 ERP、一般 POS、餐飲 POS 相同。</p>
+            <p className="mt-3 text-xs leading-5 text-slate-400">買斷包含官網修改設計；月租如需官網修改設計另付 {formatTwd(ECOMMERCE_PRICING.websiteDesignFee.MONTHLY)}，年租另付 {formatTwd(ECOMMERCE_PRICING.websiteDesignFee.ANNUAL)}。月租與年租如需自訂網域，設定費均為 {formatTwd(ECOMMERCE_PRICING.customDomainSetupFee.MONTHLY)}，網域購買與續費另計；未使用自訂網域仍提供平台專屬商城網址。金流串接費依上方所有方案通用規則計算；其他權益與一般企業 ERP、一般 POS、餐飲 POS 相同。</p>
           </div>
           <p className="mt-4 flex items-start gap-2 text-xs leading-5 text-slate-400"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />網站不直接收款；與艾琳設計確認付款入帳後，才由管理後台產生啟用碼並綁定已購買的工作站台數。</p>
         </section>
