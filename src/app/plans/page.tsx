@@ -7,6 +7,21 @@ import { BillingDocumentNotice } from "@/components/billing-document-notice";
 import { BILLING_LABELS, PLAN_CATALOG, formatTwd, getPlanPrice, getWebsiteDesignFee, type BillingCycle, type PlanCode } from "@/lib/plans";
 import type { BusinessMode } from "@/lib/product-editions";
 
+const PRICING_GROUP_OPTIONS = [
+  {
+    value: "STANDARD",
+    businessMode: "ERP" as BusinessMode,
+    label: "一般方案價格",
+    description: "一般企業 ERP／一般 POS／餐飲 POS 共用",
+  },
+  {
+    value: "ECOMMERCE",
+    businessMode: "ECOMMERCE" as BusinessMode,
+    label: "電商方案價格",
+    description: "電商平台＋ERP 專用價格",
+  },
+] as const;
+
 export default function PlansPage() {
   const [billing, setBilling] = useState<BillingCycle>("MONTHLY");
   const [selected, setSelected] = useState<PlanCode>("TEAM_2");
@@ -36,7 +51,36 @@ export default function PlansPage() {
         <header className="flex items-center justify-between gap-4"><Link href="/solutions" className="inline-flex items-center gap-2 text-sm text-slate-400 hover:text-white"><ArrowLeft className="h-4 w-4" />回到系統選擇</Link><Link href="/login" className="rounded-lg border border-white/15 px-4 py-2 text-sm">登入</Link></header>
         <section className="mx-auto mt-12 max-w-3xl text-center"><p className="text-sm font-semibold text-emerald-300">公開透明・付款後人工確認</p><h1 className="mt-3 text-4xl font-black md:text-5xl">選擇電腦台數與付款方式</h1><p className="mt-4 leading-7 text-slate-400">不在網站直接收款。送出需求後由艾琳設計確認環境、報價與付款，再從管理後台開通。</p></section>
 
-        <div className="mx-auto mt-8 flex w-fit rounded-xl bg-white/5 p-1">
+        <section className="mx-auto mt-8 max-w-3xl rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+          <div className="mb-3 text-center">
+            <h2 className="font-bold">選擇方案價格</h2>
+            <p className="mt-1 text-xs text-slate-400">一般企業、一般 POS、餐飲 POS 共用一般價格；電商平台＋ERP 使用專用價格</p>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2" aria-label="選擇方案價格類型">
+            {PRICING_GROUP_OPTIONS.map((option) => {
+              const currentGroup = form.businessMode === "ECOMMERCE" ? "ECOMMERCE" : "STANDARD";
+              const active = currentGroup === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => setForm({ ...form, businessMode: option.businessMode })}
+                  className={`rounded-xl border px-4 py-3 text-left transition ${
+                    active
+                      ? "border-emerald-400 bg-emerald-400/10 text-white"
+                      : "border-white/10 bg-slate-950/60 text-slate-300 hover:border-white/25"
+                  }`}
+                >
+                  <span className="block text-sm font-bold">{option.label}</span>
+                  <span className="mt-1 block text-xs text-slate-400">{option.description}</span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        <div className="mx-auto mt-5 flex w-fit rounded-xl bg-white/5 p-1">
           {(["MONTHLY", "ANNUAL", "ONCE"] as BillingCycle[]).map((cycle) => <button key={cycle} onClick={() => setBilling(cycle)} className={`rounded-lg px-4 py-2 text-sm ${billing === cycle ? "bg-white text-slate-950" : "text-slate-400 hover:text-white"}`}>{BILLING_LABELS[cycle]}</button>)}
         </div>
 

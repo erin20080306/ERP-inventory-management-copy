@@ -14,7 +14,7 @@ const solutions = [
   {
     mode: "ECOMMERCE",
     eyebrow: "電商品牌",
-    title: "品牌商城＋ERP＋多租戶",
+    title: "品牌商城＋ERP",
     description: "以品牌官網與網路訂單為核心，商城商品、庫存、會員、出貨與商家 ERP 自動連動。",
     icon: ShoppingBag,
     accent: "from-amber-400 to-rose-500",
