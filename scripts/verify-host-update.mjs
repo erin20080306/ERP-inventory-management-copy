@@ -53,6 +53,8 @@ const updaterService = compose.split(/\r?\n  updater:\r?\n/)[1]?.split(/\r?\n  b
 assert.ok(updaterService.length > 0);
 assert.doesNotMatch(updaterService, /\n\s+ports:/);
 assert.match(updaterDockerfile, /docker-cli-compose/);
+assert.match(updaterDockerfile, /ENTRYPOINT \["httpd"/);
+assert.doesNotMatch(updaterDockerfile, /erin-httpd/);
 assert.match(updater, /compose pull app backup/);
 assert.match(updater, /create|pulling/);
 assert.match(updater, /rolling_back/);
