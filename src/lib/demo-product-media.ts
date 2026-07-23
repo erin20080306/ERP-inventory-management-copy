@@ -124,6 +124,7 @@ export function resolveDemoProductImage(
   if (categoryPool?.length) {
     return categoryPool[stableIndex(`${sku}:${name || ""}`, categoryPool.length)];
   }
+  // 一般零售 POS 的舊商品也必須與商品管理共用穩定、可重現的補圖結果。
   if (useRetailFallback) {
     const retailImages = Object.values(RETAIL_DEMO_IMAGE_BY_SKU);
     return retailImages[stableIndex(`${sku}:${name || ""}:${categoryName || ""}`, retailImages.length)];
