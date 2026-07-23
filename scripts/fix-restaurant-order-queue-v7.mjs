@@ -16,12 +16,17 @@ if (!source.includes('useMemo, useRef, useState')) {
 }
 
 if (!source.includes('const addQueueRef = useRef')) {
-  const anchor = '  const checkoutRequestIdRef = useRef("");\n';
-  if (!source.includes(anchor)) throw new Error("找不到餐飲結帳 request ref");
-  source = source.replace(
-    anchor,
-    `${anchor}  const addQueueRef = useRef(new Map<string, { orderId: string; product: Product; queued: number; inFlight: boolean; timer: number | null }>());\n`,
-  );
+  const queueDeclaration = '  const addQueueRef = useRef(new Map<string, { orderId: string; product: Product; queued: number; inFlight: boolean; timer: number | null }>());\n';
+  const checkoutAnchor = '  const checkoutRequestIdRef = useRef("");\n';
+  const stateAnchor = '  const [tableManagerOpen, setTableManagerOpen] = useState(false);\n';
+
+  if (source.includes(checkoutAnchor)) {
+    source = source.replace(checkoutAnchor, `${checkoutAnchor}${queueDeclaration}`);
+  } else if (source.includes(stateAnchor)) {
+    source = source.replace(stateAnchor, `${stateAnchor}${queueDeclaration}`);
+  } else {
+    throw new Error("找不到餐飲點餐佇列插入位置");
+  }
 }
 
 if (!source.includes('blocking = true')) {
