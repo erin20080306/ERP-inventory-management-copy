@@ -82,7 +82,7 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen relative overflow-hidden bg-slate-950 flex items-center justify-center p-4">
+    <div className="relative min-h-screen overflow-x-hidden bg-slate-950 px-4 py-8 sm:px-6 lg:py-12">
       <div className="absolute inset-0 bg-gradient-to-br from-indigo-950 via-slate-950 to-emerald-950" />
       <div className="absolute -top-40 -left-40 w-[500px] h-[500px] bg-indigo-500/30 rounded-full blur-3xl animate-pulse" />
       <div className="absolute -bottom-40 -right-40 w-[500px] h-[500px] bg-emerald-500/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: "1s" }} />
@@ -95,7 +95,7 @@ export default function RegisterPage() {
         }}
       />
 
-      <div className="relative w-full max-w-md mx-auto">
+      <div className="relative mx-auto w-full max-w-5xl">
         <div className="mb-6 flex items-center justify-center gap-3 text-white">
           <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-indigo-500 to-emerald-500 flex items-center justify-center">
             <Building2 className="h-6 w-6" />
@@ -106,7 +106,7 @@ export default function RegisterPage() {
           </div>
         </div>
 
-        <div className="rounded-2xl bg-white/5 backdrop-blur-2xl border border-white/10 shadow-2xl p-8">
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-5 shadow-2xl backdrop-blur-2xl sm:p-7 lg:p-8">
           <div className="mb-6">
             <h2 className="text-2xl font-bold text-white">建立帳號</h2>
             <p className="text-sm text-slate-400 mt-1">註冊後可完整試用 3 日，到期後保留資料並封鎖操作</p>
@@ -117,21 +117,22 @@ export default function RegisterPage() {
               {error}
             </div>
           )}
-          <form onSubmit={onSubmit} className="space-y-4">
-            <fieldset className="space-y-2">
+          <form onSubmit={onSubmit} className="min-w-0 space-y-4">
+            <fieldset className="min-w-0 space-y-2">
               <legend className="text-slate-300 text-xs mb-2">選擇使用模式（可左右滑動）</legend>
-              <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto pb-2 [scrollbar-width:thin]">
-                <button type="button" onClick={() => setBusinessMode("ERP")} className={`h-16 min-w-[176px] snap-start rounded-xl border flex items-center justify-center gap-2 text-sm transition ${businessMode === "ERP" ? "border-indigo-400 bg-indigo-500/20 text-white" : "border-white/10 bg-white/5 text-slate-400 hover:bg-white/10"}`}><Building2 className="h-4 w-4" />一般企業 ERP</button>
-                <button type="button" onClick={() => setBusinessMode("ECOMMERCE")} className={`h-16 min-w-[176px] snap-start rounded-xl border flex items-center justify-center gap-2 text-sm transition ${businessMode === "ECOMMERCE" ? "border-rose-400 bg-rose-500/20 text-white" : "border-white/10 bg-white/5 text-slate-400 hover:bg-white/10"}`}><ShoppingBag className="h-4 w-4" />電商商城＋ERP</button>
-                <button type="button" onClick={() => setBusinessMode("POS_RETAIL")} className={`h-16 min-w-[176px] snap-start rounded-xl border flex items-center justify-center gap-2 text-sm transition ${businessMode === "POS_RETAIL" ? "border-emerald-400 bg-emerald-500/20 text-white" : "border-white/10 bg-white/5 text-slate-400 hover:bg-white/10"}`}><Store className="h-4 w-4" />一般零售 POS</button>
-                <button type="button" onClick={() => setBusinessMode("POS_RESTAURANT")} className={`h-16 min-w-[176px] snap-start rounded-xl border flex items-center justify-center gap-2 text-sm transition ${businessMode === "POS_RESTAURANT" ? "border-orange-400 bg-orange-500/20 text-white" : "border-white/10 bg-white/5 text-slate-400 hover:bg-white/10"}`}><UtensilsCrossed className="h-4 w-4" />餐飲 POS</button>
+              <div className="grid max-w-full snap-x snap-mandatory grid-flow-col auto-cols-[minmax(168px,1fr)] gap-2 overflow-x-auto pb-2 [scrollbar-width:thin] lg:grid-flow-row lg:grid-cols-4 lg:auto-cols-auto lg:overflow-visible">
+                <button type="button" onClick={() => setBusinessMode("ERP")} className={`h-16 min-w-0 snap-start rounded-xl border flex items-center justify-center gap-2 text-sm transition ${businessMode === "ERP" ? "border-indigo-400 bg-indigo-500/20 text-white" : "border-white/10 bg-white/5 text-slate-400 hover:bg-white/10"}`}><Building2 className="h-4 w-4" />一般企業 ERP</button>
+                <button type="button" onClick={() => setBusinessMode("ECOMMERCE")} className={`h-16 min-w-0 snap-start rounded-xl border flex items-center justify-center gap-2 text-sm transition ${businessMode === "ECOMMERCE" ? "border-rose-400 bg-rose-500/20 text-white" : "border-white/10 bg-white/5 text-slate-400 hover:bg-white/10"}`}><ShoppingBag className="h-4 w-4" />電商商城＋ERP</button>
+                <button type="button" onClick={() => setBusinessMode("POS_RETAIL")} className={`h-16 min-w-0 snap-start rounded-xl border flex items-center justify-center gap-2 text-sm transition ${businessMode === "POS_RETAIL" ? "border-emerald-400 bg-emerald-500/20 text-white" : "border-white/10 bg-white/5 text-slate-400 hover:bg-white/10"}`}><Store className="h-4 w-4" />一般零售 POS</button>
+                <button type="button" onClick={() => setBusinessMode("POS_RESTAURANT")} className={`h-16 min-w-0 snap-start rounded-xl border flex items-center justify-center gap-2 text-sm transition ${businessMode === "POS_RESTAURANT" ? "border-orange-400 bg-orange-500/20 text-white" : "border-white/10 bg-white/5 text-slate-400 hover:bg-white/10"}`}><UtensilsCrossed className="h-4 w-4" />餐飲 POS</button>
               </div>
               <button type="button" onClick={() => setShowDemoVideo(true)} className="flex w-full items-center justify-between rounded-xl border border-sky-300/20 bg-sky-300/5 px-4 py-3 text-left text-sm text-sky-100 transition hover:bg-sky-300/10">
                 <span><b className="block">{currentDemo.label} 示範影片</b><small className="mt-1 block text-sky-200/70">先觀看操作流程，再完成租戶註冊</small></span><PlayCircle className="h-6 w-6 shrink-0" />
               </button>
             </fieldset>
 
-            <div className="space-y-1.5">
+            <div className="grid min-w-0 gap-4 md:grid-cols-2">
+            <div className="space-y-1.5 md:col-span-2">
               <Label htmlFor="companyName" className="text-slate-300 text-xs">公司／店家名稱</Label>
               <Input
                 id="companyName"
@@ -195,6 +196,7 @@ export default function RegisterPage() {
                 autoComplete="new-password"
                 required
               />
+            </div>
             </div>
 
             <label className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-slate-400 cursor-pointer">

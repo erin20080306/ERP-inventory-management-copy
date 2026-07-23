@@ -12,6 +12,16 @@ const solutions = [
     points: ["報價 → 訂單 → 出貨 → 立帳 → 收款", "請購／採購 → 進貨 → 應付 → 付款", "盤點、調撥、成本與財務報表"],
   },
   {
+    mode: "ECOMMERCE",
+    eyebrow: "電商品牌",
+    title: "品牌商城＋ERP＋多租戶",
+    description: "以品牌官網與網路訂單為核心，商城商品、庫存、會員、出貨與商家 ERP 自動連動。",
+    icon: ShoppingBag,
+    accent: "from-amber-400 to-rose-500",
+    points: ["官網上架 → 購物車 → 付款 → 訂單", "商城會員、優惠券、CRM 與訂單查詢", "網路訂單 → 保留庫存 → 出貨與報表"],
+    secondaryLinks: [{ href: "/store/atelier-noir", label: "客人端商城試用" }, { href: "/login", label: "商家 ERP 登入" }],
+  },
+  {
     mode: "POS_RETAIL",
     eyebrow: "零售門市",
     title: "零售 POS＋進銷存＋會計",
@@ -68,7 +78,7 @@ export default function SolutionsPage() {
             <ScanLine className="h-3.5 w-3.5" />POS、ERP 與品牌商城一次試用
           </div>
           <h1 className="text-3xl md:text-5xl font-black tracking-tight">你要管理哪一種營運現場？</h1>
-          <p className="text-slate-400 mt-4 leading-7">三種業態共用商品、庫存、帳務與 AI；操作順序、首頁與快捷鍵會依企業辦公、零售收銀或餐飲桌位情境調整。每家公司開通時只能選擇一種業態。</p>
+          <p className="text-slate-400 mt-4 leading-7">四種業態共用商品、庫存、帳務與 AI；操作順序、首頁與快捷鍵會依企業辦公、電商品牌、零售收銀或餐飲桌位情境調整。每家公司開通時只能選擇一種業態。</p>
         </section>
 
         <section className="mb-8 grid gap-3 rounded-2xl border border-sky-400/20 bg-sky-400/5 p-5 text-sm md:grid-cols-3">
@@ -77,18 +87,22 @@ export default function SolutionsPage() {
           <div><div className="font-semibold text-sky-200">席次由中央授權</div><p className="mt-1 text-xs leading-5 text-slate-400">2／3／5／8 台方案依實際綁定電腦計算，換機須先撤銷舊裝置。</p></div>
         </section>
 
-        <section className="grid md:grid-cols-3 gap-5 md:gap-7">
+        <div className="mb-3 flex items-center justify-between gap-4 text-xs text-slate-400">
+          <span>四種業態皆使用相同租戶註冊與授權流程</span>
+          <span className="shrink-0 text-sky-200">左右滑動查看 →</span>
+        </div>
+        <section className="flex snap-x snap-mandatory gap-5 overflow-x-auto pb-4 [scrollbar-width:thin]" aria-label="四種營運業態">
           {solutions.map((solution) => {
             const Icon = solution.icon;
             return (
-              <article key={solution.mode} className="rounded-3xl border border-white/10 bg-white/[0.06] backdrop-blur-xl p-6 md:p-8 shadow-2xl">
+              <article key={solution.mode} className="flex min-w-[min(86vw,360px)] snap-start flex-col rounded-3xl border border-white/10 bg-white/[0.06] p-6 shadow-2xl backdrop-blur-xl md:min-w-[340px] md:p-8">
                 <div className={`h-14 w-14 rounded-2xl bg-gradient-to-br ${solution.accent} flex items-center justify-center shadow-lg mb-6`}>
                   <Icon className="h-7 w-7" />
                 </div>
                 <p className="text-xs uppercase tracking-[0.22em] text-slate-400">{solution.eyebrow}</p>
                 <h2 className="text-2xl font-bold mt-2">{solution.title}</h2>
                 <p className="text-sm text-slate-400 leading-6 mt-3 min-h-12">{solution.description}</p>
-                <ul className="space-y-3 my-7 text-sm text-slate-200">
+                <ul className="my-7 flex-1 space-y-3 text-sm text-slate-200">
                   {solution.points.map((point) => (
                     <li key={point} className="flex items-start gap-2">
                       <Check className="h-4 w-4 text-emerald-400 mt-0.5 shrink-0" />
@@ -102,39 +116,14 @@ export default function SolutionsPage() {
                 >
                   選擇{solution.eyebrow}模式 <ArrowRight className="h-4 w-4" />
                 </Link>
+                {"secondaryLinks" in solution && (
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                    {solution.secondaryLinks.map((link) => <Link key={link.href} href={link.href} className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-center text-slate-300 transition hover:bg-white/10 hover:text-white">{link.label}</Link>)}
+                  </div>
+                )}
               </article>
             );
           })}
-        </section>
-
-        <section className="mt-7 overflow-hidden rounded-3xl border border-amber-300/20 bg-gradient-to-br from-stone-900 via-slate-900 to-amber-950/80 shadow-2xl">
-          <div className="grid gap-0 lg:grid-cols-[1.05fr_.95fr]">
-            <div className="p-7 md:p-10">
-              <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-200 text-stone-950"><ShoppingBag className="h-6 w-6" /></div>
-              <p className="text-xs font-bold uppercase tracking-[0.22em] text-amber-200">Fashion commerce · New</p>
-              <h2 className="mt-3 text-2xl font-black md:text-3xl">服飾電商網站＋ERP 後台＋SaaS 多租戶</h2>
-              <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-300">直接試用一頁式品牌首頁、商品、活動、購物車、付款、會員與訂單查詢；網站訂單可接回既有商品、庫存、CRM、出貨、優惠券與報表流程。</p>
-              <div className="mt-7 flex flex-wrap gap-3">
-                <Link href="/store/atelier-noir" className="inline-flex h-12 items-center gap-2 rounded-xl bg-amber-200 px-5 font-bold text-stone-950 transition hover:bg-white">開啟服飾商城試用 <ArrowRight className="h-4 w-4" /></Link>
-                <Link href="/login" className="inline-flex h-12 items-center gap-2 rounded-xl border border-white/15 px-5 font-bold text-white transition hover:bg-white/10">登入商家 ERP 後台</Link>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-px bg-white/10 p-px text-sm">
-              {[
-                ["客人端", "品牌首頁・商品・活動"],
-                ["交易", "購物車・付款・訂單"],
-                ["會員 CRM", "點數・優惠券・查詢"],
-                ["商家 ERP", "庫存・出貨・採購・報表"],
-                ["SaaS 租戶", "獨立網址・資料隔離"],
-                ["門市整合", "POS 與網站共用庫存"],
-              ].map(([label, value]) => (
-                <div key={label} className="min-h-28 bg-slate-950/70 p-5">
-                  <div className="text-xs font-bold text-amber-200">{label}</div>
-                  <div className="mt-2 leading-6 text-slate-300">{value}</div>
-                </div>
-              ))}
-            </div>
-          </div>
         </section>
 
         <footer className="mt-10 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-slate-500">
