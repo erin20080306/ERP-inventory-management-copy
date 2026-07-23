@@ -77,6 +77,9 @@ jobs:
           set +e
           npx tsc --noEmit 2>&1 | tee /tmp/speed-typescript.log
           exit ${PIPESTATUS[0]}
+      - name: Restore TypeScript incremental build cache
+        if: always()
+        run: git restore --worktree -- tsconfig.tsbuildinfo
       - name: Publish TypeScript diagnostic
         if: steps.typescript.outcome == 'failure'
         run: |
@@ -103,5 +106,10 @@ jobs:
           git add src/app src/lib package.json
           git add -A .speed-optimization-diagnostic.txt
           git commit -m "perf: complete POS checkout before background ERP sync"
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "Unexpected uncommitted files remain after the optimization commit."
+            git status --short
+            exit 1
+          fi
           git pull --rebase origin main
           git push origin HEAD:main
