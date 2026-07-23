@@ -1,0 +1,41 @@
+name: Apply runtime speed optimizations
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".speed-optimization-trigger"
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Apply speed patch
+        run: node scripts/apply-speed-optimizations.mjs
+      - name: Verify speed safeguards
+        run: npm run test:speed
+      - name: TypeScript check
+        run: npx tsc --noEmit
+      - name: Check patch formatting
+        run: git diff --check
+      - name: Commit optimized runtime
+        run: |
+          if git diff --quiet; then
+            echo "Speed optimizations already applied."
+            exit 0
+          fi
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add src/app package.json scripts/verify-speed-optimizations.mjs .github/workflows/release-desktop.yml
+          git commit -m "perf: speed up POS restaurant and storefront operations"
+          git push origin HEAD:main
