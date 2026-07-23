@@ -69,14 +69,6 @@ export default async function DashboardPage() {
         </div>
       </header>
 
-      {commerce && (
-        <div className="flex flex-col gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-100 md:flex-row md:items-center">
-          <span className="h-2 w-2 rounded-full bg-emerald-500" />
-          <strong>商城已綁定公司代碼 {companyCode}</strong>
-          <span className="text-xs text-emerald-700 dark:text-emerald-300">管理者按鈕會另開官網；一般消費者不會看到 ERP 返回列。</span>
-        </div>
-      )}
-
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <KPI icon={Receipt} label="今日營業額" value={formatMoney(s.todaySales)} hint="較昨日持續更新" />
         <KPI icon={TrendingUp} label="本月銷售額" value={formatMoney(s.monthSales)} hint="銷售與 POS 合併" />

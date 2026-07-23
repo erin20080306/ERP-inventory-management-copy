@@ -76,7 +76,6 @@ export default async function WorkspacePage() {
             <div>
               <div className="text-xs font-bold uppercase tracking-[.2em] text-rose-600">同一試用租戶・雙視角操作</div>
               <h2 className="mt-2 text-xl font-black text-slate-900">從消費者結帳，到 ERP 接單與出貨</h2>
-              <p className="mt-2 text-sm leading-6 text-slate-600">商城與後台共用公司代碼 <span className="font-mono font-semibold text-rose-700">{storefrontCode}</span>，訂單、客戶與可售庫存會寫入目前這個租戶。</p>
             </div>
             <div className="flex flex-wrap gap-2">
               <Link href={`/store/${encodeURIComponent(storefrontCode)}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-3 text-sm font-bold text-white hover:bg-slate-800">進入商店官網 <ArrowUpRight className="h-4 w-4" /></Link>

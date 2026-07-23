@@ -4,7 +4,7 @@ import {
   isTenantHighestPrivilege,
   tenantStorefrontPath,
 } from "../src/lib/storefront-access";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import {
   ERP_DEMO_IMAGE_BY_SKU,
@@ -89,5 +89,10 @@ for (const [sku, imageUrl] of Object.entries(ERP_DEMO_IMAGE_BY_SKU)) {
   assert.equal(resolveDemoProductImage(sku, null), imageUrl);
   assert.equal(existsSync(path.join(process.cwd(), "public", imageUrl)), true, `${imageUrl} must exist`);
 }
+
+const commerceDashboard = readFileSync("src/app/(app)/dashboard/page.tsx", "utf8");
+const commerceWorkspace = readFileSync("src/app/(app)/workspace/page.tsx", "utf8");
+assert.doesNotMatch(commerceDashboard, /商城已綁定公司代碼/);
+assert.doesNotMatch(commerceWorkspace, /商城與後台共用公司代碼/);
 
 console.log("Tenant storefront / ERP switching access: PASS");
