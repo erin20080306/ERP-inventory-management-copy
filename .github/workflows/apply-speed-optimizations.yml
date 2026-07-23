@@ -9,6 +9,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: apply-pos-fast-checkout
+  cancel-in-progress: false
+
 jobs:
   apply:
     runs-on: ubuntu-latest
@@ -37,6 +41,7 @@ jobs:
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add .speed-optimization-diagnostic.txt
           git commit -m "chore: record POS fast checkout safeguard failure [skip ci]"
+          git pull --rebase origin main
           git push origin HEAD:main
       - name: Stop after safeguard failure
         if: steps.speed_verify.outcome == 'failure'
@@ -60,6 +65,7 @@ jobs:
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add .speed-optimization-diagnostic.txt
           git commit -m "chore: record POS fast checkout npm failure [skip ci]"
+          git pull --rebase origin main
           git push origin HEAD:main
       - name: Stop after npm failure
         if: steps.npm_ci.outcome == 'failure'
@@ -79,6 +85,7 @@ jobs:
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add .speed-optimization-diagnostic.txt
           git commit -m "chore: record POS fast checkout TypeScript failure [skip ci]"
+          git pull --rebase origin main
           git push origin HEAD:main
       - name: Stop after TypeScript failure
         if: steps.typescript.outcome == 'failure'
@@ -96,4 +103,5 @@ jobs:
           git add src/app src/lib package.json
           git add -A .speed-optimization-diagnostic.txt
           git commit -m "perf: complete POS checkout before background ERP sync"
+          git pull --rebase origin main
           git push origin HEAD:main
