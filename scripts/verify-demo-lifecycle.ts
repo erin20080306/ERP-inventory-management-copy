@@ -41,12 +41,12 @@ async function main() {
 
   const restaurant = await prisma.user.findUniqueOrThrow({ where: { username: "demo-food" }, select: { tenantId: true } });
   assert.ok(restaurant.tenantId);
-  assert.equal(await prisma.product.count({ where: { tenantId: restaurant.tenantId!, imageUrl: { not: null } } }), 6);
+  assert.equal(await prisma.product.count({ where: { tenantId: restaurant.tenantId!, imageUrl: { not: null } } }), 12);
   assert.equal(await prisma.restaurantTable.count({ where: { tenantId: restaurant.tenantId!, isActive: true } }), 8);
 
   const retail = await prisma.user.findUniqueOrThrow({ where: { username: "demo-retail" }, select: { tenantId: true } });
   assert.ok(retail.tenantId);
-  assert.equal(await prisma.product.count({ where: { tenantId: retail.tenantId!, barcode: { not: null } } }), 3);
+  assert.equal(await prisma.product.count({ where: { tenantId: retail.tenantId!, imageUrl: { not: null } } }), 12);
 
   console.log("Six demo customer lifecycle states and ERP/POS fixtures: PASS");
 }

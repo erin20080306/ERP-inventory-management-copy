@@ -1,4 +1,4 @@
-const RESTAURANT_DEMO_IMAGE_BY_SKU: Record<string, string> = {
+export const RESTAURANT_DEMO_IMAGE_BY_SKU: Record<string, string> = {
   F001: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=500&q=80",
   F002: "https://images.unsplash.com/photo-1556761223-4c4282c73f77?auto=format&fit=crop&w=500&q=80",
   F003: "https://images.unsplash.com/photo-1573080496219-bb080dd4f877?auto=format&fit=crop&w=500&q=80",
@@ -28,7 +28,16 @@ export const RETAIL_DEMO_IMAGE_BY_SKU: Record<string, string> = {
   "RTL-P012": "/demo-products/cutlery-set.webp",
 };
 
-const RETAIL_DEMO_IMAGE_BY_NAME: Record<string, string> = {
+export const ERP_DEMO_IMAGE_BY_SKU: Record<string, string> = {
+  "ERP-P001": "/demo-products/a4-copy-paper-carton.webp",
+  "ERP-P002": "/demo-products/ergonomic-office-chair.webp",
+  "ERP-P003": "/demo-products/commercial-24-inch-monitor.webp",
+};
+
+const DEMO_IMAGE_BY_NAME: Record<string, string> = {
+  "A4 影印紙（箱）": "/demo-products/a4-copy-paper-carton.webp",
+  人體工學辦公椅: "/demo-products/ergonomic-office-chair.webp",
+  "商用 24 吋螢幕": "/demo-products/commercial-24-inch-monitor.webp",
   純棉購物袋: "/demo-products/cotton-tote.webp",
   不鏽鋼保溫杯: "/demo-products/vacuum-bottle.webp",
   木質調香氛蠟燭: "/demo-products/scented-candle.webp",
@@ -85,6 +94,7 @@ const LEGACY_RESTAURANT_IMAGES: Record<string, string> = {
 };
 
 export const DEMO_PRODUCT_IMAGE_BY_SKU: Record<string, string> = {
+  ...ERP_DEMO_IMAGE_BY_SKU,
   ...RETAIL_DEMO_IMAGE_BY_SKU,
   ...COMMERCE_DEMO_IMAGE_BY_SKU,
   ...RESTAURANT_DEMO_IMAGE_BY_SKU,
@@ -117,7 +127,7 @@ export function resolveDemoProductImage(
   }
 
   const exactDemoImage = DEMO_PRODUCT_IMAGE_BY_SKU[sku]
-    || (name ? RETAIL_DEMO_IMAGE_BY_NAME[name.trim()] : undefined);
+    || (name ? DEMO_IMAGE_BY_NAME[name.trim()] : undefined);
   if (exactDemoImage) return exactDemoImage;
 
   const categoryPool = categoryName ? RETAIL_CATEGORY_IMAGE_POOL[categoryName.trim()] : undefined;

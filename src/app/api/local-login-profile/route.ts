@@ -10,11 +10,21 @@ export async function GET() {
     return NextResponse.json({ error: "此端點僅供已安裝的公司主機使用" }, { status: 404 });
   }
 
-  const tenant = await prisma.tenant.findFirst({
-    where: { isInternal: false },
-    orderBy: { createdAt: "asc" },
-    select: { id: true, name: true, businessMode: true },
+  const licensedLease = await prisma.offlineLicenseLease.findFirst({
+    orderBy: [{ checkedAt: "desc" }, { id: "asc" }],
+    select: {
+      tenant: {
+        select: { id: true, name: true, businessMode: true, isInternal: true },
+      },
+    },
   });
+  const tenant = licensedLease?.tenant && !licensedLease.tenant.isInternal
+    ? licensedLease.tenant
+    : await prisma.tenant.findFirst({
+      where: { isInternal: false },
+      orderBy: { createdAt: "asc" },
+      select: { id: true, name: true, businessMode: true, isInternal: true },
+    });
   if (!tenant) return NextResponse.json({ error: "尚未完成租戶授權同步" }, { status: 503 });
 
   const primaryAccount = await prisma.user.findFirst({

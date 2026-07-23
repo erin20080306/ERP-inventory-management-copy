@@ -16,9 +16,15 @@ function money(value: unknown) {
   return `NT$ ${Number(value ?? 0).toLocaleString("zh-TW", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 }
 
-export default async function PosReceiptPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function PosReceiptPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ print?: string }>;
+}) {
   const session = await requirePermission("sales.view");
-  const [{ id }, tenantId] = await Promise.all([params, requireTenantId(session)]);
+  const [{ id }, query, tenantId] = await Promise.all([params, searchParams, requireTenantId(session)]);
   const [sale, company] = await Promise.all([
     prisma.posSale.findFirst({
       where: { id, tenantId },
@@ -38,7 +44,7 @@ export default async function PosReceiptPage({ params }: { params: Promise<{ id:
 
   return (
     <>
-      <AutoPrint />
+      <AutoPrint auto={query.print === "1"} />
       <article className="pos-receipt">
         <header className="pos-receipt-header">
           <h1>{company?.name || "門市交易明細"}</h1>

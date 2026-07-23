@@ -649,7 +649,7 @@ return <div className="grid min-h-[60vh] animate-pulse gap-4 xl:grid-cols-[280px
                   <button disabled={busy || orderTotal <= 0} onClick={() => openPaymentDialog("CARD")} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-indigo-600 font-bold text-white"><CreditCard className="h-4 w-4" />刷卡結帳</button>
                 </div>
                 {lastPayment && <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900"><div className="flex items-center gap-2 font-bold"><CheckCircle2 className="h-4 w-4" />{lastPayment.number} 收款完成</div><div className="mt-1">{lastPayment.method === "CASH" ? `實收 ${money(lastPayment.paidAmount)}・找零 ${money(lastPayment.changeDue)}` : `刷卡核准 ${lastPayment.reference}`}</div><div className="mt-1">進銷存、庫存流水與會計傳票背景同步中</div></div>}
-                {lastSaleId && <button onClick={() => window.open(`/print/pos/${lastSaleId}`, "_blank", "noopener,noreferrer")} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border text-sm"><ReceiptText className="h-4 w-4" />列印上一筆 80mm 收據</button>}
+                {lastSaleId && <button onClick={() => window.open(`/print/pos/${lastSaleId}?print=1`, "_blank", "noopener,noreferrer")} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border text-sm"><ReceiptText className="h-4 w-4" />列印收據</button>}
               </div>
             </div>
           )}

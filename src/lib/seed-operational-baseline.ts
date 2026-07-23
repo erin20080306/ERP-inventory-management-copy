@@ -16,12 +16,12 @@ type BaselineProduct = {
 };
 
 const ERP_PRODUCTS: BaselineProduct[] = [
-  { categoryCode: "ERP-DEMO", categoryName: "進銷存範例商品", sku: "ERP-P001", barcode: "4711000000015", name: "A4 影印紙（箱）", cost: 820, price: 1_050, quantity: 24, safetyStock: 5 },
-  { categoryCode: "ERP-DEMO", categoryName: "進銷存範例商品", sku: "ERP-P002", barcode: "4711000000022", name: "人體工學辦公椅", cost: 2_800, price: 4_200, quantity: 12, safetyStock: 3 },
-  { categoryCode: "ERP-DEMO", categoryName: "進銷存範例商品", sku: "ERP-P003", barcode: "4711000000039", name: "商用 24 吋螢幕", cost: 3_200, price: 4_680, quantity: 18, safetyStock: 4 },
+  { categoryCode: "ERP-DEMO", categoryName: "進銷存範例商品", sku: "ERP-P001", barcode: "4711000000015", name: "A4 影印紙（箱）", cost: 820, price: 1_050, quantity: 24, safetyStock: 5, imageUrl: "/demo-products/a4-copy-paper-carton.webp" },
+  { categoryCode: "ERP-DEMO", categoryName: "進銷存範例商品", sku: "ERP-P002", barcode: "4711000000022", name: "人體工學辦公椅", cost: 2_800, price: 4_200, quantity: 12, safetyStock: 3, imageUrl: "/demo-products/ergonomic-office-chair.webp" },
+  { categoryCode: "ERP-DEMO", categoryName: "進銷存範例商品", sku: "ERP-P003", barcode: "4711000000039", name: "商用 24 吋螢幕", cost: 3_200, price: 4_680, quantity: 18, safetyStock: 4, imageUrl: "/demo-products/commercial-24-inch-monitor.webp" },
 ];
 
-const RETAIL_PRODUCTS: BaselineProduct[] = [
+export const RETAIL_PRODUCTS: BaselineProduct[] = [
   { categoryCode: "RETAIL-HOT", categoryName: "熱銷推薦", sku: "RTL-P001", barcode: "4712000000014", name: "純棉購物袋", cost: 80, price: 180, quantity: 50, safetyStock: 10, imageUrl: "/demo-products/cotton-tote.webp" },
   { categoryCode: "RETAIL-HOT", categoryName: "熱銷推薦", sku: "RTL-P002", barcode: "4712000000021", name: "不鏽鋼保溫杯", cost: 220, price: 490, quantity: 36, safetyStock: 8, imageUrl: "/demo-products/vacuum-bottle.webp" },
   { categoryCode: "RETAIL-AROMA", categoryName: "香氛保養", sku: "RTL-P003", barcode: "4712000000038", name: "木質調香氛蠟燭", cost: 160, price: 360, quantity: 28, safetyStock: 6, imageUrl: "/demo-products/scented-candle.webp" },
@@ -43,7 +43,7 @@ const COMMERCE_PRODUCTS: BaselineProduct[] = [
   { categoryCode: "EC-DRESS", categoryName: "洋裝", sku: "EC-P005", barcode: "4713000000051", name: "亞麻混紡長洋裝", cost: 1_280, price: 2_980, quantity: 9, safetyStock: 3, imageUrl: "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=900&q=82" },
   { categoryCode: "EC-SHOES", categoryName: "鞋履", sku: "EC-P006", barcode: "4713000000068", name: "極簡皮革休閒鞋", cost: 1_450, price: 3_280, quantity: 15, safetyStock: 4, imageUrl: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=900&q=82" },
 ];
-const RESTAURANT_PRODUCTS: BaselineProduct[] = [
+export const RESTAURANT_PRODUCTS: BaselineProduct[] = [
   { categoryCode: "MEAL", categoryName: "主餐", sku: "F001", name: "經典牛肉漢堡", cost: 80, price: 220, quantity: 60, safetyStock: 10, imageUrl: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=500&q=80" },
   { categoryCode: "MEAL", categoryName: "主餐", sku: "F002", name: "香蒜奶油義大利麵", cost: 65, price: 190, quantity: 60, safetyStock: 10, imageUrl: "https://images.unsplash.com/photo-1556761223-4c4282c73f77?auto=format&fit=crop&w=500&q=80" },
   { categoryCode: "SNACK", categoryName: "小點", sku: "F003", name: "松露脆薯", cost: 35, price: 120, quantity: 80, safetyStock: 15, imageUrl: "https://images.unsplash.com/photo-1573080496219-bb080dd4f877?auto=format&fit=crop&w=500&q=80" },

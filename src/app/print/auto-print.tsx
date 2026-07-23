@@ -1,11 +1,12 @@
 "use client";
 import { useEffect } from "react";
 
-export function AutoPrint() {
+export function AutoPrint({ auto = true }: { auto?: boolean }) {
   useEffect(() => {
+    if (!auto) return;
     const t = setTimeout(() => window.print(), 400);
     return () => clearTimeout(t);
-  }, []);
+  }, [auto]);
 
   function handleClose() {
     // 嘗試關閉視窗（若是 window.open 開啟的）

@@ -6,7 +6,13 @@ import {
 } from "../src/lib/storefront-access";
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { resolveDemoProductImage, RETAIL_DEMO_IMAGE_BY_SKU } from "../src/lib/demo-product-media";
+import {
+  ERP_DEMO_IMAGE_BY_SKU,
+  resolveDemoProductImage,
+  RESTAURANT_DEMO_IMAGE_BY_SKU,
+  RETAIL_DEMO_IMAGE_BY_SKU,
+} from "../src/lib/demo-product-media";
+import { RESTAURANT_PRODUCTS, RETAIL_PRODUCTS } from "../src/lib/seed-operational-baseline";
 
 const tenantAdmin = {
   tenantId: "tenant-123",
@@ -59,7 +65,28 @@ assert.match(resolveDemoProductImage("CUSTOM-AROMA-01", null, "門市香氛新�
 assert.equal(resolveDemoProductImage("CUSTOM-OTHER-01", null, "一般門市新品", "其他"), null);
 assert.match(resolveDemoProductImage("CUSTOM-OTHER-01", null, "一般門市新品", "其他", true) ?? "", /^\/demo-products\/.+\.webp$/);
 assert.equal(Object.keys(RETAIL_DEMO_IMAGE_BY_SKU).length, 12);
+assert.equal(RETAIL_PRODUCTS.length, 12, "一般 POS 必須固定提供 12 項基礎商品");
+assert.equal(RESTAURANT_PRODUCTS.length, 12, "餐飲 POS 必須固定提供 12 項基礎商品");
+assert.deepEqual(
+  RETAIL_PRODUCTS.map((product) => product.sku).sort(),
+  Object.keys(RETAIL_DEMO_IMAGE_BY_SKU).sort(),
+  "一般 POS 的 12 項商品都必須有對應圖片",
+);
+assert.deepEqual(
+  RESTAURANT_PRODUCTS.map((product) => product.sku).sort(),
+  Object.keys(RESTAURANT_DEMO_IMAGE_BY_SKU).sort(),
+  "餐飲 POS 的 12 項商品都必須有對應圖片",
+);
 for (const imageUrl of Object.values(RETAIL_DEMO_IMAGE_BY_SKU)) {
+  assert.equal(existsSync(path.join(process.cwd(), "public", imageUrl)), true, `${imageUrl} must exist`);
+}
+for (const product of [...RETAIL_PRODUCTS, ...RESTAURANT_PRODUCTS]) {
+  assert.ok(product.imageUrl, `${product.sku} must have an image in POS and product management`);
+  assert.equal(resolveDemoProductImage(product.sku, null), product.imageUrl);
+}
+assert.equal(Object.keys(ERP_DEMO_IMAGE_BY_SKU).length, 3);
+for (const [sku, imageUrl] of Object.entries(ERP_DEMO_IMAGE_BY_SKU)) {
+  assert.equal(resolveDemoProductImage(sku, null), imageUrl);
   assert.equal(existsSync(path.join(process.cwd(), "public", imageUrl)), true, `${imageUrl} must exist`);
 }
 
