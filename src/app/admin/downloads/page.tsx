@@ -112,7 +112,7 @@ export default function AdminDownloadsPage() {
             <div className="rounded-xl bg-slate-950 p-4"><KeyRound className="h-5 w-5 text-amber-300" /><div className="mt-2 text-sm font-bold">短效租約＋裝置私鑰</div><p className="mt-1 text-xs leading-5 text-slate-400">中央簽章限制業態、公司、席次與到期時間，裝置請求另做防重播簽章。</p></div>
             <div className="rounded-xl bg-slate-950 p-4"><HardDrive className="h-5 w-5 text-emerald-300" /><div className="mt-2 text-sm font-bold">備份與復原責任</div><p className="mt-1 text-xs leading-5 text-slate-400">確認第一份 AES-256-GCM 備份，並要求客戶將備份與復原金鑰分開異地保存。</p></div>
           </div>
-          <div className="mt-4 rounded-xl border border-emerald-400/10 bg-slate-950/60 p-4 text-xs leading-6 text-slate-300"><strong className="text-white">標準安裝程序：</strong>選定公司主機 → 安裝 Docker Desktop → 執行 Host 安裝檔與啟用 → 安裝各工作站 → 輸入公司代碼與啟用碼 → 驗證 HTTPS、角色權限、備份與還原金鑰。</div>
+          <div className="mt-4 rounded-xl border border-emerald-400/10 bg-slate-950/60 p-4 text-xs leading-6 text-slate-300"><strong className="text-white">標準安裝程序：</strong>選定公司主機 → 安裝 Docker Desktop → 手動執行 Host 安裝檔並輸入啟用碼 → 安裝各工作站 → 只輸入同一啟用碼並自動尋找主機 IP → 驗證角色權限、備份與還原金鑰。</div>
         </section>
         <section className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
           <div className="flex items-start gap-3"><Building2 className="mt-0.5 h-7 w-7 shrink-0 text-indigo-300" /><div><h2 className="text-lg font-bold">步驟 1：只選一個公司主機</h2><p className="mt-1 text-sm leading-6 text-slate-400">依公司固定主機的作業系統二選一。其他工作站電腦不要重複安裝 Host。</p></div></div>
@@ -126,7 +126,7 @@ export default function AdminDownloadsPage() {
 
           {files.some((file) => file.codeSigning === "ad-hoc-manual") ? <div className="mt-4 rounded-xl border border-amber-400/30 bg-amber-400/5 p-3 text-xs leading-6 text-amber-100">目前為手動安裝版：macOS 將 App 拖入「應用程式」後第一次右鍵選「打開」；Windows 遇 SmartScreen 時選「其他資訊 → 仍要執行」。已做 bundle 完整性與 SHA-256 核對，但不是商業憑證免提示版本。</div> : release?.prerelease ? <div className="mt-4 rounded-xl border border-rose-400/30 bg-rose-400/5 p-3 text-xs text-rose-200">目前只有內部測試檔，不提供客戶下載。</div> : null}
           {release ? <div className="mt-3 flex gap-3 text-xs"><a className="text-sky-300 hover:text-sky-200" href="/api/admin/installers-current?file=release-manifest.json">下載版本清單</a><a className="text-sky-300 hover:text-sky-200" href="/api/admin/installers-current?file=SHA256SUMS.txt">下載 SHA-256 核對檔</a></div> : null}
-          <div className="mt-4 rounded-xl bg-slate-950 p-4 text-xs leading-6 text-slate-400"><MonitorSmartphone className="mr-2 inline h-4 w-4" />同一個桌面安裝包支援一般 ERP、電商 ERP、零售 POS 與餐飲 POS；主機與安裝流程不變，實際畫面由公司授權業態與使用者角色權限決定。桌面工作站用公司代碼＋啟用碼取得中央簽章設定，成功後才占用一個席次。</div>
+          <div className="mt-4 rounded-xl bg-slate-950 p-4 text-xs leading-6 text-slate-400"><MonitorSmartphone className="mr-2 inline h-4 w-4" />同一個桌面安裝包支援一般 ERP、電商 ERP、零售 POS 與餐飲 POS；主機與安裝流程不變，實際畫面由公司授權業態與使用者角色權限決定。桌面工作站只用啟用碼取得中央簽章與最新主機 IP，成功後才占用一個席次。</div>
         </section>
 
         <section className="rounded-2xl border border-slate-800 bg-slate-900 p-5">

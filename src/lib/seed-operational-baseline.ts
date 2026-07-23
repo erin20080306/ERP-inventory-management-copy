@@ -1,3 +1,5 @@
+import { legacyDemoProductImages } from "./demo-product-media";
+
 type BusinessMode = "ERP" | "POS_RETAIL" | "POS_RESTAURANT" | "ECOMMERCE";
 
 type BaselineProduct = {
@@ -42,12 +44,18 @@ const COMMERCE_PRODUCTS: BaselineProduct[] = [
   { categoryCode: "EC-SHOES", categoryName: "鞋履", sku: "EC-P006", barcode: "4713000000068", name: "極簡皮革休閒鞋", cost: 1_450, price: 3_280, quantity: 15, safetyStock: 4, imageUrl: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=900&q=82" },
 ];
 const RESTAURANT_PRODUCTS: BaselineProduct[] = [
-  { categoryCode: "MEAL", categoryName: "主餐", sku: "F001", name: "經典牛肉漢堡", cost: 80, price: 220, quantity: 60, safetyStock: 10, imageUrl: "/demo-products/burger.svg" },
-  { categoryCode: "MEAL", categoryName: "主餐", sku: "F002", name: "香蒜奶油義大利麵", cost: 65, price: 190, quantity: 60, safetyStock: 10, imageUrl: "/demo-products/pasta.svg" },
-  { categoryCode: "MEAL", categoryName: "主餐", sku: "F003", name: "松露脆薯", cost: 35, price: 120, quantity: 80, safetyStock: 15, imageUrl: "/demo-products/fries.svg" },
-  { categoryCode: "DRINK", categoryName: "飲品甜點", sku: "D001", name: "拿鐵咖啡", cost: 30, price: 110, quantity: 80, safetyStock: 15, imageUrl: "/demo-products/latte.svg" },
-  { categoryCode: "DRINK", categoryName: "飲品甜點", sku: "D002", name: "季節水果茶", cost: 28, price: 100, quantity: 80, safetyStock: 15, imageUrl: "/demo-products/tea.svg" },
-  { categoryCode: "DRINK", categoryName: "飲品甜點", sku: "D003", name: "焦糖乳酪蛋糕", cost: 45, price: 130, quantity: 40, safetyStock: 8, imageUrl: "/demo-products/cake.svg" },
+  { categoryCode: "MEAL", categoryName: "主餐", sku: "F001", name: "經典牛肉漢堡", cost: 80, price: 220, quantity: 60, safetyStock: 10, imageUrl: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=500&q=80" },
+  { categoryCode: "MEAL", categoryName: "主餐", sku: "F002", name: "香蒜奶油義大利麵", cost: 65, price: 190, quantity: 60, safetyStock: 10, imageUrl: "https://images.unsplash.com/photo-1556761223-4c4282c73f77?auto=format&fit=crop&w=500&q=80" },
+  { categoryCode: "SNACK", categoryName: "小點", sku: "F003", name: "松露脆薯", cost: 35, price: 120, quantity: 80, safetyStock: 15, imageUrl: "https://images.unsplash.com/photo-1573080496219-bb080dd4f877?auto=format&fit=crop&w=500&q=80" },
+  { categoryCode: "MEAL", categoryName: "主餐", sku: "F004", name: "香煎雞腿排", cost: 105, price: 260, quantity: 48, safetyStock: 10, imageUrl: "https://images.unsplash.com/photo-1532550907401-a500c9a57435?auto=format&fit=crop&w=500&q=80" },
+  { categoryCode: "MEAL", categoryName: "主餐", sku: "F005", name: "奶油鮭魚燉飯", cost: 120, price: 280, quantity: 42, safetyStock: 8, imageUrl: "https://images.unsplash.com/photo-1476124369491-e7addf5db371?auto=format&fit=crop&w=500&q=80" },
+  { categoryCode: "SNACK", categoryName: "小點", sku: "F006", name: "和風鮮蔬沙拉", cost: 55, price: 150, quantity: 54, safetyStock: 10, imageUrl: "https://images.unsplash.com/photo-1546793665-c74683f339c1?auto=format&fit=crop&w=500&q=80" },
+  { categoryCode: "SNACK", categoryName: "小點", sku: "F007", name: "主廚玉米濃湯", cost: 30, price: 90, quantity: 70, safetyStock: 12, imageUrl: "https://images.unsplash.com/photo-1547592166-23ac45744acd?auto=format&fit=crop&w=500&q=80" },
+  { categoryCode: "DRINK", categoryName: "飲品甜點", sku: "D001", name: "拿鐵咖啡", cost: 30, price: 110, quantity: 80, safetyStock: 15, imageUrl: "https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&w=500&q=80" },
+  { categoryCode: "DRINK", categoryName: "飲品甜點", sku: "D002", name: "季節水果茶", cost: 28, price: 100, quantity: 80, safetyStock: 15, imageUrl: "https://images.unsplash.com/photo-1556679343-c7306c1976bc?auto=format&fit=crop&w=500&q=80" },
+  { categoryCode: "DRINK", categoryName: "飲品甜點", sku: "D003", name: "焦糖乳酪蛋糕", cost: 45, price: 130, quantity: 40, safetyStock: 8, imageUrl: "https://images.unsplash.com/photo-1578985545062-69928b1d9587?auto=format&fit=crop&w=500&q=80" },
+  { categoryCode: "DRINK", categoryName: "飲品甜點", sku: "D004", name: "經典提拉米蘇", cost: 60, price: 160, quantity: 36, safetyStock: 8, imageUrl: "https://images.unsplash.com/photo-1571877227200-a0d98ea607e9?auto=format&fit=crop&w=500&q=80" },
+  { categoryCode: "DRINK", categoryName: "飲品甜點", sku: "D005", name: "柚香氣泡飲", cost: 35, price: 120, quantity: 64, safetyStock: 12, imageUrl: "https://images.unsplash.com/photo-1544145945-f90425340c7e?auto=format&fit=crop&w=500&q=80" },
 ];
 
 function normalizedMode(value: string | null | undefined): BusinessMode {
@@ -191,7 +199,14 @@ export async function seedOperationalBaseline(tx: any, input: {
   const productsWithDefaultImages = definitions.filter((definition) => definition.imageUrl);
   if (productsWithDefaultImages.length > 0) {
     await Promise.all(productsWithDefaultImages.map((definition) => tx.product.updateMany({
-      where: { tenantId: input.tenantId, sku: definition.sku, imageUrl: null },
+      where: {
+        tenantId: input.tenantId,
+        sku: definition.sku,
+        OR: [
+          { imageUrl: null },
+          ...legacyDemoProductImages(definition.sku).map((imageUrl) => ({ imageUrl })),
+        ],
+      },
       data: { imageUrl: definition.imageUrl },
     })));
   }

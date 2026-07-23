@@ -333,13 +333,14 @@ function verifyDiscovery(envelope, publicKey, companyCode) {
   }
   const payload = envelope.payload;
   if (payload.type !== "ERIN_ERP_COMPANY_DISCOVERY_V1") throw new Error("公司連線資料版本錯誤");
-  if (String(payload.companyCode || "").toUpperCase() !== String(companyCode).toUpperCase()) throw new Error("公司代碼不一致");
+  if (companyCode && String(payload.companyCode || "").toUpperCase() !== String(companyCode).toUpperCase()) throw new Error("公司代碼不一致");
   const expiresAt = new Date(String(payload.expiresAt || ""));
   if (Number.isNaN(expiresAt.getTime()) || Date.now() >= expiresAt.getTime()) throw new Error("公司連線資料已過期");
   const ca = String(payload.caCertificate || "").trim();
   new X509Certificate(ca);
   if (createHash("sha256").update(ca).digest("base64url") !== payload.caFingerprint) throw new Error("CA 指紋不一致");
   return {
+    companyCode: String(payload.companyCode || ""),
     serverUrl: new URL(String(payload.serverUrl || "")).origin,
     caCertificate: `${ca}\n`,
     discoveryVersion: Number(payload.discoveryVersion || 0),
@@ -350,11 +351,11 @@ async function refreshDiscovery() {
   const file = desktopConfigPath();
   if (!fs.existsSync(file) || !safeStorage.isEncryptionAvailable()) return false;
   const config = JSON.parse(fs.readFileSync(file, "utf8"));
-  if (!config.companyCode || !config.encryptedActivationKey) return false;
+  if (!config.encryptedActivationKey) return false;
   const activationKey = safeStorage.decryptString(Buffer.from(config.encryptedActivationKey, "base64"));
   const keyResponse = await request(`${CENTRAL_URL}/api/license/public-key`, { timeout: 12_000 });
   if (keyResponse.status !== 200) throw new Error("中央公鑰讀取失敗");
-  const body = JSON.stringify({ companyCode: config.companyCode, activationKey });
+  const body = JSON.stringify({ activationKey });
   const response = await request(`${CENTRAL_URL}/api/license/discover`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) },
@@ -371,7 +372,9 @@ async function refreshDiscovery() {
     keyResponse.body.toString("utf8").trim(),
     config.companyCode,
   );
-  if (config.serverUrl === discovery.serverUrl && config.caCertificate === discovery.caCertificate) return false;
+  if (config.companyCode === discovery.companyCode
+    && config.serverUrl === discovery.serverUrl
+    && config.caCertificate === discovery.caCertificate) return false;
   const temp = `${file}.discovery.tmp`;
   fs.writeFileSync(temp, `${JSON.stringify({ ...config, ...discovery }, null, 2)}\n`, { mode: 0o600 });
   fs.renameSync(temp, file);

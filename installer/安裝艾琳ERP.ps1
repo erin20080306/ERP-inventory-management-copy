@@ -205,7 +205,7 @@ $BackupEncryptionKey
 公司代碼：$CompanyCode
 公司主機網址：https://${LanIp}:3443
 原本註冊帳號與原本密碼可直接登入公司主機。
-請在每台已購買席次的 Windows／macOS 電腦安裝「艾琳 ERP」桌面客戶端，只需輸入公司代碼與啟用碼，主機網址與 CA 憑證會由中央安全帶入。
+請在每台已購買席次的 Windows／macOS 電腦安裝「艾琳 ERP」桌面客戶端，只需輸入啟用碼，最新主機 IP 與 CA 憑證會由中央安全帶入。
 ca.crt 只供艾琳設計維修驗收；一般客戶不需手動匯入。啟用碼不要寫入或轉傳此配對檔。
 每日加密備份目錄：$BackupDir（預設保留 30 日）。解密金鑰必須另外離線保存。
 "@ | Set-Content -Encoding UTF8 (Join-Path $PairDir "連線說明.txt")
@@ -218,6 +218,6 @@ Write-Host "備用帳號：admin"
 Write-Host "備用密碼：$AdminPassword" -ForegroundColor Yellow
 Write-Host "工作站配對檔：$PairDir"
 Write-Host "每日加密備份：$BackupDir"
-Write-Host "桌面已建立『艾琳 ERP』圖示；第一次開啟時輸入公司代碼與啟用碼即可完成安全綁定。"
+Write-Host "桌面已建立『艾琳 ERP』圖示；第一次開啟時只需輸入啟用碼即可自動尋找主機並完成安全綁定。"
 Start-Process $PairDir
 Read-Host "請保存管理員密碼後按 Enter 關閉"

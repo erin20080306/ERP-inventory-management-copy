@@ -354,7 +354,7 @@ function LicenseDialog({ tenant, onClose, onSaved }: { tenant: TenantRow; onClos
             <h3 className="font-bold text-amber-200">啟用碼只顯示這一次</h3>
             <div className="mt-3 rounded-lg bg-slate-950 p-3"><div className="text-xs text-slate-500">公司代碼</div><div className="mt-1 font-mono text-base font-bold text-sky-300">{companyCode || "產生中"}</div></div>
             <p className="mt-2 break-all rounded-lg bg-slate-950 p-4 font-mono text-sm text-white">{activationKey}</p>
-            <div className="mt-4 flex gap-2"><button onClick={() => navigator.clipboard.writeText(`公司代碼：${companyCode}\n啟用碼：${activationKey}`)} className="rounded-lg bg-amber-400 px-4 py-2 text-sm font-semibold text-slate-950">複製公司代碼與啟用碼</button><button onClick={() => void onSaved()} className="rounded-lg border border-slate-600 px-4 py-2 text-sm">我已安全保存</button></div>
+            <div className="mt-4 flex gap-2"><button onClick={() => navigator.clipboard.writeText(activationKey)} className="rounded-lg bg-amber-400 px-4 py-2 text-sm font-semibold text-slate-950">複製客戶啟用碼</button><button onClick={() => void onSaved()} className="rounded-lg border border-slate-600 px-4 py-2 text-sm">我已安全保存</button></div>
           </div>
         ) : (
           <>
@@ -386,11 +386,11 @@ function LicenseDialog({ tenant, onClose, onSaved }: { tenant: TenantRow; onClos
             </div>
             <label className="mt-5 flex items-center gap-2 text-sm text-slate-300"><input type="checkbox" checked={rotateKey} onChange={(event) => setRotateKey(event.target.checked)} />重發啟用碼（舊安裝需重新連線驗證）</label>
             <div className="mt-5 rounded-xl border border-sky-400/20 bg-sky-400/5 p-4">
-              <div className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="text-sm font-semibold text-sky-100">公司代碼自動連線</h3><p className="mt-1 text-xs text-slate-400">客戶輸入公司代碼與啟用碼後，由中央簽章回傳此主機網址與公開 CA 憑證。</p></div><span className="rounded-lg bg-slate-950 px-3 py-2 font-mono text-sm text-sky-300">{companyCode || (connectionLoaded ? "尚未產生" : "載入中…")}</span></div>
+              <div className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="text-sm font-semibold text-sky-100">啟用碼自動連線</h3><p className="mt-1 text-xs text-slate-400">客戶只輸入啟用碼後，由中央簽章回傳公司代碼、最新主機 IP 與公開 CA 憑證。</p></div><span className="rounded-lg bg-slate-950 px-3 py-2 font-mono text-sm text-sky-300">{companyCode || (connectionLoaded ? "尚未產生" : "載入中…")}</span></div>
               <div className="mt-4 grid gap-3">
                 <label className="space-y-1 text-xs text-slate-400"><span>公司主機 HTTPS 網址</span><input value={serverUrl} onChange={(event) => setServerUrl(event.target.value)} placeholder="https://192.168.1.20:3443" className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-white" /></label>
                 <label className="space-y-1 text-xs text-slate-400"><span>公司主機 CA 憑證（ca.crt 公開內容）</span><textarea value={caCertificate} onChange={(event) => setCaCertificate(event.target.value)} placeholder="-----BEGIN CERTIFICATE-----" rows={4} className="w-full rounded-lg border border-slate-700 bg-slate-950 p-3 font-mono text-xs text-white" /></label>
-                <label className="flex items-center gap-2 text-sm text-slate-300"><input type="checkbox" checked={discoveryEnabled} onChange={(event) => setDiscoveryEnabled(event.target.checked)} />允許客戶用公司代碼自動取得連線設定</label>
+                <label className="flex items-center gap-2 text-sm text-slate-300"><input type="checkbox" checked={discoveryEnabled} onChange={(event) => setDiscoveryEnabled(event.target.checked)} />允許客戶用啟用碼自動取得連線設定</label>
                 <div><button disabled={busy || !connectionLoaded} onClick={() => void saveConnectionOnly()} className="rounded-lg border border-sky-400/30 px-3 py-2 text-xs text-sky-200 hover:bg-sky-400/10 disabled:opacity-40">只儲存自動連線設定</button></div>
               </div>
             </div>

@@ -25,33 +25,21 @@
         <div><dt>離線租約</dt><dd id="readyExpiry"></dd></div>
       </dl>
       <button id="openButton" class="primary">開啟 ERP／POS</button>
-      <button id="resetButton" class="secondary">變更公司主機或啟用碼</button>
+      <button id="resetButton" class="secondary">重新輸入啟用碼</button>
     </section>
 
     <form id="setup" class="card" hidden>
       <h2>第一次連線</h2>
-      <p class="hint">輸入艾琳設計付款開通後提供的公司代碼與啟用碼，系統會自動取得正確的公司主機連線設定。</p>
-      <label>公司代碼
-        <input id="companyCode" required placeholder="ERIN-XXXXXXXXXXXX" autocomplete="organization">
-      </label>
+      <p class="hint">只要輸入艾琳設計付款開通後提供的啟用碼，系統就會自動找到正確的公司與最新主機 IP。</p>
       <label>啟用碼
         <input id="activationKey" required type="password" placeholder="ERP-…" autocomplete="off">
       </label>
-      <label><span><input id="manualMode" type="checkbox"> 無法使用中央查詢，改由安裝人員手動設定內網主機</span></label>
-      <div id="manualFields" hidden>
-        <label>公司主機 HTTPS 網址
-          <input id="serverUrl" placeholder="https://192.168.1.20:3443" autocomplete="url">
-        </label>
-        <label>公司主機 CA 憑證
-          <div class="file-row"><input id="caName" readonly placeholder="尚未選擇 ca.crt"><button id="chooseCa" type="button" class="secondary">選擇檔案</button></div>
-        </label>
-      </div>
       <p class="security">啟用碼與裝置私鑰會使用 macOS Keychain 或 Windows DPAPI 加密保存。私鑰不會傳送到中央或公司主機。</p>
       <div class="setup-actions">
-        <button id="saveButton" class="primary" type="submit">自動尋找公司並驗證席次</button>
+        <button id="saveButton" class="primary" type="submit">驗證啟用碼並自動連線</button>
         <button id="clearButton" class="secondary" type="button">清除舊連線設定</button>
       </div>
-      <p class="clear-help">已曾經測試或畫面預先帶出舊資料時，可先清除後再重新輸入；裝置身分會保留，不會新增席次。</p>
+      <p class="clear-help">網路或 IP 變更後會自動重新尋找主機；換電腦時使用相同啟用碼即可自動移轉席次。</p>
     </form>
   </main>
   <script src="setup.js"></script>

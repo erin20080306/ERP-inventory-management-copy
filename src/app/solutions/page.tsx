@@ -84,7 +84,7 @@ export default function SolutionsPage() {
         <section className="mb-8 grid gap-3 rounded-2xl border border-sky-400/20 bg-sky-400/5 p-5 text-sm md:grid-cols-3">
           <div><div className="font-semibold text-sky-200">線上只供試用</div><p className="mt-1 text-xs leading-5 text-slate-400">建立公司帳號後可完整試用 3 日，到期保留資料並封鎖操作。</p></div>
           <div><div className="flex items-center gap-2 font-semibold text-sky-200"><Download className="h-4 w-4" />正式版下載安裝</div><p className="mt-1 text-xs leading-5 text-slate-400">聯絡確認付款後，才開通 macOS／Windows 公司主機與工作站安裝包。</p></div>
-          <div><div className="font-semibold text-sky-200">席次由中央授權</div><p className="mt-1 text-xs leading-5 text-slate-400">2／3／5／8 台方案依實際綁定電腦計算，換機須先撤銷舊裝置。</p></div>
+          <div><div className="font-semibold text-sky-200">席次由中央授權</div><p className="mt-1 text-xs leading-5 text-slate-400">2／3／5／8 台方案依實際綁定電腦計算；換機輸入同一啟用碼即自動移轉最久未使用席次。</p></div>
         </section>
 
         <div className="mb-3 flex items-center justify-between gap-4 text-xs text-slate-400">

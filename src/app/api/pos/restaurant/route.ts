@@ -2,6 +2,7 @@ import { after, NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { ApiError, apiHandler, audit, requireRestaurantPermission, requireTenantId } from "@/lib/api";
 import { hasPermission } from "@/lib/auth";
+import { resolveDemoProductImage } from "@/lib/demo-product-media";
 import { nextNumberFastInTransaction } from "@/lib/number-sequence";
 import { prisma } from "@/lib/prisma";
 import { createRestaurantTable, deleteRestaurantTableSafely, setRestaurantTableActive, updateRestaurantTable } from "@/lib/restaurant-tables";
@@ -123,7 +124,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
     openShift,
     areas,
     categories,
-    products: products.map((product) => ({ ...product, salePrice: Number(product.salePrice), stockTotal: stockByProduct.get(product.id) ?? 0 })),
+    products: products.map((product) => ({ ...product, imageUrl: resolveDemoProductImage(product.sku, product.imageUrl), salePrice: Number(product.salePrice), stockTotal: stockByProduct.get(product.id) ?? 0 })),
     kitchenTickets,
     canManageTables,
     tableSettings,

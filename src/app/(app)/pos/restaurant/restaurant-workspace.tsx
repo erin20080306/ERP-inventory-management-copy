@@ -24,6 +24,7 @@ import {
   UtensilsCrossed,
 } from "lucide-react";
 import { toast } from "sonner";
+import { resolveDemoProductImage } from "@/lib/demo-product-media";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 type Product = {
@@ -470,8 +471,8 @@ return <div className="grid min-h-[60vh] animate-pulse gap-4 xl:grid-cols-[280px
               </div>
               <div className="flex-1 space-y-2 overflow-y-auto py-3">
                 {selectedOrder.items.map((item) => <div key={item.id} className="rounded-xl border p-3">
-                  <div className="flex justify-between gap-2">
-                    <div className="min-w-0"><div className="truncate text-sm font-bold">{item.product.name}</div><div className="mt-1 text-[11px] text-muted-foreground">{item.status}{item.note ? `・${item.note}` : ""}</div></div>
+                  <div className="flex justify-between gap-3">
+                    <div className="flex min-w-0 gap-3">{resolveDemoProductImage(item.product.sku, item.product.imageUrl) ? <img src={resolveDemoProductImage(item.product.sku, item.product.imageUrl) ?? undefined} alt={item.product.name} className="h-12 w-12 shrink-0 rounded-lg object-cover" /> : <div className="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-orange-50 font-black text-orange-300">{item.product.name.slice(0, 1)}</div>}<div className="min-w-0"><div className="truncate text-sm font-bold">{item.product.name}</div><div className="mt-1 text-[11px] text-muted-foreground">{item.status}{item.note ? `・${item.note}` : ""}</div></div></div>
                     <div className="text-sm font-semibold">{money(Number(item.quantity) * Number(item.unitPrice))}</div>
                   </div>
                   <div className="mt-2 flex items-center gap-2">

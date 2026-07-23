@@ -245,7 +245,7 @@ async function fetchCentralPublicKey() {
 function verifyCompanyDiscovery(discovery, centralPublicKey, requestedCompanyCode) {
   const payload = verifyCentralSignature(discovery, centralPublicKey);
   if (payload.type !== "ERIN_ERP_COMPANY_DISCOVERY_V1") throw new Error("中央公司連線資料格式錯誤");
-  if (String(payload.companyCode || "").toUpperCase() !== requestedCompanyCode.trim().toUpperCase()) {
+  if (requestedCompanyCode && String(payload.companyCode || "").toUpperCase() !== requestedCompanyCode.trim().toUpperCase()) {
     throw new Error("中央公司代碼與輸入不一致");
   }
   const issuedAt = new Date(String(payload.issuedAt || ""));
@@ -266,9 +266,13 @@ function verifyCompanyDiscovery(discovery, centralPublicKey, requestedCompanyCod
   };
 }
 
-async function discoverCompany(companyCode, activationKey) {
+async function discoverCompany(activationKey, companyCode = "") {
   const centralPublicKey = await fetchCentralPublicKey();
-  const body = JSON.stringify({ companyCode: companyCode.trim().toUpperCase(), activationKey });
+  const normalizedCompanyCode = companyCode.trim().toUpperCase();
+  const body = JSON.stringify({
+    activationKey,
+    ...(normalizedCompanyCode ? { companyCode: normalizedCompanyCode } : {}),
+  });
   const result = await requestJson(`${CENTRAL_URL}/api/license/discover`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) },
@@ -658,9 +662,8 @@ function registerIpc() {
       serverUrl = normalizeServerUrl(input.serverUrl);
       caCertificate = validateCaCertificate(input.caCertificate);
     } else {
-      companyCode = String(input.companyCode || "").trim().toUpperCase();
-      if (!/^[A-Z0-9-]{8,40}$/.test(companyCode)) throw new Error("公司代碼格式錯誤");
-      const discovered = await discoverCompany(companyCode, activationKey);
+      const discovered = await discoverCompany(activationKey);
+      companyCode = discovered.companyCode;
       serverUrl = discovered.serverUrl;
       caCertificate = discovered.caCertificate;
     }

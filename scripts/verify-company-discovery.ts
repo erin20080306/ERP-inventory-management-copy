@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { generateKeyPairSync, randomBytes } from "node:crypto";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { NextRequest } from "next/server";
@@ -20,6 +20,9 @@ import {
 } from "../src/lib/license";
 import { prisma } from "../src/lib/prisma";
 import { seedTenantDefaults } from "../src/lib/seed-tenant";
+
+const windowsOpenSsl = join(process.env.ProgramFiles || "C:\\Program Files", "Git", "usr", "bin", "openssl.exe");
+const openSslExecutable = process.platform === "win32" && existsSync(windowsOpenSsl) ? windowsOpenSsl : "openssl";
 
 const signingKeys = generateKeyPairSync("ed25519");
 process.env.LICENSE_KEY_SECRET ||= randomBytes(32).toString("hex");
@@ -90,7 +93,7 @@ async function main() {
   try {
   const certPath = join(tempDir, "ca.crt");
   const keyPath = join(tempDir, "ca.key");
-  execFileSync("openssl", [
+  execFileSync(openSslExecutable, [
     "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1",
     "-subj", "/CN=Erin ERP Discovery Test CA",
     "-keyout", keyPath,
@@ -221,13 +224,11 @@ async function main() {
   globalThis.fetch = originalFetch;
 
   const invalidResponse = await discover(request("/api/license/discover", {
-    companyCode: activation.companyCode,
     activationKey: `${activation.activationKey}-wrong`,
   }));
   assert.equal(invalidResponse.status, 401);
 
   const discoverResponse = await discover(request("/api/license/discover", {
-    companyCode: activation.companyCode.toLowerCase(),
     activationKey: activation.activationKey,
   }));
   assert.equal(discoverResponse.status, 200);
@@ -254,19 +255,34 @@ async function main() {
     assert.equal(verifyOfflineLease(result.lease), true);
   }
 
-  const overLimit = workstation();
-  const overLimitResponse = await lease(request("/api/license/lease", {
+  const replacement = workstation();
+  const replacementResponse = await lease(request("/api/license/lease", {
     activationKey: activation.activationKey,
-    ...overLimit,
+    ...replacement,
     deviceRole: "WORKSTATION",
-    displayName: "超額工作站",
+    displayName: "換機後工作站",
     platform: "windows",
-    appVersion: "1.0.0-test",
+    appVersion: "1.0.8-test",
   }));
-  assert.equal(overLimitResponse.status, 409);
+  assert.equal(replacementResponse.status, 200);
+  assert.equal(verifyOfflineLease((await replacementResponse.json()).lease), true);
   assert.equal(await prisma.licenseDevice.count({ where: { tenantId, deviceRole: "WORKSTATION", revokedAt: null } }), 2);
+  assert.equal(await prisma.licenseDevice.count({ where: { tenantId, deviceRole: "WORKSTATION", revokedAt: { not: null } } }), 1);
 
-  console.log("Company discovery, automatic host registration, signed edition sync, and workstation seat limits: PASS");
+  const replacementServerId = `replacement-server-${randomBytes(18).toString("base64url")}`;
+  const replacementServerResponse = await lease(request("/api/license/lease", {
+    activationKey: activation.activationKey,
+    deviceId: replacementServerId,
+    deviceRole: "SERVER",
+    displayName: "換機後公司主機",
+    platform: "windows",
+    appVersion: "1.0.8-test",
+  }));
+  assert.equal(replacementServerResponse.status, 200);
+  assert.equal(await prisma.licenseDevice.count({ where: { tenantId, deviceRole: "SERVER", revokedAt: null } }), 1);
+  assert.equal(await prisma.licenseDevice.count({ where: { tenantId, deviceRole: "SERVER", revokedAt: { not: null } } }), 1);
+
+  console.log("Activation-only discovery, automatic host registration, signed edition sync, and device replacement: PASS");
   } finally {
     globalThis.fetch = originalFetch;
     for (const [name, value] of Object.entries(originalLocalEnv)) {

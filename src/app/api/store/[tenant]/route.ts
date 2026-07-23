@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { ApiError, apiHandler, getClientInfo } from "@/lib/api";
-import { nextNumberInTransaction } from "@/lib/documents";
+import { planCommerceStockAllocations } from "@/lib/commerce-checkout";
+import { resolveDemoProductImage } from "@/lib/demo-product-media";
+import { createPostedJournal, nextNumberInTransaction } from "@/lib/documents";
 import { computeLicenseAccess } from "@/lib/license";
 import { prisma } from "@/lib/prisma";
 
@@ -131,7 +133,7 @@ export const GET = apiHandler(async (_req: NextRequest, { params }: { params: { 
       name: product.name,
       spec: product.spec,
       description: product.description,
-      image: product.imageUrl,
+      image: resolveDemoProductImage(product.sku, product.imageUrl),
       category: product.category?.name ?? "商品",
       price: Number(product.salePrice),
       stock: Math.max(0, product.stocks.reduce((sum, row) => sum + Number(row.quantity), 0) - (reserved.get(product.id) ?? 0)),
@@ -157,7 +159,7 @@ export const POST = apiHandler(async (req: NextRequest, { params }: { params: { 
       return {
         id: duplicate.number,
         createdAt: duplicate.createdAt.toISOString(),
-        status: duplicate.status === "SUBMITTED" ? "已送入 ERP・待處理" : duplicate.status,
+        status: duplicate.status === "POSTED" ? "庫存與會計已過帳・待付款確認" : duplicate.status,
         total: Number(duplicate.total),
         items: input.items.reduce((sum, item) => sum + item.quantity, 0),
         recipient: input.customer.name,
@@ -172,8 +174,9 @@ export const POST = apiHandler(async (req: NextRequest, { params }: { params: { 
           id: true,
           sku: true,
           name: true,
+          costPrice: true,
           salePrice: true,
-          stocks: { select: { quantity: true } },
+          stocks: { select: { id: true, warehouseId: true, quantity: true, warehouse: { select: { code: true, isActive: true } } } },
         },
       }),
       tx.salesOrderItem.findMany({
@@ -194,11 +197,30 @@ export const POST = apiHandler(async (req: NextRequest, { params }: { params: { 
     const reserved = reservedByProduct(pendingLines);
     const requested = new Map<string, number>();
     for (const item of input.items) requested.set(item.productId, (requested.get(item.productId) ?? 0) + item.quantity);
-    for (const product of products) {
-      const physical = product.stocks.reduce((sum, row) => sum + Number(row.quantity), 0);
-      const available = Math.max(0, physical - (reserved.get(product.id) ?? 0));
-      if ((requested.get(product.id) ?? 0) > available) throw new ApiError(409, `${product.name} 可售庫存僅剩 ${available} 件`);
-    }
+    const stockPlan = planCommerceStockAllocations(products.map((product) => {
+      let reservedQuantity = reserved.get(product.id) ?? 0;
+      const stocks = product.stocks.map((stock) => {
+        const physical = Number(stock.quantity);
+        const protectedQuantity = stock.warehouse.isActive ? Math.min(physical, reservedQuantity) : 0;
+        reservedQuantity = Math.max(0, reservedQuantity - protectedQuantity);
+        return {
+          id: stock.id,
+          warehouseId: stock.warehouseId,
+          warehouseCode: stock.warehouse.code,
+          warehouseActive: stock.warehouse.isActive,
+          quantity: Math.max(0, physical - protectedQuantity),
+        };
+      });
+      return {
+        productId: product.id,
+        productName: product.name,
+        quantity: requested.get(product.id) ?? 0,
+        unitCost: Number(product.costPrice),
+        stocks,
+      };
+    }));
+    const shortage = stockPlan.shortages[0];
+    if (shortage) throw new ApiError(409, `${shortage.productName} 可售庫存僅剩 ${shortage.available} 件`);
     const computed = input.items.map((item) => {
       const product = productById.get(item.productId)!;
       const unitPrice = Number(product.salePrice);
@@ -249,7 +271,10 @@ export const POST = apiHandler(async (req: NextRequest, { params }: { params: { 
         tenantId: tenant.id,
         number: orderNumber,
         customerId: customer.id,
-        status: "SUBMITTED",
+        warehouseId: stockPlan.orderWarehouseId,
+        status: "POSTED",
+        shippedAt: new Date(),
+        updatedBy: "WEB_CHECKOUT",
         subtotal: merchandiseTotal,
         discount: 0,
         taxAmount: 0,
@@ -260,6 +285,7 @@ export const POST = apiHandler(async (req: NextRequest, { params }: { params: { 
           create: computed.map((item) => ({
             productId: item.product.id,
             quantity: item.quantity,
+            shippedQty: item.quantity,
             unitPrice: item.unitPrice,
             discount: 0,
             taxRate: 0,
@@ -267,18 +293,62 @@ export const POST = apiHandler(async (req: NextRequest, { params }: { params: { 
           })),
         },
       },
-      select: { number: true, createdAt: true, total: true },
+      select: { id: true, number: true, createdAt: true, total: true },
     });
+
+    for (const allocation of stockPlan.allocations) {
+      const changed = await tx.inventoryStock.updateMany({
+        where: {
+          id: allocation.stockId,
+          tenantId: tenant.id,
+          productId: allocation.productId,
+          warehouseId: allocation.warehouseId,
+          quantity: { gte: allocation.quantity },
+        },
+        data: { quantity: { decrement: allocation.quantity } },
+      });
+      if (changed.count !== 1) throw new ApiError(409, "庫存剛被其他交易更新，請重新確認購物車後再結帳");
+    }
+    await tx.inventoryTransaction.createMany({
+      data: stockPlan.allocations.map((allocation) => ({
+        tenantId: tenant.id,
+        productId: allocation.productId,
+        warehouseId: allocation.warehouseId,
+        type: "SALES_OUT" as const,
+        quantity: allocation.quantity * -1,
+        unitCost: allocation.unitCost,
+        refType: "WEB_CHECKOUT",
+        refId: order.id,
+        remark: `商城結帳 ${order.number}`,
+      })),
+    });
+    await tx.accountsReceivable.create({
+      data: {
+        tenantId: tenant.id,
+        customerId: customer.id,
+        salesOrderId: order.id,
+        amount: total,
+        paidAmount: 0,
+        status: "POSTED",
+        updatedBy: "WEB_CHECKOUT",
+      },
+    });
+    await createPostedJournal(tx, tenant.id, `商城銷售 ${order.number}`, undefined, [
+      { code: "1132", debit: total, memo: `應收帳款－${order.number}` },
+      { code: "4101", credit: total, memo: `商城銷貨收入－${order.number}` },
+      { code: "5101", debit: stockPlan.cogs, memo: `銷貨成本－${order.number}` },
+      { code: "1201", credit: stockPlan.cogs, memo: `存貨－${order.number}` },
+    ]);
 
     return {
       id: order.number,
       createdAt: order.createdAt.toISOString(),
-      status: input.payment === "TRANSFER" ? "等待付款・已進 ERP" : "金流待確認・已進 ERP",
+      status: input.payment === "TRANSFER" ? "庫存與會計已過帳・等待轉帳確認" : "庫存與會計已過帳・等待金流確認",
       total: Number(order.total),
       items: input.items.reduce((sum, item) => sum + item.quantity, 0),
       recipient: input.customer.name,
     };
   }, { isolationLevel: "ReadCommitted", maxWait: 10_000, timeout: 30_000 });
 
-  return NextResponse.json({ order: result, erpStatus: "SUBMITTED", inventory: "RESERVED" }, { status: 201 });
+  return NextResponse.json({ order: result, erpStatus: "POSTED", inventory: "DEDUCTED", accounting: "POSTED", payment: "PENDING" }, { status: 201 });
 });

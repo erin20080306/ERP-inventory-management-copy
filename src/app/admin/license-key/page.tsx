@@ -187,8 +187,8 @@ export default function ActivationKeyAdminPage() {
 
   async function copyResult() {
     if (!result) return;
-    await navigator.clipboard.writeText(`公司代碼：${result.companyCode}\n啟用碼：${result.activationKey}`);
-    setMessage("公司代碼與啟用碼已複製");
+    await navigator.clipboard.writeText(result.activationKey);
+    setMessage("啟用碼已複製；客戶安裝時只需輸入此碼");
   }
 
   if (status === "loading") return <div className="flex min-h-screen items-center justify-center bg-slate-950 text-white"><Loader2 className="h-7 w-7 animate-spin" /></div>;
@@ -216,7 +216,7 @@ export default function ActivationKeyAdminPage() {
               <div className="rounded-xl bg-slate-950 p-4"><div className="text-xs text-slate-500">公司代碼</div><div className="mt-1 break-all font-mono text-lg font-bold text-sky-300">{result.companyCode}</div></div>
               <div className="rounded-xl bg-slate-950 p-4"><div className="text-xs text-slate-500">啟用碼</div><div className="mt-1 break-all font-mono text-base font-bold text-white">{result.activationKey}</div></div>
               {(result.revokedDevices ?? 0) > 0 && <div className="rounded-xl border border-rose-400/30 bg-rose-400/10 p-4 text-sm text-rose-100">已撤銷 {result.revokedDevices} 台舊裝置。公司主機與工作站需改用新啟用碼重新連線。</div>}
-              <button onClick={() => void copyResult()} className="inline-flex h-11 items-center gap-2 rounded-xl bg-amber-400 px-5 font-bold text-slate-950"><Copy className="h-4 w-4" />複製公司代碼與啟用碼</button>
+              <button onClick={() => void copyResult()} className="inline-flex h-11 items-center gap-2 rounded-xl bg-amber-400 px-5 font-bold text-slate-950"><Copy className="h-4 w-4" />複製客戶啟用碼</button>
             </div>
           </section>
         ) : (

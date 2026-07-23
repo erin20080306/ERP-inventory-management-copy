@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 
 const compose = readFileSync("docker-compose.local.yml", "utf8");
 const updater = readFileSync("updater/update.cgi", "utf8");
@@ -21,8 +22,12 @@ const workflow = readFileSync(".github/workflows/publish-host-container-image.ym
 const releaseMarker = readFileSync("src/generated/current-host-release.ts", "utf8");
 const dockerfile = readFileSync("Dockerfile", "utf8");
 
-execFileSync("sh", ["-n", "updater/update.cgi"], { stdio: "pipe" });
-execFileSync("bash", ["-n", "installer/安裝艾琳ERP.command"], { stdio: "pipe" });
+const gitBin = join(process.env.ProgramFiles || "C:\\Program Files", "Git", "bin");
+const shExecutable = process.platform === "win32" && existsSync(join(gitBin, "sh.exe")) ? join(gitBin, "sh.exe") : "sh";
+const bashExecutable = process.platform === "win32" && existsSync(join(gitBin, "bash.exe")) ? join(gitBin, "bash.exe") : "bash";
+
+execFileSync(shExecutable, ["-n", "updater/update.cgi"], { stdio: "pipe" });
+execFileSync(bashExecutable, ["-n", "installer/安裝艾琳ERP.command"], { stdio: "pipe" });
 execFileSync(process.execPath, ["--check", "desktop/runtime-repair.cjs"], { stdio: "pipe" });
 
 assert.match(compose, /updater:/);
@@ -31,7 +36,7 @@ assert.match(compose, /\/var\/run\/docker\.sock:\/var\/run\/docker\.sock/);
 assert.match(compose, /no-new-privileges:true/);
 assert.match(compose, /erp_update_state/);
 assert.match(compose, /HOST_UPDATE_TOKEN/);
-const updaterService = compose.split("\n  updater:\n")[1]?.split("\n  backup:\n")[0] || "";
+const updaterService = compose.split(/\r?\n  updater:\r?\n/)[1]?.split(/\r?\n  backup:\r?\n/)[0] || "";
 assert.ok(updaterService.length > 0);
 assert.doesNotMatch(updaterService, /\n\s+ports:/);
 assert.match(updaterDockerfile, /docker-cli-compose/);

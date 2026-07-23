@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ApiError, apiHandler, requirePosPermission, requireTenantId } from "@/lib/api";
+import { resolveDemoProductImage } from "@/lib/demo-product-media";
 import { prisma } from "@/lib/prisma";
 
 function serializeProduct(product: any) {
@@ -10,7 +11,7 @@ function serializeProduct(product: any) {
     name: product.name,
     spec: product.spec,
     salePrice: Number(product.salePrice),
-    imageUrl: product.imageUrl,
+    imageUrl: resolveDemoProductImage(product.sku, product.imageUrl),
     categoryName: product.category?.name ?? "未分類",
     stockTotal: product.stocks.reduce((sum: number, stock: any) => sum + Number(stock.quantity), 0),
   };

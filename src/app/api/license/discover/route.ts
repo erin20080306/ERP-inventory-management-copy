@@ -11,7 +11,7 @@ import { prisma } from "@/lib/prisma";
 import { normalizeBusinessMode } from "@/lib/product-editions";
 
 const Input = z.object({
-  companyCode: z.string().trim().min(8).max(40).regex(/^[A-Za-z0-9-]+$/),
+  companyCode: z.string().trim().min(8).max(40).regex(/^[A-Za-z0-9-]+$/).optional(),
   activationKey: z.string().trim().min(24).max(200),
 });
 
@@ -29,9 +29,14 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) return NextResponse.json({ error: "公司代碼或啟用碼格式錯誤" }, { status: 400 });
 
   try {
-    const companyCode = normalizeCompanyCode(parsed.data.companyCode);
+    const companyCode = parsed.data.companyCode
+      ? normalizeCompanyCode(parsed.data.companyCode)
+      : undefined;
     const tenant = await prisma.tenant.findFirst({
-      where: { companyCode, licenseKeyHash: hashActivationKey(parsed.data.activationKey) },
+      where: {
+        licenseKeyHash: hashActivationKey(parsed.data.activationKey),
+        ...(companyCode ? { companyCode } : {}),
+      },
       select: {
         id: true,
         name: true,
@@ -52,7 +57,7 @@ export async function POST(req: NextRequest) {
         discoveryVersion: true,
       },
     });
-    if (!tenant) return NextResponse.json({ error: "公司代碼或啟用碼無效" }, { status: 401 });
+    if (!tenant) return NextResponse.json({ error: companyCode ? "公司代碼或啟用碼無效" : "啟用碼無效" }, { status: 401 });
 
     const access = computeLicenseAccess({
       tenantCreatedAt: tenant.createdAt,

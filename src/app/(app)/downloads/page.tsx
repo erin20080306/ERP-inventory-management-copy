@@ -126,7 +126,7 @@ export default function DownloadsPage() {
           <div className="bg-white/80 p-4"><KeyRound className="h-5 w-5 text-amber-700" /><div className="mt-2 text-sm font-bold">裝置與授權雙重驗證</div><p className="mt-1 text-xs leading-5 text-slate-600">工作站私鑰由 macOS Keychain 或 Windows DPAPI 保護，每次請求含簽章、時間與防重播 nonce。</p></div>
           <div className="bg-white/80 p-4"><HardDrive className="h-5 w-5 text-emerald-700" /><div className="mt-2 text-sm font-bold">加密備份需異地保存</div><p className="mt-1 text-xs leading-5 text-slate-600">主機每日建立 AES-256-GCM 加密備份；請定期複製到 NAS 或受控雲端，復原金鑰須另處保管。</p></div>
         </div>
-        <div className="p-5 text-xs leading-6 text-emerald-950"><strong>建議安裝順序：</strong>先選定一台長時間開機的公司主機並安裝 Docker Desktop → 安裝 Host 並輸入啟用碼 → 在每台工作站安裝桌面程式並輸入公司代碼 → 驗證 HTTPS 連線、登入權限及第一份備份。</div>
+        <div className="p-5 text-xs leading-6 text-emerald-950"><strong>建議安裝順序：</strong>先選定一台長時間開機的公司主機並安裝 Docker Desktop → 手動執行 Host 安裝檔並輸入啟用碼 → 在每台工作站安裝桌面程式，只輸入同一啟用碼 → 系統自動尋找最新主機 IP → 驗證登入權限及第一份備份。</div>
       </section>
       {files.some((file) => file.codeSigning === "ad-hoc-manual") ? <section className="rounded-2xl border border-amber-300 bg-amber-50 p-5 text-sm leading-6 text-amber-950"><div className="font-bold">手動安裝版首次開啟</div><div className="mt-1"><strong>macOS：</strong>下載 DMG，把「艾琳 ERP」拖到「應用程式」，再到「應用程式」對 App 按右鍵並選「打開」。請先刪除先前顯示已損毀的舊 App。</div><div className="mt-1"><strong>Windows：</strong>執行 EXE；若出現 SmartScreen，選「其他資訊」後按「仍要執行」。</div><div className="mt-2 text-xs text-amber-800">本版已做完整性簽章與 SHA-256 核對，但未取得 Apple／Windows 商業憑證，因此第一次需手動允許。</div></section> : null}
 
