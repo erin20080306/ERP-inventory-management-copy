@@ -2,6 +2,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { spawn, spawnSync } = require("node:child_process");
 const { app } = require("electron");
+const { refreshActivationDiscovery } = require("./activation-refresh.cjs");
 const { repairWorkstationIdentity, scheduleUpdaterRepair } = require("./runtime-repair.cjs");
 
 function log(message, detail = "") {
@@ -150,6 +151,12 @@ async function start() {
     } catch (error) {
       log("v1.0.7 installation failed:", error?.message || String(error));
     }
+  }
+
+  try {
+    await refreshActivationDiscovery();
+  } catch (error) {
+    log("activation-only discovery refresh deferred:", error?.message || String(error));
   }
 
   signDesktopLauncherWhenCreated();
