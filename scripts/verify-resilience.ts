@@ -181,18 +181,28 @@ async function testCentralSeatAndSignature() {
   assert.ok(activation.activationKey);
   const identities = [createWorkstationIdentity(), createWorkstationIdentity(), createWorkstationIdentity()];
   const responses = await Promise.all(identities.map((identity, index) => requestLease(activation.activationKey!, identity, `10.0.0.${index + 1}`)));
-  assert.deepEqual(responses.map((response) => response.status).sort((a, b) => a - b), [200, 200, 409]);
-  assert.equal(await prisma.licenseDevice.count({ where: { tenantId: tenant.id, deviceRole: "WORKSTATION", revokedAt: null } }), 2);
+  assert.deepEqual(responses.map((response) => response.status).sort((a, b) => a - b), [200, 200, 200]);
+  const workstationDevices = await prisma.licenseDevice.findMany({
+    where: { tenantId: tenant.id, deviceRole: "WORKSTATION" },
+    select: { deviceHash: true, revokedAt: true },
+  });
+  assert.equal(workstationDevices.filter((device) => !device.revokedAt).length, 2);
+  assert.equal(workstationDevices.filter((device) => device.revokedAt).length, 1);
+  const activeWorkstationHashes = new Set(workstationDevices.filter((device) => !device.revokedAt).map((device) => device.deviceHash));
+
 
   const serverResponses = await Promise.all([
     requestServerLease(activation.activationKey!, "company-server-alpha", "10.0.1.1"),
     requestServerLease(activation.activationKey!, "company-server-beta", "10.0.1.2"),
   ]);
-  assert.deepEqual(serverResponses.map((response) => response.status).sort((a, b) => a - b), [200, 409]);
+  assert.deepEqual(serverResponses.map((response) => response.status).sort((a, b) => a - b), [200, 200]);
   assert.equal(await prisma.licenseDevice.count({ where: { tenantId: tenant.id, deviceRole: "SERVER", revokedAt: null } }), 1);
+  assert.equal(await prisma.licenseDevice.count({ where: { tenantId: tenant.id, deviceRole: "SERVER", revokedAt: { not: null } } }), 1);
   assert.equal(await prisma.licenseDevice.count({ where: { tenantId: tenant.id, deviceRole: "WORKSTATION", revokedAt: null } }), 2);
+  assert.equal(await prisma.licenseEvent.count({ where: { tenantId: tenant.id, action: "DEVICE_AUTO_REPLACED" } }), 2);
 
-  const successfulIndex = responses.findIndex((response) => response.status === 200);
+  const successfulIndex = identities.findIndex((identity) => activeWorkstationHashes.has(hashDeviceId(identity.deviceId)));
+  assert.notEqual(successfulIndex, -1);
   const successful = responses[successfulIndex];
   assert.equal(successful.body.lease.algorithm, "ed25519");
   assert.equal(verifyOfflineLease(successful.body.lease), true);
