@@ -62,6 +62,11 @@ assert.match(runtimeRepair, /scheduleUpdaterRepair/);
 assert.match(runtimeRepair, /--build", "--force-recreate", "updater/);
 assert.match(v107Bootstrap, /repairWorkstationIdentity\(\)/);
 assert.match(v107Bootstrap, /scheduleUpdaterRepair\(\)/);
+assert.match(v107Bootstrap, /ensureWindowsHostPathCompatibility\(\)/);
+assert.match(v107Bootstrap, /process\.env\.USERPROFILE/);
+assert.match(v107Bootstrap, /process\.env\.LOCALAPPDATA/);
+assert.match(v107Bootstrap, /"junction"/);
+assert.match(windowsInstaller, /\$InstallDir = Join-Path \$env:USERPROFILE "ErinERP"/);
 
 assert.match(bootstrap, /accept-encoding", "identity"/);
 assert.match(bootstrap, /removeAllListeners\("will-navigate"\)/);
@@ -164,4 +169,4 @@ for (const secretName of ["MAC_CSC_LINK", "APPLE_APP_SPECIFIC_PASSWORD", "WIN_CS
 }
 assert.match(workflow, /needs: \[host-installers, desktop-clients\]/);
 
-console.log("Desktop package, signature repair, updater recovery and security configuration: PASS");
+console.log("Desktop package, Windows Host path bridge, signature repair, updater recovery and security configuration: PASS");
