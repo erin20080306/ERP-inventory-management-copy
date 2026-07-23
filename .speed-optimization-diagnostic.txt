@@ -11,13 +11,22 @@ PASS: POS 初始商品可載入最多 500 筆供本機搜尋
 PASS: 商城庫存使用單次批次 SQL 更新
 Runtime speed optimization safeguards: PASS
 PASS: 前台只配置 POS 單號
+PASS: 前台不再建立 ERP 銷售訂單
+PASS: 庫存數量仍先快速扣減
+PASS: 回應後背景同步
+PASS: 背景履約可重試
+PASS: 背景建立進銷存與帳務
+PASS: 一般 POS 不等待草稿
+PASS: 一般 POS 刷卡需授權碼
+PASS: 餐飲現金輸入與找零
+PASS: 餐飲刷卡核准流程
 file:///home/runner/work/ERP-inventory-management-copy/ERP-inventory-management-copy/scripts/verify-pos-fast-checkout-v5.mjs:11
   if (!condition) throw new Error(`檢查失敗：${name}`);
                         ^
 
-Error: 檢查失敗：前台不再建立 ERP 銷售訂單
+Error: 檢查失敗：餐飲點餐即時佇列
     at check (file:///home/runner/work/ERP-inventory-management-copy/ERP-inventory-management-copy/scripts/verify-pos-fast-checkout-v5.mjs:11:25)
-    at file:///home/runner/work/ERP-inventory-management-copy/ERP-inventory-management-copy/scripts/verify-pos-fast-checkout-v5.mjs:16:1
+    at file:///home/runner/work/ERP-inventory-management-copy/ERP-inventory-management-copy/scripts/verify-pos-fast-checkout-v5.mjs:25:1
     at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
     at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
     at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)
