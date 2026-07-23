@@ -20,15 +20,16 @@ pause_exit() {
 }
 
 valid_ipv4() {
-  printf '%s\n' "$1" | awk -F. '
-    NF != 4 { exit 1 }
-    {
-      for (i = 1; i <= 4; i++) {
-        if ($i !~ /^[0-9]+$/ || $i < 0 || $i > 255) exit 1
-      }
-    }
-    END { exit 0 }
-  '
+  local first second third fourth extra octet
+  IFS=. read -r first second third fourth extra <<< "$1"
+  [ -z "$extra" ] || return 1
+  for octet in "$first" "$second" "$third" "$fourth"; do
+    case "$octet" in
+      ''|*[!0-9]*) return 1 ;;
+    esac
+    [ "$octet" -le 255 ] || return 1
+  done
+  return 0
 }
 
 detect_lan_ip() {
