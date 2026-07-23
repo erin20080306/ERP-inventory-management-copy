@@ -15,29 +15,49 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - name: Apply collapsible sidebar patch
+      - name: Apply whole sidebar rail collapse
         run: |
-          node scripts/apply-collapsible-sidebar.mjs
-          node scripts/fix-collapsible-sidebar-defaults.mjs
-      - name: Verify sidebar safeguards
-        run: node scripts/verify-collapsible-sidebar.mjs
+          node scripts/apply-sidebar-rail.mjs
+          rm -f .sidebar-rail-diagnostic.txt
+      - name: Verify section and rail safeguards
+        run: |
+          node scripts/verify-collapsible-sidebar.mjs
+          node scripts/verify-sidebar-rail.mjs
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
       - run: npm ci --no-audit --no-fund
       - name: TypeScript check
-        run: npx tsc --noEmit
+        id: typescript
+        continue-on-error: true
+        run: |
+          set +e
+          npx tsc --noEmit 2>&1 | tee /tmp/sidebar-typescript.log
+          exit ${PIPESTATUS[0]}
+      - name: Publish TypeScript diagnostic
+        if: steps.typescript.outcome == 'failure'
+        run: |
+          cp /tmp/sidebar-typescript.log .sidebar-rail-diagnostic.txt
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add .sidebar-rail-diagnostic.txt
+          git commit -m "chore: record sidebar rail TypeScript failure [skip ci]"
+          git push origin HEAD:main
+      - name: Stop after TypeScript failure
+        if: steps.typescript.outcome == 'failure'
+        run: exit 1
       - name: Check formatting
         run: git diff --check
-      - name: Commit collapsible sidebar
+      - name: Commit collapsible sidebar rail
         run: |
           if git diff --quiet; then
-            echo "Collapsible sidebar already applied."
+            echo "Sidebar section and rail collapse already applied."
             exit 0
           fi
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add src/components/layout/sidebar-nav.tsx
-          git commit -m "fix: let every sidebar section stay collapsed"
+          git add src/components/layout/sidebar.tsx src/components/layout/sidebar-nav.tsx
+          git add -A .sidebar-rail-diagnostic.txt
+          git commit -m "feat: preserve section accordions and add whole sidebar left collapse"
           git push origin HEAD:main
