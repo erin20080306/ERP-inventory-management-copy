@@ -17,9 +17,10 @@ mkdirSync(outputDir, { recursive: true });
 
 function installerCompose() {
   const source = readFileSync(path.join(root, "docker-compose.local.yml"), "utf8");
-  const updated = source.replace(/image:\s*erin-erp-host-updater:\d+/u, `image: ${updaterImage}`);
-  if (updated === source) throw new Error("Updater image marker was not found in docker-compose.local.yml");
-  return updated;
+  if (!source.includes(`image: ${updaterImage}`)) {
+    throw new Error(`docker-compose.local.yml must use ${updaterImage}`);
+  }
+  return source;
 }
 
 function prepare(platform) {
