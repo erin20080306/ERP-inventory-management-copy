@@ -4,7 +4,9 @@ import {
   isTenantHighestPrivilege,
   tenantStorefrontPath,
 } from "../src/lib/storefront-access";
-import { resolveDemoProductImage } from "../src/lib/demo-product-media";
+import { existsSync } from "node:fs";
+import path from "node:path";
+import { resolveDemoProductImage, RETAIL_DEMO_IMAGE_BY_SKU } from "../src/lib/demo-product-media";
 
 const tenantAdmin = {
   tenantId: "tenant-123",
@@ -47,5 +49,13 @@ assert.equal(resolveDemoProductImage("RTL-P001", null), "/demo-products/cotton-t
 assert.equal(resolveDemoProductImage("F001", "/demo-products/burger.svg"), resolveDemoProductImage("F001", null));
 assert.equal(resolveDemoProductImage("F001", "/uploads/custom-burger.webp"), "/uploads/custom-burger.webp");
 assert.equal(resolveDemoProductImage("CUSTOM-001", null), null);
+assert.equal(resolveDemoProductImage("LEGACY-APRON", null, "棉麻日常圍裙", "服飾配件"), "/demo-products/linen-apron.webp");
+assert.match(resolveDemoProductImage("CUSTOM-AROMA-01", null, "門市香氛新品", "香氛保養") ?? "", /^\/demo-products\/.+\.webp$/);
+assert.equal(resolveDemoProductImage("CUSTOM-OTHER-01", null, "一般門市新品", "其他"), null);
+assert.match(resolveDemoProductImage("CUSTOM-OTHER-01", null, "一般門市新品", "其他", true) ?? "", /^\/demo-products\/.+\.webp$/);
+assert.equal(Object.keys(RETAIL_DEMO_IMAGE_BY_SKU).length, 12);
+for (const imageUrl of Object.values(RETAIL_DEMO_IMAGE_BY_SKU)) {
+  assert.equal(existsSync(path.join(process.cwd(), "public", imageUrl)), true, `${imageUrl} must exist`);
+}
 
 console.log("Tenant storefront / ERP switching access: PASS");

@@ -1,4 +1,4 @@
-import { legacyDemoProductImages } from "./demo-product-media";
+import { legacyDemoProductImages, resolveDemoProductImage } from "./demo-product-media";
 
 type BusinessMode = "ERP" | "POS_RETAIL" | "POS_RESTAURANT" | "ECOMMERCE";
 
@@ -209,6 +209,36 @@ export async function seedOperationalBaseline(tx: any, input: {
       },
       data: { imageUrl: definition.imageUrl },
     })));
+  }
+  if (includeRetail) {
+    const retailImageCandidates = await tx.product.findMany({
+      where: { tenantId: input.tenantId },
+      select: {
+        id: true,
+        sku: true,
+        name: true,
+        imageUrl: true,
+        category: { select: { name: true } },
+      },
+    });
+    const retailImageUpdates = retailImageCandidates.flatMap((product: any) => {
+      const imageUrl = resolveDemoProductImage(
+        product.sku,
+        product.imageUrl,
+        product.name,
+        product.category?.name,
+        true,
+      );
+      return imageUrl && imageUrl !== product.imageUrl
+        ? [{ id: product.id, imageUrl }]
+        : [];
+    });
+    if (retailImageUpdates.length > 0) {
+      await Promise.all(retailImageUpdates.map((product: any) => tx.product.update({
+        where: { id: product.id },
+        data: { imageUrl: product.imageUrl },
+      })));
+    }
   }
   const products = await tx.product.findMany({
     where: {

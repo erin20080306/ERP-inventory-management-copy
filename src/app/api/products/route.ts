@@ -3,6 +3,7 @@ import { ApiError, apiHandler, requirePermission, requireTenantId, audit, getCur
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { resolveDemoProductImage } from "@/lib/demo-product-media";
+import { normalizeBusinessMode } from "@/lib/product-editions";
 
 const ProductInput = z.object({
   sku: z.string().min(1),
@@ -26,6 +27,7 @@ const ProductInput = z.object({
 export const GET = apiHandler(async (req: NextRequest) => {
   const session = await requirePermission("products.view");
   const tenantId = await requireTenantId(session);
+  const useRetailFallback = normalizeBusinessMode(session.user.businessMode) === "POS_RETAIL";
   const sp = req.nextUrl.searchParams;
   const q = sp.get("q") ?? "";
   const page = Number(sp.get("page") ?? 1);
@@ -85,7 +87,12 @@ export const GET = apiHandler(async (req: NextRequest) => {
   return NextResponse.json({
     items: items.map((p: any) => {
       const stockTotal = p.stocks.reduce((s: number, x: any) => s + Number(x.quantity), 0);
-      return { ...p, imageUrl: resolveDemoProductImage(p.sku, p.imageUrl), stockTotal, soldTotal: soldByProduct.get(p.id) ?? 0 };
+      return {
+        ...p,
+        imageUrl: resolveDemoProductImage(p.sku, p.imageUrl, p.name, p.category?.name, useRetailFallback),
+        stockTotal,
+        soldTotal: soldByProduct.get(p.id) ?? 0,
+      };
     }),
     total,
   });

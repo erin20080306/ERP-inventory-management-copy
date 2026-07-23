@@ -13,7 +13,7 @@ const RESTAURANT_DEMO_IMAGE_BY_SKU: Record<string, string> = {
   D005: "https://images.unsplash.com/photo-1544145945-f90425340c7e?auto=format&fit=crop&w=500&q=80",
 };
 
-const RETAIL_DEMO_IMAGE_BY_SKU: Record<string, string> = {
+export const RETAIL_DEMO_IMAGE_BY_SKU: Record<string, string> = {
   "RTL-P001": "/demo-products/cotton-tote.webp",
   "RTL-P002": "/demo-products/vacuum-bottle.webp",
   "RTL-P003": "/demo-products/scented-candle.webp",
@@ -26,6 +26,44 @@ const RETAIL_DEMO_IMAGE_BY_SKU: Record<string, string> = {
   "RTL-P010": "/demo-products/knit-cushion.webp",
   "RTL-P011": "/demo-products/essential-oil.webp",
   "RTL-P012": "/demo-products/cutlery-set.webp",
+};
+
+const RETAIL_DEMO_IMAGE_BY_NAME: Record<string, string> = {
+  純棉購物袋: "/demo-products/cotton-tote.webp",
+  不鏽鋼保溫杯: "/demo-products/vacuum-bottle.webp",
+  木質調香氛蠟燭: "/demo-products/scented-candle.webp",
+  極簡皮革卡夾: "/demo-products/leather-card-holder.webp",
+  植萃護手霜: "/demo-products/hand-cream.webp",
+  亞麻室內拖鞋: "/demo-products/linen-slippers.webp",
+  霧面陶瓷馬克杯: "/demo-products/ceramic-mug.webp",
+  棉麻日常圍裙: "/demo-products/linen-apron.webp",
+  旅行收納袋組: "/demo-products/travel-organizer.webp",
+  北歐針織抱枕: "/demo-products/knit-cushion.webp",
+  天然精油滾珠瓶: "/demo-products/essential-oil.webp",
+  不鏽鋼餐具組: "/demo-products/cutlery-set.webp",
+};
+
+const RETAIL_CATEGORY_IMAGE_POOL: Record<string, string[]> = {
+  熱銷推薦: [
+    "/demo-products/cotton-tote.webp",
+    "/demo-products/vacuum-bottle.webp",
+    "/demo-products/cutlery-set.webp",
+  ],
+  生活選物: [
+    "/demo-products/linen-slippers.webp",
+    "/demo-products/ceramic-mug.webp",
+    "/demo-products/travel-organizer.webp",
+    "/demo-products/knit-cushion.webp",
+  ],
+  香氛保養: [
+    "/demo-products/scented-candle.webp",
+    "/demo-products/hand-cream.webp",
+    "/demo-products/essential-oil.webp",
+  ],
+  服飾配件: [
+    "/demo-products/leather-card-holder.webp",
+    "/demo-products/linen-apron.webp",
+  ],
 };
 
 const COMMERCE_DEMO_IMAGE_BY_SKU: Record<string, string> = {
@@ -52,11 +90,45 @@ export const DEMO_PRODUCT_IMAGE_BY_SKU: Record<string, string> = {
   ...RESTAURANT_DEMO_IMAGE_BY_SKU,
 };
 
-export function resolveDemoProductImage(sku: string, imageUrl?: string | null) {
-  const demoImage = DEMO_PRODUCT_IMAGE_BY_SKU[sku];
-  if (!demoImage) return imageUrl ?? null;
-  if (!imageUrl || LEGACY_RESTAURANT_IMAGES[sku] === imageUrl) return demoImage;
-  return imageUrl;
+function missingOrPlaceholderImage(imageUrl?: string | null) {
+  const value = imageUrl?.trim();
+  return !value
+    || value === "null"
+    || value === "undefined"
+    || /(?:placeholder|no[-_]?image|image[-_]?missing)/i.test(value);
+}
+
+function stableIndex(value: string, length: number) {
+  let hash = 0;
+  for (const character of value) hash = ((hash * 31) + character.charCodeAt(0)) >>> 0;
+  return hash % length;
+}
+
+export function resolveDemoProductImage(
+  sku: string,
+  imageUrl?: string | null,
+  name?: string | null,
+  categoryName?: string | null,
+  useRetailFallback = false,
+) {
+  const storedImage = imageUrl?.trim() || null;
+  if (!missingOrPlaceholderImage(storedImage) && LEGACY_RESTAURANT_IMAGES[sku] !== storedImage) {
+    return storedImage;
+  }
+
+  const exactDemoImage = DEMO_PRODUCT_IMAGE_BY_SKU[sku]
+    || (name ? RETAIL_DEMO_IMAGE_BY_NAME[name.trim()] : undefined);
+  if (exactDemoImage) return exactDemoImage;
+
+  const categoryPool = categoryName ? RETAIL_CATEGORY_IMAGE_POOL[categoryName.trim()] : undefined;
+  if (categoryPool?.length) {
+    return categoryPool[stableIndex(`${sku}:${name || ""}`, categoryPool.length)];
+  }
+  if (useRetailFallback) {
+    const retailImages = Object.values(RETAIL_DEMO_IMAGE_BY_SKU);
+    return retailImages[stableIndex(`${sku}:${name || ""}:${categoryName || ""}`, retailImages.length)];
+  }
+  return null;
 }
 
 export function legacyDemoProductImages(sku: string) {

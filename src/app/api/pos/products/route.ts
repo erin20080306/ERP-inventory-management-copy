@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { ApiError, apiHandler, requirePosPermission, requireTenantId } from "@/lib/api";
 import { resolveDemoProductImage } from "@/lib/demo-product-media";
 import { prisma } from "@/lib/prisma";
+import { normalizeBusinessMode } from "@/lib/product-editions";
 
-function serializeProduct(product: any) {
+function serializeProduct(product: any, useRetailFallback: boolean) {
   return {
     id: product.id,
     sku: product.sku,
@@ -11,7 +12,13 @@ function serializeProduct(product: any) {
     name: product.name,
     spec: product.spec,
     salePrice: Number(product.salePrice),
-    imageUrl: resolveDemoProductImage(product.sku, product.imageUrl),
+    imageUrl: resolveDemoProductImage(
+      product.sku,
+      product.imageUrl,
+      product.name,
+      product.category?.name,
+      useRetailFallback,
+    ),
     categoryName: product.category?.name ?? "未分類",
     stockTotal: product.stocks.reduce((sum: number, stock: any) => sum + Number(stock.quantity), 0),
   };
@@ -20,6 +27,7 @@ function serializeProduct(product: any) {
 export const GET = apiHandler(async (req: NextRequest) => {
   const session = await requirePosPermission("create", "sales.create");
   const tenantId = await requireTenantId(session);
+  const useRetailFallback = normalizeBusinessMode(session.user.businessMode) === "POS_RETAIL";
   const warehouseId = (req.nextUrl.searchParams.get("warehouseId") ?? "").trim();
   const scan = (req.nextUrl.searchParams.get("scan") ?? "").trim();
   const query = (req.nextUrl.searchParams.get("q") ?? "").trim();
@@ -56,7 +64,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
     });
     if (matches.length === 0) throw new ApiError(404, `找不到條碼或貨號：${scan}`);
     if (matches.length > 1) throw new ApiError(409, `條碼或貨號 ${scan} 對應多個商品，請先修正商品主檔`);
-    return NextResponse.json({ exact: serializeProduct(matches[0]) });
+    return NextResponse.json({ exact: serializeProduct(matches[0], useRetailFallback) });
   }
 
   const products = await prisma.product.findMany({
@@ -77,5 +85,8 @@ export const GET = apiHandler(async (req: NextRequest) => {
     orderBy: [{ name: "asc" }, { sku: "asc" }],
     take: query ? 80 : 500,
   });
-  return NextResponse.json({ items: products.map(serializeProduct) }, { headers: { "Cache-Control": "private, max-age=15, stale-while-revalidate=30" } });
+  return NextResponse.json(
+    { items: products.map((product) => serializeProduct(product, useRetailFallback)) },
+    { headers: { "Cache-Control": "private, max-age=15, stale-while-revalidate=30" } },
+  );
 });
