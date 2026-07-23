@@ -11,7 +11,7 @@ import { choosePosRecoveryDraft, clearLocalPosDraft, readLocalPosDraft, writeLoc
 type Register = { id: string; code: string; name: string; warehouse: { id: string; code: string; name: string } };
 type Warehouse = { id: string; code: string; name: string };
 type Shift = { id: string; register: { id: string; code: string; name: string; warehouseId: string }; openingCash: number; openedAt: string };
-type Product = { id: string; sku: string; barcode?: string | null; name: string; spec?: string | null; salePrice: number | string; stockTotal: number; imageUrl?: string | null };
+type Product = { id: string; sku: string; barcode?: string | null; name: string; spec?: string | null; salePrice: number | string; stockTotal: number; imageUrl?: string | null; categoryName: string };
 type CartItem = { product: Product; quantity: number; discount: number };
 type Customer = { id: string; code: string; companyName: string; phone?: string | null; taxId?: string | null };
 type PaymentMethod = "CASH" | "CARD" | "MOBILE" | "TRANSFER";
@@ -66,6 +66,7 @@ export function PosWorkspace() {
   const [products, setProducts] = useState<Product[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [query, setQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("");
   const scanInputRef = useRef<HTMLInputElement>(null);
   const checkoutRequestIdRef = useRef("");
   const customerDisplayChannelRef = useRef<BroadcastChannel | null>(null);
@@ -293,13 +294,14 @@ export function PosWorkspace() {
 
   const filteredProducts = useMemo(() => {
     const value = query.trim().toLowerCase();
-    if (!value) return products.slice(0, 40);
-    return products.filter((product) =>
-      product.name.toLowerCase().includes(value) ||
-      product.sku.toLowerCase().includes(value) ||
-      product.barcode?.toLowerCase().includes(value)
-    ).slice(0, 40);
-  }, [products, query]);
+    return products.filter((product) => {
+      if (selectedCategory && product.categoryName !== selectedCategory) return false;
+      if (!value) return true;
+      return product.name.toLowerCase().includes(value) ||
+        product.sku.toLowerCase().includes(value) ||
+        product.barcode?.toLowerCase().includes(value);
+    }).slice(0, 40);
+  }, [products, query, selectedCategory]);
 
   const beforeOfferTotal = useMemo(() => Math.round(cart.reduce((sum, item) => sum + Number(item.product.salePrice) * item.quantity - item.discount, 0) * 100) / 100, [cart]);
   const activePromotion = useMemo(() => promotions
@@ -1015,8 +1017,8 @@ return <div className="grid min-h-[60vh] animate-pulse gap-4 xl:grid-cols-[minma
             <div className="mt-3 flex items-center gap-2 text-[10px] text-emerald-300"><span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />{shift.register.name} 連線正常</div>
           </div>
           <nav className="mt-3 space-y-1 text-sm">
-            <button onClick={() => setQuery("")} className="flex h-10 w-full items-center justify-between rounded-lg bg-emerald-50 px-3 font-bold text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">全部商品 <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] text-white">{products.length}</span></button>
-            {["熱銷推薦","生活選物","香氛保養","服飾配件"].map((label) => <button key={label} onClick={() => setQuery("")} className="flex h-10 w-full items-center justify-between rounded-lg px-3 text-muted-foreground hover:bg-muted hover:text-foreground">{label}<span className="text-[10px]">›</span></button>)}
+            <button onClick={() => { setQuery(""); setSelectedCategory(""); }} className={`flex h-10 w-full items-center justify-between rounded-lg px-3 ${!selectedCategory ? "bg-emerald-50 font-bold text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}>全部商品 <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] text-white">{products.length}</span></button>
+            {["熱銷推薦","生活選物","香氛保養","服飾配件"].map((label) => <button key={label} onClick={() => { setQuery(""); setSelectedCategory(label); }} className={`flex h-10 w-full items-center justify-between rounded-lg px-3 ${selectedCategory === label ? "bg-emerald-50 font-bold text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}>{label}<span className="text-[10px]">{products.filter((product) => product.categoryName === label).length}</span></button>)}
             <button onClick={() => setHoldPanelOpen(true)} className="flex h-10 w-full items-center justify-between rounded-lg px-3 text-muted-foreground hover:bg-muted hover:text-foreground">暫存訂單 <span className="rounded-full bg-muted px-2 py-0.5 text-[10px]">{heldSales.length}</span></button>
             <button onClick={() => document.getElementById("pos-refunds")?.scrollIntoView({ behavior: "smooth" })} className="flex h-10 w-full items-center justify-between rounded-lg px-3 text-muted-foreground hover:bg-muted hover:text-foreground">退換貨查詢 <span className="text-[10px]">›</span></button>
             <button onClick={() => setCashPanelOpen(true)} className="flex h-10 w-full items-center justify-between rounded-lg px-3 text-muted-foreground hover:bg-muted hover:text-foreground">錢櫃異動 <span className="text-[10px]">›</span></button>

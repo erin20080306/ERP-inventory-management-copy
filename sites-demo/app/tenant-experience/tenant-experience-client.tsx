@@ -15,18 +15,18 @@ type WebOrder = {
 };
 
 const retailProducts = [
-  { id: "RTL-101", name: "純棉購物袋", price: 180, stock: 50, category: "熱銷推薦", image: "https://images.unsplash.com/photo-1597484661643-2f5fef640dd1?auto=format&fit=crop&w=500&q=80" },
-  { id: "RTL-202", name: "不鏽鋼保溫杯", price: 490, stock: 36, category: "熱銷推薦", image: "https://images.unsplash.com/photo-1602143407151-7111542de6e8?auto=format&fit=crop&w=500&q=80" },
+  { id: "RTL-101", name: "純棉購物袋", price: 180, stock: 50, category: "熱銷推薦", image: "/images/products/cotton-tote.webp" },
+  { id: "RTL-202", name: "不鏽鋼保溫杯", price: 490, stock: 36, category: "熱銷推薦", image: "/images/products/vacuum-bottle.webp" },
   { id: "RTL-303", name: "木質調香氛蠟燭", price: 360, stock: 28, category: "香氛保養", image: "/images/products/scented-candle.webp" },
-  { id: "RTL-404", name: "極簡皮革卡夾", price: 680, stock: 17, category: "服飾配件", image: "https://images.unsplash.com/photo-1627123424574-724758594e93?auto=format&fit=crop&w=500&q=80" },
-  { id: "RTL-505", name: "植萃護手霜", price: 320, stock: 41, category: "香氛保養", image: "https://images.unsplash.com/photo-1608248597279-f99d160bfcbc?auto=format&fit=crop&w=500&q=80" },
-  { id: "RTL-606", name: "亞麻室內拖鞋", price: 560, stock: 22, category: "生活選物", image: "https://images.unsplash.com/photo-1603487742131-4160ec999306?auto=format&fit=crop&w=500&q=80" },
-  { id: "RTL-707", name: "霧面陶瓷馬克杯", price: 420, stock: 34, category: "生活選物", image: "https://images.unsplash.com/photo-1514228742587-6b1558fcca3d?auto=format&fit=crop&w=500&q=80" },
-  { id: "RTL-808", name: "棉麻日常圍裙", price: 780, stock: 19, category: "服飾配件", image: "https://images.unsplash.com/photo-1582738411706-bfc8e691d1c2?auto=format&fit=crop&w=500&q=80" },
-  { id: "RTL-909", name: "旅行收納袋組", price: 590, stock: 26, category: "生活選物", image: "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=500&q=80" },
-  { id: "RTL-110", name: "北歐針織抱枕", price: 890, stock: 15, category: "生活選物", image: "https://images.unsplash.com/photo-1584100936595-c0654b55a2e2?auto=format&fit=crop&w=500&q=80" },
-  { id: "RTL-120", name: "天然精油滾珠瓶", price: 460, stock: 31, category: "香氛保養", image: "https://images.unsplash.com/photo-1608571423902-eed4a5ad8108?auto=format&fit=crop&w=500&q=80" },
-  { id: "RTL-130", name: "不鏽鋼餐具組", price: 520, stock: 29, category: "熱銷推薦", image: "https://images.unsplash.com/photo-1610701596007-11502861dcfa?auto=format&fit=crop&w=500&q=80" },
+  { id: "RTL-404", name: "極簡皮革卡夾", price: 680, stock: 17, category: "服飾配件", image: "/images/products/leather-card-holder.webp" },
+  { id: "RTL-505", name: "植萃護手霜", price: 320, stock: 41, category: "香氛保養", image: "/images/products/hand-cream.webp" },
+  { id: "RTL-606", name: "亞麻室內拖鞋", price: 560, stock: 22, category: "生活選物", image: "/images/products/linen-slippers.webp" },
+  { id: "RTL-707", name: "霧面陶瓷馬克杯", price: 420, stock: 34, category: "生活選物", image: "/images/products/ceramic-mug.webp" },
+  { id: "RTL-808", name: "棉麻日常圍裙", price: 780, stock: 19, category: "服飾配件", image: "/images/products/linen-apron.webp" },
+  { id: "RTL-909", name: "旅行收納袋組", price: 590, stock: 26, category: "生活選物", image: "/images/products/travel-organizer.webp" },
+  { id: "RTL-110", name: "北歐針織抱枕", price: 890, stock: 15, category: "生活選物", image: "/images/products/knit-cushion.webp" },
+  { id: "RTL-120", name: "天然精油滾珠瓶", price: 460, stock: 31, category: "香氛保養", image: "/images/products/essential-oil.webp" },
+  { id: "RTL-130", name: "不鏽鋼餐具組", price: 520, stock: 29, category: "熱銷推薦", image: "/images/products/cutlery-set.webp" },
 ];
 
 const dishes = [

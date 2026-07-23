@@ -20,11 +20,19 @@ const ERP_PRODUCTS: BaselineProduct[] = [
 ];
 
 const RETAIL_PRODUCTS: BaselineProduct[] = [
-  { categoryCode: "RETAIL-DEMO", categoryName: "門市熱銷商品", sku: "RTL-P001", barcode: "4712000000014", name: "純棉購物袋", cost: 80, price: 180, quantity: 50, safetyStock: 10 },
-  { categoryCode: "RETAIL-DEMO", categoryName: "門市熱銷商品", sku: "RTL-P002", barcode: "4712000000021", name: "不鏽鋼保溫杯", cost: 220, price: 490, quantity: 36, safetyStock: 8 },
-  { categoryCode: "RETAIL-DEMO", categoryName: "門市熱銷商品", sku: "RTL-P003", barcode: "4712000000038", name: "木質調香氛蠟燭", cost: 160, price: 360, quantity: 28, safetyStock: 6, imageUrl: "/demo-products/scented-candle.webp" },
+  { categoryCode: "RETAIL-HOT", categoryName: "熱銷推薦", sku: "RTL-P001", barcode: "4712000000014", name: "純棉購物袋", cost: 80, price: 180, quantity: 50, safetyStock: 10, imageUrl: "/demo-products/cotton-tote.webp" },
+  { categoryCode: "RETAIL-HOT", categoryName: "熱銷推薦", sku: "RTL-P002", barcode: "4712000000021", name: "不鏽鋼保溫杯", cost: 220, price: 490, quantity: 36, safetyStock: 8, imageUrl: "/demo-products/vacuum-bottle.webp" },
+  { categoryCode: "RETAIL-AROMA", categoryName: "香氛保養", sku: "RTL-P003", barcode: "4712000000038", name: "木質調香氛蠟燭", cost: 160, price: 360, quantity: 28, safetyStock: 6, imageUrl: "/demo-products/scented-candle.webp" },
+  { categoryCode: "RETAIL-ACC", categoryName: "服飾配件", sku: "RTL-P004", barcode: "4712000000045", name: "極簡皮革卡夾", cost: 320, price: 680, quantity: 17, safetyStock: 5, imageUrl: "/demo-products/leather-card-holder.webp" },
+  { categoryCode: "RETAIL-AROMA", categoryName: "香氛保養", sku: "RTL-P005", barcode: "4712000000052", name: "植萃護手霜", cost: 140, price: 320, quantity: 41, safetyStock: 8, imageUrl: "/demo-products/hand-cream.webp" },
+  { categoryCode: "RETAIL-LIFE", categoryName: "生活選物", sku: "RTL-P006", barcode: "4712000000069", name: "亞麻室內拖鞋", cost: 260, price: 560, quantity: 22, safetyStock: 5, imageUrl: "/demo-products/linen-slippers.webp" },
+  { categoryCode: "RETAIL-LIFE", categoryName: "生活選物", sku: "RTL-P007", barcode: "4712000000076", name: "霧面陶瓷馬克杯", cost: 190, price: 420, quantity: 34, safetyStock: 7, imageUrl: "/demo-products/ceramic-mug.webp" },
+  { categoryCode: "RETAIL-ACC", categoryName: "服飾配件", sku: "RTL-P008", barcode: "4712000000083", name: "棉麻日常圍裙", cost: 360, price: 780, quantity: 19, safetyStock: 5, imageUrl: "/demo-products/linen-apron.webp" },
+  { categoryCode: "RETAIL-LIFE", categoryName: "生活選物", sku: "RTL-P009", barcode: "4712000000090", name: "旅行收納袋組", cost: 260, price: 590, quantity: 26, safetyStock: 6, imageUrl: "/demo-products/travel-organizer.webp" },
+  { categoryCode: "RETAIL-LIFE", categoryName: "生活選物", sku: "RTL-P010", barcode: "4712000000106", name: "北歐針織抱枕", cost: 390, price: 890, quantity: 15, safetyStock: 4, imageUrl: "/demo-products/knit-cushion.webp" },
+  { categoryCode: "RETAIL-AROMA", categoryName: "香氛保養", sku: "RTL-P011", barcode: "4712000000113", name: "天然精油滾珠瓶", cost: 210, price: 460, quantity: 31, safetyStock: 6, imageUrl: "/demo-products/essential-oil.webp" },
+  { categoryCode: "RETAIL-HOT", categoryName: "熱銷推薦", sku: "RTL-P012", barcode: "4712000000120", name: "不鏽鋼餐具組", cost: 240, price: 520, quantity: 29, safetyStock: 6, imageUrl: "/demo-products/cutlery-set.webp" },
 ];
-
 const COMMERCE_PRODUCTS: BaselineProduct[] = [
   { categoryCode: "EC-TOP", categoryName: "上身", sku: "EC-P001", barcode: "4713000000013", name: "雲感落肩襯衫", cost: 720, price: 1_680, quantity: 18, safetyStock: 5, imageUrl: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=900&q=82" },
   { categoryCode: "EC-BOTTOM", categoryName: "下身", sku: "EC-P002", barcode: "4713000000020", name: "輪廓打褶寬褲", cost: 980, price: 2_280, quantity: 12, safetyStock: 4, imageUrl: "https://images.unsplash.com/photo-1506629082955-511b1aa562c8?auto=format&fit=crop&w=900&q=82" },

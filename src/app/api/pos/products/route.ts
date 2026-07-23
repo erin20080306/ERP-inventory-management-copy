@@ -11,6 +11,7 @@ function serializeProduct(product: any) {
     spec: product.spec,
     salePrice: Number(product.salePrice),
     imageUrl: product.imageUrl,
+    categoryName: product.category?.name ?? "未分類",
     stockTotal: product.stocks.reduce((sum: number, stock: any) => sum + Number(stock.quantity), 0),
   };
 }
@@ -35,6 +36,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
     spec: true,
     salePrice: true,
     imageUrl: true,
+    category: { select: { name: true } },
     stocks: { where: { warehouseId }, select: { quantity: true } },
   } as const;
 
