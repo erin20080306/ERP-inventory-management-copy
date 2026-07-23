@@ -286,9 +286,10 @@
 .memberAuthError, .memberAuthNotice { padding: 12px 14px; border: 1px solid rgba(176,58,46,.2); background: rgba(176,58,46,.06); color: #8d3028; font-size: 10px; line-height: 1.6; }
 .memberAuthNotice { border-color: color-mix(in srgb, var(--store-accent) 24%, transparent); background: color-mix(in srgb, var(--store-accent) 7%, white); color: var(--store-accent); }
 .memberPage > .memberAuthNotice { margin-bottom: 24px; }
-.memberAuthSubmit { display: flex; min-height: 52px; align-items: center; justify-content: center; gap: 10px; margin-top: 5px; border: 0; background: var(--ink); color: #fff; font-size: 11px; font-weight: 800; cursor: pointer; }
-.memberAuthSubmit svg { width: 17px; }
-.memberAuthSubmit:disabled { opacity: .6; cursor: not-allowed; }
+.shell .memberAuthSubmit { display: flex; min-height: 52px; align-items: center; justify-content: center; gap: 10px; margin-top: 5px; border: 0; background: var(--ink); color: #fff; font-size: 11px; font-weight: 800; cursor: pointer; }
+.shell .memberAuthSubmit svg { width: 17px; color: currentColor; }
+.shell .memberAuthSubmit:hover { background: var(--store-accent); color: #fff; }
+.shell .memberAuthSubmit:disabled { opacity: .6; color: #fff; cursor: not-allowed; }
 .memberHero { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 25px; margin-bottom: 45px; padding: 38px; background: var(--paper); }
 .memberAvatar { display: grid; width: 76px; height: 76px; place-items: center; border-radius: 999px; background: var(--ink); color: white; font-family: Georgia, serif; font-size: 27px; }
 .memberHero span { color: var(--store-accent); font-size: 9px; letter-spacing: .17em; }
@@ -312,8 +313,9 @@
 .memberAccountForm input:not([type="checkbox"]) { display: block; width: 100%; height: 46px; margin-top: 7px; padding: 0 13px; border: 1px solid var(--line); outline-color: var(--store-accent); background: #fff; }
 .memberAccountForm > p, .memberAccountForm > .memberAuthError { grid-column: 1 / -1; }
 .memberAccountForm > p { margin: 0; color: #756f68; font-size: 10px; line-height: 1.8; }
-.memberAccountForm > button { grid-column: 1 / -1; min-height: 48px; border: 0; background: var(--ink); color: #fff; font-size: 10px; font-weight: 800; cursor: pointer; }
-.memberAccountForm > button:disabled { opacity: .6; cursor: not-allowed; }
+.shell .memberAccountForm > button { grid-column: 1 / -1; min-height: 48px; border: 0; background: var(--ink); color: #fff; font-size: 10px; font-weight: 800; cursor: pointer; }
+.shell .memberAccountForm > button:hover { background: var(--store-accent); color: #fff; }
+.shell .memberAccountForm > button:disabled { opacity: .6; color: #fff; cursor: not-allowed; }
 .memberAccountDanger { border-color: rgba(176,58,46,.25); background: #fffafa; }
 .memberAccountDanger .memberAccountForm > button { background: #9d342c; }
 .memberAccountForm .deleteConfirmation { display: flex; grid-column: 1 / -1; align-items: center; gap: 9px; }

@@ -63,7 +63,11 @@ export function SettingsClient() {
           <CardContent className="max-w-3xl space-y-4">
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-1"><Label>商城名稱 *</Label><Input value={form.storeName ?? ""} onChange={(e) => setForm({ ...form, storeName: e.target.value })} placeholder={form.name || "我的品牌商城"} /></div>
-              <div className="space-y-1"><Label>商城網址代碼 *</Label><Input value={form.storeSlug ?? ""} onChange={(e) => setForm({ ...form, storeSlug: e.target.value.toLowerCase() })} placeholder="my-brand" /></div>
+              <div className="space-y-1">
+                <Label>自訂網址名稱（選填）</Label>
+                <Input value={form.storeSlug ?? ""} onChange={(e) => setForm({ ...form, storeSlug: e.target.value.toLowerCase() })} placeholder="例如：fat-duck" />
+                <p className="text-xs leading-5 text-muted-foreground">下方「目前商城網址」已可直接使用；只有想把網址最後一段改成品牌英文時才填，留空不影響商城使用。這不是公司代碼或自訂網域。</p>
+              </div>
             </div>
             <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-950">
               <div className="flex items-center gap-2 text-sm font-semibold"><Globe2 className="h-4 w-4" />目前商城網址</div>

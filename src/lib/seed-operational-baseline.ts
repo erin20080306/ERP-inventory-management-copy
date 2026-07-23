@@ -40,7 +40,7 @@ const COMMERCE_PRODUCTS: BaselineProduct[] = [
   { categoryCode: "EC-BOTTOM", categoryName: "下身", sku: "EC-P002", barcode: "4713000000020", name: "輪廓打褶寬褲", cost: 980, price: 2_280, quantity: 12, safetyStock: 4, imageUrl: "https://images.unsplash.com/photo-1506629082955-511b1aa562c8?auto=format&fit=crop&w=900&q=82" },
   { categoryCode: "EC-KNIT", categoryName: "針織", sku: "EC-P003", barcode: "4713000000037", name: "日常織紋針織衫", cost: 760, price: 1_880, quantity: 24, safetyStock: 6, imageUrl: "https://images.unsplash.com/photo-1576566588028-4147f3842f27?auto=format&fit=crop&w=900&q=82" },
   { categoryCode: "EC-ACC", categoryName: "配件", sku: "EC-P004", barcode: "4713000000044", name: "方形皮革肩背包", cost: 1_120, price: 2_680, quantity: 12, safetyStock: 4, imageUrl: "https://images.unsplash.com/photo-1559563458-527698bf5295?auto=format&fit=crop&w=900&q=82" },
-  { categoryCode: "EC-DRESS", categoryName: "洋裝", sku: "EC-P005", barcode: "4713000000051", name: "亞麻混紡長洋裝", cost: 1_280, price: 2_980, quantity: 9, safetyStock: 3, imageUrl: "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=900&q=82" },
+  { categoryCode: "EC-DRESS", categoryName: "套裝", sku: "EC-P005", barcode: "4713000000051", name: "亮黃連帽休閒套裝", cost: 1_280, price: 2_980, quantity: 9, safetyStock: 3, imageUrl: "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=900&q=82" },
   { categoryCode: "EC-SHOES", categoryName: "鞋履", sku: "EC-P006", barcode: "4713000000068", name: "極簡皮革休閒鞋", cost: 1_450, price: 3_280, quantity: 15, safetyStock: 4, imageUrl: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=900&q=82" },
 ];
 export const RESTAURANT_PRODUCTS: BaselineProduct[] = [

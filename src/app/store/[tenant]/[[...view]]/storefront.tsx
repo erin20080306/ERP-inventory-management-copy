@@ -166,8 +166,8 @@ const PRODUCTS: Product[] = [
   },
   {
     id: "AN-SS26-512",
-    name: "亞麻混紡長洋裝",
-    category: "洋裝",
+    name: "亮黃連帽休閒套裝",
+    category: "套裝",
     price: 2980,
     compareAt: 3380,
     colors: ["砂岩", "墨綠"],
@@ -899,9 +899,6 @@ function MemberView({ tenant }: { tenant: string }) {
             <span className={styles.eyebrow}>STORE MEMBERSHIP</span>
             <h1>加入品牌會員，<br />累積每一次選擇。</h1>
             <p>官網與門市共用同一份 ERP 客戶資料；註冊後可查看本人訂單、會員點數與優惠券。</p>
-            <div><ShieldCheck /><span><strong>租戶資料隔離</strong>會員只會建立在目前這間商城</span></div>
-            <div><BadgeCheck /><span><strong>安全密碼保存</strong>密碼經雜湊處理，不保存可讀明碼</span></div>
-            <div><PackageCheck /><span><strong>訂單自動歸戶</strong>登入後結帳會連回本人 ERP 客戶資料</span></div>
           </div>
           <div className={styles.memberAuthCard}>
             <div className={styles.memberAuthTabs}>

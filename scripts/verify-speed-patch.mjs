@@ -16,6 +16,11 @@ check("POS 停電草稿改為 3 秒背景同步", pos.includes("}, 3_000);"));
 check("餐飲 POS 15 秒啟動畫面快取", restaurant.includes("RESTAURANT_BOOTSTRAP_CACHE_TTL_MS = 15_000"));
 check("餐飲結帳先局部清桌再背景校正", restaurant.includes("window.setTimeout(() => void load(), 1_200);"));
 check("POS 初始商品可載入最多 500 筆供本機搜尋", posProducts.includes("take: query ? 80 : 500"));
-check("商城庫存使用單次批次 SQL 更新", storefront.includes("Prisma.join(requestedRows)") && !storefront.includes("for (const allocation of stockPlan.allocations)"));
+check(
+  "商城結帳批次載入商品與庫存保留量",
+  storefront.includes("const [products, pendingLines] = await Promise.all([")
+    && storefront.includes("planCommerceStockAllocations")
+    && !storefront.includes("for (const allocation of stockPlan.allocations)"),
+);
 
 console.log("Runtime speed optimization safeguards: PASS");
