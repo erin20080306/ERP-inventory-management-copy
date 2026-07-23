@@ -15,23 +15,34 @@ type WebOrder = {
 };
 
 const retailProducts = [
-  { id: "RTL-101", name: "純棉購物袋", price: 180, stock: 50, image: "https://images.unsplash.com/photo-1597484661643-2f5fef640dd1?auto=format&fit=crop&w=500&q=80" },
-  { id: "RTL-202", name: "不鏽鋼保溫杯", price: 490, stock: 36, image: "https://images.unsplash.com/photo-1602143407151-7111542de6e8?auto=format&fit=crop&w=500&q=80" },
-  { id: "RTL-303", name: "木質調香氛蠟燭", price: 360, stock: 28, image: "https://images.unsplash.com/photo-1602874801006-e26d6b245c18?auto=format&fit=crop&w=500&q=80" },
-  { id: "RTL-404", name: "極簡皮革卡夾", price: 680, stock: 17, image: "https://images.unsplash.com/photo-1627123424574-724758594e93?auto=format&fit=crop&w=500&q=80" },
-  { id: "RTL-505", name: "植萃護手霜", price: 320, stock: 41, image: "https://images.unsplash.com/photo-1608248597279-f99d160bfcbc?auto=format&fit=crop&w=500&q=80" },
-  { id: "RTL-606", name: "亞麻室內拖鞋", price: 560, stock: 22, image: "https://images.unsplash.com/photo-1603487742131-4160ec999306?auto=format&fit=crop&w=500&q=80" },
+  { id: "RTL-101", name: "純棉購物袋", price: 180, stock: 50, category: "熱銷推薦", image: "https://images.unsplash.com/photo-1597484661643-2f5fef640dd1?auto=format&fit=crop&w=500&q=80" },
+  { id: "RTL-202", name: "不鏽鋼保溫杯", price: 490, stock: 36, category: "熱銷推薦", image: "https://images.unsplash.com/photo-1602143407151-7111542de6e8?auto=format&fit=crop&w=500&q=80" },
+  { id: "RTL-303", name: "木質調香氛蠟燭", price: 360, stock: 28, category: "香氛保養", image: "/images/products/scented-candle.webp" },
+  { id: "RTL-404", name: "極簡皮革卡夾", price: 680, stock: 17, category: "服飾配件", image: "https://images.unsplash.com/photo-1627123424574-724758594e93?auto=format&fit=crop&w=500&q=80" },
+  { id: "RTL-505", name: "植萃護手霜", price: 320, stock: 41, category: "香氛保養", image: "https://images.unsplash.com/photo-1608248597279-f99d160bfcbc?auto=format&fit=crop&w=500&q=80" },
+  { id: "RTL-606", name: "亞麻室內拖鞋", price: 560, stock: 22, category: "生活選物", image: "https://images.unsplash.com/photo-1603487742131-4160ec999306?auto=format&fit=crop&w=500&q=80" },
+  { id: "RTL-707", name: "霧面陶瓷馬克杯", price: 420, stock: 34, category: "生活選物", image: "https://images.unsplash.com/photo-1514228742587-6b1558fcca3d?auto=format&fit=crop&w=500&q=80" },
+  { id: "RTL-808", name: "棉麻日常圍裙", price: 780, stock: 19, category: "服飾配件", image: "https://images.unsplash.com/photo-1582738411706-bfc8e691d1c2?auto=format&fit=crop&w=500&q=80" },
+  { id: "RTL-909", name: "旅行收納袋組", price: 590, stock: 26, category: "生活選物", image: "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=500&q=80" },
+  { id: "RTL-110", name: "北歐針織抱枕", price: 890, stock: 15, category: "生活選物", image: "https://images.unsplash.com/photo-1584100936595-c0654b55a2e2?auto=format&fit=crop&w=500&q=80" },
+  { id: "RTL-120", name: "天然精油滾珠瓶", price: 460, stock: 31, category: "香氛保養", image: "https://images.unsplash.com/photo-1608571423902-eed4a5ad8108?auto=format&fit=crop&w=500&q=80" },
+  { id: "RTL-130", name: "不鏽鋼餐具組", price: 520, stock: 29, category: "熱銷推薦", image: "https://images.unsplash.com/photo-1610701596007-11502861dcfa?auto=format&fit=crop&w=500&q=80" },
 ];
 
 const dishes = [
-  { id: "F001", name: "經典牛肉漢堡", price: 220, meta: "主餐・現做", image: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=500&q=80" },
-  { id: "F002", name: "香蒜奶油義大利麵", price: 190, meta: "主餐・15 分", image: "https://images.unsplash.com/photo-1556761223-4c4282c73f77?auto=format&fit=crop&w=500&q=80" },
-  { id: "F003", name: "松露脆薯", price: 120, meta: "小點・炸台", image: "https://images.unsplash.com/photo-1573080496219-bb080dd4f877?auto=format&fit=crop&w=500&q=80" },
-  { id: "D001", name: "拿鐵咖啡", price: 110, meta: "飲品・熱／冰", image: "https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&w=500&q=80" },
-  { id: "D002", name: "季節水果茶", price: 100, meta: "飲品・冰", image: "https://images.unsplash.com/photo-1556679343-c7306c1976bc?auto=format&fit=crop&w=500&q=80" },
-  { id: "D003", name: "焦糖乳酪蛋糕", price: 130, meta: "甜點・冷藏", image: "https://images.unsplash.com/photo-1578985545062-69928b1d9587?auto=format&fit=crop&w=500&q=80" },
+  { id: "F001", name: "經典牛肉漢堡", price: 220, meta: "主餐・現做", category: "主餐", image: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=500&q=80" },
+  { id: "F002", name: "香蒜奶油義大利麵", price: 190, meta: "主餐・15 分", category: "主餐", image: "https://images.unsplash.com/photo-1556761223-4c4282c73f77?auto=format&fit=crop&w=500&q=80" },
+  { id: "F003", name: "松露脆薯", price: 120, meta: "小點・炸台", category: "小點", image: "https://images.unsplash.com/photo-1573080496219-bb080dd4f877?auto=format&fit=crop&w=500&q=80" },
+  { id: "D001", name: "拿鐵咖啡", price: 110, meta: "飲品・熱／冰", category: "飲品甜點", image: "https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&w=500&q=80" },
+  { id: "D002", name: "季節水果茶", price: 100, meta: "飲品・冰", category: "飲品甜點", image: "https://images.unsplash.com/photo-1556679343-c7306c1976bc?auto=format&fit=crop&w=500&q=80" },
+  { id: "D003", name: "焦糖乳酪蛋糕", price: 130, meta: "甜點・冷藏", category: "飲品甜點", image: "https://images.unsplash.com/photo-1578985545062-69928b1d9587?auto=format&fit=crop&w=500&q=80" },
+  { id: "F004", name: "香煎雞腿排", price: 260, meta: "主餐・鐵板", category: "主餐", image: "https://images.unsplash.com/photo-1532550907401-a500c9a57435?auto=format&fit=crop&w=500&q=80" },
+  { id: "F005", name: "奶油鮭魚燉飯", price: 280, meta: "主餐・18 分", category: "主餐", image: "https://images.unsplash.com/photo-1476124369491-e7addf5db371?auto=format&fit=crop&w=500&q=80" },
+  { id: "F006", name: "和風鮮蔬沙拉", price: 150, meta: "小點・冷台", category: "小點", image: "https://images.unsplash.com/photo-1546793665-c74683f339c1?auto=format&fit=crop&w=500&q=80" },
+  { id: "F007", name: "主廚玉米濃湯", price: 90, meta: "小點・湯台", category: "小點", image: "https://images.unsplash.com/photo-1547592166-23ac45744acd?auto=format&fit=crop&w=500&q=80" },
+  { id: "D004", name: "經典提拉米蘇", price: 160, meta: "甜點・冷藏", category: "飲品甜點", image: "https://images.unsplash.com/photo-1571877227200-a0d98ea607e9?auto=format&fit=crop&w=500&q=80" },
+  { id: "D005", name: "柚香氣泡飲", price: 120, meta: "飲品・冰", category: "飲品甜點", image: "https://images.unsplash.com/photo-1544145945-f90425340c7e?auto=format&fit=crop&w=500&q=80" },
 ];
-
 const money = (value: number) => new Intl.NumberFormat("zh-TW", {
   style: "currency",
   currency: "TWD",
@@ -155,6 +166,8 @@ function ErpDemo({ commerce = false, orders, notice, refresh }: {
 function RetailPosDemo({ notify }: { notify: (message: string) => void }) {
   const [cart, setCart] = useState<Line[]>([]);
   const [customer, setCustomer] = useState("散客");
+  const [retailCategory, setRetailCategory] = useState("全部商品");
+  const visibleRetailProducts = retailCategory === "全部商品" ? retailProducts : retailProducts.filter((product) => product.category === retailCategory);
   const total = useMemo(() => cart.reduce((sum, line) => sum + line.price * line.qty, 0), [cart]);
   const add = (product: typeof retailProducts[number]) => {
     notify(`${product.name} 已加入交易`);
@@ -170,13 +183,13 @@ function RetailPosDemo({ notify }: { notify: (message: string) => void }) {
         <section className="retail-tools">
           <label className="pos-search">⌕<input placeholder="掃描條碼或搜尋商品" /></label>
           <div className="retail-shift"><span>本班營業額</span><strong>NT$ 18,640</strong><small><i />收銀台連線正常</small></div>
-          {["全部商品","熱銷推薦","生活選物","香氛保養","服飾配件"].map((item, index) => <button className={index === 0 ? "active" : ""} key={item}>{item}<span>{index ? 12 + index * 3 : retailProducts.length}</span></button>)}
+          {["全部商品","熱銷推薦","生活選物","香氛保養","服飾配件"].map((item) => <button onClick={() => setRetailCategory(item)} className={retailCategory === item ? "active" : ""} key={item}>{item}<span>{item === "全部商品" ? retailProducts.length : retailProducts.filter((product) => product.category === item).length}</span></button>)}
           <button onClick={() => notify("已開啟暫存訂單清單")}>暫存訂單 <span>2</span></button>
           <button onClick={() => notify("已開啟退換貨查詢")}>退換貨查詢</button>
         </section>
         <section className="menu-panel">
-          <div className="category-row"><button className="active">本店熱銷</button><button>新品</button><button>低庫存</button></div>
-          <div className="dish-grid">{retailProducts.map((product) => <button key={product.id} onClick={() => add(product)}><img src={product.image} alt={product.name} /><span><b>{product.name}</b><small>{product.id}・現貨 {product.stock}</small><strong>{money(product.price)}</strong></span><i>＋</i></button>)}</div>
+          <div className="category-row"><button className={retailCategory === "全部商品" ? "active" : ""} onClick={() => setRetailCategory("全部商品")}>全部 {retailProducts.length}</button><button className={retailCategory === "熱銷推薦" ? "active" : ""} onClick={() => setRetailCategory("熱銷推薦")}>本店熱銷</button><button className={retailCategory === "生活選物" ? "active" : ""} onClick={() => setRetailCategory("生活選物")}>生活選物</button></div>
+          <div className="dish-grid">{visibleRetailProducts.map((product) => <button key={product.id} onClick={() => add(product)}><img src={product.image} alt={product.name} /><span><b>{product.name}</b><small>{product.id}・現貨 {product.stock}</small><strong>{money(product.price)}</strong></span><i>＋</i></button>)}</div>
         </section>
         <OrderPanel title="目前交易" subtitle={`會員：${customer}`} lines={cart} total={total} setLines={setCart} primaryLabel="前往結帳" pay={() => { if (!cart.length) return; setCart([]); notify(`交易完成 ${money(total)}・庫存與 ERP 已同步`); }} />
       </div>
@@ -188,6 +201,8 @@ function RestaurantPosDemo({ notify }: { notify: (message: string) => void }) {
   const [table, setTable] = useState("T03");
   const [lines, setLines] = useState<Line[]>([]);
   const [sent, setSent] = useState(false);
+  const [dishCategory, setDishCategory] = useState("全部");
+  const visibleDishes = dishCategory === "全部" ? dishes : dishes.filter((dish) => dish.category === dishCategory);
   const total = useMemo(() => lines.reduce((sum, line) => sum + line.price * line.qty, 0), [lines]);
   const add = (dish: typeof dishes[number]) => {
     setLines((current) => {
@@ -209,8 +224,8 @@ function RestaurantPosDemo({ notify }: { notify: (message: string) => void }) {
         </section>
         <section className="menu-panel">
           <label className="pos-search">⌕<input placeholder="搜尋餐點或掃描條碼" /></label>
-          <div className="category-row"><button className="active">全部</button><button>主餐</button><button>小點</button><button>飲品甜點</button></div>
-          <div className="dish-grid">{dishes.map((dish) => <button key={dish.id} onClick={() => add(dish)}><img src={dish.image} alt={dish.name} /><span><b>{dish.name}</b><small>{dish.meta}</small><strong>{money(dish.price)}</strong></span><i>＋</i></button>)}</div>
+          <div className="category-row">{["全部","主餐","小點","飲品甜點"].map((item) => <button key={item} className={dishCategory === item ? "active" : ""} onClick={() => setDishCategory(item)}>{item}{item === "全部" ? ` ${dishes.length}` : ""}</button>)}</div>
+          <div className="dish-grid">{visibleDishes.map((dish) => <button key={dish.id} onClick={() => add(dish)}><img src={dish.image} alt={dish.name} /><span><b>{dish.name}</b><small>{dish.meta}</small><strong>{money(dish.price)}</strong></span><i>＋</i></button>)}</div>
         </section>
         <OrderPanel title={`${table}・內用`} subtitle={sent ? "已送廚・可繼續加點" : "尚未送廚"} lines={lines} total={total} setLines={setLines} primaryLabel={sent ? "桌位結帳" : "送出廚房單"} pay={() => { if (!lines.length) return; if (!sent) { setSent(true); notify(`${table} 已送廚，廚房看板即時收到`); } else { setLines([]); setSent(false); notify(`${table} 結帳完成，桌位已釋放`); } }} />
       </div>

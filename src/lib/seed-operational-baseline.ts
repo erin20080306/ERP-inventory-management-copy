@@ -22,7 +22,7 @@ const ERP_PRODUCTS: BaselineProduct[] = [
 const RETAIL_PRODUCTS: BaselineProduct[] = [
   { categoryCode: "RETAIL-DEMO", categoryName: "門市熱銷商品", sku: "RTL-P001", barcode: "4712000000014", name: "純棉購物袋", cost: 80, price: 180, quantity: 50, safetyStock: 10 },
   { categoryCode: "RETAIL-DEMO", categoryName: "門市熱銷商品", sku: "RTL-P002", barcode: "4712000000021", name: "不鏽鋼保溫杯", cost: 220, price: 490, quantity: 36, safetyStock: 8 },
-  { categoryCode: "RETAIL-DEMO", categoryName: "門市熱銷商品", sku: "RTL-P003", barcode: "4712000000038", name: "木質調香氛蠟燭", cost: 160, price: 360, quantity: 28, safetyStock: 6 },
+  { categoryCode: "RETAIL-DEMO", categoryName: "門市熱銷商品", sku: "RTL-P003", barcode: "4712000000038", name: "木質調香氛蠟燭", cost: 160, price: 360, quantity: 28, safetyStock: 6, imageUrl: "/demo-products/scented-candle.webp" },
 ];
 
 const COMMERCE_PRODUCTS: BaselineProduct[] = [
@@ -180,6 +180,13 @@ export async function seedOperationalBaseline(tx: any, input: {
     });
   }
 
+  const productsWithDefaultImages = definitions.filter((definition) => definition.imageUrl);
+  if (productsWithDefaultImages.length > 0) {
+    await Promise.all(productsWithDefaultImages.map((definition) => tx.product.updateMany({
+      where: { tenantId: input.tenantId, sku: definition.sku, imageUrl: null },
+      data: { imageUrl: definition.imageUrl },
+    })));
+  }
   const products = await tx.product.findMany({
     where: {
       tenantId: input.tenantId,

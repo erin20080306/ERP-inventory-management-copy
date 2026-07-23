@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Building2, CheckCircle2, Database, Download, FileArchive, HardDrive, Info, KeyRound, Laptop, Loader2, MonitorSmartphone, ShieldCheck } from "lucide-react";
-import { PLAN_CATALOG, formatTwd } from "@/lib/plans";
+import { ECOMMERCE_PRICING, PLAN_CATALOG, formatTwd } from "@/lib/plans";
 
 type Installer = {
   name: string;
@@ -132,6 +132,12 @@ export default function AdminDownloadsPage() {
         <section className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
           <h2 className="text-lg font-bold">客戶費用確認</h2>
           <div className="mt-4 overflow-x-auto"><table className="w-full min-w-[760px] text-sm"><thead className="text-left text-xs text-slate-500"><tr><th className="pb-3">方案</th><th>月租</th><th>年租（送 2 個月）</th><th>一次買斷</th><th>買斷後 AI／版本維護</th></tr></thead><tbody className="divide-y divide-slate-800">{PLAN_CATALOG.map((plan) => <tr key={plan.code}><td className="py-3 font-semibold">{plan.name}</td><td>{formatTwd(plan.monthlyPrice)}</td><td>{formatTwd(plan.annualPrice)}</td><td>{formatTwd(plan.lifetimePrice)}<div className="text-xs text-slate-500">含一次約定範圍修改</div></td><td>{formatTwd(plan.maintenancePrice)}／年</td></tr>)}</tbody></table></div>
+          <div className="mt-6 rounded-xl border border-rose-400/20 bg-rose-400/5 p-4">
+            <h3 className="font-bold text-rose-100">電商商城＋ERP 專用價格</h3>
+            <p className="mt-1 text-xs text-slate-400">月租 {formatTwd(ECOMMERCE_PRICING.monthlyPrice)}；年租 {formatTwd(ECOMMERCE_PRICING.annualPrice)}（12 個月、優惠 2 個月）。</p>
+            <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4">{PLAN_CATALOG.map((plan) => <div key={plan.code} className="rounded-lg bg-slate-950 p-3"><div className="text-xs text-slate-500">{plan.name}</div><strong className="mt-1 block text-rose-200">買斷 {formatTwd(ECOMMERCE_PRICING.lifetimeByPlan[plan.code])}</strong></div>)}</div>
+            <p className="mt-3 text-xs leading-5 text-slate-400">買斷含一次官網設計修改；月租官網設計修改費 {formatTwd(ECOMMERCE_PRICING.websiteDesignFee.MONTHLY)}，年租 {formatTwd(ECOMMERCE_PRICING.websiteDesignFee.ANNUAL)}。</p>
+          </div>
           <p className="mt-4 flex items-start gap-2 text-xs leading-5 text-slate-400"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />網站不直接收款；與艾琳設計確認付款入帳後，才由管理後台產生啟用碼並綁定已購買的工作站台數。</p>
         </section>
       </div>

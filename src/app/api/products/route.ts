@@ -17,6 +17,7 @@ const ProductInput = z.object({
   safetyStock: z.coerce.number().default(0),
   taxRateId: z.string().optional().nullable(),
   isActive: z.boolean().default(true),
+  isPublished: z.boolean().default(true),
   remark: z.string().optional().nullable(),
   stockQty: z.coerce.number().optional(),
 });
@@ -56,6 +57,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
         salePrice: true,
         safetyStock: true,
         isActive: true,
+        isPublished: true,
         imageUrl: true,
         category: { select: { name: true } },
         unit: { select: { name: true } },

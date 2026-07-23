@@ -94,7 +94,7 @@ export const GET = apiHandler(async (_req: NextRequest, { params }: { params: { 
   const { tenant, access } = await getCommerceTenant(params.tenant);
   const [products, pendingLines] = await Promise.all([
     prisma.product.findMany({
-      where: { tenantId: tenant.id, isActive: true },
+      where: { tenantId: tenant.id, isActive: true, isPublished: true },
       orderBy: [{ category: { name: "asc" } }, { createdAt: "desc" }],
       take: 200,
       select: {
@@ -136,7 +136,7 @@ export const GET = apiHandler(async (_req: NextRequest, { params }: { params: { 
       price: Number(product.salePrice),
       stock: Math.max(0, product.stocks.reduce((sum, row) => sum + Number(row.quantity), 0) - (reserved.get(product.id) ?? 0)),
     })),
-  }, { headers: { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=120" } });
+  }, { headers: { "Cache-Control": "no-store, max-age=0" } });
 });
 
 export const POST = apiHandler(async (req: NextRequest, { params }: { params: { tenant: string } }) => {
@@ -167,7 +167,7 @@ export const POST = apiHandler(async (req: NextRequest, { params }: { params: { 
     const ids = [...new Set(input.items.map((item) => item.productId))];
     const [products, pendingLines] = await Promise.all([
       tx.product.findMany({
-        where: { tenantId: tenant.id, id: { in: ids }, isActive: true },
+        where: { tenantId: tenant.id, id: { in: ids }, isActive: true, isPublished: true },
         select: {
           id: true,
           sku: true,

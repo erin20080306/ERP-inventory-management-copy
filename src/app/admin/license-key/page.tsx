@@ -5,11 +5,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { AlertTriangle, ArrowLeft, CheckCircle2, Copy, KeyRound, Loader2, RefreshCw } from "lucide-react";
-import { PLAN_CATALOG, formatTwd, type BillingCycle, type PlanCode } from "@/lib/plans";
+import { PLAN_CATALOG, formatTwd, getPlanPrice, type BillingCycle, type PlanCode } from "@/lib/plans";
 
 type TenantRow = {
   id: string;
   name: string;
+  businessMode: string;
   deviceCount: number;
   serverCount: number;
   connection: { companyCode: string | null };
@@ -91,7 +92,7 @@ export default function ActivationKeyAdminPage() {
 
   const selected = useMemo(() => rows.find((row) => row.id === selectedId) ?? null, [rows, selectedId]);
   const selectedPlan = useMemo(() => PLAN_CATALOG.find((item) => item.code === planCode) ?? PLAN_CATALOG[0], [planCode]);
-  const price = billing === "MONTHLY" ? selectedPlan.monthlyPrice : billing === "ANNUAL" ? selectedPlan.annualPrice : selectedPlan.lifetimePrice;
+  const price = getPlanPrice(selectedPlan, billing, selected?.businessMode);
 
   useEffect(() => {
     if (!selected) return;

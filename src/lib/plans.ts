@@ -60,6 +60,26 @@ export const PLAN_CATALOG: readonly ErpPlan[] = [
   },
 ] as const;
 
+export const ECOMMERCE_PRICING = {
+  monthlyPrice: 2_999,
+  annualPrice: 29_990,
+  lifetimeByPlan: {
+    TEAM_2: 35_000,
+    TEAM_3: 50_000,
+    TEAM_5: 60_000,
+    SMALL_8: 75_000,
+  } satisfies Record<PlanCode, number>,
+  websiteDesignFee: {
+    MONTHLY: 20_000,
+    ANNUAL: 15_000,
+    ONCE: 0,
+  } satisfies Record<BillingCycle, number>,
+} as const;
+
+export function isEcommerceMode(value: string | null | undefined) {
+  return value === "ECOMMERCE";
+}
+
 export const BILLING_LABELS: Record<BillingCycle, string> = {
   MONTHLY: "月租",
   ANNUAL: "年租（送 2 個月）",
@@ -70,10 +90,19 @@ export function getPlan(code: string | null | undefined) {
   return PLAN_CATALOG.find((plan) => plan.code === code) ?? null;
 }
 
-export function getPlanPrice(plan: ErpPlan, cycle: BillingCycle) {
+export function getPlanPrice(plan: ErpPlan, cycle: BillingCycle, businessMode?: string | null) {
+  if (isEcommerceMode(businessMode)) {
+    if (cycle === "MONTHLY") return ECOMMERCE_PRICING.monthlyPrice;
+    if (cycle === "ANNUAL") return ECOMMERCE_PRICING.annualPrice;
+    return ECOMMERCE_PRICING.lifetimeByPlan[plan.code];
+  }
   if (cycle === "MONTHLY") return plan.monthlyPrice;
   if (cycle === "ANNUAL") return plan.annualPrice;
   return plan.lifetimePrice;
+}
+
+export function getWebsiteDesignFee(cycle: BillingCycle, businessMode?: string | null) {
+  return isEcommerceMode(businessMode) ? ECOMMERCE_PRICING.websiteDesignFee[cycle] : 0;
 }
 
 export function formatTwd(amount: number) {

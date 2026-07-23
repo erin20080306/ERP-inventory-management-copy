@@ -5,13 +5,19 @@ import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { toast } from "sonner";
 import { signIn } from "next-auth/react";
-import { Loader2, UserPlus, Building2, ShoppingBag, Store, UtensilsCrossed } from "lucide-react";
+import { Loader2, UserPlus, Building2, ShoppingBag, Store, UtensilsCrossed, PlayCircle, X } from "lucide-react";
 import Link from "next/link";
 import type { BusinessMode } from "@/lib/product-editions";
 
 const ROLES = [
   { name: "系統管理員", desc: "擁有所有權限" },
 ];
+const MODE_DEMOS: Record<BusinessMode, { label: string; video: string; poster: string }> = {
+  ERP: { label: "一般企業 ERP", video: "/videos/erp-demo.webm", poster: "/images/demos/erp-demo.png" },
+  ECOMMERCE: { label: "電商商城＋ERP", video: "/videos/ecommerce-erp-demo.webm", poster: "/images/demos/ecommerce-erp-demo.png" },
+  POS_RETAIL: { label: "一般零售 POS", video: "/videos/retail-pos-demo.webm", poster: "/images/demos/retail-pos-demo.png" },
+  POS_RESTAURANT: { label: "餐飲 POS", video: "/videos/restaurant-pos-demo.webm", poster: "/images/demos/restaurant-pos-demo.png" },
+};
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -25,6 +31,8 @@ export default function RegisterPage() {
   const [roleName, setRoleName] = useState("系統管理員");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showDemoVideo, setShowDemoVideo] = useState(false);
+  const currentDemo = MODE_DEMOS[businessMode];
 
   useEffect(() => {
     const mode = new URLSearchParams(window.location.search).get("mode");
@@ -111,37 +119,16 @@ export default function RegisterPage() {
           )}
           <form onSubmit={onSubmit} className="space-y-4">
             <fieldset className="space-y-2">
-              <legend className="text-slate-300 text-xs mb-2">使用模式</legend>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                <button
-                  type="button"
-                  onClick={() => setBusinessMode("ERP")}
-                  className={`h-16 rounded-xl border flex items-center justify-center gap-2 text-sm transition ${businessMode === "ERP" ? "border-indigo-400 bg-indigo-500/20 text-white" : "border-white/10 bg-white/5 text-slate-400 hover:bg-white/10"}`}
-                >
-                  <Building2 className="h-4 w-4" />一般企業 ERP
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setBusinessMode("ECOMMERCE")}
-                  className={`h-16 rounded-xl border flex items-center justify-center gap-2 text-sm transition ${businessMode === "ECOMMERCE" ? "border-rose-400 bg-rose-500/20 text-white" : "border-white/10 bg-white/5 text-slate-400 hover:bg-white/10"}`}
-                >
-                  <ShoppingBag className="h-4 w-4" />電商商城＋ERP
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setBusinessMode("POS_RETAIL")}
-                  className={`h-16 rounded-xl border flex items-center justify-center gap-2 text-sm transition ${businessMode === "POS_RETAIL" ? "border-emerald-400 bg-emerald-500/20 text-white" : "border-white/10 bg-white/5 text-slate-400 hover:bg-white/10"}`}
-                >
-                  <Store className="h-4 w-4" />零售 POS
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setBusinessMode("POS_RESTAURANT")}
-                  className={`h-16 rounded-xl border flex items-center justify-center gap-2 text-sm transition ${businessMode === "POS_RESTAURANT" ? "border-orange-400 bg-orange-500/20 text-white" : "border-white/10 bg-white/5 text-slate-400 hover:bg-white/10"}`}
-                >
-                  <UtensilsCrossed className="h-4 w-4" />餐飲 POS
-                </button>
+              <legend className="text-slate-300 text-xs mb-2">選擇使用模式（可左右滑動）</legend>
+              <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto pb-2 [scrollbar-width:thin]">
+                <button type="button" onClick={() => setBusinessMode("ERP")} className={`h-16 min-w-[176px] snap-start rounded-xl border flex items-center justify-center gap-2 text-sm transition ${businessMode === "ERP" ? "border-indigo-400 bg-indigo-500/20 text-white" : "border-white/10 bg-white/5 text-slate-400 hover:bg-white/10"}`}><Building2 className="h-4 w-4" />一般企業 ERP</button>
+                <button type="button" onClick={() => setBusinessMode("ECOMMERCE")} className={`h-16 min-w-[176px] snap-start rounded-xl border flex items-center justify-center gap-2 text-sm transition ${businessMode === "ECOMMERCE" ? "border-rose-400 bg-rose-500/20 text-white" : "border-white/10 bg-white/5 text-slate-400 hover:bg-white/10"}`}><ShoppingBag className="h-4 w-4" />電商商城＋ERP</button>
+                <button type="button" onClick={() => setBusinessMode("POS_RETAIL")} className={`h-16 min-w-[176px] snap-start rounded-xl border flex items-center justify-center gap-2 text-sm transition ${businessMode === "POS_RETAIL" ? "border-emerald-400 bg-emerald-500/20 text-white" : "border-white/10 bg-white/5 text-slate-400 hover:bg-white/10"}`}><Store className="h-4 w-4" />一般零售 POS</button>
+                <button type="button" onClick={() => setBusinessMode("POS_RESTAURANT")} className={`h-16 min-w-[176px] snap-start rounded-xl border flex items-center justify-center gap-2 text-sm transition ${businessMode === "POS_RESTAURANT" ? "border-orange-400 bg-orange-500/20 text-white" : "border-white/10 bg-white/5 text-slate-400 hover:bg-white/10"}`}><UtensilsCrossed className="h-4 w-4" />餐飲 POS</button>
               </div>
+              <button type="button" onClick={() => setShowDemoVideo(true)} className="flex w-full items-center justify-between rounded-xl border border-sky-300/20 bg-sky-300/5 px-4 py-3 text-left text-sm text-sky-100 transition hover:bg-sky-300/10">
+                <span><b className="block">{currentDemo.label} 示範影片</b><small className="mt-1 block text-sky-200/70">先觀看操作流程，再完成租戶註冊</small></span><PlayCircle className="h-6 w-6 shrink-0" />
+              </button>
             </fieldset>
 
             <div className="space-y-1.5">
@@ -263,6 +250,14 @@ export default function RegisterPage() {
           </div>
         </div>
       </div>
+      {showDemoVideo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 p-4" role="dialog" aria-modal="true" aria-label={`${currentDemo.label} 示範影片`}>
+          <div className="w-full max-w-4xl overflow-hidden rounded-2xl border border-white/15 bg-slate-900 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-white/10 px-4 py-3 text-white"><div><b>{currentDemo.label}</b><p className="mt-0.5 text-xs text-slate-400">影片僅示範操作；註冊後會建立您自己的獨立租戶資料。</p></div><button type="button" onClick={() => setShowDemoVideo(false)} className="rounded-lg border border-white/10 p-2 hover:bg-white/10" aria-label="關閉影片"><X className="h-5 w-5" /></button></div>
+            <video key={currentDemo.video} src={currentDemo.video} poster={currentDemo.poster} controls autoPlay muted playsInline className="aspect-video w-full bg-black object-contain" />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -8,7 +8,7 @@ import {
   Building2, CheckCircle2, ChevronLeft, ChevronRight, KeyRound, LayoutDashboard,
   Loader2, LogOut, Mail, MonitorSmartphone, RefreshCw, Search, Shield, ShoppingBag, Store, Users, X, UtensilsCrossed, Download,
 } from "lucide-react";
-import { PLAN_CATALOG, formatTwd, type BillingCycle, type PlanCode } from "@/lib/plans";
+import { PLAN_CATALOG, formatTwd, getPlanPrice, type BillingCycle, type PlanCode } from "@/lib/plans";
 import { getProductEdition, type BusinessMode } from "@/lib/product-editions";
 
 type TenantRow = {
@@ -227,7 +227,7 @@ function LicenseDialog({ tenant, onClose, onSaved }: { tenant: TenantRow; onClos
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
   const [devices, setDevices] = useState<Array<{ id: string; deviceRole: "SERVER" | "WORKSTATION"; displayName: string | null; platform: string | null; appVersion: string | null; firstSeenAt: string; lastSeenAt: string; revokedAt: string | null }>>([]);
   const plan = PLAN_CATALOG.find((item) => item.code === planCode)!;
-  const price = billing === "MONTHLY" ? plan.monthlyPrice : billing === "ANNUAL" ? plan.annualPrice : plan.lifetimePrice;
+  const price = getPlanPrice(plan, billing, mode);
 
   useEffect(() => setPaidAmount(String(price)), [price]);
 

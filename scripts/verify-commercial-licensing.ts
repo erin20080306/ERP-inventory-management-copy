@@ -7,6 +7,7 @@ import {
   OFFLINE_LEASE_HOURS,
   TRIAL_DAYS,
 } from "../src/lib/license";
+import { ECOMMERCE_PRICING, PLAN_CATALOG, getPlanPrice, getWebsiteDesignFee } from "../src/lib/plans";
 
 const januaryEnd = new Date("2026-01-31T08:30:00.000Z");
 assert.equal(defaultExpiry("MONTHLY", januaryEnd)?.toISOString(), "2026-02-28T08:30:00.000Z");
@@ -49,4 +50,16 @@ assert.equal(computeLicenseAccess({
 }).status, "locked");
 assert.equal(computeLicenseAccess({ now: renewalNow, isSuperAdmin: true }).status, "paid");
 
-console.log("Commercial trial, renewal and offline expiry controls: PASS");
+const [team2, team3, team5, small8] = PLAN_CATALOG;
+assert.equal(getPlanPrice(team2, "MONTHLY", "ECOMMERCE"), 2_999);
+assert.equal(getPlanPrice(team2, "ANNUAL", "ECOMMERCE"), 29_990);
+assert.equal(getPlanPrice(team2, "ONCE", "ECOMMERCE"), 35_000);
+assert.equal(getPlanPrice(team3, "ONCE", "ECOMMERCE"), 50_000);
+assert.equal(getPlanPrice(team5, "ONCE", "ECOMMERCE"), 60_000);
+assert.equal(getPlanPrice(small8, "ONCE", "ECOMMERCE"), 75_000);
+assert.equal(getWebsiteDesignFee("MONTHLY", "ECOMMERCE"), 20_000);
+assert.equal(getWebsiteDesignFee("ANNUAL", "ECOMMERCE"), 15_000);
+assert.equal(getWebsiteDesignFee("ONCE", "ECOMMERCE"), 0);
+assert.equal(ECOMMERCE_PRICING.annualPrice, ECOMMERCE_PRICING.monthlyPrice * 10);
+
+console.log("Commercial trial, renewal, ecommerce pricing and offline expiry controls: PASS");

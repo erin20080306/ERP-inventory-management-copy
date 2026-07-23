@@ -40,6 +40,8 @@ function LoginInner() {
   const [loading, setLoading] = useState(false);
   const [runtimeMode, setRuntimeMode] = useState<"loading" | "local" | "online">("loading");
   const [showDemoPreview, setShowDemoPreview] = useState(false);
+  const [localProfile, setLocalProfile] = useState<{ companyName: string; businessMode: string; username: string; email: string; managerName: string } | null>(null);
+  const [localProfileError, setLocalProfileError] = useState("");
   const isLocalCompanyHost = runtimeMode === "local";
   const isOnlineRuntime = runtimeMode === "online";
   const registered = sp.get("registered") === "1";
@@ -49,8 +51,20 @@ function LoginInner() {
     fetch("/api/runtime-mode", { cache: "no-store" })
       .then((response) => response.json())
       .then((runtime) => {
-        setRuntimeMode(runtime.localLicenseMode === true ? "local" : "online");
+        const localMode = runtime.localLicenseMode === true;
+        setRuntimeMode(localMode ? "local" : "online");
         setShowDemoPreview(localHost && runtime.demoLoginEnabled === true);
+        if (localMode) {
+          void fetch("/api/local-login-profile", { cache: "no-store" })
+            .then(async (response) => {
+              const profile = await response.json();
+              if (!response.ok) throw new Error(profile.error || "公司登入資料尚未準備完成");
+              setLocalProfile(profile);
+              setUsername(profile.username);
+              setLocalProfileError("");
+            })
+            .catch((profileError) => setLocalProfileError(profileError instanceof Error ? profileError.message : "公司登入資料載入失敗"));
+        }
       })
       .catch(() => {
         // 正式工作站無法判定模式時採安全預設，不顯示任何模擬帳號或密碼。
@@ -93,6 +107,44 @@ function LoginInner() {
     } finally {
       setLoading(false);
     }
+  }
+
+  if (isLocalCompanyHost) {
+    return (
+      <main className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-5 relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-indigo-950 via-slate-950 to-emerald-950" />
+        <div className="absolute -top-32 -left-24 h-80 w-80 rounded-full bg-indigo-500/20 blur-3xl" />
+        <div className="absolute -bottom-32 -right-24 h-80 w-80 rounded-full bg-emerald-500/20 blur-3xl" />
+        <section className="relative w-full max-w-md rounded-3xl border border-white/10 bg-white/5 p-7 shadow-2xl backdrop-blur-xl">
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-emerald-500"><Building2 className="h-6 w-6" /></div>
+            <div><p className="text-xs uppercase tracking-[.2em] text-emerald-300">ERIN LOCAL APP</p><h1 className="mt-1 text-xl font-black">{localProfile?.companyName || "正在同步租戶公司"}</h1></div>
+          </div>
+
+          {localProfile ? (
+            <div className="mt-6 rounded-2xl border border-emerald-300/20 bg-emerald-300/5 p-4">
+              <p className="text-xs text-emerald-200">已連接正式租戶</p>
+              <div className="mt-2 font-semibold">{localProfile.managerName}</div>
+              <div className="mt-1 text-xs text-slate-400">{localProfile.email}・{localProfile.businessMode}</div>
+            </div>
+          ) : (
+            <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">{localProfileError || "正在讀取安裝時同步的公司與管理者帳號…"}</div>
+          )}
+
+          <form onSubmit={onSubmit} className="mt-6 space-y-4">
+            <input type="hidden" value={username} autoComplete="username" readOnly />
+            <div className="space-y-1.5">
+              <Label htmlFor="local-password" className="text-xs text-slate-300">租戶註冊密碼</Label>
+              <div className="relative"><Lock className="absolute left-3 top-3.5 h-4 w-4 text-slate-500" /><Input id="local-password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" placeholder="請輸入註冊租戶時設定的密碼" className="h-12 border-white/10 bg-white/5 pl-9 text-white placeholder:text-slate-500" required autoFocus /></div>
+            </div>
+            <Button type="submit" disabled={loading || !localProfile || !username} className="h-12 w-full border-0 bg-gradient-to-r from-indigo-500 to-emerald-500 font-bold text-white">
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}{loading ? "登入中…" : "進入公司系統"}
+            </Button>
+          </form>
+          <p className="mt-5 text-center text-xs leading-5 text-slate-500">公司名稱與帳號由安裝授權自動同步；密碼沿用租戶註冊時的密碼，APP 不會保存明碼。</p>
+        </section>
+      </main>
+    );
   }
 
   return (

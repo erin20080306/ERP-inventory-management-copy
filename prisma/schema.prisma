@@ -366,6 +366,7 @@ model Product {
   safetyStock Decimal  @default(0) @db.Decimal(18, 4)
   taxRateId   String?
   isActive    Boolean  @default(true)
+  isPublished Boolean  @default(true)
   remark      String?
   updatedBy   String?
   createdAt   DateTime @default(now())
@@ -392,6 +393,7 @@ model Product {
   @@index([tenantId])
   @@index([tenantId, createdAt])
   @@index([tenantId, isActive])
+  @@index([tenantId, isPublished])
 }
 
 // ─────────────────────────── 客戶 / 供應商 ───────────────────────────

@@ -21,6 +21,7 @@ type Product = {
   salePrice: any;
   safetyStock: any;
   isActive: boolean;
+  isPublished: boolean;
   stockTotal?: number;
   soldTotal?: number;
   categoryId?: string | null;
@@ -58,7 +59,7 @@ function BarcodePreview({ value }: { value: string }) {
   }
 }
 
-function ProductDialog({ open, onClose, row, onSaved }: any) {
+function ProductDialog({ open, onClose, row, onSaved, isCommerce = false }: any) {
   const [form, setForm] = useState<any>({});
   const [saving, setSaving] = useState(false);
   const [autofillHint, setAutofillHint] = useState<string | null>(null);
@@ -75,6 +76,7 @@ function ProductDialog({ open, onClose, row, onSaved }: any) {
         salePrice: "",
         safetyStock: "",
         isActive: true,
+        isPublished: true,
       }
     );
     setAutofillHint(null);
@@ -258,8 +260,19 @@ function ProductDialog({ open, onClose, row, onSaved }: any) {
               checked={!!form.isActive}
               onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
             />
-            啟用
+            啟用（ERP／POS 可用）
           </label>
+          {isCommerce && (
+            <label className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm col-span-2">
+              <input
+                type="checkbox"
+                checked={form.isPublished !== false}
+                onChange={(e) => setForm({ ...form, isPublished: e.target.checked })}
+                className="mt-0.5"
+              />
+              <span><b className="block text-rose-800">一般消費者官網上架</b><small className="mt-1 block text-rose-600">取消後只會從官網下架，不影響 ERP 庫存、採購或歷史訂單。</small></span>
+            </label>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
@@ -274,7 +287,8 @@ function ProductDialog({ open, onClose, row, onSaved }: any) {
   );
 }
 
-export function ProductClient() {
+export function ProductClient({ isCommerce = false }: { isCommerce?: boolean }) {
+  const [publicationRevision, setPublicationRevision] = useState(0);
   const [enlargedImage, setEnlargedImage] = useState<string | null>(null);
   const [barcodeProduct, setBarcodeProduct] = useState<Product | null>(null);
   const [labelQuantity, setLabelQuantity] = useState("1");
@@ -348,6 +362,7 @@ export function ProductClient() {
   return (
     <>
       <CrudTable<Product>
+        key={publicationRevision}
         endpoint="/api/products"
         moduleKey="products"
         serverExcelExport="/api/products/export"
@@ -435,9 +450,33 @@ export function ProductClient() {
             },
           },
           { key: "isActive", title: "狀態", render: (r) => (r.isActive ? <Badge variant="success">啟用</Badge> : <Badge variant="danger">停用</Badge>) },
+          ...(isCommerce ? [{
+            key: "isPublished",
+            title: "一般消費者官網",
+            render: (r: Product) => (
+              <button
+                type="button"
+                onClick={async (event) => {
+                  event.stopPropagation();
+                  const response = await fetch(`/api/products/${r.id}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ isPublished: !r.isPublished }),
+                  });
+                  const result = await response.json();
+                  if (!response.ok) return toast.error(result.error || "官網上架狀態更新失敗");
+                  toast.success(r.isPublished ? "商品已從官網下架" : "商品已上架至官網");
+                  setPublicationRevision((value) => value + 1);
+                }}
+                className={r.isPublished ? "rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100" : "rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-500 transition hover:bg-slate-100"}
+              >
+                {r.isPublished ? "官網上架中" : "官網已下架"}
+              </button>
+            ),
+          }] : []),
           { key: "updatedBy", title: "操作人員", render: (r) => <span className="text-xs text-gray-500">{r.updatedBy || "-"}</span> },
         ]}
-        FormDialog={ProductDialog}
+        FormDialog={(props: any) => <ProductDialog {...props} isCommerce={isCommerce} />}
         pdfTitle="商品管理"
         exportName="商品管理"
         templateHeaders={["SKU", "商品名稱", "規格", "條碼", "單位", "成本", "售價", "庫存", "安全庫存", "圖片URL"]}

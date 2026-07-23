@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ApiError, apiHandler, requirePermission, requireTenantId, audit, getCurrentUserId } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 
-const ALLOWED_FIELDS = ["sku", "barcode", "name", "spec", "description", "imageUrl", "categoryId", "unitId", "costPrice", "salePrice", "safetyStock", "taxRateId", "isActive", "remark"];
+const ALLOWED_FIELDS = ["sku", "barcode", "name", "spec", "description", "imageUrl", "categoryId", "unitId", "costPrice", "salePrice", "safetyStock", "taxRateId", "isActive", "isPublished", "remark"];
 
 export const PUT = apiHandler(async (req: NextRequest, { params }: { params: { id: string } }) => {
   const session = await requirePermission("products.edit");

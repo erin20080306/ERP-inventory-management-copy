@@ -562,6 +562,7 @@ export async function activateTenantLicense(input: {
     where: { id: input.tenantId },
     select: {
       isInternal: true,
+      businessMode: true,
       licenseKeyHash: true,
       licenseStatus: true,
       licenseBilling: true,
@@ -587,7 +588,7 @@ export async function activateTenantLicense(input: {
   });
   const companyCode = await ensureTenantCompanyCode(input.tenantId);
   const paymentId = `PAY-${randomBytes(12).toString("hex").toUpperCase()}`;
-  const quotedAmount = getPlanPrice(plan, input.billing);
+  const quotedAmount = getPlanPrice(plan, input.billing, current.businessMode);
   const paymentCreatedAt = new Date();
   const paymentSnapshot = {
     id: paymentId,
