@@ -1,0 +1,25 @@
+
+> inventory-management-system@1.0.0 test:speed
+> node scripts/verify-speed-patch.mjs && node scripts/verify-pos-fast-checkout-v5.mjs
+
+PASS: POS 商品 sessionStorage 快取
+PASS: POS 商品搜尋不再每次呼叫 API
+PASS: POS 停電草稿改為 3 秒背景同步
+PASS: 餐飲 POS 15 秒啟動畫面快取
+PASS: 餐飲結帳先局部清桌再背景校正
+PASS: POS 初始商品可載入最多 500 筆供本機搜尋
+PASS: 商城庫存使用單次批次 SQL 更新
+Runtime speed optimization safeguards: PASS
+PASS: 前台只配置 POS 單號
+file:///home/runner/work/ERP-inventory-management-copy/ERP-inventory-management-copy/scripts/verify-pos-fast-checkout-v5.mjs:11
+  if (!condition) throw new Error(`檢查失敗：${name}`);
+                        ^
+
+Error: 檢查失敗：前台不再建立 ERP 銷售訂單
+    at check (file:///home/runner/work/ERP-inventory-management-copy/ERP-inventory-management-copy/scripts/verify-pos-fast-checkout-v5.mjs:11:25)
+    at file:///home/runner/work/ERP-inventory-management-copy/ERP-inventory-management-copy/scripts/verify-pos-fast-checkout-v5.mjs:16:1
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)
+
+Node.js v22.23.1
