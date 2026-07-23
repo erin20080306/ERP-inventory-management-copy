@@ -115,9 +115,9 @@ assert.match(dockerfile, /ARG ERIN_RELEASE_SHA/);
 assert.match(workflow, /ERIN_RELEASE_SHA=\$\{\{ github\.sha \}\}/);
 assert.match(workflow, /candidate-\$\{\{ github\.sha \}\}/);
 assert.match(workflow, /Promote verified image to latest/);
-assert.match(workflow, /cancel-in-progress: false/);
+assert.match(workflow, /cancel-in-progress: true/);
 assert.doesNotMatch(workflow, /type=raw,value=latest/);
 assert.match(workflow, /Record released Host image version/);
 assert.match(workflow, /Smoke test Apple Silicon Host startup/);
 
-console.log("Manual Mac Host architecture/IP safeguards, candidate promotion, update center, signature recovery, updater rollback, and desktop bootstrap: PASS");
+console.log("Manual Mac Host architecture/IP safeguards, latest-only candidate promotion, update center, signature recovery, updater rollback, and desktop bootstrap: PASS");
