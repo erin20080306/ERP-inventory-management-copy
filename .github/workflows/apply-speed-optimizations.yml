@@ -22,14 +22,48 @@ jobs:
           node -e 'const fs=require("fs");const p=JSON.parse(fs.readFileSync("package.json","utf8"));p.scripts["test:speed"]="node scripts/verify-speed-patch.mjs";fs.writeFileSync("package.json",JSON.stringify(p,null,2)+"\n")'
           rm -f scripts/verify-speed-optimizations.mjs
       - name: Verify speed safeguards
-        run: node scripts/verify-speed-patch.mjs
+        id: speed_verify
+        continue-on-error: true
+        run: |
+          set +e
+          node scripts/verify-speed-patch.mjs 2>&1 | tee /tmp/speed-verify.log
+          exit ${PIPESTATUS[0]}
+      - name: Publish speed safeguard diagnostic
+        if: steps.speed_verify.outcome == 'failure'
+        run: |
+          cp /tmp/speed-verify.log .speed-optimization-diagnostic.txt
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add .speed-optimization-diagnostic.txt
+          git commit -m "chore: record speed safeguard failure [skip ci]"
+          git push origin HEAD:main
+      - name: Stop after speed safeguard failure
+        if: steps.speed_verify.outcome == 'failure'
+        run: exit 1
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
       - run: npm ci
       - name: TypeScript check
-        run: npx tsc --noEmit
+        id: typescript
+        continue-on-error: true
+        run: |
+          set +e
+          npx tsc --noEmit 2>&1 | tee /tmp/speed-typescript.log
+          exit ${PIPESTATUS[0]}
+      - name: Publish TypeScript diagnostic
+        if: steps.typescript.outcome == 'failure'
+        run: |
+          cp /tmp/speed-typescript.log .speed-optimization-diagnostic.txt
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add .speed-optimization-diagnostic.txt
+          git commit -m "chore: record speed TypeScript failure [skip ci]"
+          git push origin HEAD:main
+      - name: Stop after TypeScript failure
+        if: steps.typescript.outcome == 'failure'
+        run: exit 1
       - name: Check patch formatting
         run: git diff --check
       - name: Commit optimized runtime
