@@ -47,7 +47,25 @@ jobs:
         with:
           node-version: 20
           cache: npm
-      - run: npm ci
+      - name: Install dependencies
+        id: npm_ci
+        continue-on-error: true
+        run: |
+          set +e
+          npm ci --no-audit --no-fund 2>&1 | tee /tmp/speed-npm-ci.log
+          exit ${PIPESTATUS[0]}
+      - name: Publish npm diagnostic
+        if: steps.npm_ci.outcome == 'failure'
+        run: |
+          cp /tmp/speed-npm-ci.log .speed-optimization-diagnostic.txt
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add .speed-optimization-diagnostic.txt
+          git commit -m "chore: record speed npm failure [skip ci]"
+          git push origin HEAD:main
+      - name: Stop after npm failure
+        if: steps.npm_ci.outcome == 'failure'
+        run: exit 1
       - name: TypeScript check
         id: typescript
         continue-on-error: true
