@@ -190,27 +190,28 @@ const adminSections: NavSection[] = [
   ...erpSections.slice(1),
 ];
 
-export function SidebarBrand() {
+export function SidebarBrand({ collapsed = false }: { collapsed?: boolean }) {
   const { data } = useSession();
   const mode = normalizeBusinessMode(data?.user?.businessMode);
   const isPos = ["POS_RETAIL", "POS_RESTAURANT"].includes(mode) && !data?.user?.isSuperAdmin;
   const isRestaurant = mode === "POS_RESTAURANT" && !data?.user?.isSuperAdmin;
   const isCommerce = mode === "ECOMMERCE" && !data?.user?.isSuperAdmin;
   return (
-    <div className="flex h-16 items-center gap-2 px-5 border-b border-white/10 shrink-0">
-      <div className="h-8 w-8 rounded-md bg-gradient-to-br from-indigo-500 to-emerald-500 text-white flex items-center justify-center">
+    <div className={cn("flex h-16 shrink-0 items-center border-b border-white/10", collapsed ? "justify-center px-2" : "gap-2 px-5")}>
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-gradient-to-br from-indigo-500 to-emerald-500 text-white">
         <Building2 className="h-5 w-5" />
       </div>
-      <div>
-        <div className="font-semibold text-sm">{isCommerce ? "電商 ERP" : isRestaurant ? "餐飲 POS" : isPos ? "零售 POS" : "艾琳 ERP 系統"}</div>
-        <div className="text-[10px] text-white/50">{isCommerce ? "Commerce Edition" : isRestaurant ? "Restaurant Edition" : isPos ? "Retail Edition" : "Enterprise Edition"}</div>
-      </div>
+      {!collapsed && (
+        <div>
+          <div className="font-semibold text-sm">{isCommerce ? "電商 ERP" : isRestaurant ? "餐飲 POS" : isPos ? "零售 POS" : "艾琳 ERP 系統"}</div>
+          <div className="text-[10px] text-white/50">{isCommerce ? "Commerce Edition" : isRestaurant ? "Restaurant Edition" : isPos ? "Retail Edition" : "Enterprise Edition"}</div>
+        </div>
+      )}
     </div>
   );
 }
 
-export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
-  const pathname = usePathname();
+export function SidebarNav({ onNavigate, collapsed = false }: { onNavigate?: () => void; collapsed?: boolean }) {  const pathname = usePathname();
   const router = useRouter();
   const { data } = useSession();
   const perms = data?.user?.permissions ?? [];
@@ -304,10 +305,12 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
 
   return (
     <nav className="flex-1 overflow-y-auto py-3">
-      <div className="mb-2 flex items-center justify-end gap-1 px-3">
-        <button type="button" onClick={() => updateAllSections(true)} className="rounded px-2 py-1 text-[10px] text-white/45 hover:bg-white/5 hover:text-white/80">全部展開</button>
-        <button type="button" onClick={() => updateAllSections(false)} className="rounded px-2 py-1 text-[10px] text-white/45 hover:bg-white/5 hover:text-white/80">全部收合</button>
-      </div>
+      {!collapsed && (
+        <div className="mb-2 flex items-center justify-end gap-1 px-3">
+          <button type="button" onClick={() => updateAllSections(true)} className="rounded px-2 py-1 text-[10px] text-white/45 hover:bg-white/5 hover:text-white/80">全部展開</button>
+          <button type="button" onClick={() => updateAllSections(false)} className="rounded px-2 py-1 text-[10px] text-white/45 hover:bg-white/5 hover:text-white/80">全部收合</button>
+        </div>
+      )}
       {sections.map((s, sectionIndex) => {
         const visible = s.items.filter((i) => !i.perm || hasPermission(perms, i.perm));
         if (visible.length === 0) return null;
@@ -315,22 +318,24 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
         const expanded = openSections[s.label] ?? (s.label === "總覽" || s.label === "管理者工作區" || containsActiveItem);
         const regionId = `sidebar-section-${sectionIndex}`;
         return (
-          <div key={s.label} className="mb-1.5 px-2">
-            <button
-              type="button"
-              aria-expanded={expanded}
-              aria-controls={regionId}
-              onClick={() => updateSectionState(s.label, !expanded)}
-              className={cn(
-                "flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-widest transition-colors",
-                containsActiveItem ? "bg-white/[0.06] text-white/75" : "text-white/40 hover:bg-white/5 hover:text-white/70"
-              )}
-            >
-              <span>{s.label}</span>
-              <ChevronDown className={cn("h-3.5 w-3.5 transition-transform duration-200", expanded ? "rotate-0" : "-rotate-90")} />
-            </button>
-            {expanded && (
-              <ul id={regionId} className="mt-1 space-y-0.5 px-1">
+          <div key={s.label} className={cn("mb-1.5", collapsed ? "border-b border-white/5 px-1 pb-1" : "px-2")}>
+            {!collapsed && (
+              <button
+                type="button"
+                aria-expanded={expanded}
+                aria-controls={regionId}
+                onClick={() => updateSectionState(s.label, !expanded)}
+                className={cn(
+                  "flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-widest transition-colors",
+                  containsActiveItem ? "bg-white/[0.06] text-white/75" : "text-white/40 hover:bg-white/5 hover:text-white/70"
+                )}
+              >
+                <span>{s.label}</span>
+                <ChevronDown className={cn("h-3.5 w-3.5 transition-transform duration-200", expanded ? "rotate-0" : "-rotate-90")} />
+              </button>
+            )}
+            {(collapsed || expanded) && (
+              <ul id={regionId} className={cn("space-y-0.5", collapsed ? "mt-0 px-0" : "mt-1 px-1")}>
                 {visible.map((i) => {
                   const active = pathname === i.href || pathname.startsWith(i.href + "/");
                   const Icon = i.icon;
@@ -338,6 +343,8 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
                     <li key={i.href}>
                       <Link
                         href={i.href}
+                        title={collapsed ? i.title : undefined}
+                        aria-label={collapsed ? i.title : undefined}
                         onClick={() => {
                           warmRoute(i.href, { data: true });
                           onNavigate?.();
@@ -346,14 +353,13 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
                         onFocus={() => warmRoute(i.href, { data: true })}
                         onTouchStart={() => warmRoute(i.href, { data: true })}
                         className={cn(
-                          "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
-                          active
-                            ? "bg-white/10 text-white"
-                            : "text-white/70 hover:bg-white/5 hover:text-white"
+                          "flex rounded-md py-2 text-sm transition-colors",
+                          collapsed ? "items-center justify-center px-2" : "items-center gap-3 px-3",
+                          active ? "bg-white/10 text-white" : "text-white/70 hover:bg-white/5 hover:text-white"
                         )}
                       >
-                        <Icon className="h-4 w-4" />
-                        <span>{i.title}</span>
+                        <Icon className={cn("shrink-0", collapsed ? "h-5 w-5" : "h-4 w-4")} />
+                        {!collapsed && <span>{i.title}</span>}
                       </Link>
                     </li>
                   );
@@ -367,10 +373,10 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   );
 }
 
-export function SidebarFooter() {
+export function SidebarFooter({ collapsed = false }: { collapsed?: boolean }) {
   return (
-    <div className="border-t border-white/10 p-4 text-[10px] text-white/40 shrink-0">
-      艾琳 ERP · © {new Date().getFullYear()}
+    <div className={cn("shrink-0 border-t border-white/10 text-[10px] text-white/40", collapsed ? "px-2 py-4 text-center" : "p-4")}>
+      {collapsed ? "ERP" : <>艾琳 ERP · © {new Date().getFullYear()}</>}
     </div>
   );
 }
