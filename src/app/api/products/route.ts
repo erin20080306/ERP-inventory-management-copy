@@ -3,7 +3,7 @@ import { ApiError, apiHandler, requirePermission, requireTenantId, audit, getCur
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { resolveDemoProductImage } from "@/lib/demo-product-media";
-import { normalizeBusinessMode } from "@/lib/product-editions";
+import { normalizeBusinessMode, productCatalogScope } from "@/lib/product-editions";
 
 const ProductInput = z.object({
   sku: z.string().min(1),
@@ -27,7 +27,8 @@ const ProductInput = z.object({
 export const GET = apiHandler(async (req: NextRequest) => {
   const session = await requirePermission("products.view");
   const tenantId = await requireTenantId(session);
-  const useRetailFallback = normalizeBusinessMode(session.user.businessMode) === "POS_RETAIL";
+  const businessMode = normalizeBusinessMode(session.user.businessMode);
+  const useRetailFallback = businessMode === "POS_RETAIL";
   const sp = req.nextUrl.searchParams;
   const q = sp.get("q") ?? "";
   const page = Number(sp.get("page") ?? 1);
@@ -35,9 +36,19 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const warehouseId = sp.get("warehouseId") ?? "";
   const fromDate = sp.get("from") ?? "";
   const toDate = sp.get("to") ?? "";
-  const where: any = q
-    ? { tenantId, OR: [{ sku: { contains: q, mode: "insensitive" } }, { name: { contains: q, mode: "insensitive" } }, { barcode: { contains: q, mode: "insensitive" } }] }
-    : { tenantId };
+  const where: any = {
+    tenantId,
+    AND: [
+      productCatalogScope(businessMode),
+      ...(q ? [{
+        OR: [
+          { sku: { contains: q, mode: "insensitive" } },
+          { name: { contains: q, mode: "insensitive" } },
+          { barcode: { contains: q, mode: "insensitive" } },
+        ],
+      }] : []),
+    ],
+  };
   if (fromDate || toDate) {
     where.createdAt = {};
     if (fromDate) where.createdAt.gte = new Date(fromDate);
@@ -100,14 +111,29 @@ export const GET = apiHandler(async (req: NextRequest) => {
 
 export const POST = apiHandler(async (req: NextRequest) => {
   const session = await requirePermission("products.create");
-  const tenantId = await requireTenantId();
+  const tenantId = await requireTenantId(session);
+  const catalogMode = normalizeBusinessMode(session.user.businessMode);
   const currentUserId = await getCurrentUserId();
   const body = ProductInput.parse(await req.json());
   const normalizedBarcode = body.barcode?.trim() || null;
   const upsert = req.nextUrl.searchParams.get("upsert") === "1";
+  const existingBySku = upsert
+    ? null
+    : await prisma.product.findUnique({
+        where: { tenantId_sku: { tenantId, sku: body.sku } },
+        select: { id: true, isArchived: true },
+      });
+  if (existingBySku && !existingBySku.isArchived) {
+    throw new ApiError(409, `SKU ${body.sku} 已存在`);
+  }
   if (normalizedBarcode) {
     const duplicate = await prisma.product.findFirst({
-      where: { tenantId, barcode: normalizedBarcode, ...(upsert ? { sku: { not: body.sku } } : {}) },
+      where: {
+        tenantId,
+        barcode: normalizedBarcode,
+        AND: [productCatalogScope(catalogMode)],
+        ...(upsert ? { sku: { not: body.sku } } : existingBySku ? { id: { not: existingBySku.id } } : {}),
+      },
       select: { sku: true, name: true },
     });
     if (duplicate) throw new ApiError(409, `條碼 ${normalizedBarcode} 已由 ${duplicate.sku} ${duplicate.name} 使用`);
@@ -116,8 +142,8 @@ export const POST = apiHandler(async (req: NextRequest) => {
     const { stockQty, ...productData } = body;
     const result = await prisma.product.upsert({
       where: { tenantId_sku: { tenantId, sku: body.sku } },
-      update: { ...productData, barcode: normalizedBarcode, updatedBy: currentUserId } as any,
-      create: { ...productData, barcode: normalizedBarcode, tenantId, updatedBy: currentUserId } as any,
+      update: { ...productData, barcode: normalizedBarcode, catalogMode, isArchived: false, updatedBy: currentUserId } as any,
+      create: { ...productData, barcode: normalizedBarcode, tenantId, catalogMode, isArchived: false, updatedBy: currentUserId } as any,
     });
     // 庫存數量處理：導入時写入預設倉庫
     if (stockQty != null && stockQty >= 0) {
@@ -134,7 +160,27 @@ export const POST = apiHandler(async (req: NextRequest) => {
     return NextResponse.json(result);
   }
   const { stockQty: _sq, ...createData } = body;
-  const created = await prisma.product.create({ data: { ...createData, barcode: normalizedBarcode, tenantId, updatedBy: currentUserId } as any });
+  const created = existingBySku
+    ? await prisma.product.update({
+        where: { id: existingBySku.id, tenantId },
+        data: {
+          ...createData,
+          barcode: normalizedBarcode,
+          catalogMode,
+          isArchived: false,
+          updatedBy: currentUserId,
+        } as any,
+      })
+    : await prisma.product.create({
+        data: {
+          ...createData,
+          barcode: normalizedBarcode,
+          tenantId,
+          catalogMode,
+          isArchived: false,
+          updatedBy: currentUserId,
+        } as any,
+      });
   // 自動在預設倉庫建立庫存記錄（數量 0），確保庫存管理頁面可見
   const defaultWh = await prisma.warehouse.findFirst({ where: { tenantId, isActive: true }, orderBy: { createdAt: "asc" } });
   if (defaultWh) {
@@ -144,6 +190,12 @@ export const POST = apiHandler(async (req: NextRequest) => {
       create: { tenantId, productId: created.id, warehouseId: defaultWh.id, quantity: 0 },
     });
   }
-  await audit({ userId: session.user.id, action: "create", module: "products", refId: created.id, detail: created.sku });
+  await audit({
+    userId: session.user.id,
+    action: existingBySku ? "restore" : "create",
+    module: "products",
+    refId: created.id,
+    detail: created.sku,
+  });
   return NextResponse.json(created);
 });

@@ -1,9 +1,10 @@
 import { prisma } from "./prisma";
 import { seedTenantDefaultsBatched } from "./seed-tenant-batched";
 
-export const BASELINE_STARTED_ACTION = "tenant_baseline_v2_started";
-export const BASELINE_MARKER_ACTION = "tenant_baseline_v2_seeded";
-export const BASELINE_FAILED_ACTION = "tenant_baseline_v2_failed";
+// v3 會讓既有租戶安全重跑一次可重入初始化，補足各模式商品目錄與圖片。
+export const BASELINE_STARTED_ACTION = "tenant_baseline_v3_started";
+export const BASELINE_MARKER_ACTION = "tenant_baseline_v3_seeded";
+export const BASELINE_FAILED_ACTION = "tenant_baseline_v3_failed";
 
 const readyTenants = new Set<string>();
 

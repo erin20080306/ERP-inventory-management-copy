@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { apiHandler, requireTenantId } from "@/lib/api";
+import { apiHandler, requirePermission, requireTenantId } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
+import { productCatalogScope } from "@/lib/product-editions";
 
 export const GET = apiHandler(async (req: NextRequest) => {
-  const tenantId = await requireTenantId();
+  const session = await requirePermission("products.view");
+  const tenantId = await requireTenantId(session);
   const sp = req.nextUrl.searchParams;
   const q = sp.get("q") ?? "";
   const page = Number(sp.get("page") ?? 1);
@@ -11,9 +13,18 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const fromDate = sp.get("from") ?? "";
   const toDate = sp.get("to") ?? "";
 
-  const where: any = q
-    ? { tenantId, OR: [{ sku: { contains: q, mode: "insensitive" } }, { name: { contains: q, mode: "insensitive" } }] }
-    : { tenantId };
+  const where: any = {
+    tenantId,
+    AND: [
+      productCatalogScope(session.user.businessMode),
+      ...(q ? [{
+        OR: [
+          { sku: { contains: q, mode: "insensitive" } },
+          { name: { contains: q, mode: "insensitive" } },
+        ],
+      }] : []),
+    ],
+  };
   if (fromDate || toDate) {
     where.createdAt = {};
     if (fromDate) where.createdAt.gte = new Date(fromDate);

@@ -8,6 +8,7 @@ import { nextNumberFastInTransaction } from "@/lib/number-sequence";
 import { drainPendingPosSales, fulfillPosSale } from "@/lib/pos-fulfillment";
 import { discountApprovalFingerprint, money, resolveCheckoutOffers } from "@/lib/pos-offers";
 import { prisma } from "@/lib/prisma";
+import { productCatalogScope } from "@/lib/product-editions";
 
 const CheckoutInput = z.object({
   requestId: z.string().trim().min(16).max(100),
@@ -120,7 +121,15 @@ export const POST = apiHandler(async (req: NextRequest) => {
   const [priorSale, shift, products, preloadedPromotions, walkInCustomerId] = await Promise.all([
     prisma.posSale.findFirst({ where: { tenantId, clientRequestId: body.requestId }, include: { payments: true, electronicInvoice: true } }),
     prisma.posShift.findFirst({ where: { id: body.shiftId, tenantId, userId: session.user.id, status: "OPEN" }, select: { id: true, registerId: true, register: { select: { warehouseId: true } } } }),
-    prisma.product.findMany({ where: { tenantId, id: { in: productIds }, isActive: true }, select: { id: true, sku: true, name: true, salePrice: true, costPrice: true, taxRate: { select: { rate: true } } } }),
+    prisma.product.findMany({
+      where: {
+        tenantId,
+        id: { in: productIds },
+        isActive: true,
+        AND: [productCatalogScope(session.user.businessMode)],
+      },
+      select: { id: true, sku: true, name: true, salePrice: true, costPrice: true, taxRate: { select: { rate: true } } },
+    }),
     prisma.posPromotion.findMany({ where: { tenantId, ...activePromotionWindow }, orderBy: [{ priority: "desc" }, { createdAt: "asc" }] }),
     body.customerId ? Promise.resolve(null) : getWalkInCustomerId(tenantId),
   ]);

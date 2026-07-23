@@ -357,6 +357,8 @@ model ProductUnit {
 model Product {
   id          String   @id @default(cuid())
   tenantId    String
+  // 商品目錄依租戶營運模式隔離；保留舊模式商品供歷史單據引用。
+  catalogMode String?
   sku         String
   barcode     String?
   name        String
@@ -371,6 +373,7 @@ model Product {
   taxRateId   String?
   isActive    Boolean  @default(true)
   isPublished Boolean  @default(true)
+  isArchived  Boolean  @default(false)
   remark      String?
   updatedBy   String?
   createdAt   DateTime @default(now())
@@ -396,6 +399,8 @@ model Product {
   @@unique([tenantId, sku])
   @@index([tenantId])
   @@index([tenantId, createdAt])
+  @@index([tenantId, catalogMode])
+  @@index([tenantId, isArchived])
   @@index([tenantId, isActive])
   @@index([tenantId, isPublished])
 }

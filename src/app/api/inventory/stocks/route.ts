@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiHandler, requirePermission, requireTenantId } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
+import { productCatalogScope } from "@/lib/product-editions";
 
 export const GET = apiHandler(async (req: NextRequest) => {
   const session = await requirePermission("inventory.view");
@@ -13,7 +14,10 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const fromDate = sp.get("from") ?? "";
   const toDate = sp.get("to") ?? "";
 
-  const where: any = { tenantId };
+  const where: any = {
+    tenantId,
+    product: productCatalogScope(session.user.businessMode),
+  };
   if (q) {
     where.OR = [
       { product: { sku: { contains: q, mode: "insensitive" } } },

@@ -6,6 +6,7 @@ import { resolveDemoProductImage } from "@/lib/demo-product-media";
 import { nextNumberInTransaction } from "@/lib/documents";
 import { computeLicenseAccess } from "@/lib/license";
 import { prisma } from "@/lib/prisma";
+import { productCatalogScope } from "@/lib/product-editions";
 import { normalizeStoreSlug, storefrontUrl } from "@/lib/storefront-branding";
 import { readStorefrontMemberSession } from "@/lib/storefront-members";
 
@@ -109,7 +110,12 @@ export const GET = apiHandler(async (_req: NextRequest, { params }: { params: { 
   const { tenant, access } = await getCommerceTenant(params.tenant);
   const [products, pendingLines] = await Promise.all([
     prisma.product.findMany({
-      where: { tenantId: tenant.id, isActive: true, isPublished: true },
+      where: {
+        tenantId: tenant.id,
+        isActive: true,
+        isPublished: true,
+        AND: [productCatalogScope("ECOMMERCE")],
+      },
       orderBy: [{ category: { name: "asc" } }, { createdAt: "desc" }],
       take: 200,
       select: {
@@ -245,7 +251,13 @@ export const POST = apiHandler(async (req: NextRequest, { params }: { params: { 
     const ids = [...new Set(input.items.map((item) => item.productId))];
     const [products, pendingLines] = await Promise.all([
       tx.product.findMany({
-        where: { tenantId: tenant.id, id: { in: ids }, isActive: true, isPublished: true },
+        where: {
+          tenantId: tenant.id,
+          id: { in: ids },
+          isActive: true,
+          isPublished: true,
+          AND: [productCatalogScope("ECOMMERCE")],
+        },
         select: {
           id: true,
           sku: true,

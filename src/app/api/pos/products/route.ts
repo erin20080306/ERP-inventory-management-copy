@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ApiError, apiHandler, requirePosPermission, requireTenantId } from "@/lib/api";
 import { resolveDemoProductImage } from "@/lib/demo-product-media";
 import { prisma } from "@/lib/prisma";
-import { normalizeBusinessMode } from "@/lib/product-editions";
+import { normalizeBusinessMode, productCatalogScope } from "@/lib/product-editions";
 
 function serializeProduct(product: any, useRetailFallback: boolean) {
   return {
@@ -27,7 +27,9 @@ function serializeProduct(product: any, useRetailFallback: boolean) {
 export const GET = apiHandler(async (req: NextRequest) => {
   const session = await requirePosPermission("create", "sales.create");
   const tenantId = await requireTenantId(session);
-  const useRetailFallback = normalizeBusinessMode(session.user.businessMode) === "POS_RETAIL";
+  const businessMode = normalizeBusinessMode(session.user.businessMode);
+  const useRetailFallback = businessMode === "POS_RETAIL";
+  const catalogScope = productCatalogScope(businessMode);
   const warehouseId = (req.nextUrl.searchParams.get("warehouseId") ?? "").trim();
   const scan = (req.nextUrl.searchParams.get("scan") ?? "").trim();
   const query = (req.nextUrl.searchParams.get("q") ?? "").trim();
@@ -54,6 +56,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
       where: {
         tenantId,
         isActive: true,
+        AND: [catalogScope],
         OR: [
           { sku: { equals: scan, mode: "insensitive" } },
           { barcode: { equals: scan, mode: "insensitive" } },
@@ -71,6 +74,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
     where: {
       tenantId,
       isActive: true,
+      AND: [catalogScope],
       ...(query ? {
         OR: [
           { sku: { contains: query, mode: "insensitive" as const } },

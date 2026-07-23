@@ -5,6 +5,7 @@ import { hasPermission } from "@/lib/auth";
 import { resolveDemoProductImage } from "@/lib/demo-product-media";
 import { nextNumberFastInTransaction } from "@/lib/number-sequence";
 import { prisma } from "@/lib/prisma";
+import { productCatalogScope } from "@/lib/product-editions";
 import { createRestaurantTable, deleteRestaurantTableSafely, setRestaurantTableActive, updateRestaurantTable } from "@/lib/restaurant-tables";
 
 const TableFields = {
@@ -63,6 +64,7 @@ function orderInclude() {
 export const GET = apiHandler(async (req: NextRequest) => {
   const session = await requireRestaurantPermission("view");
   const tenantId = await requireTenantId(session);
+  const catalogScope = productCatalogScope("POS_RESTAURANT");
   const kitchenOnly = req.nextUrl.searchParams.get("view") === "kitchen";
   const canManageTables = hasPermission(session.user.permissions, "restaurant.manage");
   const [registers, openShift, areas, products, stockTotals, categories, kitchenTickets, tableSettings] = await Promise.all([
@@ -88,7 +90,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
       orderBy: [{ sortOrder: "asc" }, { code: "asc" }],
     }),
     kitchenOnly ? Promise.resolve([]) : prisma.product.findMany({
-      where: { tenantId, isActive: true },
+      where: { tenantId, isActive: true, AND: [catalogScope] },
       select: { id: true, sku: true, name: true, imageUrl: true, salePrice: true, categoryId: true, category: { select: { name: true } } },
       orderBy: [{ category: { name: "asc" } }, { name: "asc" }],
       take: 300,
@@ -98,7 +100,11 @@ export const GET = apiHandler(async (req: NextRequest) => {
       where: { tenantId },
       _sum: { quantity: true },
     }),
-    kitchenOnly ? Promise.resolve([]) : prisma.productCategory.findMany({ where: { tenantId }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    kitchenOnly ? Promise.resolve([]) : prisma.productCategory.findMany({
+      where: { tenantId, products: { some: { isActive: true, AND: [catalogScope] } } },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
     kitchenOnly ? prisma.restaurantKitchenTicket.findMany({
       where: { tenantId, status: { in: ["NEW", "PREPARING", "READY"] } },
       include: { order: { include: { table: true } }, items: { include: { orderItem: { include: { product: { select: { name: true, imageUrl: true } } } } } } },
@@ -146,6 +152,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
         : "create";
   const session = await requireRestaurantPermission(permission);
   const tenantId = await requireTenantId(session);
+  const catalogScope = productCatalogScope("POS_RESTAURANT");
 
   if (body.action === "CREATE_TABLE") {
     const table = await createRestaurantTable(tenantId, body);
@@ -202,7 +209,10 @@ export const POST = apiHandler(async (req: NextRequest) => {
   if (body.action === "ADD_ITEM") {
     const [order, product] = await Promise.all([
       prisma.restaurantOrder.findFirst({ where: { id: body.orderId, tenantId, shift: { userId: session.user.id, status: "OPEN" }, status: { in: [...ACTIVE_ORDER_STATUSES] } } }),
-      prisma.product.findFirst({ where: { id: body.productId, tenantId, isActive: true }, select: { id: true, salePrice: true } }),
+      prisma.product.findFirst({
+        where: { id: body.productId, tenantId, isActive: true, AND: [catalogScope] },
+        select: { id: true, salePrice: true },
+      }),
     ]);
     if (!order) throw new ApiError(409, "找不到可點餐的桌單，或不是你的班次");
     if (!product) throw new ApiError(404, "餐點已停用或不存在");

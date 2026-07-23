@@ -15,6 +15,10 @@ type BaselineProduct = {
   imageUrl?: string;
 };
 
+type CatalogProduct = BaselineProduct & {
+  catalogMode: BusinessMode;
+};
+
 const ERP_PRODUCTS: BaselineProduct[] = [
   { categoryCode: "ERP-DEMO", categoryName: "進銷存範例商品", sku: "ERP-P001", barcode: "4711000000015", name: "A4 影印紙（箱）", cost: 820, price: 1_050, quantity: 24, safetyStock: 5, imageUrl: "/demo-products/a4-copy-paper-carton.webp" },
   { categoryCode: "ERP-DEMO", categoryName: "進銷存範例商品", sku: "ERP-P002", barcode: "4711000000022", name: "人體工學辦公椅", cost: 2_800, price: 4_200, quantity: 12, safetyStock: 3, imageUrl: "/demo-products/ergonomic-office-chair.webp" },
@@ -139,11 +143,11 @@ export async function seedOperationalBaseline(tx: any, input: {
     create: { tenantId: input.tenantId, code: "BANK-01", name: "公司主要銀行帳戶", bankName: "示範銀行", accountNumber: "000-000-000000", balance: 0 },
   });
 
-  const definitions = [
-    ...(includeErp ? ERP_PRODUCTS : []),
-    ...(includeRetail ? RETAIL_PRODUCTS : []),
-    ...(includeRestaurant ? RESTAURANT_PRODUCTS : []),
-    ...(includeCommerce ? COMMERCE_PRODUCTS : []),
+  const definitions: CatalogProduct[] = [
+    ...(includeErp ? ERP_PRODUCTS.map((product) => ({ ...product, catalogMode: "ERP" as const })) : []),
+    ...(includeRetail ? RETAIL_PRODUCTS.map((product) => ({ ...product, catalogMode: "POS_RETAIL" as const })) : []),
+    ...(includeRestaurant ? RESTAURANT_PRODUCTS.map((product) => ({ ...product, catalogMode: "POS_RESTAURANT" as const })) : []),
+    ...(includeCommerce ? COMMERCE_PRODUCTS.map((product) => ({ ...product, catalogMode: "ECOMMERCE" as const })) : []),
   ];
 
   const categoryDefinitions = Array.from(
@@ -179,6 +183,7 @@ export async function seedOperationalBaseline(tx: any, input: {
         if (!categoryId) throw new Error(`找不到商品分類 ${definition.categoryCode}`);
         return {
           tenantId: input.tenantId,
+          catalogMode: definition.catalogMode,
           sku: definition.sku,
           barcode: definition.barcode,
           name: definition.name,
@@ -194,6 +199,13 @@ export async function seedOperationalBaseline(tx: any, input: {
       }),
       skipDuplicates: true,
     });
+  }
+
+  if (definitions.length > 0) {
+    await Promise.all(definitions.map((definition) => tx.product.updateMany({
+      where: { tenantId: input.tenantId, sku: definition.sku },
+      data: { catalogMode: definition.catalogMode },
+    })));
   }
 
   const productsWithDefaultImages = definitions.filter((definition) => definition.imageUrl);

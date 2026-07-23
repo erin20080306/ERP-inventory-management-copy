@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { apiHandler, requirePermission, requireTenantId } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { buildExcelWithImages, ServerExcelColumn } from "@/lib/excel-server";
+import { productCatalogScope } from "@/lib/product-editions";
 
 // ExcelJS 與 Buffer 需要 Node.js runtime，不可使用 Edge Runtime
 export const runtime = "nodejs";
@@ -21,23 +22,26 @@ type ProductRow = {
 };
 
 export const GET = apiHandler(async (req: NextRequest) => {
-  await requirePermission("products.view");
-  const tenantId = await requireTenantId();
+  const session = await requirePermission("products.view");
+  const tenantId = await requireTenantId(session);
   const sp = req.nextUrl.searchParams;
   const q = sp.get("q") ?? "";
   const fromDate = sp.get("from") ?? "";
   const toDate = sp.get("to") ?? "";
 
-  const where: any = q
-    ? {
-        tenantId,
+  const where: any = {
+    tenantId,
+    AND: [
+      productCatalogScope(session.user.businessMode),
+      ...(q ? [{
         OR: [
           { sku: { contains: q, mode: "insensitive" } },
           { name: { contains: q, mode: "insensitive" } },
           { barcode: { contains: q, mode: "insensitive" } },
         ],
-      }
-    : { tenantId };
+      }] : []),
+    ],
+  };
   if (fromDate || toDate) {
     where.createdAt = {};
     if (fromDate) where.createdAt.gte = new Date(fromDate);

@@ -13,6 +13,7 @@ import {
   RETAIL_DEMO_IMAGE_BY_SKU,
 } from "../src/lib/demo-product-media";
 import { RESTAURANT_PRODUCTS, RETAIL_PRODUCTS } from "../src/lib/seed-operational-baseline";
+import { productCatalogScope } from "../src/lib/product-editions";
 
 const tenantAdmin = {
   tenantId: "tenant-123",
@@ -84,6 +85,18 @@ for (const product of [...RETAIL_PRODUCTS, ...RESTAURANT_PRODUCTS]) {
   assert.ok(product.imageUrl, `${product.sku} must have an image in POS and product management`);
   assert.equal(resolveDemoProductImage(product.sku, null), product.imageUrl);
 }
+assert.deepEqual(productCatalogScope("POS"), {
+  isArchived: false,
+  OR: [{ catalogMode: "POS_RETAIL" }, { catalogMode: null }],
+});
+assert.deepEqual(productCatalogScope("POS_RESTAURANT"), {
+  isArchived: false,
+  OR: [{ catalogMode: "POS_RESTAURANT" }, { catalogMode: null }],
+});
+assert.deepEqual(productCatalogScope("ECOMMERCE"), {
+  isArchived: false,
+  OR: [{ catalogMode: "ECOMMERCE" }, { catalogMode: null }],
+});
 assert.equal(Object.keys(ERP_DEMO_IMAGE_BY_SKU).length, 3);
 for (const [sku, imageUrl] of Object.entries(ERP_DEMO_IMAGE_BY_SKU)) {
   assert.equal(resolveDemoProductImage(sku, null), imageUrl);
@@ -104,6 +117,10 @@ const prismaSchema = readFileSync("prisma/schema.prisma", "utf8");
 const commerceWorkspaceSource = readFileSync("src/app/(app)/workspace/page.tsx", "utf8");
 const settingsClient = readFileSync("src/app/(app)/settings/client.tsx", "utf8");
 const productApi = readFileSync("src/app/api/products/route.ts", "utf8");
+const productSeed = readFileSync("src/lib/seed-operational-baseline.ts", "utf8");
+const posProductApi = readFileSync("src/app/api/pos/products/route.ts", "utf8");
+const restaurantApi = readFileSync("src/app/api/pos/restaurant/route.ts", "utf8");
+const productCatalogMigration = readFileSync("prisma/migrations/20260724030000_product_catalog_modes/migration.sql", "utf8");
 const loginPage = readFileSync("src/app/login/page.tsx", "utf8");
 assert.doesNotMatch(commerceDashboard, /商城已綁定公司代碼/);
 assert.doesNotMatch(commerceWorkspace, /商城與後台共用公司代碼/);
@@ -111,7 +128,8 @@ assert.match(commerceStoreApi, /businessMode: "ECOMMERCE"/);
 assert.match(commerceStoreApi, /tenantId: tenant\.id/);
 assert.match(commerceStoreApi, /companySettings: \{ some: \{ storeSlug/);
 assert.match(commerceStoreApi, /storeName/);
-assert.match(commerceStoreApi, /isActive: true, isPublished: true/);
+assert.match(commerceStoreApi, /isActive:\s*true,\s*isPublished:\s*true/);
+assert.match(commerceStoreApi, /productCatalogScope\("ECOMMERCE"\)/);
 assert.match(commerceStoreApi, /status: "SUBMITTED"/);
 assert.match(commerceStoreApi, /inventory: "RESERVED"/);
 assert.match(commerceStoreApi, /accounting: "PENDING_FULFILLMENT"/);
@@ -147,6 +165,18 @@ assert.match(prismaSchema, /model StorefrontPayment/);
 assert.match(prismaSchema, /AWAITING_TRANSFER/);
 assert.match(prismaSchema, /GATEWAY_REQUIRED/);
 assert.match(productApi, /isPublished: z\.boolean\(\)\.default\(true\)/);
+assert.match(productApi, /productCatalogScope\(businessMode\)/);
+assert.match(productApi, /catalogMode, isArchived: false, updatedBy/);
+assert.match(posProductApi, /productCatalogScope\(businessMode\)/);
+assert.match(restaurantApi, /productCatalogScope\("POS_RESTAURANT"\)/);
+assert.match(productSeed, /catalogMode: "POS_RETAIL"/);
+assert.match(productSeed, /catalogMode: "POS_RESTAURANT"/);
+assert.match(productSeed, /catalogMode: "ECOMMERCE"/);
+assert.match(prismaSchema, /catalogMode\s+String\?/);
+assert.match(prismaSchema, /isArchived\s+Boolean\s+@default\(false\)/);
+assert.match(productCatalogMigration, /RETAIL-HOT/);
+assert.match(productCatalogMigration, /POS_RESTAURANT/);
+assert.match(productCatalogMigration, /ECOMMERCE/);
 assert.doesNotMatch(commerceStorefront, /SaaS 租戶/);
 assert.match(settingsClient, /商城名稱與專屬網址/);
 assert.match(settingsClient, /自訂網址名稱（選填）/);

@@ -67,6 +67,21 @@ export function getProductEdition(value: string | null | undefined) {
   return PRODUCT_EDITIONS[normalizeBusinessMode(value)];
 }
 
+/**
+ * 目前營運模式可使用的商品目錄範圍。
+ * catalogMode 為 null 僅用於尚未完成資料轉換的舊自訂商品，避免升級瞬間遺失客戶資料。
+ */
+export function productCatalogScope(value: string | null | undefined) {
+  const catalogMode = normalizeBusinessMode(value);
+  return {
+    isArchived: false,
+    OR: [
+      { catalogMode },
+      { catalogMode: null },
+    ],
+  };
+}
+
 export function businessModeDbValues(mode: "ERP" | "POS" | "ECOMMERCE") {
   return mode === "ERP"
     ? ["ERP"]
