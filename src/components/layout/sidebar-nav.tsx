@@ -178,6 +178,7 @@ const adminSections: NavSection[] = [
       { title: "平台授權後台", href: "/admin", icon: Shield },
       { title: "工作區選擇", href: "/workspace", icon: PanelsTopLeft },
       { title: "一般企業 ERP", href: "/dashboard", icon: LayoutDashboard },
+      { title: "電商租戶網站", href: "/store/atelier-noir", icon: Store },
       { title: "零售 POS", href: "/pos", icon: ShoppingBag },
       { title: "餐飲桌位與廚房", href: "/pos/restaurant", icon: UtensilsCrossed },
       { title: "電子發票佇列", href: "/pos/e-invoices", icon: FileCheck2 },
@@ -191,16 +192,17 @@ const adminSections: NavSection[] = [
 export function SidebarBrand() {
   const { data } = useSession();
   const mode = normalizeBusinessMode(data?.user?.businessMode);
-  const isPos = mode !== "ERP" && !data?.user?.isSuperAdmin;
+  const isPos = ["POS_RETAIL", "POS_RESTAURANT"].includes(mode) && !data?.user?.isSuperAdmin;
   const isRestaurant = mode === "POS_RESTAURANT" && !data?.user?.isSuperAdmin;
+  const isCommerce = mode === "ECOMMERCE" && !data?.user?.isSuperAdmin;
   return (
     <div className="flex h-16 items-center gap-2 px-5 border-b border-white/10 shrink-0">
       <div className="h-8 w-8 rounded-md bg-gradient-to-br from-indigo-500 to-emerald-500 text-white flex items-center justify-center">
         <Building2 className="h-5 w-5" />
       </div>
       <div>
-        <div className="font-semibold text-sm">{isRestaurant ? "餐飲 POS" : isPos ? "零售 POS" : "艾琳 ERP 系統"}</div>
-        <div className="text-[10px] text-white/50">{isRestaurant ? "Restaurant Edition" : isPos ? "Retail Edition" : "Enterprise Edition"}</div>
+        <div className="font-semibold text-sm">{isCommerce ? "電商 ERP" : isRestaurant ? "餐飲 POS" : isPos ? "零售 POS" : "艾琳 ERP 系統"}</div>
+        <div className="text-[10px] text-white/50">{isCommerce ? "Commerce Edition" : isRestaurant ? "Restaurant Edition" : isPos ? "Retail Edition" : "Enterprise Edition"}</div>
       </div>
     </div>
   );
@@ -213,13 +215,25 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   const perms = data?.user?.permissions ?? [];
   const permKey = perms.join("|");
   const businessMode = normalizeBusinessMode(data?.user?.businessMode);
+  const storefrontCode = data?.user?.companyCode || data?.user?.tenantId || "";
+  const ecommerceFront: NavSection = {
+    label: "電商營運",
+    items: [
+      { title: "預覽我的商城", href: `/store/${encodeURIComponent(storefrontCode)}`, icon: Store },
+      { title: "網路訂單", href: "/sales", icon: ShoppingBag, perm: "sales.view" },
+      { title: "會員／客戶", href: "/customers", icon: Users, perm: "customers.view" },
+      { title: "商品與網站庫存", href: "/products", icon: Package, perm: "products.view" },
+    ],
+  };
   const sections = data?.user?.isSuperAdmin
     ? adminSections
-    : businessMode === "POS_RESTAURANT"
-      ? [erpSections[0], restaurantPosFront, ...posBackendSections]
-      : businessMode === "POS_RETAIL"
-        ? [erpSections[0], retailPosFront, ...posBackendSections]
-      : erpSections;
+    : businessMode === "ECOMMERCE"
+      ? [erpSections[0], ecommerceFront, ...posBackendSections]
+      : businessMode === "POS_RESTAURANT"
+        ? [erpSections[0], restaurantPosFront, ...posBackendSections]
+        : businessMode === "POS_RETAIL"
+          ? [erpSections[0], retailPosFront, ...posBackendSections]
+          : erpSections;
 
   const warmRoute = useCallback((href: string, options?: { data?: boolean }) => {
     if (!warmedRoutes.has(href)) {

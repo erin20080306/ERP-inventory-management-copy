@@ -25,7 +25,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const mode = req.nextUrl.searchParams.get("mode");
   const where: Prisma.TenantWhereInput = {
     isInternal: false,
-    ...(mode === "ERP" ? { businessMode: "ERP" } : mode === "POS" ? { businessMode: { in: ["POS", "POS_RETAIL", "POS_RESTAURANT"] } } : {}),
+    ...(mode === "ERP" ? { businessMode: "ERP" } : mode === "POS" ? { businessMode: { in: ["POS", "POS_RETAIL", "POS_RESTAURANT"] } } : mode === "ECOMMERCE" ? { businessMode: "ECOMMERCE" } : {}),
     ...(search ? {
       OR: [
         { name: { contains: search, mode: "insensitive" as const } },
@@ -37,7 +37,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
     } : {}),
   };
 
-  const [total, tenants, totalUsers, erpCount, posCount, activeCount, pendingInquiries, pendingInquiryCount] = await Promise.all([
+  const [total, tenants, totalUsers, erpCount, posCount, ecommerceCount, activeCount, pendingInquiries, pendingInquiryCount] = await Promise.all([
     prisma.tenant.count({ where }),
     prisma.tenant.findMany({
       where,
@@ -89,6 +89,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
     prisma.user.count({ where: { isSuperAdmin: false, tenant: { is: { isInternal: false } } } }),
     prisma.tenant.count({ where: { isInternal: false, businessMode: "ERP" } }),
     prisma.tenant.count({ where: { isInternal: false, businessMode: { in: ["POS", "POS_RETAIL", "POS_RESTAURANT"] } } }),
+    prisma.tenant.count({ where: { isInternal: false, businessMode: "ECOMMERCE" } }),
     prisma.tenant.count({ where: { isInternal: false, licenseStatus: "ACTIVE" } }),
     prisma.planInquiry.findMany({
       where: { status: "NEW" },
@@ -201,7 +202,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
     }),
     inquiries: pendingInquiries,
     pagination: { page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) },
-    stats: { totalTenants: erpCount + posCount, totalUsers, erpCount, posCount, activeCount, pendingInquiryCount },
+    stats: { totalTenants: erpCount + posCount + ecommerceCount, totalUsers, erpCount, posCount, ecommerceCount, activeCount, pendingInquiryCount },
   });
 });
 

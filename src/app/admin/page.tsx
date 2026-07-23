@@ -6,7 +6,7 @@ import { signOut, useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import {
   Building2, CheckCircle2, ChevronLeft, ChevronRight, KeyRound, LayoutDashboard,
-  Loader2, LogOut, Mail, MonitorSmartphone, RefreshCw, Search, Shield, ShoppingBag, Users, X, UtensilsCrossed, Download,
+  Loader2, LogOut, Mail, MonitorSmartphone, RefreshCw, Search, Shield, ShoppingBag, Store, Users, X, UtensilsCrossed, Download,
 } from "lucide-react";
 import { PLAN_CATALOG, formatTwd, type BillingCycle, type PlanCode } from "@/lib/plans";
 import { getProductEdition, type BusinessMode } from "@/lib/product-editions";
@@ -66,21 +66,21 @@ type AdminData = {
     createdAt: string;
   }>;
   pagination: { page: number; pageSize: number; total: number; totalPages: number };
-  stats: { totalTenants: number; totalUsers: number; erpCount: number; posCount: number; activeCount: number; pendingInquiryCount: number };
+  stats: { totalTenants: number; totalUsers: number; erpCount: number; posCount: number; ecommerceCount: number; activeCount: number; pendingInquiryCount: number };
 };
 
 const emptyData: AdminData = {
   rows: [],
   inquiries: [],
   pagination: { page: 1, pageSize: 20, total: 0, totalPages: 1 },
-  stats: { totalTenants: 0, totalUsers: 0, erpCount: 0, posCount: 0, activeCount: 0, pendingInquiryCount: 0 },
+  stats: { totalTenants: 0, totalUsers: 0, erpCount: 0, posCount: 0, ecommerceCount: 0, activeCount: 0, pendingInquiryCount: 0 },
 };
 
 export default function AdminPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const [data, setData] = useState<AdminData>(emptyData);
-  const [mode, setMode] = useState<"ALL" | "ERP" | "POS">("ALL");
+  const [mode, setMode] = useState<"ALL" | "ERP" | "POS" | "ECOMMERCE">("ALL");
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -122,11 +122,12 @@ export default function AdminPage() {
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-400/15 text-amber-300"><Shield className="h-6 w-6" /></div>
             <div>
               <h1 className="text-2xl font-bold">艾琳設計・平台管理後台</h1>
-              <p className="text-sm text-slate-400">ERP 與 POS 公司、授權席次及裝置統一管理</p>
+              <p className="text-sm text-slate-400">ERP、電商與 POS 公司、授權席次及裝置統一管理</p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
             <Link href="/dashboard" className="admin-button bg-indigo-600 hover:bg-indigo-500"><LayoutDashboard className="h-4 w-4" />一般企業 ERP 後台</Link>
+            <Link href="/store/atelier-noir" className="admin-button bg-rose-700 hover:bg-rose-600"><Store className="h-4 w-4" />電商網站</Link>
             <Link href="/pos" className="admin-button bg-emerald-600 hover:bg-emerald-500"><ShoppingBag className="h-4 w-4" />零售 POS</Link>
             <Link href="/pos/restaurant" className="admin-button bg-orange-600 hover:bg-orange-500"><UtensilsCrossed className="h-4 w-4" />餐飲 POS</Link>
             <Link href="/admin/downloads" className="admin-button border border-slate-700 bg-slate-900 hover:bg-slate-800"><Download className="h-4 w-4" />安裝包</Link>
@@ -135,10 +136,11 @@ export default function AdminPage() {
           </div>
         </header>
 
-        <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+        <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-7">
           <Stat icon={Building2} label="公司總數" value={data.stats.totalTenants} color="text-indigo-300" />
           <Stat icon={LayoutDashboard} label="ERP 公司" value={data.stats.erpCount} color="text-sky-300" />
           <Stat icon={ShoppingBag} label="POS 門市" value={data.stats.posCount} color="text-emerald-300" />
+          <Stat icon={Store} label="電商租戶" value={data.stats.ecommerceCount} color="text-rose-300" />
           <Stat icon={Users} label="使用者" value={data.stats.totalUsers} color="text-violet-300" />
           <Stat icon={CheckCircle2} label="有效授權" value={data.stats.activeCount} color="text-amber-300" />
           <Stat icon={Mail} label="待聯絡需求" value={data.stats.pendingInquiryCount} color="text-rose-300" />
@@ -149,9 +151,9 @@ export default function AdminPage() {
         <section className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900">
           <div className="flex flex-col gap-3 border-b border-slate-800 p-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex rounded-xl bg-slate-950 p-1">
-              {(["ALL", "ERP", "POS"] as const).map((item) => (
+              {(["ALL", "ERP", "POS", "ECOMMERCE"] as const).map((item) => (
                 <button key={item} onClick={() => { setMode(item); setPage(1); }} className={`rounded-lg px-4 py-2 text-sm ${mode === item ? "bg-slate-700 text-white" : "text-slate-400 hover:text-white"}`}>
-                  {item === "ALL" ? "全部" : item === "ERP" ? "一般企業 ERP" : "POS 門市"}
+                  {item === "ALL" ? "全部" : item === "ERP" ? "一般企業 ERP" : item === "POS" ? "POS 門市" : "電商租戶"}
                 </button>
               ))}
             </div>
@@ -361,7 +363,7 @@ function LicenseDialog({ tenant, onClose, onSaved }: { tenant: TenantRow; onClos
               <div><div className="text-xs text-slate-500">授權到期日</div><div className="mt-1 text-sm font-semibold text-slate-200">{tenant.license.paymentType === "ONCE" ? "買斷，無租用到期日" : tenant.license.expiresAt ? new Date(tenant.license.expiresAt).toLocaleString("zh-TW") : "尚未設定"}</div></div>
             </div>
             <div className="mt-6 grid gap-5 md:grid-cols-2">
-              <label className="space-y-2 text-sm"><span className="text-slate-400">公司業態（只能擇一）</span><select value={mode} onChange={(event) => setMode(event.target.value as BusinessMode)} className="h-11 w-full rounded-xl border border-slate-700 bg-slate-950 px-3"><option value="ERP">一般企業進銷存會計</option><option value="POS_RETAIL">門市零售 POS＋進銷存＋會計</option><option value="POS_RESTAURANT">餐飲桌位／廚房＋進銷存＋會計</option></select></label>
+              <label className="space-y-2 text-sm"><span className="text-slate-400">公司業態（只能擇一）</span><select value={mode} onChange={(event) => setMode(event.target.value as BusinessMode)} className="h-11 w-full rounded-xl border border-slate-700 bg-slate-950 px-3"><option value="ERP">一般企業進銷存會計</option><option value="ECOMMERCE">品牌電商網站＋ERP 營運後台</option><option value="POS_RETAIL">門市零售 POS＋進銷存＋會計</option><option value="POS_RESTAURANT">餐飲桌位／廚房＋進銷存＋會計</option></select></label>
               <label className="space-y-2 text-sm"><span className="text-slate-400">授權方案</span><select value={planCode} onChange={(event) => setPlanCode(event.target.value as PlanCode)} className="h-11 w-full rounded-xl border border-slate-700 bg-slate-950 px-3">{PLAN_CATALOG.map((item) => <option key={item.code} value={item.code}>{item.name}（{item.seats} 台）</option>)}</select></label>
               <label className="space-y-2 text-sm"><span className="text-slate-400">付款週期</span><select value={billing} onChange={(event) => setBilling(event.target.value as BillingCycle)} className="h-11 w-full rounded-xl border border-slate-700 bg-slate-950 px-3"><option value="MONTHLY">月租</option><option value="ANNUAL">年租（收 10 個月）</option><option value="ONCE">一次買斷</option></select></label>
               <div className="rounded-xl bg-slate-950 p-4"><div className="text-xs text-slate-500">本次方案金額</div><div className="mt-1 text-xl font-bold text-emerald-300">{formatTwd(price)}</div><div className="mt-1 text-xs text-slate-500">上限 {plan.seats} 台電腦</div></div>
@@ -392,6 +394,33 @@ function LicenseDialog({ tenant, onClose, onSaved }: { tenant: TenantRow; onClos
                 <div><button disabled={busy || !connectionLoaded} onClick={() => void saveConnectionOnly()} className="rounded-lg border border-sky-400/30 px-3 py-2 text-xs text-sky-200 hover:bg-sky-400/10 disabled:opacity-40">只儲存自動連線設定</button></div>
               </div>
             </div>
+            {mode === "ECOMMERCE" && (
+              <div className="mt-4 overflow-hidden rounded-xl border border-rose-400/20 bg-rose-400/5">
+                <div className="grid gap-4 p-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(260px,.65fr)] lg:items-center">
+                  <div>
+                    <div className="flex items-center gap-2 text-sm font-semibold text-rose-100"><Store className="h-4 w-4" />電商模式操作預覽</div>
+                    <p className="mt-2 text-xs leading-6 text-rose-100/90">
+                      消費者只使用品牌商城；租戶管理者從獨立登入頁進入商品、庫存、網路訂單、出貨、CRM 與報表。
+                    </p>
+                    <div className="mt-3 rounded-lg border border-rose-300/10 bg-slate-950/50 p-3 text-xs leading-5 text-slate-300">
+                      <strong className="text-white">商城產生方式：</strong>
+                      選擇電商模式並儲存後，系統會自動建立公司代碼與 <span className="font-mono text-sky-300">/store/公司代碼</span>。
+                      所有租戶共用同一套高速版型，但商品、庫存、客戶與訂單依租戶隔離；網頁結帳會寫入該租戶 ERP。
+                    </div>
+                  </div>
+                  <video
+                    controls
+                    preload="metadata"
+                    playsInline
+                    poster="/images/ecommerce-demo-cover.png"
+                    className="aspect-video w-full rounded-lg border border-white/10 bg-black object-cover shadow-2xl"
+                  >
+                    <source src="/videos/ecommerce-storefront-demo.webm" type="video/webm" />
+                    您的瀏覽器不支援影片播放。
+                  </video>
+                </div>
+              </div>
+            )}
             <div className="mt-5 rounded-xl border border-slate-800 bg-slate-950/70 p-4">
               <div className="flex items-center justify-between"><h3 className="text-sm font-semibold">已綁定主機與工作站</h3><span className="text-xs text-slate-500">工作站 {devices.filter((device) => !device.revokedAt && device.deviceRole === "WORKSTATION").length}/{tenant.license.seatLimit}・主機 {devices.filter((device) => !device.revokedAt && device.deviceRole === "SERVER").length}/1</span></div>
               <div className="mt-3 space-y-2">
@@ -447,8 +476,9 @@ function Stat({ icon: Icon, label, value, color }: { icon: typeof Building2; lab
 function ModeBadge({ mode }: { mode: BusinessMode }) {
   const edition = getProductEdition(mode);
   const isRestaurant = mode === "POS_RESTAURANT";
-  const isPos = mode !== "ERP";
-  return <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${isRestaurant ? "bg-orange-400/10 text-orange-300" : isPos ? "bg-emerald-400/10 text-emerald-300" : "bg-sky-400/10 text-sky-300"}`}>{isRestaurant ? <UtensilsCrossed className="h-3 w-3" /> : isPos ? <ShoppingBag className="h-3 w-3" /> : <MonitorSmartphone className="h-3 w-3" />}{edition.shortLabel}</span>;
+  const isCommerce = mode === "ECOMMERCE";
+  const isPos = mode === "POS_RETAIL";
+  return <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${isCommerce ? "bg-rose-400/10 text-rose-300" : isRestaurant ? "bg-orange-400/10 text-orange-300" : isPos ? "bg-emerald-400/10 text-emerald-300" : "bg-sky-400/10 text-sky-300"}`}>{isCommerce ? <Store className="h-3 w-3" /> : isRestaurant ? <UtensilsCrossed className="h-3 w-3" /> : isPos ? <ShoppingBag className="h-3 w-3" /> : <MonitorSmartphone className="h-3 w-3" />}{edition.shortLabel}</span>;
 }
 
 function LicenseBadge({ license }: { license: TenantRow["license"] }) {

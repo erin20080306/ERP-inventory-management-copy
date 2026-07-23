@@ -17,7 +17,7 @@ export async function ensureInternalAdminTenant(userId: string) {
 
   const existing = await prisma.tenant.findUnique({
     where: { companyCode: INTERNAL_ADMIN_COMPANY_CODE },
-    select: { id: true, name: true, businessMode: true },
+    select: { id: true, name: true, businessMode: true, companyCode: true },
   });
   if (existing) {
     if (user.tenantId !== existing.id) {
@@ -42,7 +42,7 @@ export async function ensureInternalAdminTenant(userId: string) {
       licenseBilling: "ONCE",
       licenseActivatedAt: new Date(),
     },
-    select: { id: true, name: true, businessMode: true },
+    select: { id: true, name: true, businessMode: true, companyCode: true },
   });
 
   if (user.tenantId !== tenant.id) {

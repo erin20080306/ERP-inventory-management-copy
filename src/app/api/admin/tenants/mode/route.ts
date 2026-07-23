@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { ApiError, apiHandler, requireAuth } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
+import { ensureTenantCompanyCode } from "@/lib/license";
 
-const Input = z.object({ tenantId: z.string().min(1), businessMode: z.enum(["ERP", "POS_RETAIL", "POS_RESTAURANT"]) });
+const Input = z.object({ tenantId: z.string().min(1), businessMode: z.enum(["ERP", "POS_RETAIL", "POS_RESTAURANT", "ECOMMERCE"]) });
 
 export const POST = apiHandler(async (req: NextRequest) => {
   const session = await requireAuth();
@@ -19,5 +20,6 @@ export const POST = apiHandler(async (req: NextRequest) => {
       }
     }
   });
-  return NextResponse.json({ ok: true });
+  const companyCode = body.businessMode === "ECOMMERCE" ? await ensureTenantCompanyCode(body.tenantId) : null;
+  return NextResponse.json({ ok: true, companyCode });
 });

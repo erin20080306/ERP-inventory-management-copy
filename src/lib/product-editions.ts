@@ -1,11 +1,11 @@
-export const BUSINESS_MODES = ["ERP", "POS_RETAIL", "POS_RESTAURANT"] as const;
+export const BUSINESS_MODES = ["ERP", "POS_RETAIL", "POS_RESTAURANT", "ECOMMERCE"] as const;
 
 export type BusinessMode = (typeof BUSINESS_MODES)[number];
 export type StoredBusinessMode = BusinessMode | "POS";
 
 export type ProductEdition = {
   mode: BusinessMode;
-  group: "ERP" | "POS";
+  group: "ERP" | "POS" | "ECOMMERCE";
   label: string;
   shortLabel: string;
   description: string;
@@ -37,17 +37,26 @@ export const PRODUCT_EDITIONS: Record<BusinessMode, ProductEdition> = {
     description: "圖片點餐、桌位、送廚、出餐、結帳、庫存與會計",
     homePath: "/workspace",
   },
+  ECOMMERCE: {
+    mode: "ECOMMERCE",
+    group: "ECOMMERCE",
+    label: "品牌電商・網站＋ERP 營運後台",
+    shortLabel: "電商 ERP",
+    description: "品牌官網、網路訂單、會員、庫存、出貨、採購與會計共用同一租戶資料",
+    homePath: "/workspace",
+  },
 };
 
 /** 舊資料庫的 POS 一律安全視為零售業，避免既有客戶登入失效。 */
 export function normalizeBusinessMode(value: string | null | undefined): BusinessMode {
+  if (value === "ECOMMERCE") return "ECOMMERCE";
   if (value === "POS_RESTAURANT") return "POS_RESTAURANT";
   if (value === "POS_RETAIL" || value === "POS") return "POS_RETAIL";
   return "ERP";
 }
 
 export function isPosMode(value: string | null | undefined) {
-  return normalizeBusinessMode(value) !== "ERP";
+  return ["POS_RETAIL", "POS_RESTAURANT"].includes(normalizeBusinessMode(value));
 }
 
 export function isRestaurantMode(value: string | null | undefined) {
@@ -58,6 +67,10 @@ export function getProductEdition(value: string | null | undefined) {
   return PRODUCT_EDITIONS[normalizeBusinessMode(value)];
 }
 
-export function businessModeDbValues(mode: "ERP" | "POS") {
-  return mode === "ERP" ? ["ERP"] : ["POS", "POS_RETAIL", "POS_RESTAURANT"];
+export function businessModeDbValues(mode: "ERP" | "POS" | "ECOMMERCE") {
+  return mode === "ERP"
+    ? ["ERP"]
+    : mode === "ECOMMERCE"
+      ? ["ECOMMERCE"]
+      : ["POS", "POS_RETAIL", "POS_RESTAURANT"];
 }

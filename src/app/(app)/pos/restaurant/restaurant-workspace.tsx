@@ -121,7 +121,7 @@ export function RestaurantWorkspace({ kitchenOnly = false, canManageTables = fal
 
   const load = useCallback(async () => {
     try {
-      const response = await fetch("/api/pos/restaurant", { cache: "no-store" });
+      const response = await fetch(`/api/pos/restaurant?view=${kitchenOnly ? "kitchen" : "front"}`, { cache: "no-store" });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "無法載入餐飲 POS");
       setData(result);
@@ -131,7 +131,7 @@ export function RestaurantWorkspace({ kitchenOnly = false, canManageTables = fal
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [kitchenOnly]);
 
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {
@@ -348,7 +348,9 @@ export function RestaurantWorkspace({ kitchenOnly = false, canManageTables = fal
   }
 
   if (loading) {
-    return <div className="flex min-h-[60vh] items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-orange-500" /></div>;
+return <div className="grid min-h-[60vh] animate-pulse gap-4 xl:grid-cols-[280px_minmax(0,1fr)_380px]" aria-label="正在載入餐飲 POS">
+      <div className="rounded-2xl bg-muted" /><div className="grid grid-cols-2 gap-3 md:grid-cols-3">{Array.from({ length: 9 }).map((_, index) => <div key={index} className="h-36 rounded-2xl bg-muted" />)}</div><div className="rounded-2xl bg-muted" />
+    </div>;
   }
   if (!data) return <div className="rounded-xl border p-8 text-center">無法載入餐飲 POS</div>;
 

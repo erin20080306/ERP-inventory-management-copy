@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Building2, Calculator, Package, ScanBarcode, Shield, UtensilsCrossed } from "lucide-react";
+import { Building2, Calculator, Package, ScanBarcode, Shield, Store, UtensilsCrossed } from "lucide-react";
 import { getSession } from "@/lib/api";
 import { hasPermission } from "@/lib/auth";
 import { getProductEdition, normalizeBusinessMode } from "@/lib/product-editions";
@@ -13,6 +13,7 @@ const TONE_CLASSES: Record<string, string> = {
   indigo: "bg-indigo-500/10 text-indigo-600",
   violet: "bg-violet-500/10 text-violet-600",
   amber: "bg-amber-500/10 text-amber-600",
+  rose: "bg-rose-500/10 text-rose-600",
 };
 
 export default async function WorkspacePage() {
@@ -22,7 +23,11 @@ export default async function WorkspacePage() {
   const edition = getProductEdition(mode);
   const permissions = session.user.permissions;
   const isPlatformAdmin = Boolean(session.user.isSuperAdmin);
+  const storefrontCode = session.user.companyCode || session.user.tenantId;
   const cards = [
+    ...((mode === "ECOMMERCE" || isPlatformAdmin)
+      ? [{ title: mode === "ECOMMERCE" ? "預覽我的品牌商城" : "電商租戶網站示範", description: "消費者前台與 ERP 共用商品、可售庫存、會員與網路訂單", href: mode === "ECOMMERCE" ? `/store/${encodeURIComponent(storefrontCode)}` : "/store/atelier-noir", icon: Store, tone: "rose" }]
+      : []),
     ...((mode === "POS_RETAIL" || isPlatformAdmin) && hasPermission(permissions, "pos.view")
       ? [{ title: "零售 POS 收銀", description: "掃碼、會員、促銷、多元支付、退換貨與日結", href: "/pos", icon: ScanBarcode, tone: "emerald" }]
       : []),
@@ -48,11 +53,11 @@ export default async function WorkspacePage() {
             <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs">
               <Building2 className="h-3.5 w-3.5" />{isPlatformAdmin ? "管理者免費內部帳套" : "已鎖定公司業態"}
             </div>
-            <h1 className="text-2xl font-black md:text-3xl">{isPlatformAdmin ? "ERP／零售 POS／餐飲 POS 完整功能" : edition.label}</h1>
+            <h1 className="text-2xl font-black md:text-3xl">{isPlatformAdmin ? "ERP／電商／零售 POS／餐飲 POS 完整功能" : edition.label}</h1>
             <p className="mt-2 text-sm text-slate-300">{isPlatformAdmin ? "艾琳設計內部驗收帳套，永久免費且不會混入付費客戶資料。" : edition.description}</p>
           </div>
           <div className="max-w-sm rounded-2xl border border-white/10 bg-white/5 p-4 text-xs leading-6 text-slate-300">
-            畫面依個人角色權限顯示。POS、進銷存與會計可分開授權；沒有權限的模組同時禁止網址與 API 存取。
+            畫面依個人角色權限顯示。消費者只使用商城；租戶管理者登入後才可進 ERP。沒有權限的模組同時禁止網址與 API 存取。
           </div>
         </div>
       </section>

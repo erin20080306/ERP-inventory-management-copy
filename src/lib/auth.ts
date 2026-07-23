@@ -10,6 +10,7 @@ declare module "next-auth" {
     user: {
       id: string;
       tenantId: string;
+      companyCode?: string;
       username: string;
       name: string;
       email: string;
@@ -25,6 +26,7 @@ declare module "next-auth/jwt" {
   interface JWT {
     uid: string;
     tenantId: string;
+    companyCode?: string;
     username: string;
     roles: string[];
     permissions: string[];
@@ -58,7 +60,7 @@ export const authOptions: NextAuthOptions = {
             ],
           },
           include: {
-            tenant: { select: { businessMode: true } },
+            tenant: { select: { businessMode: true, companyCode: true } },
             userRoles: {
               include: { role: { include: { permissions: { include: { permission: true } } } } },
             },
@@ -107,11 +109,13 @@ export const authOptions: NextAuthOptions = {
         const permissions = isSuper ? ["*"] : Array.from(permsSet);
 
         let tenantId = user.tenantId ?? "";
+        let companyCode = (user as any).tenant?.companyCode ?? tenantId;
         let businessMode = normalizeBusinessMode((user as any).tenant?.businessMode);
         let isInternalAdminTenant = false;
         if ((user as any).isSuperAdmin) {
           const internalTenant = await ensureInternalAdminTenant(user.id);
           tenantId = internalTenant.id;
+          companyCode = internalTenant.companyCode ?? internalTenant.id;
           businessMode = normalizeBusinessMode(internalTenant.businessMode);
           isInternalAdminTenant = true;
         }
@@ -125,6 +129,7 @@ export const authOptions: NextAuthOptions = {
         return {
           id: user.id,
           tenantId,
+          companyCode,
           name: user.name,
           email: user.email,
           username: user.username,
@@ -143,6 +148,7 @@ export const authOptions: NextAuthOptions = {
         const u = user as any;
         token.uid = u.id;
         token.tenantId = u.tenantId;
+        token.companyCode = u.companyCode;
         token.username = u.username;
         token.roles = u.roles;
         token.permissions = u.permissions;
@@ -153,6 +159,7 @@ export const authOptions: NextAuthOptions = {
       if (token.isSuperAdmin && token.uid && !token.isInternalAdminTenant) {
         const internalTenant = await ensureInternalAdminTenant(token.uid);
         token.tenantId = internalTenant.id;
+        token.companyCode = internalTenant.companyCode ?? internalTenant.id;
         token.businessMode = normalizeBusinessMode(internalTenant.businessMode);
         token.isInternalAdminTenant = true;
       }
@@ -162,6 +169,7 @@ export const authOptions: NextAuthOptions = {
       session.user = {
         id: token.uid,
         tenantId: token.tenantId,
+        companyCode: token.companyCode,
         username: token.username,
         name: session.user?.name ?? "",
         email: session.user?.email ?? "",

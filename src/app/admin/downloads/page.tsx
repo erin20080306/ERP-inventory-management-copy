@@ -117,7 +117,7 @@ export default function AdminDownloadsPage() {
 
           {files.some((file) => file.codeSigning === "ad-hoc-manual") ? <div className="mt-4 rounded-xl border border-amber-400/30 bg-amber-400/5 p-3 text-xs leading-6 text-amber-100">目前為手動安裝版：macOS 將 App 拖入「應用程式」後第一次右鍵選「打開」；Windows 遇 SmartScreen 時選「其他資訊 → 仍要執行」。已做 bundle 完整性與 SHA-256 核對，但不是商業憑證免提示版本。</div> : release?.prerelease ? <div className="mt-4 rounded-xl border border-rose-400/30 bg-rose-400/5 p-3 text-xs text-rose-200">目前只有內部測試檔，不提供客戶下載。</div> : null}
           {release ? <div className="mt-3 flex gap-3 text-xs"><a className="text-sky-300 hover:text-sky-200" href="/api/admin/installers-current?file=release-manifest.json">下載版本清單</a><a className="text-sky-300 hover:text-sky-200" href="/api/admin/installers-current?file=SHA256SUMS.txt">下載 SHA-256 核對檔</a></div> : null}
-          <div className="mt-4 rounded-xl bg-slate-950 p-4 text-xs leading-6 text-slate-400"><MonitorSmartphone className="mr-2 inline h-4 w-4" />同一個桌面安裝包支援三種業態；實際畫面由公司授權業態與使用者角色權限決定。桌面工作站用公司代碼＋啟用碼取得中央簽章設定，成功後才占用一個席次。</div>
+          <div className="mt-4 rounded-xl bg-slate-950 p-4 text-xs leading-6 text-slate-400"><MonitorSmartphone className="mr-2 inline h-4 w-4" />同一個桌面安裝包支援一般 ERP、電商 ERP、零售 POS 與餐飲 POS；主機與安裝流程不變，實際畫面由公司授權業態與使用者角色權限決定。桌面工作站用公司代碼＋啟用碼取得中央簽章設定，成功後才占用一個席次。</div>
         </section>
 
         <section className="rounded-2xl border border-slate-800 bg-slate-900 p-5">

@@ -59,9 +59,10 @@ function orderInclude() {
   };
 }
 
-export const GET = apiHandler(async () => {
+export const GET = apiHandler(async (req: NextRequest) => {
   const session = await requireRestaurantPermission("view");
   const tenantId = await requireTenantId(session);
+  const kitchenOnly = req.nextUrl.searchParams.get("view") === "kitchen";
   const canManageTables = hasPermission(session.user.permissions, "restaurant.manage");
   const [registers, openShift, areas, products, stockTotals, categories, kitchenTickets, tableSettings] = await Promise.all([
     prisma.posRegister.findMany({
@@ -74,7 +75,7 @@ export const GET = apiHandler(async () => {
       include: { register: { select: { id: true, code: true, name: true, warehouseId: true } } },
       orderBy: { openedAt: "desc" },
     }),
-    prisma.restaurantArea.findMany({
+    kitchenOnly ? Promise.resolve([]) : prisma.restaurantArea.findMany({
       where: { tenantId, isActive: true },
       include: {
         tables: {
@@ -85,25 +86,25 @@ export const GET = apiHandler(async () => {
       },
       orderBy: [{ sortOrder: "asc" }, { code: "asc" }],
     }),
-    prisma.product.findMany({
+    kitchenOnly ? Promise.resolve([]) : prisma.product.findMany({
       where: { tenantId, isActive: true },
       select: { id: true, sku: true, name: true, imageUrl: true, salePrice: true, categoryId: true, category: { select: { name: true } } },
       orderBy: [{ category: { name: "asc" } }, { name: "asc" }],
       take: 300,
     }),
-    prisma.inventoryStock.groupBy({
+    kitchenOnly ? Promise.resolve([]) : prisma.inventoryStock.groupBy({
       by: ["productId"],
       where: { tenantId },
       _sum: { quantity: true },
     }),
-    prisma.productCategory.findMany({ where: { tenantId }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
-    prisma.restaurantKitchenTicket.findMany({
+    kitchenOnly ? Promise.resolve([]) : prisma.productCategory.findMany({ where: { tenantId }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    kitchenOnly ? prisma.restaurantKitchenTicket.findMany({
       where: { tenantId, status: { in: ["NEW", "PREPARING", "READY"] } },
       include: { order: { include: { table: true } }, items: { include: { orderItem: { include: { product: { select: { name: true, imageUrl: true } } } } } } },
       orderBy: { sentAt: "asc" },
       take: 100,
-    }),
-    canManageTables
+    }) : Promise.resolve([]),
+    !kitchenOnly && canManageTables
       ? prisma.restaurantArea.findMany({
           where: { tenantId },
           include: {

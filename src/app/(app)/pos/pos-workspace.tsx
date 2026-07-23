@@ -214,13 +214,16 @@ export function PosWorkspace() {
       const activeShift = await loadBootstrap();
       await Promise.all([
         loadProducts(activeShift),
-        activeShift ? loadCustomers() : Promise.resolve(),
         activeShift ? loadOffers() : Promise.resolve(),
-        loadOperations(activeShift),
       ]);
+      if (!silent) setLoading(false);
+
+      void Promise.all([
+        activeShift ? loadCustomers() : Promise.resolve(),
+        loadOperations(activeShift),
+      ]).catch((error: any) => toast.error(error.message || "次要資料載入失敗，收銀仍可繼續使用"));
     } catch (error: any) {
       toast.error(error.message || "載入失敗");
-    } finally {
       if (!silent) setLoading(false);
     }
   }, [loadBootstrap, loadCustomers, loadOffers, loadOperations, loadProducts]);
@@ -919,7 +922,10 @@ export function PosWorkspace() {
   }
 
   if (loading) {
-    return <div className="min-h-[60vh] flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-indigo-500" /></div>;
+return <div className="grid min-h-[60vh] animate-pulse gap-4 xl:grid-cols-[minmax(0,1fr)_380px]" aria-label="正在載入 POS">
+      <div className="space-y-4"><div className="h-20 rounded-2xl bg-muted" /><div className="grid grid-cols-2 gap-3 md:grid-cols-4">{Array.from({ length: 8 }).map((_, index) => <div key={index} className="h-32 rounded-2xl bg-muted" />)}</div></div>
+      <div className="h-[520px] rounded-2xl bg-muted" />
+    </div>;
   }
 
   if (!shift) {
