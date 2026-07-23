@@ -35,6 +35,7 @@
       "runtime-repair.cjs",
       "v107-bootstrap.cjs",
       "v106-bootstrap.cjs",
+      "activation-refresh.cjs",
       "network-bootstrap.cjs",
       "bootstrap.cjs",
       "main.cjs",
