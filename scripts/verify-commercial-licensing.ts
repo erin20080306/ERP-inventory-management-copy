@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import {
   calculateRenewalExpiry,
   clampOfflineLeaseExpiry,
@@ -76,5 +77,10 @@ assert.equal(getCustomDomainSetupFee("MONTHLY", "ERP"), 0);
 for (const plan of PLAN_CATALOG) {
   assert.equal(ECOMMERCE_PRICING.annualByPlan[plan.code], ECOMMERCE_PRICING.monthlyByPlan[plan.code] * 10);
 }
+
+const authSource = readFileSync("src/lib/auth.ts", "utf8");
+assert.doesNotMatch(authSource, /recentFails/);
+assert.doesNotMatch(authSource, /15 分鐘後再試/);
+assert.match(authSource, /loginLog\.create/);
 
 console.log("Commercial trial, renewal, ecommerce pricing and offline expiry controls: PASS");

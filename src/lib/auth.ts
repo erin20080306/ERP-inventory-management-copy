@@ -67,20 +67,7 @@ export const authOptions: NextAuthOptions = {
           },
         });
 
-        const since = new Date(Date.now() - 15 * 60 * 1000);
-        const recentFails = await prisma.loginLog.count({
-          where: user
-            ? { success: false, createdAt: { gte: since }, OR: [{ userId: user.id }, { username: { equals: user.username, mode: "insensitive" } }, { username: { equals: user.email, mode: "insensitive" } }] }
-            : { username: { equals: identifier, mode: "insensitive" }, success: false, createdAt: { gte: since } },
-        });
         const logUsername = user?.username ?? identifier;
-
-        if (recentFails >= 5) {
-          prisma.loginLog
-            .create({ data: { userId: user?.id, username: logUsername, success: false, ip, userAgent: req?.headers?.["user-agent"] as string } })
-            .catch(() => {});
-          throw new Error("登入失敗次數過多，請 15 分鐘後再試");
-        }
 
         if (!user) {
           prisma.loginLog.create({ data: { username: logUsername, success: false, ip } }).catch(() => {});
