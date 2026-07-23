@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, Building2, Check, Download, MonitorSmartphone, ScanLine, ShoppingBag, Store, UtensilsCrossed } from "lucide-react";
+import { ArrowRight, Building2, Calculator, Check, Download, MonitorSmartphone, ScanLine, ShoppingBag, ShoppingCart, Store, UtensilsCrossed, Workflow } from "lucide-react";
 
 const solutions = [
   {
@@ -41,6 +41,33 @@ const solutions = [
   },
 ] as const;
 
+const expertiseHighlights = [
+  {
+    title: "資深財會經驗打造",
+    description: "從進銷存、應收應付到會計傳票，以實際帳務邏輯串好每一步。",
+    icon: Calculator,
+    iconClass: "border-indigo-300/20 bg-indigo-400/10 text-indigo-200",
+  },
+  {
+    title: "豐富電商經驗團隊",
+    description: "官網訂單、會員、庫存、出貨與 ERP 共用資料，減少重複輸入與對帳。",
+    icon: ShoppingCart,
+    iconClass: "border-amber-300/20 bg-amber-400/10 text-amber-200",
+  },
+  {
+    title: "專業人士打造流程",
+    description: "把複雜規則整理成清楚步驟、提醒與權限，團隊不用先成為系統專家。",
+    icon: Workflow,
+    iconClass: "border-sky-300/20 bg-sky-400/10 text-sky-200",
+  },
+  {
+    title: "餐飲與財務一次解決",
+    description: "點餐、送廚、結帳、扣庫存與入帳一路連動，不必在多套工具間來回。",
+    icon: UtensilsCrossed,
+    iconClass: "border-emerald-300/20 bg-emerald-400/10 text-emerald-200",
+  },
+] as const;
+
 export default function SolutionsPage() {
   return (
     <main className="min-h-screen bg-slate-950 text-white relative overflow-hidden">
@@ -79,6 +106,32 @@ export default function SolutionsPage() {
           </div>
           <h1 className="text-3xl md:text-5xl font-black tracking-tight">你要管理哪一種營運現場？</h1>
           <p className="text-slate-400 mt-4 leading-7">四種業態共用商品、庫存、帳務與 AI；操作順序、首頁與快捷鍵會依企業辦公、電商品牌、零售收銀或餐飲桌位情境調整。每家公司開通時只能選擇一種業態。</p>
+        </section>
+
+        <section className="relative mb-8 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.055] p-5 shadow-2xl backdrop-blur-xl md:p-7">
+          <div className="pointer-events-none absolute -right-20 -top-24 h-64 w-64 rounded-full bg-emerald-400/10 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-28 -left-16 h-64 w-64 rounded-full bg-indigo-500/15 blur-3xl" />
+          <div className="relative">
+            <div className="mb-5 max-w-3xl">
+              <div className="mb-2 text-xs font-bold uppercase tracking-[0.22em] text-emerald-300">懂實務，流程才真正好用</div>
+              <h2 className="text-2xl font-black tracking-tight md:text-3xl">不是多一套軟體，而是少一堆繁複工作</h2>
+              <p className="mt-3 text-sm leading-6 text-slate-400">由具財會與電商實務經驗的團隊，把企業、商城、零售與餐飲最常卡住的作業，整理成一套清楚、連續、容易上手的流程。</p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {expertiseHighlights.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <article key={item.title} className="group rounded-2xl border border-white/10 bg-slate-950/45 p-4 transition hover:-translate-y-0.5 hover:border-white/20 hover:bg-slate-950/60">
+                    <div className={`mb-4 flex h-10 w-10 items-center justify-center rounded-xl border ${item.iconClass}`}>
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <h3 className="font-bold text-slate-100">{item.title}</h3>
+                    <p className="mt-2 text-xs leading-5 text-slate-400">{item.description}</p>
+                  </article>
+                );
+              })}
+            </div>
+          </div>
         </section>
 
         <section className="mb-8 grid gap-3 rounded-2xl border border-sky-400/20 bg-sky-400/5 p-5 text-sm md:grid-cols-3">
