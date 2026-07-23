@@ -398,7 +398,7 @@ function HomeView({ tenant, products, addToCart }: { tenant: string; products: P
       </section>
 
       <section className={styles.integration}>
-        <div><span className={styles.eyebrow}>ONE COMMERCE CORE</span><h2>網站下單，後台立刻接手。</h2><p>此試用店已示範 SaaS 多租戶網域、共用商品與庫存、會員累積、訂單查詢及付款流程。</p></div>
+        <div><span className={styles.eyebrow}>ONE COMMERCE CORE</span><h2>網站下單，後台立刻接手。</h2><p>此試用店已示範品牌專屬網域、共用商品與庫存、會員累積、訂單查詢及付款流程。</p></div>
         <div className={styles.flow}>
           <FlowStep icon={<ShoppingBag />} label="品牌官網" meta="新訂單 #260723" />
           <ChevronRight />
