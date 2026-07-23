@@ -61,13 +61,23 @@ export const PLAN_CATALOG: readonly ErpPlan[] = [
 ] as const;
 
 export const ECOMMERCE_PRICING = {
-  monthlyPrice: 2_999,
-  annualPrice: 29_990,
+  monthlyByPlan: {
+    TEAM_2: 2_999,
+    TEAM_3: 3_999,
+    TEAM_5: 4_999,
+    SMALL_8: 6_999,
+  } satisfies Record<PlanCode, number>,
+  annualByPlan: {
+    TEAM_2: 29_990,
+    TEAM_3: 39_990,
+    TEAM_5: 49_990,
+    SMALL_8: 69_990,
+  } satisfies Record<PlanCode, number>,
   lifetimeByPlan: {
     TEAM_2: 35_000,
-    TEAM_3: 50_000,
-    TEAM_5: 60_000,
-    SMALL_8: 75_000,
+    TEAM_3: 44_999,
+    TEAM_5: 54_999,
+    SMALL_8: 68_999,
   } satisfies Record<PlanCode, number>,
   websiteDesignFee: {
     MONTHLY: 20_000,
@@ -92,8 +102,8 @@ export function getPlan(code: string | null | undefined) {
 
 export function getPlanPrice(plan: ErpPlan, cycle: BillingCycle, businessMode?: string | null) {
   if (isEcommerceMode(businessMode)) {
-    if (cycle === "MONTHLY") return ECOMMERCE_PRICING.monthlyPrice;
-    if (cycle === "ANNUAL") return ECOMMERCE_PRICING.annualPrice;
+    if (cycle === "MONTHLY") return ECOMMERCE_PRICING.monthlyByPlan[plan.code];
+    if (cycle === "ANNUAL") return ECOMMERCE_PRICING.annualByPlan[plan.code];
     return ECOMMERCE_PRICING.lifetimeByPlan[plan.code];
   }
   if (cycle === "MONTHLY") return plan.monthlyPrice;

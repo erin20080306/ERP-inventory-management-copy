@@ -54,12 +54,20 @@ const [team2, team3, team5, small8] = PLAN_CATALOG;
 assert.equal(getPlanPrice(team2, "MONTHLY", "ECOMMERCE"), 2_999);
 assert.equal(getPlanPrice(team2, "ANNUAL", "ECOMMERCE"), 29_990);
 assert.equal(getPlanPrice(team2, "ONCE", "ECOMMERCE"), 35_000);
-assert.equal(getPlanPrice(team3, "ONCE", "ECOMMERCE"), 50_000);
-assert.equal(getPlanPrice(team5, "ONCE", "ECOMMERCE"), 60_000);
-assert.equal(getPlanPrice(small8, "ONCE", "ECOMMERCE"), 75_000);
+assert.equal(getPlanPrice(team3, "MONTHLY", "ECOMMERCE"), 3_999);
+assert.equal(getPlanPrice(team3, "ANNUAL", "ECOMMERCE"), 39_990);
+assert.equal(getPlanPrice(team3, "ONCE", "ECOMMERCE"), 44_999);
+assert.equal(getPlanPrice(team5, "MONTHLY", "ECOMMERCE"), 4_999);
+assert.equal(getPlanPrice(team5, "ANNUAL", "ECOMMERCE"), 49_990);
+assert.equal(getPlanPrice(team5, "ONCE", "ECOMMERCE"), 54_999);
+assert.equal(getPlanPrice(small8, "MONTHLY", "ECOMMERCE"), 6_999);
+assert.equal(getPlanPrice(small8, "ANNUAL", "ECOMMERCE"), 69_990);
+assert.equal(getPlanPrice(small8, "ONCE", "ECOMMERCE"), 68_999);
 assert.equal(getWebsiteDesignFee("MONTHLY", "ECOMMERCE"), 20_000);
 assert.equal(getWebsiteDesignFee("ANNUAL", "ECOMMERCE"), 15_000);
 assert.equal(getWebsiteDesignFee("ONCE", "ECOMMERCE"), 0);
-assert.equal(ECOMMERCE_PRICING.annualPrice, ECOMMERCE_PRICING.monthlyPrice * 10);
+for (const plan of PLAN_CATALOG) {
+  assert.equal(ECOMMERCE_PRICING.annualByPlan[plan.code], ECOMMERCE_PRICING.monthlyByPlan[plan.code] * 10);
+}
 
 console.log("Commercial trial, renewal, ecommerce pricing and offline expiry controls: PASS");
