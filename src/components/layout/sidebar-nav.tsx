@@ -14,6 +14,7 @@ import {
   ShoppingBag, Store, ScanBarcode, Cable, FileCheck2, UtensilsCrossed, ChefHat, PanelsTopLeft,
 } from "lucide-react";
 import { normalizeBusinessMode } from "@/lib/product-editions";
+import { tenantStorefrontPath } from "@/lib/storefront-access";
 
 type NavItem = { title: string; href: string; icon: any; perm?: string };
 type NavSection = { label: string; items: NavItem[] };
@@ -215,11 +216,11 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   const perms = data?.user?.permissions ?? [];
   const permKey = perms.join("|");
   const businessMode = normalizeBusinessMode(data?.user?.businessMode);
-  const storefrontCode = data?.user?.companyCode || data?.user?.tenantId || "";
+  const storefrontHref = tenantStorefrontPath(data?.user);
   const ecommerceFront: NavSection = {
     label: "電商營運",
     items: [
-      { title: "一般消費者官網", href: `/store/${encodeURIComponent(storefrontCode)}?managerPreview=1`, icon: Store },
+      ...(storefrontHref ? [{ title: "進入商店官網", href: storefrontHref, icon: Store }] : []),
       { title: "網路訂單", href: "/sales", icon: ShoppingBag, perm: "sales.view" },
       { title: "會員／客戶", href: "/customers", icon: Users, perm: "customers.view" },
       { title: "商品與網站庫存", href: "/products", icon: Package, perm: "products.view" },

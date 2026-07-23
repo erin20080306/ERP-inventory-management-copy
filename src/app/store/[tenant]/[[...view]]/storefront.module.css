@@ -20,7 +20,7 @@
   left: 22px;
   bottom: 22px;
   display: flex;
-  min-width: 340px;
+  min-width: 520px;
   align-items: center;
   justify-content: space-between;
   gap: 18px;
@@ -37,7 +37,10 @@
 .managerPreviewDock span,.managerPreviewDock strong,.managerPreviewDock small { display: block; }
 .managerPreviewDock strong { font-size: 12px; }
 .managerPreviewDock small { margin-top: 2px; color: #94a3b8; font-size: 9px; }
-.managerPreviewDock > a { display: inline-flex; min-height: 36px; align-items: center; gap: 6px; padding: 0 12px; border-radius: 10px; background: white; color: #0f172a; font-size: 11px; font-weight: 800; }
+.managerPreviewActions { display: flex; gap: 6px !important; }
+.managerPreviewActions > a { display: inline-flex; min-height: 36px; align-items: center; gap: 6px; padding: 0 12px; border-radius: 10px; background: white; color: #0f172a; font-size: 11px; font-weight: 800; }
+.managerPreviewActions > a:first-child { border: 1px solid rgba(255,255,255,.2); background: transparent; color: white; }
+.managerPreviewActions > a:hover { transform: translateY(-1px); }
 
 .utilityBar {
   min-height: 34px;
@@ -393,8 +396,10 @@
 }
 
 @media (max-width: 560px) {
-  .managerPreviewDock { right: 10px; bottom: 76px; left: 10px; min-width: 0; }
+  .managerPreviewDock { right: 10px; bottom: 76px; left: 10px; min-width: 0; flex-wrap: wrap; }
+  .managerPreviewActions { width: 100%; }
   .managerPreviewDock small { display: none; }
+  .managerPreviewActions > a { flex: 1; justify-content: center; }
   .section, .catalogPage, .campaignPage, .checkoutPage, .memberPage, .orderPage { padding: 58px 18px 90px; }
   .assuranceStrip { grid-template-columns: 1fr; }
   .assuranceStrip > div { border-right: 0; border-bottom: 1px solid var(--line); }

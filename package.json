@@ -23,6 +23,7 @@
     "test:pos-offers": "tsx scripts/verify-pos-offers.ts",
     "test:pos-restaurant": "tsx scripts/verify-restaurant-pos.ts",
     "test:commerce": "tsx scripts/verify-commerce-checkout.ts",
+    "test:storefront": "tsx scripts/verify-storefront-access.ts",
     "test:pos-recovery": "tsx scripts/verify-pos-recovery.ts",
     "test:backup": "tsx scripts/verify-encrypted-backup.ts",
     "test:einvoice": "tsx scripts/verify-einvoice-readiness.ts",

@@ -1,15 +1,7 @@
-name: Publish macOS desktop v1.0.7
+name: Superseded macOS desktop v1.0.7 workflow
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - .github/workflows/publish-macos-v1.0.7.yml
-      - desktop/v107-bootstrap.cjs
-      - desktop/v106-bootstrap.cjs
-      - desktop/package.json
-      - desktop/scripts/after-pack.cjs
-      - src/lib/github-workstation-release.ts
+  workflow_dispatch:
 
 permissions:
   contents: write

@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import { FashionStorefront } from "./storefront";
+import { getSession } from "@/lib/api";
+import { canManageTenantStorefront } from "@/lib/storefront-access";
 
 type StorePageProps = {
   params: Promise<{ tenant: string; view?: string[] }>;
-  searchParams?: Promise<{ managerPreview?: string | string[] }>;
 };
 
 const VIEW_TITLES: Record<string, string> = {
@@ -26,9 +27,9 @@ export async function generateMetadata({ params }: StorePageProps): Promise<Meta
   };
 }
 
-export default async function StorePage({ params, searchParams }: StorePageProps) {
+export default async function StorePage({ params }: StorePageProps) {
   const { tenant, view = [] } = await params;
-  const query = searchParams ? await searchParams : undefined;
-  const managerPreview = Array.isArray(query?.managerPreview) ? query?.managerPreview[0] === "1" : query?.managerPreview === "1";
-  return <FashionStorefront tenant={tenant} initialView={view[0] || "home"} managerPreview={managerPreview} />;
+  const session = await getSession();
+  const managerAccess = canManageTenantStorefront(session?.user, tenant);
+  return <FashionStorefront tenant={tenant} initialView={view[0] || "home"} managerAccess={managerAccess} />;
 }

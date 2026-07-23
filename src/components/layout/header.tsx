@@ -2,17 +2,19 @@
 import { useSession, signOut } from "next-auth/react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
-import { Moon, Sun, LogOut, UserCircle2, Shield, Download } from "lucide-react";
+import { Moon, Sun, LogOut, UserCircle2, Shield, Download, Store } from "lucide-react";
 import { useEffect, useState } from "react";
 import { MobileSidebar } from "./mobile-sidebar";
 import { AIAssistantLauncher } from "@/components/ai-assistant-launcher";
 import { ErpKeyboardNavigator } from "@/components/erp-keyboard-navigator";
+import { tenantStorefrontPath } from "@/lib/storefront-access";
 
 export function Header({ showDownloads = false }: { showDownloads?: boolean }) {
   const { data } = useSession();
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
+  const storefrontHref = tenantStorefrontPath(data?.user);
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-background/80 backdrop-blur px-6">
@@ -38,6 +40,12 @@ export function Header({ showDownloads = false }: { showDownloads?: boolean }) {
         <Button variant="outline" size="sm" onClick={() => window.location.href = "/admin"}>
           <Shield className="h-4 w-4" />
           後台
+        </Button>
+      )}
+      {storefrontHref && (
+        <Button variant="outline" size="sm" onClick={() => window.location.href = storefrontHref} aria-label="進入商店官網">
+          <Store className="h-4 w-4" />
+          <span className="hidden xl:inline">進入商店官網</span>
         </Button>
       )}
       {showDownloads && (

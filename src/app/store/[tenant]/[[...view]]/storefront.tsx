@@ -164,7 +164,7 @@ function tenantTheme(tenant: string) {
   };
 }
 
-export function FashionStorefront({ tenant, initialView, managerPreview = false }: { tenant: string; initialView: string; managerPreview?: boolean }) {
+export function FashionStorefront({ tenant, initialView, managerAccess = false }: { tenant: string; initialView: string; managerAccess?: boolean }) {
   const router = useRouter();
   const theme = tenantTheme(tenant);
   const view = VALID_VIEWS.has(initialView as ViewName) ? initialView as ViewName : "home";
@@ -260,10 +260,13 @@ export function FashionStorefront({ tenant, initialView, managerPreview = false 
 
   return (
     <div className={styles.shell} style={{ "--store-accent": theme.accent } as React.CSSProperties}>
-      {managerPreview && (
+      {managerAccess && (
         <aside className={styles.managerPreviewDock} aria-label="管理者商城預覽">
           <div><ShieldCheck size={18} /><span><strong>租戶管理者預覽</strong><small>消費者不會看到此控制列</small></span></div>
-          <Link href="/workspace"><ArrowLeft size={16} />返回 ERP</Link>
+          <div className={styles.managerPreviewActions}>
+            <Link href="/products"><ArrowLeft size={16} />回到電商後台</Link>
+            <Link href="/dashboard"><BarChart3 size={16} />進入 ERP</Link>
+          </div>
         </aside>
       )}
       <div className={styles.utilityBar}>

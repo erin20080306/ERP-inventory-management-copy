@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ApiError, apiHandler, requirePermission, requireTenantId, audit, getCurrentUserId } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { resolveDemoProductImage } from "@/lib/demo-product-media";
 
 const ProductInput = z.object({
   sku: z.string().min(1),
@@ -84,7 +85,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
   return NextResponse.json({
     items: items.map((p: any) => {
       const stockTotal = p.stocks.reduce((s: number, x: any) => s + Number(x.quantity), 0);
-      return { ...p, stockTotal, soldTotal: soldByProduct.get(p.id) ?? 0 };
+      return { ...p, imageUrl: resolveDemoProductImage(p.sku, p.imageUrl), stockTotal, soldTotal: soldByProduct.get(p.id) ?? 0 };
     }),
     total,
   });

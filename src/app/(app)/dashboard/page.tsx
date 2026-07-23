@@ -64,7 +64,7 @@ export default async function DashboardPage() {
           <p className="mt-2 text-sm text-slate-500">{commerce ? "一般消費者官網下單後，自動進入目前租戶的訂單、庫存、出貨與帳務流程。" : "商品、採購、銷售、庫存、應收應付與會計資料維持原有作業邏輯。"}</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {commerce && <Link href={`/store/${encodeURIComponent(companyCode)}?managerPreview=1`} target="_blank" rel="noreferrer" className="inline-flex h-10 items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-4 text-sm font-bold text-indigo-800 hover:bg-indigo-100 dark:border-indigo-900 dark:bg-indigo-950/40 dark:text-indigo-200"><Globe2 className="h-4 w-4" />一般消費者官網 <ArrowUpRight className="h-4 w-4" /></Link>}
+          {commerce && <Link href={`/store/${encodeURIComponent(companyCode)}`} target="_blank" rel="noreferrer" className="inline-flex h-10 items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-4 text-sm font-bold text-indigo-800 hover:bg-indigo-100 dark:border-indigo-900 dark:bg-indigo-950/40 dark:text-indigo-200"><Globe2 className="h-4 w-4" />進入商店官網 <ArrowUpRight className="h-4 w-4" /></Link>}
           <Link href="/sales" className="inline-flex h-10 items-center gap-2 rounded-lg bg-indigo-600 px-4 text-sm font-bold text-white hover:bg-indigo-500"><ShoppingCart className="h-4 w-4" />{commerce ? "網路訂單" : "建立銷售訂單"}</Link>
         </div>
       </header>
