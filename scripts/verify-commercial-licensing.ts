@@ -7,7 +7,7 @@ import {
   OFFLINE_LEASE_HOURS,
   TRIAL_DAYS,
 } from "../src/lib/license";
-import { ECOMMERCE_PRICING, PLAN_CATALOG, getPlanPrice, getWebsiteDesignFee } from "../src/lib/plans";
+import { ECOMMERCE_PRICING, PLAN_CATALOG, getPaymentGatewaySetupFee, getPlanPrice, getWebsiteDesignFee } from "../src/lib/plans";
 
 const januaryEnd = new Date("2026-01-31T08:30:00.000Z");
 assert.equal(defaultExpiry("MONTHLY", januaryEnd)?.toISOString(), "2026-02-28T08:30:00.000Z");
@@ -66,6 +66,9 @@ assert.equal(getPlanPrice(small8, "ONCE", "ECOMMERCE"), 68_999);
 assert.equal(getWebsiteDesignFee("MONTHLY", "ECOMMERCE"), 20_000);
 assert.equal(getWebsiteDesignFee("ANNUAL", "ECOMMERCE"), 15_000);
 assert.equal(getWebsiteDesignFee("ONCE", "ECOMMERCE"), 0);
+assert.equal(getPaymentGatewaySetupFee("MONTHLY"), 2_000);
+assert.equal(getPaymentGatewaySetupFee("ANNUAL"), 0);
+assert.equal(getPaymentGatewaySetupFee("ONCE"), 0);
 for (const plan of PLAN_CATALOG) {
   assert.equal(ECOMMERCE_PRICING.annualByPlan[plan.code], ECOMMERCE_PRICING.monthlyByPlan[plan.code] * 10);
 }

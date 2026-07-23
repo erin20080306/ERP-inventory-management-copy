@@ -86,6 +86,12 @@ export const ECOMMERCE_PRICING = {
   } satisfies Record<BillingCycle, number>,
 } as const;
 
+export const PAYMENT_GATEWAY_SETUP_FEE = {
+  MONTHLY: 2_000,
+  ANNUAL: 0,
+  ONCE: 0,
+} satisfies Record<BillingCycle, number>;
+
 export function isEcommerceMode(value: string | null | undefined) {
   return value === "ECOMMERCE";
 }
@@ -113,6 +119,10 @@ export function getPlanPrice(plan: ErpPlan, cycle: BillingCycle, businessMode?: 
 
 export function getWebsiteDesignFee(cycle: BillingCycle, businessMode?: string | null) {
   return isEcommerceMode(businessMode) ? ECOMMERCE_PRICING.websiteDesignFee[cycle] : 0;
+}
+
+export function getPaymentGatewaySetupFee(cycle: BillingCycle) {
+  return PAYMENT_GATEWAY_SETUP_FEE[cycle];
 }
 
 export function formatTwd(amount: number) {
