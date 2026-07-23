@@ -26,6 +26,7 @@ execFileSync("bash", ["-n", "installer/安裝艾琳ERP.command"], { stdio: "pipe
 execFileSync(process.execPath, ["--check", "desktop/runtime-repair.cjs"], { stdio: "pipe" });
 
 assert.match(compose, /updater:/);
+assert.match(compose, /image: erin-erp-host-updater:2/);
 assert.match(compose, /\/var\/run\/docker\.sock:\/var\/run\/docker\.sock/);
 assert.match(compose, /no-new-privileges:true/);
 assert.match(compose, /erp_update_state/);
@@ -81,12 +82,22 @@ for (const installer of [macInstaller, windowsInstaller]) {
   assert.match(installer, /updater/);
   assert.match(installer, /COMPOSE_PROJECT_NAME=erinerp/);
 }
+assert.match(macInstaller, /macOS 手動安裝程式/);
+assert.match(macInstaller, /Mac with Apple silicon/);
+assert.match(macInstaller, /Mac with Intel chip/);
+assert.match(macInstaller, /route -n get default/);
+assert.match(macInstaller, /請輸入這台 Mac 的區網 IPv4/);
+assert.doesNotMatch(macInstaller, /LAN_IP=.*127\.0\.0\.1/);
 assert.match(macInstaller, /艾琳 ERP\.app/);
 assert.match(windowsInstaller, /ArgumentList "\/S"/);
 assert.match(desktopMain, /ensureDesktopShortcut/);
 assert.match(dockerfile, /ARG ERIN_RELEASE_SHA/);
 assert.match(workflow, /ERIN_RELEASE_SHA=\$\{\{ github\.sha \}\}/);
+assert.match(workflow, /candidate-\$\{\{ github\.sha \}\}/);
+assert.match(workflow, /Promote verified image to latest/);
+assert.match(workflow, /cancel-in-progress: false/);
+assert.doesNotMatch(workflow, /type=raw,value=latest/);
 assert.match(workflow, /Record released Host image version/);
 assert.match(workflow, /Smoke test Apple Silicon Host startup/);
 
-console.log("Host update center, signature key recovery, no-op current check, updater recovery, rollback, and desktop bootstrap: PASS");
+console.log("Manual Mac Host architecture/IP safeguards, candidate promotion, update center, signature recovery, updater rollback, and desktop bootstrap: PASS");
