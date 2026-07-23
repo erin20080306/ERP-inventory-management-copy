@@ -24,7 +24,7 @@ export default async function WorkspacePage() {
   const permissions = session.user.permissions;
   const isPlatformAdmin = Boolean(session.user.isSuperAdmin);
   if (!isPlatformAdmin) {
-    if ((mode === "ERP" || mode === "ECOMMERCE") && hasPermission(permissions, "dashboard.view")) redirect("/dashboard");
+    if (mode === "ERP" && hasPermission(permissions, "dashboard.view")) redirect("/dashboard");
     if (mode === "POS_RETAIL" && hasPermission(permissions, "pos.view")) redirect("/pos");
     if (mode === "POS_RESTAURANT" && hasPermission(permissions, "restaurant.view")) redirect("/pos/restaurant");
   }
@@ -32,6 +32,9 @@ export default async function WorkspacePage() {
   const cards = [
     ...((mode === "ECOMMERCE" || isPlatformAdmin)
       ? [{ title: mode === "ECOMMERCE" ? "預覽我的品牌商城" : "電商租戶網站示範", description: "消費者前台與 ERP 共用商品、可售庫存、會員與網路訂單", href: mode === "ECOMMERCE" ? `/store/${encodeURIComponent(storefrontCode)}` : "/store/atelier-noir", icon: Store, tone: "rose" }]
+      : []),
+    ...((mode === "ECOMMERCE" || isPlatformAdmin) && hasPermission(permissions, "dashboard.view")
+      ? [{ title: "進入 ERP 營運後台", description: "網路訂單、商品、庫存、出貨、應收與會計整合管理", href: "/dashboard", icon: Building2, tone: "indigo" }]
       : []),
     ...((mode === "POS_RETAIL" || isPlatformAdmin) && hasPermission(permissions, "pos.view")
       ? [{ title: "零售 POS 收銀", description: "掃碼、會員、促銷、多元支付、退換貨與日結", href: "/pos", icon: ScanBarcode, tone: "emerald" }]

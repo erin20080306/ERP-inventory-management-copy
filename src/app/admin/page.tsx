@@ -6,7 +6,7 @@ import { signOut, useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import {
   Building2, CheckCircle2, ChevronLeft, ChevronRight, KeyRound, LayoutDashboard,
-  Loader2, LogOut, Mail, MonitorSmartphone, RefreshCw, Search, Shield, ShoppingBag, Store, Users, X, UtensilsCrossed, Download,
+  Loader2, LogOut, Mail, MonitorSmartphone, RefreshCw, Search, Shield, ShoppingBag, Store, Users, X, UtensilsCrossed, Download, PanelsTopLeft,
 } from "lucide-react";
 import { PLAN_CATALOG, formatTwd, getPlanPrice, type BillingCycle, type PlanCode } from "@/lib/plans";
 import { getProductEdition, type BusinessMode } from "@/lib/product-editions";
@@ -126,7 +126,7 @@ export default function AdminPage() {
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Link href="/dashboard" className="admin-button bg-indigo-600 hover:bg-indigo-500"><LayoutDashboard className="h-4 w-4" />一般企業 ERP 後台</Link>
+            <Link href="/workspace" className="admin-button bg-indigo-600 hover:bg-indigo-500"><PanelsTopLeft className="h-4 w-4" />切換 ERP／電商工作區</Link>
             <Link href="/store/atelier-noir" className="admin-button bg-rose-700 hover:bg-rose-600"><Store className="h-4 w-4" />電商網站</Link>
             <Link href="/pos" className="admin-button bg-emerald-600 hover:bg-emerald-500"><ShoppingBag className="h-4 w-4" />零售 POS</Link>
             <Link href="/pos/restaurant" className="admin-button bg-orange-600 hover:bg-orange-500"><UtensilsCrossed className="h-4 w-4" />餐飲 POS</Link>

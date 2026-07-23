@@ -5,7 +5,7 @@ import { ApiError, apiHandler, audit, requirePosPermission, requireTenantId } fr
 import { lockAndAssertAccountingPeriodOpen } from "@/lib/accounting-controls";
 import { createEInvoiceOutbox, processEInvoiceEvent } from "@/lib/e-invoice";
 import { hasPermission } from "@/lib/auth";
-import { nextNumberFastInTransaction } from "@/lib/number-sequence";
+import { nextNumbersFastInTransaction } from "@/lib/number-sequence";
 import { discountApprovalFingerprint, money, resolveCheckoutOffers } from "@/lib/pos-offers";
 import { prisma } from "@/lib/prisma";
 
@@ -62,6 +62,20 @@ function normalizeItems(items: Array<{ productId: string; quantity: number; disc
   }));
 }
 
+const walkInCustomerIdCache = new Map<string, string>();
+
+async function getWalkInCustomerId(tenantId: string) {
+  const cached = walkInCustomerIdCache.get(tenantId);
+  if (cached) return cached;
+  const customer = await prisma.customer.upsert({
+    where: { tenantId_code: { tenantId, code: "POS-WALKIN" } },
+    update: { isActive: true },
+    create: { tenantId, code: "POS-WALKIN", companyName: "門市散客" },
+    select: { id: true },
+  });
+  walkInCustomerIdCache.set(tenantId, customer.id);
+  return customer.id;
+}
 async function decrementCheckoutStocks(
   tx: Prisma.TransactionClient,
   input: {
@@ -89,48 +103,29 @@ async function decrementCheckoutStocks(
   if (missing) throw new ApiError(409, `${missing.product.name} 庫存不足，請補貨或調撥後再結帳`);
 }
 
-async function createCheckoutJournals(
+async function createCheckoutJournal(
   tx: any,
-  input: {
-    tenantId: string;
-    userId: string;
-    saleNumber: string;
-    saleLines: CheckoutJournalLine[];
-    paymentLines: CheckoutJournalLine[];
-  },
+  input: { tenantId: string; userId: string; journalNumber: string; saleNumber: string; lines: CheckoutJournalLine[] },
 ) {
   const entryDate = new Date();
   await lockAndAssertAccountingPeriodOpen(tx, input.tenantId, entryDate);
-  const allLines = [...input.saleLines, ...input.paymentLines].filter((line) => roundMoney(line.debit ?? 0) !== 0 || roundMoney(line.credit ?? 0) !== 0);
-  const codes = [...new Set(allLines.map((line) => line.code))];
+  const lines = input.lines.filter((line) => roundMoney(line.debit ?? 0) !== 0 || roundMoney(line.credit ?? 0) !== 0);
+  const debit = roundMoney(lines.reduce((sum, line) => sum + Number(line.debit ?? 0), 0));
+  const credit = roundMoney(lines.reduce((sum, line) => sum + Number(line.credit ?? 0), 0));
+  if (Math.abs(debit - credit) > 0.001) throw new Error(`傳票借貸不平衡：借 ${debit}／貸 ${credit}`);
+  const codes = [...new Set(lines.map((line) => line.code))];
   const accounts = await tx.chartOfAccount.findMany({ where: { tenantId: input.tenantId, code: { in: codes }, isActive: true }, select: { id: true, code: true } });
   const accountMap = new Map(accounts.map((account: any) => [account.code, account.id]));
   const missing = codes.filter((code) => !accountMap.has(code));
   if (missing.length) throw new Error(`缺少標準會計科目：${missing.join("、")}，請由管理者執行科目初始化`);
-
-  const createJournal = async (summary: string, lines: CheckoutJournalLine[]) => {
-    const nonZero = lines.filter((line) => roundMoney(line.debit ?? 0) !== 0 || roundMoney(line.credit ?? 0) !== 0);
-    const debit = roundMoney(nonZero.reduce((sum, line) => sum + Number(line.debit ?? 0), 0));
-    const credit = roundMoney(nonZero.reduce((sum, line) => sum + Number(line.credit ?? 0), 0));
-    if (Math.abs(debit - credit) > 0.001) throw new Error(`傳票借貸不平衡：借 ${debit}／貸 ${credit}`);
-    const number = await nextNumberFastInTransaction(tx, "JE", input.tenantId);
-    return await tx.journalEntry.create({
-      data: {
-        tenantId: input.tenantId,
-        number,
-        entryDate,
-        summary,
-        status: "POSTED",
-        createdById: input.userId,
-        postedById: input.userId,
-        postedAt: new Date(),
-        lines: { create: nonZero.map((line) => ({ accountId: accountMap.get(line.code), debit: roundMoney(line.debit ?? 0), credit: roundMoney(line.credit ?? 0), memo: line.memo })) },
-      },
-    });
-  };
-
-  await createJournal(`POS 銷售 ${input.saleNumber}`, input.saleLines);
-  await createJournal(`POS 收款 ${input.saleNumber}`, input.paymentLines);
+  await tx.journalEntry.create({
+    data: {
+      tenantId: input.tenantId, number: input.journalNumber, entryDate,
+      summary: `POS 即時銷售與收款 ${input.saleNumber}`, status: "POSTED",
+      createdById: input.userId, postedById: input.userId, postedAt: new Date(),
+      lines: { create: lines.map((line) => ({ accountId: accountMap.get(line.code), debit: roundMoney(line.debit ?? 0), credit: roundMoney(line.credit ?? 0), memo: line.memo })) },
+    },
+  });
 }
 
 export const POST = apiHandler(async (req: NextRequest) => {
@@ -139,15 +134,24 @@ export const POST = apiHandler(async (req: NextRequest) => {
   const currentUser = (session.user as any).name || (session.user as any).username || session.user.id;
   const body = CheckoutInput.parse(await req.json());
 
-  const priorSale = await prisma.posSale.findFirst({ where: { tenantId, clientRequestId: body.requestId }, include: { payments: true, electronicInvoice: true } });
-  if (priorSale) return NextResponse.json({ ok: true, sale: priorSale, changeDue: Number(priorSale.changeDue), replayed: true });
-
   const normalizedItems = normalizeItems(body.items);
   const productIds = normalizedItems.map((item) => item.productId);
-  const [shift, products] = await Promise.all([
+  const now = new Date();
+  const activePromotionWindow = {
+    isActive: true,
+    AND: [
+      { OR: [{ startsAt: null }, { startsAt: { lte: now } }] },
+      { OR: [{ endsAt: null }, { endsAt: { gte: now } }] },
+    ],
+  };
+  const [priorSale, shift, products, preloadedPromotions, walkInCustomerId] = await Promise.all([
+    prisma.posSale.findFirst({ where: { tenantId, clientRequestId: body.requestId }, include: { payments: true, electronicInvoice: true } }),
     prisma.posShift.findFirst({ where: { id: body.shiftId, tenantId, userId: session.user.id, status: "OPEN" }, select: { id: true, registerId: true, register: { select: { warehouseId: true } } } }),
     prisma.product.findMany({ where: { tenantId, id: { in: productIds }, isActive: true }, select: { id: true, sku: true, name: true, salePrice: true, costPrice: true, taxRate: { select: { rate: true } } } }),
+    prisma.posPromotion.findMany({ where: { tenantId, ...activePromotionWindow }, orderBy: [{ priority: "desc" }, { createdAt: "asc" }] }),
+    body.customerId ? Promise.resolve(null) : getWalkInCustomerId(tenantId),
   ]);
+  if (priorSale) return NextResponse.json({ ok: true, sale: priorSale, changeDue: Number(priorSale.changeDue), replayed: true });
   if (!shift) throw new ApiError(409, "請先開班，或目前班次已結束");
   if (products.length !== productIds.length) throw new ApiError(400, "購物車包含已停用或不存在的商品");
   const productMap = new Map(products.map((product) => [product.id, product]));
@@ -158,6 +162,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
     return { ...item, product, gross: roundMoney(grossBeforeDiscount - item.discount), rate: Number(product.taxRate?.rate ?? 0.05) };
   });
   const baseTotal = money(computedBeforeOffers.reduce((sum, item) => sum + item.gross, 0));
+  const eligiblePromotions = preloadedPromotions.filter((item: any) => Number(item.minSpend) <= baseTotal);
   if (baseTotal <= 0) throw new ApiError(400, "折扣後交易金額必須大於 0");
   const manualDiscount = money(computedBeforeOffers.reduce((sum, item) => sum + item.discount, 0));
   const tendered = roundMoney(body.payments.reduce((sum, payment) => sum + payment.amount, 0));
@@ -183,12 +188,13 @@ export const POST = apiHandler(async (req: NextRequest) => {
       if (!sameItems) throw new ApiError(409, "桌單內容已變更，請重新整理後再結帳");
     }
 
-    const soNumber = await nextNumberFastInTransaction(tx, "SO", tenantId);
-    const paymentNumber = await nextNumberFastInTransaction(tx, "RP", tenantId);
-    const posNumber = await nextNumberFastInTransaction(tx, "POS", tenantId);
+    const numbers = await nextNumbersFastInTransaction(tx, ["SO", "RP", "POS", "JE"], tenantId);
+    const soNumber = numbers.SO;
+    const paymentNumber = numbers.RP;
+    const posNumber = numbers.POS;
     const customer = body.customerId
       ? await tx.customer.findFirst({ where: { id: body.customerId, tenantId, isActive: true }, select: { id: true } })
-      : await tx.customer.upsert({ where: { tenantId_code: { tenantId, code: "POS-WALKIN" } }, update: { isActive: true }, create: { tenantId, code: "POS-WALKIN", companyName: "門市散客" }, select: { id: true } });
+      : { id: walkInCustomerId! };
     if (!customer) throw new ApiError(400, "找不到指定會員／客戶");
 
     if (body.exchangeRefundId) {
@@ -211,7 +217,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
       if (!managerApproval) throw new ApiError(409, "店長折扣核准不存在、已逾時，或購物車已變更");
     }
 
-    const offers = await resolveCheckoutOffers(tx, { tenantId, customerId: body.customerId ? customer.id : null, baseTotal, promotionId: body.promotionId, couponCode: body.couponCode, redeemPoints: body.redeemPoints });
+    const offers = await resolveCheckoutOffers(tx, { tenantId, customerId: body.customerId ? customer.id : null, baseTotal, promotionId: body.promotionId, couponCode: body.couponCode, redeemPoints: body.redeemPoints, promotions: eligiblePromotions });
     const orderOfferDiscount = money(offers.promotionDiscount + offers.couponDiscount + offers.pointsDiscount);
     let remainingAllocation = orderOfferDiscount;
     const computed = computedBeforeOffers.map((item, index) => {
@@ -252,8 +258,18 @@ export const POST = apiHandler(async (req: NextRequest) => {
     });
 
     if (restaurantOrder) {
-      await tx.restaurantOrder.update({ where: { id: restaurantOrder.id }, data: { status: "COMPLETED", posSaleId: sale.id, completedAt: new Date() } });
-      await tx.restaurantTable.update({ where: { id: restaurantOrder.tableId }, data: { status: "AVAILABLE" } });
+      await tx.$executeRaw`
+        WITH completed AS (
+          UPDATE "RestaurantOrder"
+          SET "status" = 'COMPLETED', "posSaleId" = ${sale.id}, "completedAt" = NOW(), "updatedAt" = NOW()
+          WHERE "id" = ${restaurantOrder.id}
+          RETURNING "tableId"
+        )
+        UPDATE "RestaurantTable" AS table_row
+        SET "status" = 'AVAILABLE', "updatedAt" = NOW()
+        FROM completed
+        WHERE table_row."id" = completed."tableId"
+      `;
     }
     const eInvoiceOutbox = body.invoice ? await createEInvoiceOutbox(tx, { tenantId, sale, request: body.invoice }) : null;
     if (offers.coupon) {
@@ -278,12 +294,18 @@ export const POST = apiHandler(async (req: NextRequest) => {
 
     await tx.inventoryTransaction.createMany({ data: computed.map((item) => ({ tenantId, productId: item.productId, warehouseId: activeShift.register.warehouseId, type: "SALES_OUT", quantity: item.quantity * -1, unitCost: Number(item.product.costPrice), refType: "POS", refId: sale.id, remark: `POS 結帳 ${posNumber}` })) });
     const cogs = roundMoney(computed.reduce((sum, item) => sum + item.quantity * Number(item.product.costPrice), 0));
-    await createCheckoutJournals(tx, {
+    await createCheckoutJournal(tx, {
       tenantId,
       userId: session.user.id,
+      journalNumber: numbers.JE,
       saleNumber: posNumber,
-      saleLines: [{ code: "1132", debit: total, memo: `應收帳款－${posNumber}` }, { code: "4101", credit: subtotal, memo: `銷貨收入－${posNumber}` }, { code: "2111", credit: taxAmount, memo: `銷項稅額－${posNumber}` }, { code: "5101", debit: cogs, memo: `銷貨成本－${posNumber}` }, { code: "1201", credit: cogs, memo: `存貨－${posNumber}` }],
-      paymentLines: [...drawerPayments.filter((item) => item.amount > 0).map((item) => ({ code: item.method === "CASH" ? "1101" : "1103", debit: item.amount, memo: `${item.method} 收款－${posNumber}` })), { code: "1132", credit: total, memo: `沖應收帳款－${posNumber}` }],
+      lines: [
+        ...drawerPayments.filter((item) => item.amount > 0).map((item) => ({ code: item.method === "CASH" ? "1101" : "1103", debit: item.amount, memo: `${item.method} 收款－${posNumber}` })),
+        { code: "4101", credit: subtotal, memo: `銷貨收入－${posNumber}` },
+        { code: "2111", credit: taxAmount, memo: `銷項稅額－${posNumber}` },
+        { code: "5101", debit: cogs, memo: `銷貨成本－${posNumber}` },
+        { code: "1201", credit: cogs, memo: `存貨－${posNumber}` },
+      ],
     });
     return { sale, replayed: false, eInvoiceEventId: eInvoiceOutbox?.eventId ?? null, electronicInvoice: eInvoiceOutbox?.invoice ?? null };
   }, { isolationLevel: "ReadCommitted", maxWait: 10_000, timeout: 30_000 });

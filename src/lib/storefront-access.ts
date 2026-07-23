@@ -18,29 +18,25 @@ function normalizedTenantKey(value: string | null | undefined) {
 }
 
 export function isTenantHighestPrivilege(user: StorefrontAccessUser | null | undefined) {
-  return Boolean(
-    user &&
-    !user.isSuperAdmin &&
-    Array.isArray(user.permissions) &&
-    user.permissions.includes("*")
-  );
+  return Boolean(user && !user.isSuperAdmin && Array.isArray(user.permissions) && user.permissions.includes("*"));
+}
+
+export function canAccessTenantErp(user: StorefrontAccessUser | null | undefined) {
+  if (!user || user.isSuperAdmin || normalizeBusinessMode(user.businessMode) !== "ECOMMERCE") return false;
+  const permissions = Array.isArray(user.permissions) ? user.permissions : [];
+  return permissions.includes("*") || ["dashboard.view", "sales.view", "products.view", "inventory.view"].some((code) => permissions.includes(code));
 }
 
 export function tenantStorefrontPath(user: StorefrontAccessUser | null | undefined) {
-  if (!isTenantHighestPrivilege(user) || normalizeBusinessMode(user?.businessMode) !== "ECOMMERCE") return null;
+  if (!canAccessTenantErp(user)) return null;
   const tenantKey = user?.companyCode?.trim() || user?.tenantId?.trim();
   return tenantKey ? `/store/${encodeURIComponent(tenantKey)}` : null;
 }
 
-export function canManageTenantStorefront(
-  user: StorefrontAccessUser | null | undefined,
-  requestedTenant: string,
-) {
-  if (!tenantStorefrontPath(user)) return false;
+export function canManageTenantStorefront(user: StorefrontAccessUser | null | undefined, requestedTenant: string) {
   const requested = normalizedTenantKey(requestedTenant);
-  if (!requested) return false;
-  return [user?.tenantId, user?.companyCode]
-    .map(normalizedTenantKey)
-    .filter(Boolean)
-    .includes(requested);
+  if (!requested || !user) return false;
+  if (user.isSuperAdmin) return ["ATELIER-NOIR", "MOON-FORM"].includes(requested);
+  if (!tenantStorefrontPath(user)) return false;
+  return [user.tenantId, user.companyCode].map(normalizedTenantKey).filter(Boolean).includes(requested);
 }

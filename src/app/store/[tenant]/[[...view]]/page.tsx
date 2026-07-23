@@ -31,5 +31,7 @@ export default async function StorePage({ params }: StorePageProps) {
   const { tenant, view = [] } = await params;
   const session = await getSession();
   const managerAccess = canManageTenantStorefront(session?.user, tenant);
-  return <FashionStorefront tenant={tenant} initialView={view[0] || "home"} managerAccess={managerAccess} />;
+  const managerBackHref = session?.user?.isSuperAdmin ? "/admin" : "/products";
+  const managerErpHref = session?.user?.isSuperAdmin ? "/workspace" : "/dashboard";
+  return <FashionStorefront tenant={tenant} initialView={view[0] || "home"} managerAccess={managerAccess} managerBackHref={managerBackHref} managerErpHref={managerErpHref} />;
 }

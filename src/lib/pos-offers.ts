@@ -33,6 +33,7 @@ export async function resolveCheckoutOffers(tx: any, input: {
   promotionId?: string | null;
   couponCode?: string | null;
   redeemPoints?: number;
+  promotions?: any[];
 }) {
   const now = new Date();
   const activeWindow = {
@@ -42,10 +43,10 @@ export async function resolveCheckoutOffers(tx: any, input: {
       { OR: [{ endsAt: null }, { endsAt: { gte: now } }] },
     ],
   };
-  const promotions = await tx.posPromotion.findMany({
+  const promotions = (input.promotions ?? await tx.posPromotion.findMany({
     where: { tenantId: input.tenantId, ...activeWindow, minSpend: { lte: input.baseTotal } },
     orderBy: [{ priority: "desc" }, { createdAt: "asc" }],
-  });
+  })).filter((item: any) => Number(item.minSpend) <= input.baseTotal);
   let promotion = input.promotionId
     ? promotions.find((item: any) => item.id === input.promotionId)
     : null;
