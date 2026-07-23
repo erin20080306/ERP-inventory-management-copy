@@ -6,9 +6,13 @@ on:
     paths:
       - "Dockerfile"
       - "docker/**"
+      - "docker-compose.local.yml"
+      - "updater/**"
+      - "installer/**"
       - "prisma/**"
       - "src/**"
       - "public/**"
+      - "scripts/verify-host-update.mjs"
       - "package.json"
       - "package-lock.json"
       - "next.config.*"
@@ -20,8 +24,8 @@ permissions:
   packages: write
 
 concurrency:
-  group: publish-host-container-image
-  cancel-in-progress: true
+  group: publish-host-container-image-${{ github.ref }}
+  cancel-in-progress: false
 
 env:
   REGISTRY: ghcr.io
@@ -34,6 +38,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Verify Host release safeguards
+        run: node scripts/verify-host-update.mjs
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -51,20 +58,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract image metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=sha,prefix=sha-
-          labels: |
-            org.opencontainers.image.title=艾琳 ERP 公司主機
-            org.opencontainers.image.description=艾琳 ERP 本機公司主機映像
-            org.opencontainers.image.source=https://github.com/erin20080306/ERP-inventory-management-copy
-
-      - name: Build and push multi-platform image
+      - name: Build and push candidate multi-platform image
         id: build
         uses: docker/build-push-action@v6
         with:
@@ -72,22 +66,29 @@ jobs:
           file: ./Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:candidate-${{ github.sha }}
+          labels: |
+            org.opencontainers.image.title=艾琳 ERP 公司主機
+            org.opencontainers.image.description=艾琳 ERP 本機公司主機映像
+            org.opencontainers.image.source=https://github.com/erin20080306/ERP-inventory-management-copy
+            org.opencontainers.image.revision=${{ github.sha }}
           build-args: |
             ERIN_RELEASE_SHA=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Verify published multi-platform manifest
+      - name: Verify candidate multi-platform manifest
+        env:
+          CANDIDATE_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:candidate-${{ github.sha }}
         run: |
-          docker buildx imagetools inspect "ghcr.io/${IMAGE_NAME}:latest" | tee /tmp/erin-erp-manifest.txt
-          grep -q "linux/amd64" /tmp/erin-erp-manifest.txt
-          grep -q "linux/arm64" /tmp/erin-erp-manifest.txt
+          set -eu
+          docker buildx imagetools inspect "$CANDIDATE_IMAGE" | tee /tmp/erin-erp-candidate-manifest.txt
+          grep -q "linux/amd64" /tmp/erin-erp-candidate-manifest.txt
+          grep -q "linux/arm64" /tmp/erin-erp-candidate-manifest.txt
 
       - name: Smoke test Apple Silicon Host startup
         env:
-          ERP_IMAGE: ghcr.io/erin20080306/erp-inventory-management-copy@${{ steps.build.outputs.digest }}
+          ERP_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
           COMPOSE_PROJECT_NAME: erinerp-smoke-${{ github.run_id }}
         run: |
           set -eu
@@ -149,13 +150,50 @@ jobs:
           echo "Apple Silicon Host did not become ready within 180 seconds." >&2
           exit 1
 
-      - name: Record released Host image version
-        if: github.ref == 'refs/heads/main'
+      - name: Check candidate is still current main
+        id: freshness
         env:
           RELEASE_SHA: ${{ github.sha }}
         run: |
           set -eu
           git fetch origin main
+          current_main="$(git rev-parse origin/main)"
+          if [ "$current_main" = "$RELEASE_SHA" ]; then
+            echo "promote=true" >> "$GITHUB_OUTPUT"
+            echo "Candidate is current main and may be promoted."
+          else
+            echo "promote=false" >> "$GITHUB_OUTPUT"
+            echo "A newer main commit exists; this verified candidate will not replace latest."
+          fi
+
+      - name: Promote verified image to latest
+        if: steps.freshness.outputs.promote == 'true'
+        env:
+          VERIFIED_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
+          LATEST_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+        run: |
+          set -eu
+          docker buildx imagetools create --tag "$LATEST_IMAGE" "$VERIFIED_IMAGE"
+
+      - name: Verify promoted latest manifest
+        if: steps.freshness.outputs.promote == 'true'
+        run: |
+          set -eu
+          docker buildx imagetools inspect "${REGISTRY}/${IMAGE_NAME}:latest" | tee /tmp/erin-erp-latest-manifest.txt
+          grep -q "linux/amd64" /tmp/erin-erp-latest-manifest.txt
+          grep -q "linux/arm64" /tmp/erin-erp-latest-manifest.txt
+
+      - name: Record released Host image version
+        if: steps.freshness.outputs.promote == 'true' && github.ref == 'refs/heads/main'
+        env:
+          RELEASE_SHA: ${{ github.sha }}
+        run: |
+          set -eu
+          git fetch origin main
+          if [ "$(git rev-parse origin/main)" != "$RELEASE_SHA" ]; then
+            echo "Main advanced before release recording; skip the stale marker."
+            exit 0
+          fi
           git checkout -B main origin/main
           published_at="$(date -u +%Y-%m-%dT%H:%M:%S.000Z)"
           mkdir -p src/generated
@@ -175,7 +213,14 @@ jobs:
           git commit -m "chore: record Host image $RELEASE_SHA [skip ci]"
           git push origin HEAD:main
 
-      - name: Show required package visibility setting
+      - name: Show published Host image
+        if: steps.freshness.outputs.promote == 'true'
         run: |
-          echo "Image published: ghcr.io/${IMAGE_NAME}:latest"
-          echo "The GHCR package must be Public so customer Host installers can pull it anonymously."
+          echo "Verified image published: ghcr.io/${IMAGE_NAME}:latest"
+          echo "The GHCR package must be Public so customer manual Host installers can pull it anonymously."
+
+      - name: Show superseded candidate result
+        if: steps.freshness.outputs.promote != 'true'
+        run: |
+          echo "Candidate passed manifest and Apple Silicon startup tests but was superseded by a newer main commit."
+          echo "The newer queued workflow will be responsible for promoting latest."
