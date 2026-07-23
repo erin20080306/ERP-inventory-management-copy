@@ -37,6 +37,46 @@ function isStableInstall(bundle) {
   return realBundle.startsWith("/Applications/") || realBundle.startsWith(`${homeApplications}/`);
 }
 
+function hostFilesPresent(directory) {
+  return fs.existsSync(path.join(directory, ".env.local"))
+    && fs.existsSync(path.join(directory, "docker-compose.local.yml"));
+}
+
+function ensureWindowsHostPathCompatibility() {
+  if (process.platform !== "win32") return "not-windows";
+
+  const userProfileRoot = process.env.USERPROFILE || app.getPath("home");
+  const localAppDataRoot = process.env.LOCALAPPDATA || app.getPath("userData");
+  const userProfileHost = path.join(userProfileRoot, "ErinERP");
+  const localAppDataHost = path.join(localAppDataRoot, "ErinERP");
+  const userProfileReady = hostFilesPresent(userProfileHost);
+  const localAppDataReady = hostFilesPresent(localAppDataHost);
+
+  if (userProfileReady && localAppDataReady) {
+    try {
+      if (fs.realpathSync(userProfileHost) === fs.realpathSync(localAppDataHost)) return "already-linked";
+    } catch {}
+    log("Windows Host paths both contain installations; keeping both:", `${userProfileHost} | ${localAppDataHost}`);
+    return "both-present";
+  }
+
+  if (userProfileReady && !fs.existsSync(localAppDataHost)) {
+    fs.mkdirSync(path.dirname(localAppDataHost), { recursive: true });
+    fs.symlinkSync(userProfileHost, localAppDataHost, "junction");
+    log("linked Windows Host compatibility path:", `${localAppDataHost} -> ${userProfileHost}`);
+    return "linked-localappdata-to-userprofile";
+  }
+
+  if (localAppDataReady && !fs.existsSync(userProfileHost)) {
+    fs.mkdirSync(path.dirname(userProfileHost), { recursive: true });
+    fs.symlinkSync(localAppDataHost, userProfileHost, "junction");
+    log("linked Windows Host compatibility path:", `${userProfileHost} -> ${localAppDataHost}`);
+    return "linked-userprofile-to-localappdata";
+  }
+
+  return "not-installed";
+}
+
 function adHocSign(bundle) {
   if (!bundle || !fs.existsSync(bundle)) return false;
   const result = run("/usr/bin/codesign", [
@@ -80,7 +120,7 @@ function installFromDownloadedLocation(source) {
   const verify = run("/usr/bin/codesign", ["--verify", "--deep", "--strict", target], 60_000);
   if (verify.error || verify.status !== 0) adHocSign(target);
 
-  log("v1.0.7 app installed:", target);
+  log("v1.0.8 app installed:", target);
   const child = spawn("/usr/bin/open", ["-n", target], {
     detached: true,
     stdio: "ignore",
@@ -141,6 +181,11 @@ async function start() {
   } catch (error) {
     log("workstation signing identity repair failed:", error?.message || String(error));
   }
+  try {
+    ensureWindowsHostPathCompatibility();
+  } catch (error) {
+    log("Windows Host path compatibility repair failed:", error?.message || String(error));
+  }
   scheduleUpdaterRepair();
 
   const bundle = macBundle();
@@ -149,7 +194,7 @@ async function start() {
       installFromDownloadedLocation(bundle);
       return;
     } catch (error) {
-      log("v1.0.7 installation failed:", error?.message || String(error));
+      log("v1.0.8 installation failed:", error?.message || String(error));
     }
   }
 
@@ -164,6 +209,6 @@ async function start() {
 }
 
 void start().catch((error) => {
-  log("v1.0.7 bootstrap failed:", error?.message || String(error));
+  log("v1.0.8 bootstrap failed:", error?.message || String(error));
   require("./v106-bootstrap.cjs");
 });
