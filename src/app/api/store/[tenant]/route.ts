@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { ApiError, apiHandler, getClientInfo } from "@/lib/api";
 import { planCommerceStockAllocations } from "@/lib/commerce-checkout";
@@ -296,18 +297,25 @@ export const POST = apiHandler(async (req: NextRequest, { params }: { params: { 
       select: { id: true, number: true, createdAt: true, total: true },
     });
 
-    for (const allocation of stockPlan.allocations) {
-      const changed = await tx.inventoryStock.updateMany({
-        where: {
-          id: allocation.stockId,
-          tenantId: tenant.id,
-          productId: allocation.productId,
-          warehouseId: allocation.warehouseId,
-          quantity: { gte: allocation.quantity },
-        },
-        data: { quantity: { decrement: allocation.quantity } },
-      });
-      if (changed.count !== 1) throw new ApiError(409, "庫存剛被其他交易更新，請重新確認購物車後再結帳");
+    if (stockPlan.allocations.length > 0) {
+      const requestedRows = stockPlan.allocations.map((allocation) => Prisma.sql`(${allocation.stockId}, ${allocation.productId}, ${allocation.warehouseId}, ${allocation.quantity}::numeric)`);
+      const updated = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+        WITH requested("stockId", "productId", "warehouseId", "quantity") AS (
+          VALUES ${Prisma.join(requestedRows)}
+        )
+        UPDATE "InventoryStock" AS stock
+        SET "quantity" = stock."quantity" - requested."quantity"
+        FROM requested
+        WHERE stock."id" = requested."stockId"
+          AND stock."tenantId" = ${tenant.id}
+          AND stock."productId" = requested."productId"
+          AND stock."warehouseId" = requested."warehouseId"
+          AND stock."quantity" >= requested."quantity"
+        RETURNING stock."id"
+      `);
+      if (updated.length !== stockPlan.allocations.length) {
+        throw new ApiError(409, "庫存剛被其他交易更新，請重新確認購物車後再結帳");
+      }
     }
     await tx.inventoryTransaction.createMany({
       data: stockPlan.allocations.map((allocation) => ({

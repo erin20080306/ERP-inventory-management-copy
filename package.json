@@ -52,7 +52,8 @@
     "release:upload-private": "node scripts/upload-private-installers.mjs",
     "db:seed": "tsx prisma/seed.ts",
     "db:demo": "tsx scripts/create-local-demo-accounts.ts",
-    "db:reset": "prisma migrate reset --force"
+    "db:reset": "prisma migrate reset --force",
+    "test:speed": "node scripts/verify-speed-patch.mjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

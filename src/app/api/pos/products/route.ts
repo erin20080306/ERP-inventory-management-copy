@@ -75,7 +75,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
     },
     select,
     orderBy: [{ name: "asc" }, { sku: "asc" }],
-    take: 80,
+    take: query ? 80 : 500,
   });
-  return NextResponse.json({ items: products.map(serializeProduct) });
+  return NextResponse.json({ items: products.map(serializeProduct) }, { headers: { "Cache-Control": "private, max-age=15, stale-while-revalidate=30" } });
 });

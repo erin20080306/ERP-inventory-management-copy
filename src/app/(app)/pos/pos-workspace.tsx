@@ -50,6 +50,26 @@ type ShiftSummary = {
 
 const CASH_MOVEMENT_LABELS = { PAID_IN: "投入現金", PAID_OUT: "提出現金", SAFE_DROP: "營業中抽離／入庫" } as const;
 const OPERATION_STATUS_LABELS: Record<string, string> = { PENDING: "待主管核准", APPROVED: "已核准", REJECTED: "已拒絕", CANCELLED: "已取消" };
+const POS_PRODUCT_CACHE_TTL_MS = 60_000;
+
+function readCachedPosProducts(warehouseId: string): Product[] | null {
+  try {
+    const raw = window.sessionStorage.getItem(`erin-pos-products:${warehouseId}`);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed.items) || Date.now() - Number(parsed.savedAt || 0) > POS_PRODUCT_CACHE_TTL_MS) return null;
+    return parsed.items as Product[];
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedPosProducts(warehouseId: string, items: Product[]) {
+  try {
+    window.sessionStorage.setItem(`erin-pos-products:${warehouseId}`, JSON.stringify({ savedAt: Date.now(), items }));
+  } catch {}
+}
+
 
 export function PosWorkspace() {
   const { data: activeSession } = useSession();
@@ -138,13 +158,26 @@ export function PosWorkspace() {
       return;
     }
     productRequestKeyRef.current = `${activeShift.id}:`;
-    const params = new URLSearchParams({ warehouseId: activeShift.register.warehouseId });
-    const res = await fetch(`/api/pos/products?${params}`, { cache: "no-store" });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "商品載入失敗");
-    setProducts(data.items ?? []);
-  }, []);
+    const warehouseId = activeShift.register.warehouseId;
+    const cached = readCachedPosProducts(warehouseId);
+    if (cached) setProducts(cached);
 
+    const params = new URLSearchParams({ warehouseId });
+    const request = fetch(`/api/pos/products?${params}`, { cache: "no-store" })
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "商品載入失敗");
+        const items = data.items ?? [];
+        setProducts(items);
+        writeCachedPosProducts(warehouseId, items);
+      });
+
+    if (cached) {
+      void request.catch(() => toast.error("商品資料更新失敗，暫時使用本機快取"));
+      return;
+    }
+    await request;
+  }, []);
   const loadCustomers = useCallback(async (value = "") => {
     customerRequestKeyRef.current = value.trim().toLowerCase();
     const params = new URLSearchParams();
@@ -230,28 +263,6 @@ export function PosWorkspace() {
   }, [loadBootstrap, loadCustomers, loadOffers, loadOperations, loadProducts]);
 
   useEffect(() => { void refresh(); }, [refresh]);
-
-  useEffect(() => {
-    if (!shift) return;
-    const requestKey = `${shift.id}:${query.trim().toLowerCase()}`;
-    if (productRequestKeyRef.current === requestKey) return;
-    productRequestKeyRef.current = requestKey;
-    const timer = window.setTimeout(() => {
-      const params = new URLSearchParams({ warehouseId: shift.register.warehouseId });
-      if (query.trim()) params.set("q", query.trim());
-      void fetch(`/api/pos/products?${params}`, { cache: "no-store" })
-        .then(async (res) => {
-          const data = await res.json();
-          if (!res.ok) throw new Error(data.error || "商品搜尋失敗");
-          setProducts(data.items ?? []);
-        })
-        .catch((error) => {
-          if (productRequestKeyRef.current === requestKey) productRequestKeyRef.current = "";
-          toast.error(error.message);
-        });
-    }, query.trim() ? 250 : 0);
-    return () => window.clearTimeout(timer);
-  }, [query, shift]);
 
   useEffect(() => {
     if (!shift) return;
@@ -419,7 +430,7 @@ export function PosWorkspace() {
     if (!shift || !autosaveReadyRef.current) return;
     const payload = currentCartPayload();
     // localStorage is synchronous: preserve the latest edit before waiting for the
-    // server debounce, so a power loss inside the next 700 ms cannot drop it.
+    // server debounce; localStorage protects every edit immediately, while remote sync is intentionally less frequent.
     persistLocalCart(payload);
     const timer = window.setTimeout(() => {
       // Vercel 延遲可能高於 debounce。所有 PUT 必須串行，後一筆開始時才讀
@@ -466,7 +477,7 @@ export function PosWorkspace() {
           }
         })
         .catch((error) => { toast.error(`停電復原保護：已保存在本機，但伺服器同步失敗（${error.message}）`); });
-    }, 700);
+    }, 3_000);
     return () => window.clearTimeout(timer);
   }, [appliedCoupon, cart, couponCode, discountApproval, discountReason, invoiceBuyerTaxId, invoiceCarrierId, invoiceDonationCode, invoiceMode, paymentLines, pendingExchange, redeemPoints, selectedCustomerId, shift]);
 

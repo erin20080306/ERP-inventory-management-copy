@@ -94,6 +94,26 @@ const money = (amount: number) => new Intl.NumberFormat("zh-TW", {
   maximumFractionDigits: 0,
 }).format(amount);
 const ACTIVE = new Set(["OPEN", "SENT", "PREPARING", "READY"]);
+const RESTAURANT_BOOTSTRAP_CACHE_TTL_MS = 15_000;
+
+function readRestaurantBootstrapCache(): Bootstrap | null {
+  try {
+    const raw = window.sessionStorage.getItem("erin-restaurant-front-bootstrap");
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed.data || Date.now() - Number(parsed.savedAt || 0) > RESTAURANT_BOOTSTRAP_CACHE_TTL_MS) return null;
+    return parsed.data as Bootstrap;
+  } catch {
+    return null;
+  }
+}
+
+function writeRestaurantBootstrapCache(data: Bootstrap) {
+  try {
+    window.sessionStorage.setItem("erin-restaurant-front-bootstrap", JSON.stringify({ savedAt: Date.now(), data }));
+  } catch {}
+}
+
 
 export function RestaurantWorkspace({ kitchenOnly = false, canManageTables = false }: {
   kitchenOnly?: boolean;
@@ -121,19 +141,25 @@ export function RestaurantWorkspace({ kitchenOnly = false, canManageTables = fal
   const allowTableManagement = canManageTables || sessionPermissions.includes("*") || sessionPermissions.includes("restaurant.manage");
 
   const load = useCallback(async () => {
+    const cached = kitchenOnly ? null : readRestaurantBootstrapCache();
+    if (cached) {
+      setData(cached);
+      setRegisterId((value) => value || cached.registers[0]?.id || "");
+      setLoading(false);
+    }
     try {
       const response = await fetch(`/api/pos/restaurant?view=${kitchenOnly ? "kitchen" : "front"}`, { cache: "no-store" });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "無法載入餐飲 POS");
       setData(result);
+      if (!kitchenOnly) writeRestaurantBootstrapCache(result);
       setRegisterId((value) => value || result.registers[0]?.id || "");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "無法載入餐飲 POS");
+      if (!cached) toast.error(error instanceof Error ? error.message : "無法載入餐飲 POS");
     } finally {
       setLoading(false);
     }
   }, [kitchenOnly]);
-
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {
     try {
@@ -337,10 +363,30 @@ export function RestaurantWorkspace({ kitchenOnly = false, canManageTables = fal
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "結帳失敗");
+      const completedOrderId = selectedOrder.id;
+      const completedTableId = selectedTable?.id;
+      const soldByProduct = new Map<string, number>();
+      for (const item of selectedOrder.items) {
+        if (item.status === "CANCELLED") continue;
+        soldByProduct.set(item.productId, (soldByProduct.get(item.productId) ?? 0) + Number(item.quantity));
+      }
+      setData((current) => current ? {
+        ...current,
+        products: current.products.map((product) => ({
+          ...product,
+          stockTotal: Math.max(0, product.stockTotal - (soldByProduct.get(product.id) ?? 0)),
+        })),
+        areas: current.areas.map((area) => ({
+          ...area,
+          tables: area.tables.map((table) => table.id === completedTableId
+            ? { ...table, status: "AVAILABLE", orders: table.orders.filter((order) => order.id !== completedOrderId) }
+            : table),
+        })),
+      } : current);
       setLastSaleId(result.sale.id);
       setSelectedTableId("");
       toast.success(`結帳完成：${result.sale.number}`);
-      await load();
+      window.setTimeout(() => void load(), 1_200);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "結帳失敗");
     } finally {
