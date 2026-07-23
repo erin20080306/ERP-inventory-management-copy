@@ -17,8 +17,12 @@ jobs:
       - uses: actions/checkout@v4
       - name: Apply speed patch
         run: node scripts/apply-speed-optimizations.mjs
+      - name: Normalize speed test command
+        run: |
+          node -e 'const fs=require("fs");const p=JSON.parse(fs.readFileSync("package.json","utf8"));p.scripts["test:speed"]="node scripts/verify-speed-patch.mjs";fs.writeFileSync("package.json",JSON.stringify(p,null,2)+"\n")'
+          rm -f scripts/verify-speed-optimizations.mjs
       - name: Verify speed safeguards
-        run: node scripts/verify-speed-optimizations.mjs
+        run: node scripts/verify-speed-patch.mjs
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -36,6 +40,6 @@ jobs:
           fi
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add src/app package.json scripts/verify-speed-optimizations.mjs .github/workflows/release-desktop.yml
+          git add src/app package.json .github/workflows/release-desktop.yml
           git commit -m "perf: speed up POS restaurant and storefront operations"
           git push origin HEAD:main
