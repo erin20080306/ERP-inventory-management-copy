@@ -15,15 +15,15 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+      - name: Apply speed patch
+        run: node scripts/apply-speed-optimizations.mjs
+      - name: Verify speed safeguards
+        run: node scripts/verify-speed-optimizations.mjs
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
       - run: npm ci
-      - name: Apply speed patch
-        run: node scripts/apply-speed-optimizations.mjs
-      - name: Verify speed safeguards
-        run: npm run test:speed
       - name: TypeScript check
         run: npx tsc --noEmit
       - name: Check patch formatting
