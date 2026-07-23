@@ -7,7 +7,7 @@
   "scripts": {
     "generate:host-installers": "node scripts/generate-embedded-host-installers.mjs",
     "predev": "npm run generate:host-installers",
-    "prebuild": "npm run generate:host-installers",
+    "prebuild": "npm run generate:host-installers && node scripts/deploy-vercel-migrations.mjs",
     "dev": "next dev",
     "build": "prisma generate && next build",
     "start": "next start",
