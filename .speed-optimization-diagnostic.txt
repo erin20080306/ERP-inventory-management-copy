@@ -1,0 +1,13 @@
+PASS: POS 商品 sessionStorage 快取
+file:///home/runner/work/ERP-inventory-management-copy/ERP-inventory-management-copy/scripts/verify-speed-patch.mjs:9
+  if (!condition) throw new Error(`速度防護失敗：${name}`);
+                        ^
+
+Error: 速度防護失敗：POS 商品搜尋不再每次呼叫 API
+    at check (file:///home/runner/work/ERP-inventory-management-copy/ERP-inventory-management-copy/scripts/verify-speed-patch.mjs:9:25)
+    at file:///home/runner/work/ERP-inventory-management-copy/ERP-inventory-management-copy/scripts/verify-speed-patch.mjs:14:1
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)
+
+Node.js v22.23.1
