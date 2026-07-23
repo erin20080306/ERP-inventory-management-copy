@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Building2, Calculator, Package, ScanBarcode, Shield, Store, UtensilsCrossed } from "lucide-react";
+import { ArrowUpRight, Building2, Calculator, ClipboardList, Package, PackageCheck, ScanBarcode, Shield, ShoppingCart, Store, UtensilsCrossed } from "lucide-react";
 import { getSession } from "@/lib/api";
 import { hasPermission } from "@/lib/auth";
 import { getProductEdition, normalizeBusinessMode } from "@/lib/product-editions";
@@ -62,6 +62,26 @@ export default async function WorkspacePage() {
         </div>
       </section>
 
+      {mode === "ECOMMERCE" && (
+        <section className="overflow-hidden rounded-3xl border border-rose-200 bg-gradient-to-br from-rose-50 via-white to-amber-50 shadow-sm">
+          <div className="flex flex-col justify-between gap-4 border-b border-rose-100 p-6 md:flex-row md:items-center">
+            <div>
+              <div className="text-xs font-bold uppercase tracking-[.2em] text-rose-600">同一試用租戶・雙視角操作</div>
+              <h2 className="mt-2 text-xl font-black text-slate-900">從消費者結帳，到 ERP 接單與出貨</h2>
+              <p className="mt-2 text-sm leading-6 text-slate-600">商城與後台共用公司代碼 <span className="font-mono font-semibold text-rose-700">{storefrontCode}</span>，訂單、客戶與可售庫存會寫入目前這個租戶。</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Link href={`/store/${encodeURIComponent(storefrontCode)}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-3 text-sm font-bold text-white hover:bg-slate-800">開啟消費者商城 <ArrowUpRight className="h-4 w-4" /></Link>
+              <Link href="/sales" className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-white px-4 py-3 text-sm font-bold text-rose-700 hover:bg-rose-50">查看 ERP 網路訂單 <ClipboardList className="h-4 w-4" /></Link>
+            </div>
+          </div>
+          <div className="grid gap-px bg-rose-100 md:grid-cols-3">
+            <div className="bg-white/90 p-5"><div className="flex items-center gap-2 text-sm font-bold text-slate-900"><ShoppingCart className="h-4 w-4 text-rose-600" />1．模擬一般消費者</div><p className="mt-2 text-xs leading-5 text-slate-600">另開商城、加入商品並送出訂單；試用不會完成真實金流扣款。</p></div>
+            <div className="bg-white/90 p-5"><div className="flex items-center gap-2 text-sm font-bold text-slate-900"><ClipboardList className="h-4 w-4 text-indigo-600" />2．回 ERP 接單</div><p className="mt-2 text-xs leading-5 text-slate-600">在銷售管理看到標示 [WEB] 的新訂單與自動建立／合併的客戶資料。</p></div>
+            <div className="bg-white/90 p-5"><div className="flex items-center gap-2 text-sm font-bold text-slate-900"><PackageCheck className="h-4 w-4 text-emerald-600" />3．核准與出貨</div><p className="mt-2 text-xs leading-5 text-slate-600">待處理訂單會先保留可售量；完成出貨後才扣實體庫存並銜接應收與傳票。</p></div>
+          </div>
+        </section>
+      )}
       <section>
         <h2 className="text-lg font-bold">選擇工作區</h2>
         <p className="mt-1 text-sm text-muted-foreground">前台與後台分開操作，但交易資料會在同一家公司帳套同步。</p>

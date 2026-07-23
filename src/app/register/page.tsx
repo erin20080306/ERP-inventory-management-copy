@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { toast } from "sonner";
 import { signIn } from "next-auth/react";
-import { Loader2, UserPlus, Building2, Store, UtensilsCrossed } from "lucide-react";
+import { Loader2, UserPlus, Building2, ShoppingBag, Store, UtensilsCrossed } from "lucide-react";
 import Link from "next/link";
 import type { BusinessMode } from "@/lib/product-editions";
 
@@ -30,6 +30,7 @@ export default function RegisterPage() {
     const mode = new URLSearchParams(window.location.search).get("mode");
     if (mode === "POS" || mode === "POS_RETAIL") setBusinessMode("POS_RETAIL");
     if (mode === "POS_RESTAURANT") setBusinessMode("POS_RESTAURANT");
+    if (mode === "ECOMMERCE") setBusinessMode("ECOMMERCE");
   }, []);
 
   async function onSubmit(e: React.FormEvent) {
@@ -111,13 +112,20 @@ export default function RegisterPage() {
           <form onSubmit={onSubmit} className="space-y-4">
             <fieldset className="space-y-2">
               <legend className="text-slate-300 text-xs mb-2">使用模式</legend>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <button
                   type="button"
                   onClick={() => setBusinessMode("ERP")}
                   className={`h-16 rounded-xl border flex items-center justify-center gap-2 text-sm transition ${businessMode === "ERP" ? "border-indigo-400 bg-indigo-500/20 text-white" : "border-white/10 bg-white/5 text-slate-400 hover:bg-white/10"}`}
                 >
                   <Building2 className="h-4 w-4" />一般企業 ERP
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBusinessMode("ECOMMERCE")}
+                  className={`h-16 rounded-xl border flex items-center justify-center gap-2 text-sm transition ${businessMode === "ECOMMERCE" ? "border-rose-400 bg-rose-500/20 text-white" : "border-white/10 bg-white/5 text-slate-400 hover:bg-white/10"}`}
+                >
+                  <ShoppingBag className="h-4 w-4" />電商商城＋ERP
                 </button>
                 <button
                   type="button"
@@ -141,7 +149,7 @@ export default function RegisterPage() {
               <Input
                 id="companyName"
                 className="h-11 bg-white/5 border-white/10 text-white placeholder:text-slate-500 focus-visible:ring-indigo-400/40"
-                placeholder={businessMode === "POS_RESTAURANT" ? "例如：艾琳小館" : businessMode === "POS_RETAIL" ? "例如：艾琳生活選物店" : "例如：艾琳設計有限公司"}
+                placeholder={businessMode === "POS_RESTAURANT" ? "例如：艾琳小館" : businessMode === "POS_RETAIL" ? "例如：艾琳生活選物店" : businessMode === "ECOMMERCE" ? "例如：艾琳服飾品牌" : "例如：艾琳設計有限公司"}
                 value={companyName}
                 onChange={(e) => setCompanyName(e.target.value)}
                 required

@@ -1,4 +1,4 @@
-type BusinessMode = "ERP" | "POS_RETAIL" | "POS_RESTAURANT";
+type BusinessMode = "ERP" | "POS_RETAIL" | "POS_RESTAURANT" | "ECOMMERCE";
 
 type BaselineProduct = {
   categoryCode: string;
@@ -25,6 +25,14 @@ const RETAIL_PRODUCTS: BaselineProduct[] = [
   { categoryCode: "RETAIL-DEMO", categoryName: "門市熱銷商品", sku: "RTL-P003", barcode: "4712000000038", name: "木質調香氛蠟燭", cost: 160, price: 360, quantity: 28, safetyStock: 6 },
 ];
 
+const COMMERCE_PRODUCTS: BaselineProduct[] = [
+  { categoryCode: "EC-TOP", categoryName: "上身", sku: "EC-P001", barcode: "4713000000013", name: "雲感落肩襯衫", cost: 720, price: 1_680, quantity: 18, safetyStock: 5, imageUrl: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=900&q=82" },
+  { categoryCode: "EC-BOTTOM", categoryName: "下身", sku: "EC-P002", barcode: "4713000000020", name: "輪廓打褶寬褲", cost: 980, price: 2_280, quantity: 12, safetyStock: 4, imageUrl: "https://images.unsplash.com/photo-1506629082955-511b1aa562c8?auto=format&fit=crop&w=900&q=82" },
+  { categoryCode: "EC-KNIT", categoryName: "針織", sku: "EC-P003", barcode: "4713000000037", name: "日常織紋針織衫", cost: 760, price: 1_880, quantity: 24, safetyStock: 6, imageUrl: "https://images.unsplash.com/photo-1576566588028-4147f3842f27?auto=format&fit=crop&w=900&q=82" },
+  { categoryCode: "EC-ACC", categoryName: "配件", sku: "EC-P004", barcode: "4713000000044", name: "方形皮革肩背包", cost: 1_120, price: 2_680, quantity: 12, safetyStock: 4, imageUrl: "https://images.unsplash.com/photo-1559563458-527698bf5295?auto=format&fit=crop&w=900&q=82" },
+  { categoryCode: "EC-DRESS", categoryName: "洋裝", sku: "EC-P005", barcode: "4713000000051", name: "亞麻混紡長洋裝", cost: 1_280, price: 2_980, quantity: 9, safetyStock: 3, imageUrl: "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=900&q=82" },
+  { categoryCode: "EC-SHOES", categoryName: "鞋履", sku: "EC-P006", barcode: "4713000000068", name: "極簡皮革休閒鞋", cost: 1_450, price: 3_280, quantity: 15, safetyStock: 4, imageUrl: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=900&q=82" },
+];
 const RESTAURANT_PRODUCTS: BaselineProduct[] = [
   { categoryCode: "MEAL", categoryName: "主餐", sku: "F001", name: "經典牛肉漢堡", cost: 80, price: 220, quantity: 60, safetyStock: 10, imageUrl: "/demo-products/burger.svg" },
   { categoryCode: "MEAL", categoryName: "主餐", sku: "F002", name: "香蒜奶油義大利麵", cost: 65, price: 190, quantity: 60, safetyStock: 10, imageUrl: "/demo-products/pasta.svg" },
@@ -35,6 +43,7 @@ const RESTAURANT_PRODUCTS: BaselineProduct[] = [
 ];
 
 function normalizedMode(value: string | null | undefined): BusinessMode {
+  if (value === "ECOMMERCE") return "ECOMMERCE";
   if (value === "POS_RESTAURANT") return "POS_RESTAURANT";
   if (value === "POS_RETAIL" || value === "POS") return "POS_RETAIL";
   return "ERP";
@@ -56,6 +65,7 @@ export async function seedOperationalBaseline(tx: any, input: {
   const includeErp = input.isInternal || mode === "ERP";
   const includeRetail = input.isInternal || mode === "POS_RETAIL";
   const includeRestaurant = input.isInternal || mode === "POS_RESTAURANT";
+  const includeCommerce = input.isInternal || mode === "ECOMMERCE";
 
   const tax = await tx.taxRate.findUnique({
     where: { tenantId_code: { tenantId: input.tenantId, code: "VAT5" } },
@@ -64,13 +74,13 @@ export async function seedOperationalBaseline(tx: any, input: {
   const unit = await tx.productUnit.upsert({
     where: { tenantId_code: { tenantId: input.tenantId, code: "PCS" } },
     update: {},
-    create: { tenantId: input.tenantId, code: "PCS", name: includeRestaurant && !includeErp && !includeRetail ? "份" : "個" },
+    create: { tenantId: input.tenantId, code: "PCS", name: includeRestaurant && !includeErp && !includeRetail && !includeCommerce ? "份" : "個" },
   });
 
   await tx.warehouse.upsert({
     where: { tenantId_code: { tenantId: input.tenantId, code: "WH02" } },
     update: {},
-    create: { tenantId: input.tenantId, code: "WH02", name: includeRetail || includeRestaurant ? "門市備用倉" : "備用倉庫" },
+    create: { tenantId: input.tenantId, code: "WH02", name: includeCommerce ? "電商備貨倉" : includeRetail || includeRestaurant ? "門市備用倉" : "備用倉庫" },
   });
   const customer = await tx.customer.upsert({
     where: { tenantId_code: { tenantId: input.tenantId, code: "C001" } },
@@ -78,13 +88,13 @@ export async function seedOperationalBaseline(tx: any, input: {
     create: {
       tenantId: input.tenantId,
       code: "C001",
-      companyName: includeRetail || includeRestaurant ? "示範會員－王小姐" : "範例客戶有限公司",
+      companyName: includeCommerce ? "示範網路會員－王小姐" : includeRetail || includeRestaurant ? "示範會員－王小姐" : "範例客戶有限公司",
       contactName: "王小姐",
       phone: "0912-345-678",
       email: "demo-customer@example.com",
       paymentTerms: "月結 30 天",
-      loyaltyPoints: includeRetail || includeRestaurant ? 120 : 0,
-      loyaltyTier: includeRetail || includeRestaurant ? "GOLD" : "STANDARD",
+      loyaltyPoints: includeRetail || includeRestaurant || includeCommerce ? 120 : 0,
+      loyaltyTier: includeRetail || includeRestaurant || includeCommerce ? "GOLD" : "STANDARD",
       remark: "系統基礎資料，可自行修改或刪除",
     },
   });
@@ -117,6 +127,7 @@ export async function seedOperationalBaseline(tx: any, input: {
     ...(includeErp ? ERP_PRODUCTS : []),
     ...(includeRetail ? RETAIL_PRODUCTS : []),
     ...(includeRestaurant ? RESTAURANT_PRODUCTS : []),
+    ...(includeCommerce ? COMMERCE_PRODUCTS : []),
   ];
 
   const categoryDefinitions = Array.from(
@@ -268,7 +279,7 @@ export async function seedOperationalBaseline(tx: any, input: {
     }
   }
 
-  if (includeRetail || includeRestaurant) {
+  if (includeRetail || includeRestaurant || includeCommerce) {
     await tx.posPromotion.upsert({
       where: { tenantId_code: { tenantId: input.tenantId, code: "WELCOME10" } },
       update: { isActive: true },

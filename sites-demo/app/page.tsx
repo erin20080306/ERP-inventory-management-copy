@@ -1,9 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
 
 type StoreView = "home" | "member" | "orders";
 type CartLine = { id: string; name: string; price: number; image: string; qty: number; meta: string };
+type DemoOrder = {
+  id: string;
+  createdAt: string;
+  status: string;
+  total: number;
+  customer: string;
+  channel: string;
+  lines: CartLine[];
+};
 
 const apparel = [
   { id: "AN-101", name: "雲感落肩襯衫", price: 1680, meta: "霧白 / M", stock: 18, badge: "本週新品", image: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=800&q=82" },
@@ -53,7 +62,7 @@ export default function Home() {
     setToast(`${item.name} 已加入購物車`);
   }
 
-  function updateLines(setter: React.Dispatch<React.SetStateAction<CartLine[]>>, id: string, delta: number) {
+  function updateLines(setter: Dispatch<SetStateAction<CartLine[]>>, id: string, delta: number) {
     setter((current) => current
       .map((line) => line.id === id ? { ...line, qty: line.qty + delta } : line)
       .filter((line) => line.qty > 0));
@@ -88,10 +97,26 @@ export default function Home() {
         total={cartTotal}
         update={(id, delta) => updateLines(setCart, id, delta)}
         checkout={() => {
+          const now = new Date();
+          const id = `EC${String(now.getFullYear()).slice(-2)}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}${String(now.getSeconds()).padStart(2, "0")}`;
+          const order: DemoOrder = {
+            id,
+            createdAt: now.toISOString(),
+            status: "已付款・待接單",
+            total: cartTotal,
+            customer: "王小美",
+            channel: "品牌官網",
+            lines: cart,
+          };
+          try {
+            const saved = window.localStorage.getItem("erin-commerce-demo-orders");
+            const current: DemoOrder[] = saved ? JSON.parse(saved) : [];
+            window.localStorage.setItem("erin-commerce-demo-orders", JSON.stringify([order, ...current].slice(0, 8)));
+          } catch {}
           setCart([]);
           setCartOpen(false);
           setStoreView("orders");
-          setToast("展示訂單已建立；不會寫入正式 ERP 或產生扣款");
+          setToast(`示範訂單 ${id} 已同步到租戶管理者 ERP 體驗頁（本裝置）`);
         }}
       />
       {toast && <div className="toast"><span>✓</span>{toast}</div>}
@@ -182,16 +207,31 @@ function MemberPanel({ setView }: { setView: (view: StoreView) => void }) {
 
 function OrdersPanel() {
   const [query, setQuery] = useState("");
+  const [demoOrders, setDemoOrders] = useState<DemoOrder[]>([]);
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem("erin-commerce-demo-orders");
+      setDemoOrders(saved ? JSON.parse(saved) : []);
+    } catch {}
+  }, []);
   const orders = [
-    { id: "EC2607231842", date: "2026/07/23 12:18", status: "已付款・待出貨", total: 3960, steps: 2 },
-    { id: "EC2607181042", date: "2026/07/18 16:30", status: "配送中", total: 3960, steps: 3 },
-    { id: "EC2607010821", date: "2026/07/01 12:12", status: "已完成", total: 2680, steps: 4 },
+    ...demoOrders.map((order) => ({
+      id: order.id,
+      date: new Intl.DateTimeFormat("zh-TW", { dateStyle: "short", timeStyle: "short" }).format(new Date(order.createdAt)),
+      status: order.status,
+      total: order.total,
+      steps: 2,
+      items: order.lines.reduce((sum, line) => sum + line.qty, 0),
+    })),
+    { id: "EC2607231842", date: "2026/07/23 12:18", status: "已付款・待出貨", total: 3960, steps: 2, items: 2 },
+    { id: "EC2607181042", date: "2026/07/18 16:30", status: "配送中", total: 3960, steps: 3, items: 2 },
+    { id: "EC2607010821", date: "2026/07/01 12:12", status: "已完成", total: 2680, steps: 4, items: 1 },
   ].filter((order) => !query || order.id.toLowerCase().includes(query.toLowerCase()));
   return (
     <main className="orders-page">
       <div className="page-heading"><span>TRACK YOUR ORDER</span><h1>訂單查詢</h1><p>網站訂單、門市取貨與 POS 交易集中在同一個會員中心。</p></div>
       <label className="order-search">⌕<input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="輸入訂單編號，例如 EC2607231842" /></label>
-      <div className="order-list">{orders.map((order) => <article key={order.id}><header><div><b>{order.id}</b><span>{order.date}</span></div><strong>{order.status}</strong></header><div className="order-main"><span>2 件商品・王小美</span><b>{formatMoney(order.total)}</b><button>查看明細 →</button></div><div className="order-progress">{["訂單成立","付款完成","理貨出貨","已送達"].map((step, index) => <span key={step} className={index < order.steps ? "done" : ""}><i />{step}</span>)}</div></article>)}</div>
+      <div className="order-list">{orders.map((order) => <article key={order.id}><header><div><b>{order.id}</b><span>{order.date}</span></div><strong>{order.status}</strong></header><div className="order-main"><span>{order.items} 件商品・王小美</span><b>{formatMoney(order.total)}</b><button>查看明細 →</button></div><div className="order-progress">{["訂單成立","付款完成","理貨出貨","已送達"].map((step, index) => <span key={step} className={index < order.steps ? "done" : ""}><i />{step}</span>)}</div></article>)}</div>
     </main>
   );
 }

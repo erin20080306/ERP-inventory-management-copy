@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { validateObjectForSQLInjection } from "@/lib/sql-validation";
+import { ensureTenantCompanyCode } from "@/lib/license";
 
 export async function POST(req: NextRequest) {
   try {
@@ -41,7 +42,9 @@ export async function POST(req: NextRequest) {
       ? "POS_RESTAURANT"
       : businessMode === "POS_RETAIL" || businessMode === "POS"
         ? "POS_RETAIL"
-        : "ERP";
+        : businessMode === "ECOMMERCE"
+          ? "ECOMMERCE"
+          : "ERP";
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0] || req.headers.get("x-real-ip") || "unknown";
 
     const sqlValidation = validateObjectForSQLInjection({ username: normalizedUsername, name: normalizedName, email: normalizedEmail, companyName: normalizedCompanyName });
@@ -120,6 +123,9 @@ export async function POST(req: NextRequest) {
       await tx.userRole.create({ data: { userId: user.id, roleId: adminRole.id } });
       return { tenant, user };
     });
+    const companyCode = normalizedMode === "ECOMMERCE"
+      ? await ensureTenantCompanyCode(result.tenant.id)
+      : null;
 
     return NextResponse.json(
       {
@@ -127,6 +133,8 @@ export async function POST(req: NextRequest) {
         username: result.user.username,
         email: result.user.email,
         initializationRequired: true,
+        companyCode,
+        storefrontPath: companyCode ? `/store/${companyCode}` : null,
       },
       { status: 201 },
     );

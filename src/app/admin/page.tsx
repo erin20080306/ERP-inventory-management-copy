@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { signOut, useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import {
@@ -394,33 +394,7 @@ function LicenseDialog({ tenant, onClose, onSaved }: { tenant: TenantRow; onClos
                 <div><button disabled={busy || !connectionLoaded} onClick={() => void saveConnectionOnly()} className="rounded-lg border border-sky-400/30 px-3 py-2 text-xs text-sky-200 hover:bg-sky-400/10 disabled:opacity-40">只儲存自動連線設定</button></div>
               </div>
             </div>
-            {mode === "ECOMMERCE" && (
-              <div className="mt-4 overflow-hidden rounded-xl border border-rose-400/20 bg-rose-400/5">
-                <div className="grid gap-4 p-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(260px,.65fr)] lg:items-center">
-                  <div>
-                    <div className="flex items-center gap-2 text-sm font-semibold text-rose-100"><Store className="h-4 w-4" />電商模式操作預覽</div>
-                    <p className="mt-2 text-xs leading-6 text-rose-100/90">
-                      消費者只使用品牌商城；租戶管理者從獨立登入頁進入商品、庫存、網路訂單、出貨、CRM 與報表。
-                    </p>
-                    <div className="mt-3 rounded-lg border border-rose-300/10 bg-slate-950/50 p-3 text-xs leading-5 text-slate-300">
-                      <strong className="text-white">商城產生方式：</strong>
-                      選擇電商模式並儲存後，系統會自動建立公司代碼與 <span className="font-mono text-sky-300">/store/公司代碼</span>。
-                      所有租戶共用同一套高速版型，但商品、庫存、客戶與訂單依租戶隔離；網頁結帳會寫入該租戶 ERP。
-                    </div>
-                  </div>
-                  <video
-                    controls
-                    preload="metadata"
-                    playsInline
-                    poster="/images/ecommerce-demo-cover.png"
-                    className="aspect-video w-full rounded-lg border border-white/10 bg-black object-cover shadow-2xl"
-                  >
-                    <source src="/videos/ecommerce-storefront-demo.webm" type="video/webm" />
-                    您的瀏覽器不支援影片播放。
-                  </video>
-                </div>
-              </div>
-            )}
+            <ModeDemoPreview mode={mode} companyCode={companyCode} />
             <div className="mt-5 rounded-xl border border-slate-800 bg-slate-950/70 p-4">
               <div className="flex items-center justify-between"><h3 className="text-sm font-semibold">已綁定主機與工作站</h3><span className="text-xs text-slate-500">工作站 {devices.filter((device) => !device.revokedAt && device.deviceRole === "WORKSTATION").length}/{tenant.license.seatLimit}・主機 {devices.filter((device) => !device.revokedAt && device.deviceRole === "SERVER").length}/1</span></div>
               <div className="mt-3 space-y-2">
@@ -435,6 +409,60 @@ function LicenseDialog({ tenant, onClose, onSaved }: { tenant: TenantRow; onClos
   );
 }
 
+function ModeDemoPreview({ mode, companyCode }: { mode: BusinessMode; companyCode: string }) {
+  const demos: Record<BusinessMode, { title: string; description: string; detail: ReactNode; video: string; poster: string; icon: typeof Store }> = {
+    ERP: {
+      title: "一般企業 ERP 操作示範",
+      description: "從商品與庫存，到採購、銷售、出貨、應收應付與會計傳票的完整流程。",
+      detail: <>租戶登入後只會看到獲授權的 ERP 模組；資料依公司隔離並由安裝於公司電腦的主機保存。</>,
+      video: "/videos/erp-demo.webm",
+      poster: "/images/demos/erp-demo.png",
+      icon: MonitorSmartphone,
+    },
+    ECOMMERCE: {
+      title: "電商商城＋ERP 雙視角示範",
+      description: "一般消費者在品牌商城下單；租戶管理者回到 ERP 接單、保留庫存、出貨並銜接帳務。",
+      detail: <>儲存後自動建立 <span className="font-mono text-sky-300">/store/{companyCode || "公司代碼"}</span>。租戶共用高速版型，但商品、客戶、庫存與訂單完全隔離。</>,
+      video: "/videos/ecommerce-erp-demo.webm",
+      poster: "/images/demos/ecommerce-erp-demo.png",
+      icon: Store,
+    },
+    POS_RETAIL: {
+      title: "零售 POS 操作示範",
+      description: "快速選品／掃碼、會員促銷、購物車、多元付款、暫存單、退換貨與日結。",
+      detail: <>POS 前台與 ERP 商品、庫存、會員及銷售資料使用同一租戶帳套，完成交易後可直接追蹤庫存與報表。</>,
+      video: "/videos/retail-pos-demo.webm",
+      poster: "/images/demos/retail-pos-demo.png",
+      icon: ShoppingBag,
+    },
+    POS_RESTAURANT: {
+      title: "餐飲 POS 操作示範",
+      description: "桌位狀態、圖片點餐、加點、送廚、廚房看板、出餐與桌位結帳。",
+      detail: <>以顏色區分桌況，點餐資訊同步廚房；結帳後連動租戶庫存、會員、營收與分析報表。</>,
+      video: "/videos/restaurant-pos-demo.webm",
+      poster: "/images/demos/restaurant-pos-demo.png",
+      icon: UtensilsCrossed,
+    },
+  };
+  const demo = demos[mode];
+  const Icon = demo.icon;
+  return (
+    <div className="mt-4 overflow-hidden rounded-xl border border-indigo-400/20 bg-indigo-400/5">
+      <div className="grid gap-4 p-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(300px,.8fr)] lg:items-center">
+        <div>
+          <div className="flex items-center gap-2 text-sm font-semibold text-indigo-100"><Icon className="h-4 w-4" />{demo.title}</div>
+          <p className="mt-2 text-xs leading-6 text-slate-300">{demo.description}</p>
+          <div className="mt-3 rounded-lg border border-white/10 bg-slate-950/50 p-3 text-xs leading-5 text-slate-300">{demo.detail}</div>
+          <p className="mt-3 text-[11px] text-slate-500">選擇模式即可觀看；正式開通後租戶管理者也能在自己的工作區查看對應操作入口。</p>
+        </div>
+        <video controls preload="metadata" playsInline poster={demo.poster} className="aspect-video w-full rounded-lg border border-white/10 bg-black object-cover shadow-2xl">
+          <source src={demo.video} type="video/webm" />
+          您的瀏覽器不支援影片播放。
+        </video>
+      </div>
+    </div>
+  );
+}
 function InquiryQueue({ rows, onChanged }: { rows: AdminData["inquiries"]; onChanged: () => Promise<void> }) {
   const [busyId, setBusyId] = useState<string | null>(null);
   async function mark(id: string, status: "CONTACTED" | "CLOSED") {

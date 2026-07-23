@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Building2, CheckCircle2, Download, FileArchive, Info, Laptop, Loader2, MonitorSmartphone, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Building2, CheckCircle2, Database, Download, FileArchive, HardDrive, Info, KeyRound, Laptop, Loader2, MonitorSmartphone, ShieldCheck } from "lucide-react";
 import { PLAN_CATALOG, formatTwd } from "@/lib/plans";
 
 type Installer = {
@@ -105,6 +105,15 @@ export default function AdminDownloadsPage() {
           <div className="flex items-start gap-3"><Info className="mt-0.5 h-5 w-5 shrink-0" /><div><div className="font-bold">安裝範例：1 對 2、兩台 Windows</div><div className="mt-1">第 1 台下載 Windows Host ZIP＋Windows Setup EXE；第 2 台只下載 Windows Setup EXE。兩台工作站共占 2 個授權席次。公司主機只選一台，不是 Windows Host 與 Mac Host 都安裝。</div></div></div>
         </section>
 
+        <section className="rounded-2xl border border-emerald-400/20 bg-emerald-400/5 p-5">
+          <div className="flex items-start gap-3"><ShieldCheck className="mt-0.5 h-7 w-7 shrink-0 text-emerald-300" /><div><h2 className="text-lg font-bold text-emerald-100">交付前必須向客戶說明：營運資料存於客戶公司主機</h2><p className="mt-1 text-sm leading-6 text-slate-300">商品、客戶、訂單、庫存與帳務資料位於客戶選定主機電腦的 PostgreSQL Docker volume；一般工作站不持有完整資料庫。中央僅保存授權、席次、公司代碼與簽章連線資料。</p></div></div>
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            <div className="rounded-xl bg-slate-950 p-4"><Database className="h-5 w-5 text-sky-300" /><div className="mt-2 text-sm font-bold">HTTPS 隔離</div><p className="mt-1 text-xs leading-5 text-slate-400">Caddy 為唯一工作站入口；Next.js 與 PostgreSQL 不直接暴露。</p></div>
+            <div className="rounded-xl bg-slate-950 p-4"><KeyRound className="h-5 w-5 text-amber-300" /><div className="mt-2 text-sm font-bold">短效租約＋裝置私鑰</div><p className="mt-1 text-xs leading-5 text-slate-400">中央簽章限制業態、公司、席次與到期時間，裝置請求另做防重播簽章。</p></div>
+            <div className="rounded-xl bg-slate-950 p-4"><HardDrive className="h-5 w-5 text-emerald-300" /><div className="mt-2 text-sm font-bold">備份與復原責任</div><p className="mt-1 text-xs leading-5 text-slate-400">確認第一份 AES-256-GCM 備份，並要求客戶將備份與復原金鑰分開異地保存。</p></div>
+          </div>
+          <div className="mt-4 rounded-xl border border-emerald-400/10 bg-slate-950/60 p-4 text-xs leading-6 text-slate-300"><strong className="text-white">標準安裝程序：</strong>選定公司主機 → 安裝 Docker Desktop → 執行 Host 安裝檔與啟用 → 安裝各工作站 → 輸入公司代碼與啟用碼 → 驗證 HTTPS、角色權限、備份與還原金鑰。</div>
+        </section>
         <section className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
           <div className="flex items-start gap-3"><Building2 className="mt-0.5 h-7 w-7 shrink-0 text-indigo-300" /><div><h2 className="text-lg font-bold">步驟 1：只選一個公司主機</h2><p className="mt-1 text-sm leading-6 text-slate-400">依公司固定主機的作業系統二選一。其他工作站電腦不要重複安裝 Host。</p></div></div>
           {release?.version ? <p className="mt-3 text-xs text-slate-500">封裝版本：{release.version}{release.generatedAt ? `・${new Date(release.generatedAt).toLocaleString("zh-TW")}` : ""}</p> : null}
