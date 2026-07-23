@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, Building2, Calculator, Check, Download, MonitorSmartphone, ScanLine, ShoppingBag, ShoppingCart, Store, UtensilsCrossed, Workflow } from "lucide-react";
+import { ArrowRight, Building2, Calculator, Check, Download, MonitorSmartphone, ScanLine, ShieldCheck, ShoppingBag, ShoppingCart, Store, UtensilsCrossed, Workflow } from "lucide-react";
 
 const solutions = [
   {
@@ -130,6 +130,28 @@ export default function SolutionsPage() {
                   </article>
                 );
               })}
+            </div>
+            <div className="mt-4 overflow-hidden rounded-2xl border border-emerald-300/20 bg-gradient-to-r from-emerald-400/10 via-slate-950/75 to-indigo-400/10 p-5 md:p-6">
+              <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                <div className="flex max-w-2xl items-start gap-4">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-emerald-300/25 bg-emerald-400/10 text-emerald-200">
+                    <ShieldCheck className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-300">本機安裝・資料主權</div>
+                    <h3 className="mt-2 text-xl font-black text-white">核心營運資料留在公司的電腦</h3>
+                    <p className="mt-2 text-sm leading-6 text-slate-300">正式版安裝在公司主機後，商品、客戶、庫存、訂單與帳務資料由公司自己的電腦與資料庫保存；中央平台只負責啟用碼、裝置席次、授權狀態與租期紀錄。</p>
+                  </div>
+                </div>
+                <ul className="grid shrink-0 gap-2 text-xs text-slate-200 sm:grid-cols-2 lg:w-[390px]">
+                  {["HTTPS 加密安全連線", "角色權限與操作稽核", "裝置簽章與授權驗證", "加密備份與復原保護"].map((point) => (
+                    <li key={point} className="flex items-center gap-2 rounded-xl border border-white/10 bg-slate-950/55 px-3 py-2.5">
+                      <Check className="h-3.5 w-3.5 shrink-0 text-emerald-300" />
+                      <span>{point}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
           </div>
         </section>
