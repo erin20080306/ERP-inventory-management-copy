@@ -25,7 +25,8 @@ permissions:
 
 concurrency:
   group: publish-host-container-image-${{ github.ref }}
-  cancel-in-progress: false
+  # main 有新提交時只建置最新映像，避免已過期候選映像占用約 30 分鐘。
+  cancel-in-progress: true
 
 env:
   REGISTRY: ghcr.io
