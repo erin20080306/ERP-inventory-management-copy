@@ -1,0 +1,2 @@
+src/lib/number-sequence.ts(78,22): error TS2347: Untyped function calls may not accept type arguments.
+src/lib/number-sequence.ts(87,39): error TS7006: Parameter 'row' implicitly has an 'any' type.
