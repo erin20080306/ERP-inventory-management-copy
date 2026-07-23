@@ -64,7 +64,7 @@ services:
   updater:
     build:
       context: ./updater
-    image: erin-erp-host-updater:1
+    image: erin-erp-host-updater:2
     restart: unless-stopped
     environment:
       HOME: /tmp
