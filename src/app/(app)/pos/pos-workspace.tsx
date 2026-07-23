@@ -106,7 +106,7 @@ export function PosWorkspace() {
   const [shiftPreview, setShiftPreview] = useState<ShiftSummary | null>(null);
   const [lastCloseSummary, setLastCloseSummary] = useState<ShiftSummary | null>(null);
   const [paymentLines, setPaymentLines] = useState<PaymentLine[]>([{ method: "CASH", amount: "", reference: "" }]);
-  const [lastReceipt, setLastReceipt] = useState<{ id: string; number: string; total: number; changeDue: number; electronicInvoice?: { provider: string; status: string; invoiceNumber?: string | null; lastError?: string | null } | null } | null>(null);
+  const [lastReceipt, setLastReceipt] = useState<{ id: string; number: string; total: number; changeDue: number; paymentSummary: string; electronicInvoice?: { provider: string; status: string; invoiceNumber?: string | null; lastError?: string | null } | null } | null>(null);
   const [invoiceMode, setInvoiceMode] = useState<InvoiceMode>("NONE");
   const [invoiceBuyerTaxId, setInvoiceBuyerTaxId] = useState("");
   const [invoiceCarrierId, setInvoiceCarrierId] = useState("");
@@ -852,13 +852,14 @@ export function PosWorkspace() {
       .map((payment) => ({ ...payment, amount: Number(payment.amount || 0), reference: payment.reference.trim() || null }))
       .filter((payment) => Number.isFinite(payment.amount) && payment.amount > 0);
     if (!payments.length || totalPaid < total) return toast.error("付款金額不足");
+    if (payments.some((payment) => payment.method === "CARD" && !payment.reference)) return toast.error("請先完成刷卡機交易，並輸入授權碼或卡號末四碼");
     if (totalPaid > total && !payments.some((payment) => payment.method === "CASH")) return toast.error("非現金付款不可超收找零");
     setBusy(true);
     try {
       if (!checkoutRequestIdRef.current) checkoutRequestIdRef.current = crypto.randomUUID();
       persistLocalCart(currentCartPayload(), checkoutRequestIdRef.current);
-      // 先等候已在途的草稿 PUT，避免交易完成後慢到的舊 PUT 重建已清除草稿。
-      await draftSaveQueueRef.current;
+      // 結帳不再等待慢速伺服器草稿；交易先送出，成功後再依序清理舊草稿。
+      const pendingDraftSave = draftSaveQueueRef.current.catch(() => undefined);
       autosaveReadyRef.current = false;
       const res = await fetch("/api/pos/checkout", {
         method: "POST",
@@ -893,7 +894,7 @@ export function PosWorkspace() {
         }
         throw new Error(data.error || "結帳失敗");
       }
-      setLastReceipt({ id: data.sale.id, number: data.sale.number, total: Number(data.sale.total), changeDue: Number(data.changeDue), electronicInvoice: data.sale.electronicInvoice ?? null });
+      setLastReceipt({ id: data.sale.id, number: data.sale.number, total: Number(data.sale.total), changeDue: Number(data.changeDue), paymentSummary: payments.map((payment) => `${payment.method}${payment.reference ? ` ${payment.reference}` : ""}`).join(" + "), electronicInvoice: data.sale.electronicInvoice ?? null });
       setCart([]);
       setPaymentLines([{ method: "CASH", amount: "", reference: "" }]);
       checkoutRequestIdRef.current = "";
@@ -912,10 +913,11 @@ export function PosWorkspace() {
       clearLocalPosDraft(window.localStorage, shift.id);
       draftRevisionRef.current = 0;
       setDraftProtection("NONE");
-      toast.success("交易完成，庫存與帳務已同步");
+      toast.success("收款完成；庫存、進銷存與帳務正在背景同步");
       // 使用者看到交易完成後立即可操作；清草稿及統計/庫存刷新在背景完成，
       // 且 silent refresh 不再把整個 POS 換成全頁 loading。
       void (async () => {
+        await pendingDraftSave;
         const draftRes = await fetch(`/api/pos/draft?shiftId=${encodeURIComponent(shift.id)}`, { method: "DELETE" });
         if (!draftRes.ok) throw new Error("伺服器草稿清除失敗");
         autosaveReadyRef.current = true;
@@ -1012,7 +1014,7 @@ return <div className="grid min-h-[60vh] animate-pulse gap-4 xl:grid-cols-[minma
 
       {lastReceipt && (
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-900 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-start gap-3"><CheckCircle2 className="h-5 w-5 mt-0.5" /><div className="text-sm"><div>交易 {lastReceipt.number} 完成 · {formatTwd(lastReceipt.total)} · 找零 {formatTwd(lastReceipt.changeDue)}</div>{lastReceipt.electronicInvoice && <div className="mt-1 text-xs">{lastReceipt.electronicInvoice.status === "ISSUED" ? `${lastReceipt.electronicInvoice.provider === "MOCK" ? "測試電子發票（不可報稅）" : "電子發票"}：${lastReceipt.electronicInvoice.invoiceNumber}` : `電子發票待處理：${lastReceipt.electronicInvoice.status}${lastReceipt.electronicInvoice.lastError ? `（${lastReceipt.electronicInvoice.lastError}）` : ""}`}</div>}</div></div>
+          <div className="flex items-start gap-3"><CheckCircle2 className="h-5 w-5 mt-0.5" /><div className="text-sm"><div>交易 {lastReceipt.number} 完成 · {formatTwd(lastReceipt.total)} · 找零 {formatTwd(lastReceipt.changeDue)}</div><div className="mt-1 text-xs font-medium">付款：{lastReceipt.paymentSummary} · ERP 背景同步中</div>{lastReceipt.electronicInvoice && <div className="mt-1 text-xs">{lastReceipt.electronicInvoice.status === "ISSUED" ? `${lastReceipt.electronicInvoice.provider === "MOCK" ? "測試電子發票（不可報稅）" : "電子發票"}：${lastReceipt.electronicInvoice.invoiceNumber}` : `電子發票待處理：${lastReceipt.electronicInvoice.status}${lastReceipt.electronicInvoice.lastError ? `（${lastReceipt.electronicInvoice.lastError}）` : ""}`}</div>}</div></div>
           <div className="flex items-center gap-2">
             <button onClick={() => window.open(`/print/pos/${lastReceipt.id}`, "_blank", "noopener,noreferrer")} className="h-9 px-3 rounded-lg border border-emerald-300 bg-white/80 hover:bg-white text-sm font-semibold inline-flex items-center gap-2"><Printer className="h-4 w-4" />列印 80mm 收據</button>
             <button onClick={() => setLastReceipt(null)} aria-label="關閉交易提示"><X className="h-4 w-4" /></button>
@@ -1130,7 +1132,7 @@ return <div className="grid min-h-[60vh] animate-pulse gap-4 xl:grid-cols-[minma
                     <input value={payment.amount} onChange={(event) => updatePayment(index, { amount: event.target.value })} inputMode="decimal" placeholder="收款金額" className="h-10 min-w-0 rounded-lg border bg-background px-3 text-right font-semibold" />
                     <button onClick={() => setPaymentLines((lines) => lines.filter((_, lineIndex) => lineIndex !== index))} disabled={paymentLines.length === 1} aria-label={`刪除第 ${index + 1} 筆付款`} className="h-10 w-9 rounded-lg border disabled:opacity-30"><X className="h-4 w-4 mx-auto" /></button>
                   </div>
-                  {payment.method !== "CASH" && <input value={payment.reference} onChange={(event) => updatePayment(index, { reference: event.target.value })} placeholder="交易序號／末四碼（選填）" className="h-9 w-full rounded-lg border bg-background px-3 text-xs" />}
+                  {payment.method !== "CASH" && <><input value={payment.reference} onChange={(event) => updatePayment(index, { reference: event.target.value })} placeholder={payment.method === "CARD" ? "刷卡授權碼／卡號末四碼（必填）" : "交易序號（選填）"} className="h-9 w-full rounded-lg border bg-background px-3 text-xs" />{payment.method === "CARD" && <div className="text-[11px] text-indigo-700">先在刷卡機完成感應／插卡，確認成功後輸入授權碼或末四碼，再按確認結帳。</div>}</>}
                 </div>
               ))}
             </div>

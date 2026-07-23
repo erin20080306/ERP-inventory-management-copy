@@ -1,10 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import {
   ArchiveRestore,
+  Banknote,
+  CheckCircle2,
   ChefHat,
   Clock3,
   CreditCard,
@@ -130,6 +132,13 @@ export function RestaurantWorkspace({ kitchenOnly = false, canManageTables = fal
   const [categoryId, setCategoryId] = useState("ALL");
   const [query, setQuery] = useState("");
   const [lastSaleId, setLastSaleId] = useState("");
+  const [lastPayment, setLastPayment] = useState<{ number: string; method: "CASH" | "CARD"; paidAmount: number; changeDue: number; reference?: string | null } | null>(null);
+  const [paymentDialog, setPaymentDialog] = useState<"CASH" | "CARD" | null>(null);
+  const [cashReceived, setCashReceived] = useState("");
+  const [cardReference, setCardReference] = useState("");
+  const [cardApproved, setCardApproved] = useState(false);
+  const checkoutRequestIdRef = useRef("");
+  const addQueueRef = useRef(new Map<string, { orderId: string; product: Product; queued: number; inFlight: boolean; timer: number | null }>());
   const [lastKitchenTicketId, setLastKitchenTicketId] = useState("");
   const [autoPrintKitchen, setAutoPrintKitchen] = useState(true);
   const [invoiceMode, setInvoiceMode] = useState<InvoiceMode>("NONE");
@@ -198,8 +207,8 @@ export function RestaurantWorkspace({ kitchenOnly = false, canManageTables = fal
     } : current);
   }
 
-  async function action(payload: Record<string, unknown>, success?: string, refresh = true) {
-    setBusy(true);
+  async function action(payload: Record<string, unknown>, success?: string, refresh = true, blocking = true) {
+    if (blocking) setBusy(true);
     try {
       const response = await fetch("/api/pos/restaurant", {
         method: "POST",
@@ -215,7 +224,7 @@ export function RestaurantWorkspace({ kitchenOnly = false, canManageTables = fal
       toast.error(error instanceof Error ? error.message : "操作失敗");
       return null;
     } finally {
-      setBusy(false);
+      if (blocking) setBusy(false);
     }
   }
 
@@ -244,26 +253,84 @@ export function RestaurantWorkspace({ kitchenOnly = false, canManageTables = fal
     } : current);
   }
 
-  async function addItem(product: Product) {
+  function addItem(product: Product) {
     if (!selectedOrder) return;
+    const orderId = selectedOrder.id;
+    const key = `${orderId}:${product.id}`;
+
+    updateOrderLocally(orderId, (order) => {
+      const existing = order.items.find((item) => item.productId === product.id && item.status === "PENDING");
+      if (existing) {
+        return {
+          ...order,
+          items: order.items.map((item) => item.id === existing.id
+            ? { ...item, quantity: Number(item.quantity) + 1 }
+            : item),
+        };
+      }
+      const optimistic: OrderItem = {
+        id: `optimistic:${key}`,
+        productId: product.id,
+        quantity: 1,
+        unitPrice: product.salePrice,
+        note: null,
+        status: "PENDING",
+        product,
+      };
+      return { ...order, items: [...order.items, optimistic] };
+    });
+
+    let queued = addQueueRef.current.get(key);
+    if (!queued) {
+      queued = { orderId, product, queued: 0, inFlight: false, timer: null };
+      addQueueRef.current.set(key, queued);
+    }
+    queued.queued += 1;
+    if (!queued.inFlight && queued.timer === null) {
+      queued.timer = window.setTimeout(() => void flushAddQueue(key), 60);
+    }
+  }
+
+  async function flushAddQueue(key: string) {
+    const queued = addQueueRef.current.get(key);
+    if (!queued || queued.inFlight || queued.queued <= 0) return;
+    queued.timer = null;
+    const quantity = queued.queued;
+    queued.queued = 0;
+    queued.inFlight = true;
+
     const result = await action({
       action: "ADD_ITEM",
-      orderId: selectedOrder.id,
-      productId: product.id,
-      quantity: 1,
+      orderId: queued.orderId,
+      productId: queued.product.id,
+      quantity,
       note: "",
-    }, undefined, false);
-    if (!result?.item) return;
+    }, undefined, false, false);
 
-    updateOrderLocally(selectedOrder.id, (order) => {
-      const exists = order.items.some((item) => item.id === result.item.id);
+    if (!result?.item) {
+      addQueueRef.current.delete(key);
+      await load();
+      return;
+    }
+
+    updateOrderLocally(queued.orderId, (order) => {
+      const current = order.items.find((item) => item.productId === queued.product.id && item.status === "PENDING");
+      if (!current) return order;
+      const shownQuantity = queued.queued > 0 ? Number(current.quantity) : Number(result.item.quantity);
       return {
         ...order,
-        items: exists
-          ? order.items.map((item) => item.id === result.item.id ? result.item : item)
-          : [...order.items, result.item],
+        items: order.items.map((item) => item.id === current.id
+          ? { ...result.item, quantity: shownQuantity }
+          : item),
       };
     });
+
+    queued.inFlight = false;
+    if (queued.queued > 0) {
+      queued.timer = window.setTimeout(() => void flushAddQueue(key), 40);
+    } else {
+      addQueueRef.current.delete(key);
+    }
   }
 
   async function updateItem(item: OrderItem, quantity: number) {
@@ -334,25 +401,35 @@ export function RestaurantWorkspace({ kitchenOnly = false, canManageTables = fal
     }
   }
 
-  async function checkout(method: "CASH" | "CARD") {
+  function openPaymentDialog(method: "CASH" | "CARD") {
+    setPaymentDialog(method);
+    setCashReceived("");
+    setCardReference("");
+    setCardApproved(false);
+  }
+
+  async function checkout(method: "CASH" | "CARD", tendered: number, reference?: string) {
     if (!data?.openShift || !selectedOrder || orderTotal <= 0) return;
     if (selectedOrder.items.some((item) => item.status === "PENDING")) {
       toast.error("請先把所有餐點送廚，再進行結帳");
       return;
     }
+    if (method === "CASH" && tendered < orderTotal) return toast.error("實收現金不足");
+    if (method === "CARD" && (!cardApproved || !reference?.trim())) return toast.error("請確認刷卡機已核准，並輸入授權碼或末四碼");
     setBusy(true);
     try {
+      if (!checkoutRequestIdRef.current) checkoutRequestIdRef.current = crypto.randomUUID();
       const response = await fetch("/api/pos/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          requestId: crypto.randomUUID(),
+          requestId: checkoutRequestIdRef.current,
           shiftId: data.openShift.id,
           restaurantOrderId: selectedOrder.id,
           items: selectedOrder.items
             .filter((item) => item.status !== "CANCELLED")
             .map((item) => ({ productId: item.productId, quantity: Number(item.quantity), discount: 0 })),
-          payments: [{ method, amount: orderTotal }],
+          payments: [{ method, amount: tendered, reference: reference?.trim() || null }],
           invoice: invoiceMode === "NONE" ? null : {
             mode: invoiceMode,
             buyerTaxId: invoiceBuyerTaxId.trim() || null,
@@ -362,7 +439,10 @@ export function RestaurantWorkspace({ kitchenOnly = false, canManageTables = fal
         }),
       });
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "結帳失敗");
+      if (!response.ok) {
+        if (response.status >= 400 && response.status < 500) checkoutRequestIdRef.current = "";
+        throw new Error(result.error || "結帳失敗");
+      }
       const completedOrderId = selectedOrder.id;
       const completedTableId = selectedTable?.id;
       const soldByProduct = new Map<string, number>();
@@ -372,10 +452,7 @@ export function RestaurantWorkspace({ kitchenOnly = false, canManageTables = fal
       }
       setData((current) => current ? {
         ...current,
-        products: current.products.map((product) => ({
-          ...product,
-          stockTotal: Math.max(0, product.stockTotal - (soldByProduct.get(product.id) ?? 0)),
-        })),
+        products: current.products.map((product) => ({ ...product, stockTotal: Math.max(0, product.stockTotal - (soldByProduct.get(product.id) ?? 0)) })),
         areas: current.areas.map((area) => ({
           ...area,
           tables: area.tables.map((table) => table.id === completedTableId
@@ -384,8 +461,11 @@ export function RestaurantWorkspace({ kitchenOnly = false, canManageTables = fal
         })),
       } : current);
       setLastSaleId(result.sale.id);
+      setLastPayment({ number: result.sale.number, method, paidAmount: tendered, changeDue: Number(result.changeDue), reference: reference?.trim() || null });
       setSelectedTableId("");
-      toast.success(`結帳完成：${result.sale.number}`);
+      setPaymentDialog(null);
+      checkoutRequestIdRef.current = "";
+      toast.success(`收款完成：${result.sale.number}；進銷存與帳務背景同步中`);
       window.setTimeout(() => void load(), 1_200);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "結帳失敗");
@@ -454,6 +534,23 @@ return <div className="grid min-h-[60vh] animate-pulse gap-4 xl:grid-cols-[280px
       </header>
 
       {allowTableManagement && <TableManager open={tableManagerOpen} onOpenChange={setTableManagerOpen} areas={data.tableSettings ?? []} busy={busy} onAction={action} />}
+
+      <Dialog open={paymentDialog !== null} onOpenChange={(open) => { if (!open && !busy) setPaymentDialog(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>{paymentDialog === "CASH" ? "現金收款" : "刷卡確認"}</DialogTitle><DialogDescription>桌單金額 {money(orderTotal)}。收款完成後前台立即結帳，ERP 與帳務在背景同步。</DialogDescription></DialogHeader>
+          {paymentDialog === "CASH" ? <div className="space-y-4">
+            <label className="block text-sm font-bold">實收現金<input autoFocus value={cashReceived} onChange={(event) => setCashReceived(event.target.value)} inputMode="decimal" placeholder="請輸入客人交付金額" className="mt-2 h-12 w-full rounded-xl border bg-background px-3 text-right text-xl font-black" /></label>
+            <div className="grid grid-cols-4 gap-2">{[orderTotal, Math.ceil(orderTotal / 100) * 100, Math.ceil(orderTotal / 500) * 500, Math.ceil(orderTotal / 1000) * 1000].filter((value, index, values) => values.indexOf(value) === index).map((value) => <button key={value} onClick={() => setCashReceived(String(value))} className="h-9 rounded-lg border text-xs">{value === orderTotal ? "剛好" : money(value)}</button>)}</div>
+            <div className="flex items-center justify-between rounded-xl bg-emerald-50 p-4"><span className="text-sm text-emerald-800">找零</span><strong className="text-2xl text-emerald-800">{money(Math.max(0, Number(cashReceived || 0) - orderTotal))}</strong></div>
+            <button disabled={busy || Number(cashReceived || 0) < orderTotal} onClick={() => void checkout("CASH", Number(cashReceived || 0))} className="h-12 w-full rounded-xl bg-emerald-600 font-bold text-white disabled:opacity-40">確認收現並完成結帳</button>
+          </div> : paymentDialog === "CARD" ? <div className="space-y-4">
+            <ol className="list-decimal space-y-2 rounded-xl bg-indigo-50 p-4 pl-8 text-sm text-indigo-900"><li>在刷卡機感應、插卡或刷卡</li><li>等待刷卡機顯示交易成功</li><li>輸入授權碼或卡號末四碼</li></ol>
+            <input autoFocus value={cardReference} onChange={(event) => setCardReference(event.target.value.toUpperCase())} placeholder="授權碼／卡號末四碼" className="h-11 w-full rounded-xl border bg-background px-3 font-mono uppercase" />
+            <label className="flex items-start gap-3 rounded-xl border p-3 text-sm"><input type="checkbox" checked={cardApproved} onChange={(event) => setCardApproved(event.target.checked)} className="mt-1" /><span><strong>刷卡機已顯示核准</strong><span className="mt-1 block text-xs text-muted-foreground">未核准不可完成 POS 結帳，避免刷卡失敗卻誤記收款。</span></span></label>
+            <button disabled={busy || !cardApproved || cardReference.trim().length < 4} onClick={() => void checkout("CARD", orderTotal, cardReference)} className="h-12 w-full rounded-xl bg-indigo-600 font-bold text-white disabled:opacity-40">確認刷卡核准並完成結帳</button>
+          </div> : null}
+        </DialogContent>
+      </Dialog>
 
       <div className="grid gap-4 xl:grid-cols-[220px_minmax(0,1fr)_350px]">
         <section className="rounded-2xl border bg-card p-4">
@@ -548,9 +645,10 @@ return <div className="grid min-h-[60vh] animate-pulse gap-4 xl:grid-cols-[280px
                   {invoiceMode !== "NONE" && <div className="text-[10px] leading-relaxed text-muted-foreground">目前為開票佇列與欄位模擬；正式上線仍須財政部 Turnkey／VAN 憑證、字軌及測試平台驗證。</div>}
                 </div>
                 <div className="grid grid-cols-2 gap-2">
-                  <button disabled={busy || orderTotal <= 0} onClick={() => void checkout("CASH")} className="h-11 rounded-xl bg-emerald-600 font-bold text-white">現金結帳</button>
-                  <button disabled={busy || orderTotal <= 0} onClick={() => void checkout("CARD")} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-indigo-600 font-bold text-white"><CreditCard className="h-4 w-4" />刷卡結帳</button>
+                  <button disabled={busy || orderTotal <= 0} onClick={() => openPaymentDialog("CASH")} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-emerald-600 font-bold text-white"><Banknote className="h-4 w-4" />現金結帳</button>
+                  <button disabled={busy || orderTotal <= 0} onClick={() => openPaymentDialog("CARD")} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-indigo-600 font-bold text-white"><CreditCard className="h-4 w-4" />刷卡結帳</button>
                 </div>
+                {lastPayment && <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900"><div className="flex items-center gap-2 font-bold"><CheckCircle2 className="h-4 w-4" />{lastPayment.number} 收款完成</div><div className="mt-1">{lastPayment.method === "CASH" ? `實收 ${money(lastPayment.paidAmount)}・找零 ${money(lastPayment.changeDue)}` : `刷卡核准 ${lastPayment.reference}`}</div><div className="mt-1">進銷存、庫存流水與會計傳票背景同步中</div></div>}
                 {lastSaleId && <button onClick={() => window.open(`/print/pos/${lastSaleId}`, "_blank", "noopener,noreferrer")} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border text-sm"><ReceiptText className="h-4 w-4" />列印上一筆 80mm 收據</button>}
               </div>
             </div>

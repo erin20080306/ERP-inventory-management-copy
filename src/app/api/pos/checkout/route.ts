@@ -2,10 +2,10 @@ import { after, NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { ApiError, apiHandler, audit, requirePosPermission, requireTenantId } from "@/lib/api";
-import { lockAndAssertAccountingPeriodOpen } from "@/lib/accounting-controls";
 import { createEInvoiceOutbox, processEInvoiceEvent } from "@/lib/e-invoice";
 import { hasPermission } from "@/lib/auth";
-import { nextNumbersFastInTransaction } from "@/lib/number-sequence";
+import { nextNumberFastInTransaction } from "@/lib/number-sequence";
+import { drainPendingPosSales, fulfillPosSale } from "@/lib/pos-fulfillment";
 import { discountApprovalFingerprint, money, resolveCheckoutOffers } from "@/lib/pos-offers";
 import { prisma } from "@/lib/prisma";
 
@@ -37,8 +37,6 @@ const CheckoutInput = z.object({
     donationCode: z.string().trim().max(7).optional().nullable(),
   }).optional().nullable(),
 });
-
-type CheckoutJournalLine = { code: string; debit?: number; credit?: number; memo: string };
 
 function roundMoney(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
@@ -103,31 +101,6 @@ async function decrementCheckoutStocks(
   if (missing) throw new ApiError(409, `${missing.product.name} 庫存不足，請補貨或調撥後再結帳`);
 }
 
-async function createCheckoutJournal(
-  tx: any,
-  input: { tenantId: string; userId: string; journalNumber: string; saleNumber: string; lines: CheckoutJournalLine[] },
-) {
-  const entryDate = new Date();
-  await lockAndAssertAccountingPeriodOpen(tx, input.tenantId, entryDate);
-  const lines = input.lines.filter((line) => roundMoney(line.debit ?? 0) !== 0 || roundMoney(line.credit ?? 0) !== 0);
-  const debit = roundMoney(lines.reduce((sum, line) => sum + Number(line.debit ?? 0), 0));
-  const credit = roundMoney(lines.reduce((sum, line) => sum + Number(line.credit ?? 0), 0));
-  if (Math.abs(debit - credit) > 0.001) throw new Error(`傳票借貸不平衡：借 ${debit}／貸 ${credit}`);
-  const codes = [...new Set(lines.map((line) => line.code))];
-  const accounts = await tx.chartOfAccount.findMany({ where: { tenantId: input.tenantId, code: { in: codes }, isActive: true }, select: { id: true, code: true } });
-  const accountMap = new Map(accounts.map((account: any) => [account.code, account.id]));
-  const missing = codes.filter((code) => !accountMap.has(code));
-  if (missing.length) throw new Error(`缺少標準會計科目：${missing.join("、")}，請由管理者執行科目初始化`);
-  await tx.journalEntry.create({
-    data: {
-      tenantId: input.tenantId, number: input.journalNumber, entryDate,
-      summary: `POS 即時銷售與收款 ${input.saleNumber}`, status: "POSTED",
-      createdById: input.userId, postedById: input.userId, postedAt: new Date(),
-      lines: { create: lines.map((line) => ({ accountId: accountMap.get(line.code), debit: roundMoney(line.debit ?? 0), credit: roundMoney(line.credit ?? 0), memo: line.memo })) },
-    },
-  });
-}
-
 export const POST = apiHandler(async (req: NextRequest) => {
   const session = await requirePosPermission("create", "sales.create");
   const tenantId = await requireTenantId(session);
@@ -188,10 +161,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
       if (!sameItems) throw new ApiError(409, "桌單內容已變更，請重新整理後再結帳");
     }
 
-    const numbers = await nextNumbersFastInTransaction(tx, ["SO", "RP", "POS", "JE"], tenantId);
-    const soNumber = numbers.SO;
-    const paymentNumber = numbers.RP;
-    const posNumber = numbers.POS;
+    const posNumber = await nextNumberFastInTransaction(tx, "POS", tenantId);
     const customer = body.customerId
       ? await tx.customer.findFirst({ where: { id: body.customerId, tenantId, isActive: true }, select: { id: true } })
       : { id: walkInCustomerId! };
@@ -244,13 +214,9 @@ export const POST = apiHandler(async (req: NextRequest) => {
     });
 
     await decrementCheckoutStocks(tx, { tenantId, warehouseId: activeShift.register.warehouseId, items: computed.map((item) => ({ productId: item.productId, quantity: item.quantity, product: { name: item.product.name } })) });
-    const order = await tx.salesOrder.create({ data: { tenantId, number: soNumber, customerId: customer.id, warehouseId: activeShift.register.warehouseId, status: "POSTED", subtotal, discount: 0, taxAmount, total, isTaxable: true, shippedAt: new Date(), remark: `POS ${posNumber}`, updatedBy: currentUser, items: { create: computed.map((item) => ({ productId: item.productId, quantity: item.quantity, shippedQty: item.quantity, unitPrice: item.net / item.quantity, discount: 0, taxRate: item.rate, subtotal: item.net })) } }, select: { id: true } });
-    const receivable = await tx.accountsReceivable.create({ data: { tenantId, customerId: customer.id, salesOrderId: order.id, amount: total, paidAmount: total, status: "PAID", updatedBy: currentUser }, select: { id: true } });
-    await tx.receivePayment.create({ data: { tenantId, number: paymentNumber, customerId: customer.id, receivableId: receivable.id, amount: total, method: body.payments.length > 1 ? "MIXED" : body.payments[0].method, remark: `POS ${posNumber}`, updatedBy: currentUser }, select: { id: true } });
-
     const sale = await tx.posSale.create({
       data: {
-        tenantId, clientRequestId: body.requestId, shiftId: activeShift.id, registerId: activeShift.registerId, customerId: customer.id, salesOrderId: order.id, exchangeRefundId: body.exchangeRefundId || null, promotionId: offers.promotion?.id || null, number: posNumber, receiptNo: posNumber, subtotal, discount, promotionDiscount: offers.promotionDiscount, couponDiscount: offers.couponDiscount, pointsDiscount: offers.pointsDiscount, loyaltyPointsRedeemed: offers.pointsRedeemed, loyaltyPointsEarned: pointsEarned, taxAmount, total, paidAmount: total, changeDue,
+        tenantId, clientRequestId: body.requestId, shiftId: activeShift.id, registerId: activeShift.registerId, customerId: customer.id, exchangeRefundId: body.exchangeRefundId || null, promotionId: offers.promotion?.id || null, number: posNumber, receiptNo: posNumber, subtotal, discount, promotionDiscount: offers.promotionDiscount, couponDiscount: offers.couponDiscount, pointsDiscount: offers.pointsDiscount, loyaltyPointsRedeemed: offers.pointsRedeemed, loyaltyPointsEarned: pointsEarned, taxAmount, total, paidAmount: total, changeDue,
         items: { create: computed.map((item) => ({ productId: item.productId, quantity: item.quantity, unitPrice: Number(item.product.salePrice), unitCost: Number(item.product.costPrice), discount: item.totalLineDiscount, taxRate: item.rate, subtotal: item.gross })) },
         payments: { create: drawerPayments.filter((item) => item.amount > 0).map((item) => ({ method: item.method, amount: item.amount, reference: item.reference })) },
       },
@@ -292,26 +258,19 @@ export const POST = apiHandler(async (req: NextRequest) => {
       }
     }
 
-    await tx.inventoryTransaction.createMany({ data: computed.map((item) => ({ tenantId, productId: item.productId, warehouseId: activeShift.register.warehouseId, type: "SALES_OUT", quantity: item.quantity * -1, unitCost: Number(item.product.costPrice), refType: "POS", refId: sale.id, remark: `POS 結帳 ${posNumber}` })) });
-    const cogs = roundMoney(computed.reduce((sum, item) => sum + item.quantity * Number(item.product.costPrice), 0));
-    await createCheckoutJournal(tx, {
-      tenantId,
-      userId: session.user.id,
-      journalNumber: numbers.JE,
-      saleNumber: posNumber,
-      lines: [
-        ...drawerPayments.filter((item) => item.amount > 0).map((item) => ({ code: item.method === "CASH" ? "1101" : "1103", debit: item.amount, memo: `${item.method} 收款－${posNumber}` })),
-        { code: "4101", credit: subtotal, memo: `銷貨收入－${posNumber}` },
-        { code: "2111", credit: taxAmount, memo: `銷項稅額－${posNumber}` },
-        { code: "5101", debit: cogs, memo: `銷貨成本－${posNumber}` },
-        { code: "1201", credit: cogs, memo: `存貨－${posNumber}` },
-      ],
-    });
     return { sale, replayed: false, eInvoiceEventId: eInvoiceOutbox?.eventId ?? null, electronicInvoice: eInvoiceOutbox?.invoice ?? null };
   }, { isolationLevel: "ReadCommitted", maxWait: 10_000, timeout: 30_000 });
 
-  if (!result.replayed) after(async () => { try { await audit({ userId: session.user.id, action: "checkout", module: "pos", refId: result.sale.id, detail: result.sale.number }); } catch (error) { console.error("[pos-checkout] audit failed", error); } });
-  if (result.eInvoiceEventId) after(async () => { try { await processEInvoiceEvent(result.eInvoiceEventId!); } catch (error) { console.error("[pos-checkout] e-invoice background processing failed", error); } });
+  after(async () => {
+    const jobs: Promise<unknown>[] = [fulfillPosSale(result.sale.id)];
+    if (!result.replayed) jobs.push(audit({ userId: session.user.id, action: "checkout", module: "pos", refId: result.sale.id, detail: result.sale.number }));
+    if (result.eInvoiceEventId) jobs.push(processEInvoiceEvent(result.eInvoiceEventId));
+    const settled = await Promise.allSettled(jobs);
+    for (const job of settled) {
+      if (job.status === "rejected") console.error("[pos-checkout] background job failed", job.reason);
+    }
+    try { await drainPendingPosSales(tenantId, 3); } catch (error) { console.error("[pos-checkout] pending sync retry failed", error); }
+  });
 
-  return NextResponse.json({ ok: true, sale: { ...result.sale, electronicInvoice: result.electronicInvoice ?? (result.sale as any).electronicInvoice ?? null }, changeDue: Number(result.sale.changeDue), replayed: result.replayed });
+  return NextResponse.json({ ok: true, sale: { ...result.sale, electronicInvoice: result.electronicInvoice ?? (result.sale as any).electronicInvoice ?? null }, changeDue: Number(result.sale.changeDue), replayed: result.replayed, erpSync: "QUEUED" });
 });
