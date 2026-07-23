@@ -47,6 +47,7 @@ jobs:
       - run: npm run test:pos-restaurant
       - run: npm run test:commerce
       - run: npm run test:storefront
+      - run: npm run test:speed
       - run: npm run test:pos-recovery
       - run: npm run test:backup
       - run: npm run test:einvoice
