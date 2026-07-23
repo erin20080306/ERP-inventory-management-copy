@@ -24,6 +24,9 @@ jobs:
           node -e 'const fs=require("fs");const p=JSON.parse(fs.readFileSync("package.json","utf8"));p.scripts["test:speed"]="node scripts/verify-speed-patch.mjs";fs.writeFileSync("package.json",JSON.stringify(p,null,2)+"\n")'
           rm -f scripts/verify-speed-optimizations.mjs
           rm -f .speed-optimization-diagnostic.txt
+          # GITHUB_TOKEN cannot safely publish workflow-file changes. The release
+          # quality workflow is updated separately through the GitHub connector.
+          git restore .github/workflows/release-desktop.yml
       - name: Verify speed safeguards
         id: speed_verify
         continue-on-error: true
@@ -95,7 +98,7 @@ jobs:
           fi
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add src/app package.json .github/workflows/release-desktop.yml
+          git add src/app package.json
           git add -A .speed-optimization-diagnostic.txt
           git commit -m "perf: speed up POS restaurant and storefront operations"
           git push origin HEAD:main
