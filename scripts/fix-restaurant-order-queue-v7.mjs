@@ -42,12 +42,12 @@ if (!source.includes('blocking = true')) {
 
 if (!source.includes('async function flushAddQueue')) {
   replaceRequired(
-    /\n  (?:async )?function addItem\(product: Product\) \{[\s\S]*?\n  }\n\n  async function updateItem/,
+    /\n  (?:async )?function addItem\(product: Product\) \{[\s\S]*?\n  \}\n\n  async function updateItem/,
     `
   function addItem(product: Product) {
     if (!selectedOrder) return;
     const orderId = selectedOrder.id;
-    const key = \`${orderId}:\${product.id}\`;
+    const key = \`\${orderId}:\${product.id}\`;
 
     updateOrderLocally(orderId, (order) => {
       const existing = order.items.find((item) => item.productId === product.id && item.status === "PENDING");
@@ -127,6 +127,17 @@ if (!source.includes('async function flushAddQueue')) {
   async function updateItem`,
     "餐飲點餐即時佇列",
   );
+}
+
+const requiredOutput = [
+  'useMemo, useRef, useState',
+  'const addQueueRef = useRef',
+  'const key = `${orderId}:${product.id}`;',
+  'async function flushAddQueue(key: string)',
+  '}, undefined, false, false);',
+];
+for (const marker of requiredOutput) {
+  if (!source.includes(marker)) throw new Error(`餐飲點餐佇列產生結果不完整：${marker}`);
 }
 
 writeFileSync(path, source);
