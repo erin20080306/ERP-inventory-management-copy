@@ -17,18 +17,18 @@ jobs:
       postgres:
         image: postgres:16-alpine
         env:
-          POSTGRES_DB: erp_ci
+          POSTGRES_DB: erp
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U postgres -d erp_ci"
+          --health-cmd "pg_isready -U postgres -d erp"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 20
     env:
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/erp_ci?schema=public
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/erp?schema=public
       NEXTAUTH_URL: http://localhost:3000
       NEXTAUTH_SECRET: github-actions-only-secret-at-least-32-characters
     steps:
