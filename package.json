@@ -24,6 +24,8 @@
     "test:pos-restaurant": "tsx scripts/verify-restaurant-pos.ts",
     "test:commerce": "tsx scripts/verify-commerce-checkout.ts",
     "test:storefront": "tsx scripts/verify-storefront-access.ts",
+    "test:storefront-members": "node --import tsx scripts/verify-storefront-members.ts",
+    "test:company-profile": "node scripts/verify-company-profile-change.mjs",
     "test:pos-recovery": "tsx scripts/verify-pos-recovery.ts",
     "test:backup": "tsx scripts/verify-encrypted-backup.ts",
     "test:einvoice": "tsx scripts/verify-einvoice-readiness.ts",

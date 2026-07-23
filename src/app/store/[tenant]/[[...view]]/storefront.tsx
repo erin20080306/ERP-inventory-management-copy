@@ -17,6 +17,8 @@ import {
   Gift,
   Heart,
   House,
+  LogIn,
+  LogOut,
   Minus,
   PackageCheck,
   Plus,
@@ -30,6 +32,7 @@ import {
   TicketPercent,
   Trash2,
   Truck,
+  UserPlus,
   WalletCards,
   Warehouse,
   X,
@@ -65,6 +68,52 @@ type Order = {
   total: number;
   items: number;
   recipient: string;
+  payment?: {
+    method: "CARD" | "MOBILE" | "TRANSFER";
+    status: string;
+    charged: boolean;
+    nextAction: string;
+    bankTransfer?: {
+      bankName: string;
+      accountName: string;
+      accountNumber: string;
+    } | null;
+  };
+};
+
+type PaymentOptions = {
+  card: { enabled: boolean; gatewayConnected: boolean; message: string };
+  mobile: { enabled: boolean; gatewayConnected: boolean; message: string };
+  transfer: {
+    enabled: boolean;
+    configured: boolean;
+    bankName?: string | null;
+    accountName?: string | null;
+    accountNumber?: string | null;
+  };
+};
+
+const DEFAULT_PAYMENT_OPTIONS: PaymentOptions = {
+  card: { enabled: true, gatewayConnected: false, message: "正式扣款需串接租戶金流" },
+  mobile: { enabled: true, gatewayConnected: false, message: "正式扣款需串接租戶金流" },
+  transfer: { enabled: true, configured: false },
+};
+
+type StoreMemberProfile = {
+  name: string;
+  email: string;
+  phone?: string | null;
+  joinedAt: string;
+  emailVerified?: boolean;
+  loyaltyPoints: number;
+  loyaltyTier: string;
+};
+
+type StoreMemberPayload = {
+  authenticated: boolean;
+  member?: StoreMemberProfile;
+  stats?: { orderCount: number; couponCount: number };
+  orders?: Order[];
 };
 
 type ViewName = "home" | "products" | "campaigns" | "cart" | "checkout" | "member" | "orders";
@@ -174,6 +223,7 @@ export function FashionStorefront({ tenant, initialView, initialStoreName, manag
   const [products, setProducts] = useState<Product[]>(PRODUCTS);
   const [storeLive, setStoreLive] = useState(false);
   const [acceptingOrders, setAcceptingOrders] = useState(true);
+  const [paymentOptions, setPaymentOptions] = useState<PaymentOptions>(DEFAULT_PAYMENT_OPTIONS);
   const [syncMessage, setSyncMessage] = useState("展示商店・未連接正式 ERP");
   const [hydrated, setHydrated] = useState(false);
 
@@ -214,6 +264,7 @@ export function FashionStorefront({ tenant, initialView, initialStoreName, manag
         setProducts(liveProducts);
         setStoreLive(true);
         setAcceptingOrders(Boolean(result.acceptingOrders));
+        setPaymentOptions(result.paymentOptions || DEFAULT_PAYMENT_OPTIONS);
         setTheme((current) => ({
           ...current,
           brand: result.store?.name || result.tenant.name || current.brand,
@@ -226,6 +277,7 @@ export function FashionStorefront({ tenant, initialView, initialStoreName, manag
         setProducts(PRODUCTS);
         setStoreLive(false);
         setAcceptingOrders(true);
+        setPaymentOptions(DEFAULT_PAYMENT_OPTIONS);
         setSyncMessage("展示商店・不會寫入正式 ERP");
       });
     return () => controller.abort();
@@ -302,13 +354,13 @@ export function FashionStorefront({ tenant, initialView, initialStoreName, manag
       </header>
 
       <main>
-        {view === "home" && <HomeView tenant={tenant} products={products} addToCart={addToCart} />}
+        {view === "home" && <HomeView tenant={tenant} products={products} addToCart={addToCart} managerAccess={managerAccess} />}
         {view === "products" && <ProductsView products={products} addToCart={addToCart} />}
         {view === "campaigns" && <CampaignsView tenant={tenant} products={products} addToCart={addToCart} />}
         {view === "cart" && <CartView tenant={tenant} lines={detailedCart} subtotal={subtotal} updateLine={updateLine} />}
-        {view === "checkout" && <CheckoutView tenant={tenant} lines={detailedCart} subtotal={subtotal} saveOrder={saveOrder} storeLive={storeLive} acceptingOrders={acceptingOrders} />}
-        {view === "member" && <MemberView tenant={tenant} orderCount={orders.length} />}
-        {view === "orders" && <OrdersView orders={orders} />}
+        {view === "checkout" && <CheckoutView tenant={tenant} lines={detailedCart} subtotal={subtotal} saveOrder={saveOrder} storeLive={storeLive} acceptingOrders={acceptingOrders} managerAccess={managerAccess} paymentOptions={paymentOptions} />}
+        {view === "member" && <MemberView tenant={tenant} />}
+        {view === "orders" && <OrdersView orders={orders} managerAccess={managerAccess} />}
       </main>
 
       <footer className={styles.footer}>
@@ -351,7 +403,7 @@ function StoreLink({ tenant, view, active, children, icon }: {
   return <Link href={href} className={active ? styles.activeLink : ""}>{icon}{children}</Link>;
 }
 
-function HomeView({ tenant, products, addToCart }: { tenant: string; products: Product[]; addToCart: AddToCart }) {
+function HomeView({ tenant, products, addToCart, managerAccess }: { tenant: string; products: Product[]; addToCart: AddToCart; managerAccess: boolean }) {
   return (
     <>
       <section className={styles.hero}>
@@ -403,18 +455,20 @@ function HomeView({ tenant, products, addToCart }: { tenant: string; products: P
         </div>
       </section>
 
-      <section className={styles.integration}>
-        <div><span className={styles.eyebrow}>ONE COMMERCE CORE</span><h2>網站下單，後台立刻接手。</h2><p>此試用店已示範品牌專屬網域、共用商品與庫存、會員累積、訂單查詢及付款流程。</p></div>
-        <div className={styles.flow}>
-          <FlowStep icon={<ShoppingBag />} label="品牌官網" meta="新訂單 #260723" />
-          <ChevronRight />
-          <FlowStep icon={<Box />} label="ERP 訂單" meta="待出貨" />
-          <ChevronRight />
-          <FlowStep icon={<Warehouse />} label="可售庫存" meta="保留 1 件" />
-          <ChevronRight />
-          <FlowStep icon={<BarChart3 />} label="營運報表" meta="即時更新" />
-        </div>
-      </section>
+      {managerAccess && (
+        <section className={styles.integration}>
+          <div><span className={styles.eyebrow}>租戶管理者流程預覽</span><h2>網站下單，後台立刻接手。</h2><p>這段 ERP 串接說明只供已登入的租戶管理者預覽，一般消費者不會看到。</p></div>
+          <div className={styles.flow}>
+            <FlowStep icon={<ShoppingBag />} label="品牌官網" meta="新訂單 #260723" />
+            <ChevronRight />
+            <FlowStep icon={<Box />} label="ERP 訂單" meta="待出貨" />
+            <ChevronRight />
+            <FlowStep icon={<Warehouse />} label="可售庫存" meta="保留 1 件" />
+            <ChevronRight />
+            <FlowStep icon={<BarChart3 />} label="營運報表" meta="即時更新" />
+          </div>
+        </section>
+      )}
     </>
   );
 }
@@ -494,16 +548,18 @@ function CartView({ tenant, lines, subtotal, updateLine }: {
   );
 }
 
-function CheckoutView({ tenant, lines, subtotal, saveOrder, storeLive, acceptingOrders }: {
+function CheckoutView({ tenant, lines, subtotal, saveOrder, storeLive, acceptingOrders, managerAccess, paymentOptions }: {
   tenant: string;
   lines: Array<CartLine & { product: Product }>;
   subtotal: number;
   saveOrder: (order: Order) => void;
   storeLive: boolean;
   acceptingOrders: boolean;
+  managerAccess: boolean;
+  paymentOptions: PaymentOptions;
 }) {
   const router = useRouter();
-  const [payment, setPayment] = useState("CARD");
+  const [payment, setPayment] = useState<"CARD" | "MOBILE" | "TRANSFER">("CARD");
   const [delivery, setDelivery] = useState("HOME");
   const [completed, setCompleted] = useState<Order | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -526,6 +582,25 @@ function CheckoutView({ tenant, lines, subtotal, saveOrder, storeLive, accepting
           total: subtotal + shipping,
           items: lines.reduce((sum, line) => sum + line.quantity, 0),
           recipient: String(form.get("name") || "試用會員"),
+          payment: payment === "TRANSFER"
+            ? {
+                method: payment,
+                status: "AWAITING_TRANSFER",
+                charged: false,
+                nextAction: paymentOptions.transfer.configured ? "請依畫面匯款資訊完成轉帳" : "商家尚未設定匯款帳戶",
+                bankTransfer: paymentOptions.transfer.configured ? {
+                  bankName: paymentOptions.transfer.bankName || "",
+                  accountName: paymentOptions.transfer.accountName || "",
+                  accountNumber: paymentOptions.transfer.accountNumber || "",
+                } : null,
+              }
+            : {
+                method: payment,
+                status: "GATEWAY_REQUIRED",
+                charged: false,
+                nextAction: "體驗流程不會扣款；正式收款需先串接租戶金流",
+                bankTransfer: null,
+              },
         };
         saveOrder(order);
         setCompleted(order);
@@ -569,20 +644,39 @@ function CheckoutView({ tenant, lines, subtotal, saveOrder, storeLive, accepting
 
   if (completed) {
     const isDemo = completed.status.startsWith("展示訂單");
-    return <section className={styles.successPage}><div className={styles.successIcon}><Check /></div><span className={styles.eyebrow}>ORDER CONFIRMED</span><h1>{isDemo ? "展示流程已完成" : "訂單已建立"}</h1><p>{isDemo ? `${completed.id} 只保留在此瀏覽器，不會寫入正式 ERP。` : `${completed.id} 已自動建立於商家 ERP；可售量已保留，出貨時再扣實體庫存並建立應收。`}</p><div className={styles.successFacts}><span>訂單金額<strong>{money(completed.total)}</strong></span><span>處理狀態<strong>{completed.status}</strong></span><span>預計出貨<strong>{isDemo ? "展示模式" : "1—2 個工作日"}</strong></span></div><button className={styles.primaryButton} onClick={() => router.push(`/store/${tenant}/orders`)}>查看訂單進度 <ArrowRight size={16} /></button></section>;
+    const transfer = completed.payment?.method === "TRANSFER";
+    return (
+      <section className={styles.successPage}>
+        <div className={styles.successIcon}><Check /></div>
+        <span className={styles.eyebrow}>ORDER CONFIRMED</span>
+        <h1>{isDemo ? "展示流程已完成" : "訂單已建立"}</h1>
+        <p>{isDemo ? `${completed.id} 只保留在此瀏覽器，不會寫入正式 ERP。` : `${completed.id} 已自動進入商家 ERP 並保留可售量；確認出貨後才扣實體庫存並建立應收與會計傳票。`}</p>
+        <div className={styles.successFacts}><span>訂單金額<strong>{money(completed.total)}</strong></span><span>處理狀態<strong>{completed.status}</strong></span><span>付款狀態<strong>{completed.payment?.charged ? "已付款" : "尚未付款"}</strong></span></div>
+        {transfer ? (
+          <div className={styles.paymentResult}>
+            <div><Clock3 /><span><strong>銀行轉帳待確認</strong>{completed.payment?.nextAction}</span></div>
+            {completed.payment?.bankTransfer ? <dl><div><dt>銀行</dt><dd>{completed.payment.bankTransfer.bankName}</dd></div><div><dt>戶名</dt><dd>{completed.payment.bankTransfer.accountName}</dd></div><div><dt>帳號</dt><dd>{completed.payment.bankTransfer.accountNumber}</dd></div><div><dt>匯款備註</dt><dd>{completed.id}</dd></div></dl> : <p>商家尚未設定對外匯款資訊，請持訂單編號 {completed.id} 聯絡商家。</p>}
+          </div>
+        ) : (
+          <div className={styles.paymentResultWarning}><CreditCard /><span><strong>本次沒有扣款</strong>{completed.payment?.nextAction || "正式信用卡／行動支付需串接租戶金流後才能收款。"}</span></div>
+        )}
+        <button className={styles.primaryButton} onClick={() => router.push(`/store/${tenant}/orders`)}>查看訂單進度 <ArrowRight size={16} /></button>
+      </section>
+    );
   }
 
   if (!lines.length) return <section className={styles.checkoutPage}><EmptyCart tenant={tenant} /></section>;
   return (
     <section className={styles.checkoutPage}>
       <div className={styles.pageIntro}><span className={styles.eyebrow}>SECURE CHECKOUT</span><h1>安心結帳</h1><p>{storeLive ? "送出後會由伺服器重新計價、檢查庫存並自動建立 ERP 銷售單；金流完成狀態須由租戶設定的支付服務回傳。" : "目前是功能展示，不會產生真實扣款，也不會寫入正式 ERP。"}</p></div>
+      {managerAccess && <div className={styles.demoCustomerNotice}><CircleUserRound /><span><strong>租戶體驗提示｜王小美</strong>下方王小美是預設體驗顧客，可示範「官網結帳 → ERP 客戶 → 網路訂單」。信用卡與行動支付在尚未串接金流前不會實際扣款。</span></div>}
       <form className={styles.checkoutLayout} onSubmit={submit}>
         <div className={styles.checkoutForms}>
-          <fieldset><legend><span>1</span> 收件資料</legend><div className={styles.formGrid}><label>姓名<input name="name" required defaultValue="王小美" /></label><label>手機<input name="phone" required inputMode="tel" defaultValue="0912-345-678" /></label><label className={styles.fullField}>電子信箱<input name="email" required type="email" defaultValue="demo@example.com" /></label></div></fieldset>
-          <fieldset><legend><span>2</span> 配送方式</legend><div className={styles.choiceGrid}><Choice active={delivery === "HOME"} onClick={() => setDelivery("HOME")} icon={<Truck />} title="宅配到府" meta={subtotal >= 2000 ? "已達免運門檻" : "運費 NT$120"} /><Choice active={delivery === "PICKUP"} onClick={() => setDelivery("PICKUP")} icon={<Store />} title="門市取貨" meta="最快 2 小時 ・ 免費" /></div>{delivery === "HOME" && <label className={styles.addressField}>配送地址<input name="address" required placeholder="縣市、區域、路段、門牌" defaultValue="台北市信義區松高路 1 號" /></label>}</fieldset>
-          <fieldset><legend><span>3</span> 付款方式</legend><div className={styles.choiceGrid}><Choice active={payment === "CARD"} onClick={() => setPayment("CARD")} icon={<CreditCard />} title="信用卡" meta="由租戶金流設定處理" /><Choice active={payment === "MOBILE"} onClick={() => setPayment("MOBILE")} icon={<WalletCards />} title="行動支付" meta="由租戶金流設定處理" /><Choice active={payment === "TRANSFER"} onClick={() => setPayment("TRANSFER")} icon={<Clock3 />} title="銀行轉帳" meta="保留可售量 24 小時" /></div></fieldset>
+          <fieldset><legend><span>1</span> 收件資料</legend><div className={styles.formGrid}><label>姓名<input name="name" required defaultValue={managerAccess ? "王小美" : ""} placeholder="請輸入收件人姓名" /></label><label>手機<input name="phone" required inputMode="tel" defaultValue={managerAccess ? "0912-345-678" : ""} placeholder="請輸入聯絡手機" /></label><label className={styles.fullField}>電子信箱<input name="email" required type="email" defaultValue={managerAccess ? "demo@example.com" : ""} placeholder="name@example.com" /></label></div></fieldset>
+          <fieldset><legend><span>2</span> 配送方式</legend><div className={styles.choiceGrid}><Choice active={delivery === "HOME"} onClick={() => setDelivery("HOME")} icon={<Truck />} title="宅配到府" meta={subtotal >= 2000 ? "已達免運門檻" : "運費 NT$120"} /><Choice active={delivery === "PICKUP"} onClick={() => setDelivery("PICKUP")} icon={<Store />} title="門市取貨" meta="最快 2 小時 ・ 免費" /></div>{delivery === "HOME" && <label className={styles.addressField}>配送地址<input name="address" required placeholder="縣市、區域、路段、門牌" defaultValue={managerAccess ? "台北市信義區松高路 1 號" : ""} /></label>}</fieldset>
+          <fieldset><legend><span>3</span> 付款方式</legend><div className={styles.choiceGrid}><Choice active={payment === "CARD"} onClick={() => setPayment("CARD")} icon={<CreditCard />} title="信用卡" meta={paymentOptions.card.gatewayConnected ? "安全前往金流付款" : "可體驗流程・目前不會扣款"} /><Choice active={payment === "MOBILE"} onClick={() => setPayment("MOBILE")} icon={<WalletCards />} title="行動支付" meta={paymentOptions.mobile.gatewayConnected ? "安全前往金流付款" : "可體驗流程・目前不會扣款"} /><Choice active={payment === "TRANSFER"} onClick={() => setPayment("TRANSFER")} icon={<Clock3 />} title="銀行轉帳" meta={paymentOptions.transfer.configured ? "成立後顯示匯款帳戶" : "商家尚未設定收款帳戶"} /></div><div className={styles.paymentMethodNote}>{payment === "TRANSFER" ? (paymentOptions.transfer.configured ? "訂單成立後會顯示銀行、戶名、帳號與訂單編號；請於 24 小時內匯款。" : "仍可建立待付款訂單，但需聯絡商家取得匯款帳戶。") : "目前會完整建立 ERP 網路訂單，但不會向信用卡或行動支付扣款；正式收款需先完成租戶金流串接。"}</div></fieldset>
         </div>
-        <aside className={styles.checkoutSummary}><h2>訂單摘要</h2>{lines.map((line) => <div key={`${line.productId}-${line.size}`} className={styles.miniLine}><img src={line.product.image} alt="" /><span>{line.product.name}<small>{line.color} / {line.size} ・ {line.quantity} 件</small></span><strong>{money(line.product.price * line.quantity)}</strong></div>)}<SummaryRows subtotal={subtotal} shipping={shipping} />{error && <div className={styles.checkoutError}>{error}</div>}<button type="submit" disabled={submitting || !acceptingOrders} className={styles.payButton}>{submitting ? "建立訂單中…" : !acceptingOrders ? "商城目前暫停接單" : `送出訂單 ${money(subtotal + shipping)}`} <ShieldCheck size={17} /></button><p><ShieldCheck size={14} /> TLS 加密傳輸 ・ {storeLive ? "伺服器端重新驗價與租戶隔離" : "展示模式不會真實扣款"}</p></aside>
+        <aside className={styles.checkoutSummary}><h2>訂單摘要</h2>{lines.map((line) => <div key={`${line.productId}-${line.size}`} className={styles.miniLine}><img src={line.product.image} alt="" /><span>{line.product.name}<small>{line.color} / {line.size} ・ {line.quantity} 件</small></span><strong>{money(line.product.price * line.quantity)}</strong></div>)}<SummaryRows subtotal={subtotal} shipping={shipping} />{error && <div className={styles.checkoutError}>{error}</div>}<button type="submit" disabled={submitting || !acceptingOrders} className={styles.payButton}>{submitting ? "建立訂單中…" : !acceptingOrders ? "商城目前暫停接單" : payment === "TRANSFER" ? `建立訂單並取得匯款資訊 ${money(subtotal + shipping)}` : `建立訂單（本次不扣款） ${money(subtotal + shipping)}`} <ShieldCheck size={17} /></button><p><ShieldCheck size={14} /> TLS 加密傳輸 ・ {storeLive ? "伺服器端重新驗價、租戶隔離與付款狀態紀錄" : "展示模式不會真實扣款"}</p></aside>
       </form>
     </section>
   );
@@ -592,29 +686,279 @@ function Choice({ active, onClick, icon, title, meta }: { active: boolean; onCli
   return <button type="button" onClick={onClick} className={active ? styles.activeChoice : ""}>{icon}<span><strong>{title}</strong><small>{meta}</small></span>{active && <Check className={styles.choiceCheck} />}</button>;
 }
 
-function MemberView({ tenant, orderCount }: { tenant: string; orderCount: number }) {
+function memberStatusLabel(status: string) {
+  const labels: Record<string, string> = {
+    DRAFT: "草稿",
+    SUBMITTED: "訂單成立",
+    APPROVED: "已確認",
+    PARTIALLY_SHIPPED: "部分出貨",
+    POSTED: "待出貨",
+    VOIDED: "已取消",
+    REJECTED: "已拒絕",
+  };
+  return labels[status] || status;
+}
+
+function memberPaymentLabel(order: Order) {
+  if (!order.payment) return "";
+  if (order.payment.charged || order.payment.status === "PAID") return "已付款";
+  if (order.payment.status === "AWAITING_TRANSFER") return "待匯款確認";
+  if (order.payment.status === "GATEWAY_REQUIRED") return "未扣款・待串金流";
+  return "付款處理中";
+}
+
+function MemberView({ tenant }: { tenant: string }) {
+  const [profile, setProfile] = useState<StoreMemberPayload | null>(null);
+  const [mode, setMode] = useState<"login" | "register">("register");
+  const [loadingMember, setLoadingMember] = useState(true);
+  const [submittingMember, setSubmittingMember] = useState(false);
+  const [memberError, setMemberError] = useState("");
+  const [memberNotice, setMemberNotice] = useState("");
+  const [accountPanel, setAccountPanel] = useState<"profile" | "password" | "delete" | null>(null);
+
+  async function refreshMember() {
+    setLoadingMember(true);
+    try {
+      const response = await fetch(`/api/store/${encodeURIComponent(tenant)}/member`, { cache: "no-store" });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "會員資料載入失敗");
+      setProfile(result);
+    } catch (reason) {
+      setProfile({ authenticated: false });
+      setMemberError(reason instanceof Error ? reason.message : "會員資料載入失敗");
+    } finally {
+      setLoadingMember(false);
+    }
+  }
+
+  useEffect(() => {
+    void refreshMember();
+  }, [tenant]);
+
+  async function submitMember(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (submittingMember) return;
+    const form = new FormData(event.currentTarget);
+    const password = String(form.get("password") || "");
+    if (mode === "register" && password !== String(form.get("confirmPassword") || "")) {
+      setMemberError("兩次輸入的密碼不一致");
+      return;
+    }
+    setSubmittingMember(true);
+    setMemberError("");
+    setMemberNotice("");
+    try {
+      const endpoint = mode === "register" ? "register" : "login";
+      const body = mode === "register"
+        ? {
+            name: String(form.get("name") || ""),
+            email: String(form.get("email") || ""),
+            phone: String(form.get("phone") || ""),
+            password,
+          }
+        : {
+            email: String(form.get("email") || ""),
+            password,
+          };
+      const response = await fetch(`/api/store/${encodeURIComponent(tenant)}/member/${endpoint}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || (mode === "register" ? "會員註冊失敗" : "會員登入失敗"));
+      setMemberNotice(mode === "register" ? "註冊成功，已登入會員中心" : "登入成功");
+      await refreshMember();
+    } catch (reason) {
+      setMemberError(reason instanceof Error ? reason.message : "會員操作失敗");
+    } finally {
+      setSubmittingMember(false);
+    }
+  }
+
+  async function logoutMember() {
+    setSubmittingMember(true);
+    setMemberError("");
+    try {
+      await fetch(`/api/store/${encodeURIComponent(tenant)}/member/logout`, { method: "POST" });
+      setProfile({ authenticated: false });
+      setMode("login");
+      setAccountPanel(null);
+      setMemberNotice("已安全登出");
+    } finally {
+      setSubmittingMember(false);
+    }
+  }
+
+  async function updateMemberProfile(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (submittingMember) return;
+    const form = new FormData(event.currentTarget);
+    setSubmittingMember(true);
+    setMemberError("");
+    setMemberNotice("");
+    try {
+      const response = await fetch(`/api/store/${encodeURIComponent(tenant)}/member`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: String(form.get("name") || ""),
+          email: String(form.get("email") || ""),
+          phone: String(form.get("phone") || ""),
+          currentPassword: String(form.get("currentPassword") || "") || undefined,
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "會員資料更新失敗");
+      await refreshMember();
+      setAccountPanel(null);
+      setMemberNotice(result.message || "會員資料已更新");
+    } catch (reason) {
+      setMemberError(reason instanceof Error ? reason.message : "會員資料更新失敗");
+    } finally {
+      setSubmittingMember(false);
+    }
+  }
+
+  async function updateMemberPassword(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (submittingMember) return;
+    const form = new FormData(event.currentTarget);
+    const newPassword = String(form.get("newPassword") || "");
+    if (newPassword !== String(form.get("confirmPassword") || "")) {
+      setMemberError("兩次輸入的新密碼不一致");
+      return;
+    }
+    setSubmittingMember(true);
+    setMemberError("");
+    setMemberNotice("");
+    try {
+      const response = await fetch(`/api/store/${encodeURIComponent(tenant)}/member/password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          currentPassword: String(form.get("currentPassword") || ""),
+          newPassword,
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "密碼更新失敗");
+      setProfile({ authenticated: false });
+      setMode("login");
+      setAccountPanel(null);
+      setMemberNotice(result.message || "密碼已更新，請重新登入");
+    } catch (reason) {
+      setMemberError(reason instanceof Error ? reason.message : "密碼更新失敗");
+    } finally {
+      setSubmittingMember(false);
+    }
+  }
+
+  async function deleteMemberAccount(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (submittingMember) return;
+    const form = new FormData(event.currentTarget);
+    if (form.get("confirmDelete") !== "yes") {
+      setMemberError("請先勾選確認刪除會員帳號");
+      return;
+    }
+    setSubmittingMember(true);
+    setMemberError("");
+    setMemberNotice("");
+    try {
+      const response = await fetch(`/api/store/${encodeURIComponent(tenant)}/member`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          password: String(form.get("password") || ""),
+          confirmation: "DELETE",
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "會員帳號刪除失敗");
+      setProfile({ authenticated: false });
+      setMode("register");
+      setAccountPanel(null);
+      setMemberNotice(result.message || "會員帳號已刪除");
+    } catch (reason) {
+      setMemberError(reason instanceof Error ? reason.message : "會員帳號刪除失敗");
+    } finally {
+      setSubmittingMember(false);
+    }
+  }
+
+  if (loadingMember) {
+    return <section className={styles.memberPage}><div className={styles.memberLoading}><CircleUserRound /><h1>會員資料載入中</h1><p>正在確認此商城的會員登入狀態。</p></div></section>;
+  }
+
+  if (!profile?.authenticated || !profile.member) {
+    return (
+      <section className={styles.memberPage}>
+        <div className={styles.memberAuthLayout}>
+          <div className={styles.memberAuthIntro}>
+            <span className={styles.eyebrow}>STORE MEMBERSHIP</span>
+            <h1>加入品牌會員，<br />累積每一次選擇。</h1>
+            <p>官網與門市共用同一份 ERP 客戶資料；註冊後可查看本人訂單、會員點數與優惠券。</p>
+            <div><ShieldCheck /><span><strong>租戶資料隔離</strong>會員只會建立在目前這間商城</span></div>
+            <div><BadgeCheck /><span><strong>安全密碼保存</strong>密碼經雜湊處理，不保存可讀明碼</span></div>
+            <div><PackageCheck /><span><strong>訂單自動歸戶</strong>登入後結帳會連回本人 ERP 客戶資料</span></div>
+          </div>
+          <div className={styles.memberAuthCard}>
+            <div className={styles.memberAuthTabs}>
+              <button type="button" className={mode === "register" ? styles.memberAuthTabActive : ""} onClick={() => { setMode("register"); setMemberError(""); }}><UserPlus />新會員註冊</button>
+              <button type="button" className={mode === "login" ? styles.memberAuthTabActive : ""} onClick={() => { setMode("login"); setMemberError(""); }}><LogIn />會員登入</button>
+            </div>
+            <form onSubmit={submitMember} className={styles.memberAuthForm}>
+              {mode === "register" && <label>姓名<input name="name" required maxLength={80} autoComplete="name" placeholder="請輸入姓名" /></label>}
+              <label>電子信箱<input name="email" required type="email" maxLength={200} autoComplete="email" placeholder="name@example.com" /></label>
+              {mode === "register" && <label>手機號碼<input name="phone" required minLength={6} maxLength={30} inputMode="tel" autoComplete="tel" placeholder="09xx-xxx-xxx" /></label>}
+              <label>密碼<input name="password" required type="password" minLength={8} maxLength={72} autoComplete={mode === "register" ? "new-password" : "current-password"} placeholder={mode === "register" ? "至少 8 碼，包含英文與數字" : "請輸入會員密碼"} /></label>
+              {mode === "register" && <label>確認密碼<input name="confirmPassword" required type="password" minLength={8} maxLength={72} autoComplete="new-password" placeholder="再輸入一次密碼" /></label>}
+              {memberError && <div className={styles.memberAuthError}>{memberError}</div>}
+              {memberNotice && <div className={styles.memberAuthNotice}>{memberNotice}</div>}
+              <button type="submit" disabled={submittingMember} className={styles.memberAuthSubmit}>{submittingMember ? "處理中…" : mode === "register" ? "建立會員並登入" : "登入會員中心"}<ArrowRight /></button>
+              <p>註冊即表示同意商城依隱私權政策保存會員與訂單資料；不同租戶商城的帳號不互通。</p>
+            </form>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  const member = profile.member;
+  const recentOrders = profile.orders || [];
   return (
     <section className={styles.memberPage}>
-      <div className={styles.memberHero}><div className={styles.memberAvatar}>王</div><div><span>WELCOME BACK</span><h1>王小美，午安</h1><p>NOIR MEMBER ・ 加入於 2026/03/12</p></div><button>編輯會員資料</button></div>
-      <div className={styles.memberStats}><article><span>可用點數</span><strong>1,280</strong><small>100 點可折 NT$100</small></article><article><span>會員等級</span><strong>SILVER</strong><small>再消費 NT$3,600 升等</small></article><article><span>有效優惠券</span><strong>3</strong><small>最近到期：08/16</small></article><article><span>累積訂單</span><strong>{orderCount + 8}</strong><small>線上與門市合併計算</small></article></div>
+      <div className={styles.memberHero}><div className={styles.memberAvatar}>{member.name.slice(0, 1)}</div><div><span>WELCOME BACK</span><h1>{member.name}，您好</h1><p>{member.email} ・ 加入於 {new Date(member.joinedAt).toLocaleDateString("zh-TW")}</p></div><button onClick={logoutMember} disabled={submittingMember}><LogOut />安全登出</button></div>
+      {memberNotice && <div className={styles.memberAuthNotice}>{memberNotice}</div>}
+      <div className={styles.memberStats}><article><span>可用點數</span><strong>{member.loyaltyPoints.toLocaleString("zh-TW")}</strong><small>點數由 ERP 與門市 POS 同步</small></article><article><span>會員等級</span><strong>{member.loyaltyTier}</strong><small>依商家會員規則計算</small></article><article><span>有效優惠券</span><strong>{profile.stats?.couponCount ?? 0}</strong><small>目前商城可用活動</small></article><article><span>累積訂單</span><strong>{profile.stats?.orderCount ?? 0}</strong><small>本人官網訂單即時查詢</small></article></div>
+      {accountPanel && (
+        <section className={`${styles.memberAccountPanel} ${accountPanel === "delete" ? styles.memberAccountDanger : ""}`}>
+          <div className={styles.panelTitle}><div><span>ACCOUNT SETTINGS</span><h2>{accountPanel === "profile" ? "編輯會員資料" : accountPanel === "password" ? "變更登入密碼" : "刪除會員帳號"}</h2></div><button type="button" onClick={() => { setAccountPanel(null); setMemberError(""); }} aria-label="關閉"><X /></button></div>
+          {memberError && <div className={styles.memberAuthError}>{memberError}</div>}
+          {accountPanel === "profile" && <form onSubmit={updateMemberProfile} className={styles.memberAccountForm}><label>姓名<input name="name" required maxLength={80} defaultValue={member.name} /></label><label>手機號碼<input name="phone" required minLength={6} maxLength={30} defaultValue={member.phone || ""} /></label><label>電子信箱<input name="email" required type="email" maxLength={200} defaultValue={member.email} /></label><label>目前密碼<small>只有變更 Email 時需要輸入</small><input name="currentPassword" type="password" maxLength={72} autoComplete="current-password" /></label><button type="submit" disabled={submittingMember}>{submittingMember ? "儲存中…" : "儲存會員資料"}</button></form>}
+          {accountPanel === "password" && <form onSubmit={updateMemberPassword} className={styles.memberAccountForm}><label>目前密碼<input name="currentPassword" required type="password" maxLength={72} autoComplete="current-password" /></label><label>新密碼<small>至少 8 碼，包含英文與數字</small><input name="newPassword" required type="password" minLength={8} maxLength={72} autoComplete="new-password" /></label><label>確認新密碼<input name="confirmPassword" required type="password" minLength={8} maxLength={72} autoComplete="new-password" /></label><button type="submit" disabled={submittingMember}>{submittingMember ? "更新中…" : "更新密碼並重新登入"}</button></form>}
+          {accountPanel === "delete" && <form onSubmit={deleteMemberAccount} className={styles.memberAccountForm}><p>刪除後，會員登入憑證與個人資料會移除；依法需保存的歷史交易只保留匿名帳務關聯，無法復原。</p><label>會員密碼<input name="password" required type="password" maxLength={72} autoComplete="current-password" /></label><label className={styles.deleteConfirmation}><input name="confirmDelete" type="checkbox" value="yes" />我了解此操作無法復原，確認刪除會員帳號</label><button type="submit" disabled={submittingMember}>{submittingMember ? "刪除中…" : "永久刪除會員帳號"}</button></form>}
+        </section>
+      )}
       <div className={styles.memberPanels}>
-        <article><div className={styles.panelTitle}><h2>快速入口</h2></div><Link href={`/store/${tenant}/orders`}><PackageCheck />訂單查詢<span>查看出貨與取貨進度</span><ChevronRight /></Link><Link href={`/store/${tenant}/campaigns`}><TicketPercent />我的優惠券<span>3 張可使用</span><ChevronRight /></Link><button><Heart />收藏清單<span>已收藏 5 件商品</span><ChevronRight /></button></article>
-        <article><div className={styles.panelTitle}><h2>會員專屬</h2><span>ERP CRM 同步</span></div><div className={styles.tierProgress}><div><span>本年度累積</span><strong>NT$8,400 / NT$12,000</strong></div><i><b /></i><p>消費與點數會合併門市 POS 紀錄，跨通路仍是同一位顧客。</p></div></article>
+        <article><div className={styles.panelTitle}><h2>快速入口</h2></div><Link href={`/store/${tenant}/orders`}><PackageCheck />訂單查詢<span>查看出貨與取貨進度</span><ChevronRight /></Link><Link href={`/store/${tenant}/campaigns`}><TicketPercent />我的優惠券<span>{profile.stats?.couponCount ?? 0} 張活動可查看</span><ChevronRight /></Link><button type="button" onClick={() => { setAccountPanel("profile"); setMemberError(""); }}><CircleUserRound />編輯會員資料<span>姓名、Email 與手機</span><ChevronRight /></button><button type="button" onClick={() => { setAccountPanel("password"); setMemberError(""); }}><ShieldCheck />變更登入密碼<span>更新後所有裝置需重新登入</span><ChevronRight /></button><button type="button" onClick={() => { setAccountPanel("delete"); setMemberError(""); }}><Trash2 />刪除會員帳號<span>移除登入與個人資料</span><ChevronRight /></button></article>
+        <article><div className={styles.panelTitle}><h2>最近訂單</h2><span>ERP 即時資料</span></div>{recentOrders.length ? <div className={styles.memberOrderRows}>{recentOrders.slice(0, 4).map((order) => <div key={order.id}><span>{order.id}<small>{new Date(order.createdAt).toLocaleDateString("zh-TW")} ・ {order.items} 件</small></span><strong>{money(order.total)}<small>{memberStatusLabel(order.status)}{memberPaymentLabel(order) ? `・${memberPaymentLabel(order)}` : ""}</small></strong></div>)}</div> : <div className={styles.memberNoOrders}><PackageCheck /><p>目前還沒有訂單。完成第一次選購後，訂單會自動顯示在這裡。</p></div>}</article>
       </div>
     </section>
   );
 }
 
-function OrdersView({ orders }: { orders: Order[] }) {
+function OrdersView({ orders, managerAccess }: { orders: Order[]; managerAccess: boolean }) {
   const [query, setQuery] = useState("");
   const demoOrders: Order[] = [
     { id: "EC2607181042", createdAt: "2026-07-18T08:30:00.000Z", status: "配送中", total: 3960, items: 2, recipient: "王小美" },
     { id: "EC2607010821", createdAt: "2026-07-01T04:12:00.000Z", status: "已完成", total: 2680, items: 1, recipient: "王小美" },
   ];
-  const rows = [...orders, ...demoOrders].filter((order) => !query || order.id.toLowerCase().includes(query.toLowerCase()));
+  const rows = [...orders, ...(managerAccess ? demoOrders : [])].filter((order) => !query || order.id.toLowerCase().includes(query.toLowerCase()));
   return (
     <section className={styles.orderPage}>
-      <div className={styles.pageIntro}><span className={styles.eyebrow}>TRACK YOUR ORDER</span><h1>訂單查詢</h1><p>網路訂單、門市取貨與 POS 交易可在會員識別後集中查詢。</p></div>
+      <div className={styles.pageIntro}><span className={styles.eyebrow}>TRACK YOUR ORDER</span><h1>訂單查詢</h1><p>網路訂單、門市取貨與 POS 交易可在會員識別後集中查詢。{managerAccess ? " 王小美訂單為租戶操作體驗資料。" : ""}</p></div>
       <label className={styles.orderSearch}><Search /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="輸入訂單編號，例如 EC2607181042" /></label>
       <div className={styles.orderList}>{rows.map((order) => <article key={order.id}><div className={styles.orderTop}><div><span>{order.id}</span><small>{new Date(order.createdAt).toLocaleString("zh-TW", { dateStyle: "medium", timeStyle: "short" })}</small></div><b className={order.status === "已完成" ? styles.doneStatus : ""}>{order.status}</b></div><div className={styles.orderBody}><div><PackageCheck /><span>{order.items} 件商品<strong>{order.recipient}</strong></span></div><strong>{money(order.total)}</strong><button>查看明細 <ChevronRight /></button></div><OrderTimeline status={order.status} /></article>)}</div>
       {rows.length === 0 && <div className={styles.emptyState}><Search /><h2>找不到這筆訂單</h2><p>請確認訂單編號，或登入會員中心查看全部紀錄。</p></div>}

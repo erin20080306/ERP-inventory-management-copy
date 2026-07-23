@@ -41,6 +41,9 @@ model Tenant {
   productUnits             ProductUnit[]
   products                 Product[]
   customers                Customer[]
+  storefrontMembers        StorefrontMember[]
+  storefrontMemberSessions StorefrontMemberSession[]
+  storefrontPayments       StorefrontPayment[]
   suppliers                Supplier[]
   warehouses               Warehouse[]
   inventoryStocks          InventoryStock[]
@@ -430,11 +433,88 @@ model Customer {
   loyaltyTier         String                       @default("STANDARD")
   loyaltyTransactions CustomerLoyaltyTransaction[]
   couponRedemptions   PosCouponRedemption[]
+  storefrontMember    StorefrontMember?
 
   @@unique([tenantId, code])
   @@index([tenantId])
   @@index([tenantId, createdAt])
   @@index([tenantId, isActive])
+}
+
+// 電商官網會員憑證與 ERP 客戶主檔分離保存；每位會員只屬於一個租戶。
+model StorefrontMember {
+  id              String                    @id @default(cuid())
+  tenantId        String
+  customerId      String                    @unique
+  email           String
+  passwordHash    String
+  name            String
+  phone           String?
+  isActive        Boolean                   @default(true)
+  emailVerifiedAt DateTime?
+  lastLoginAt     DateTime?
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+  tenant          Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer        Customer                  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  sessions        StorefrontMemberSession[]
+
+  @@unique([tenantId, email])
+  @@index([tenantId, isActive])
+  @@index([tenantId, createdAt])
+}
+
+// 瀏覽器只保存隨機 Token；資料庫僅保存 SHA-256 雜湊，登出可立即撤銷。
+model StorefrontMemberSession {
+  id         String           @id @default(cuid())
+  tenantId   String
+  memberId   String
+  tokenHash  String           @unique
+  expiresAt  DateTime
+  lastSeenAt DateTime         @default(now())
+  createdAt  DateTime         @default(now())
+  tenant     Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  member     StorefrontMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, expiresAt])
+  @@index([memberId, expiresAt])
+}
+
+enum StorefrontPaymentMethod {
+  CARD
+  MOBILE
+  TRANSFER
+}
+
+enum StorefrontPaymentStatus {
+  AWAITING_TRANSFER
+  GATEWAY_REQUIRED
+  PENDING
+  PAID
+  FAILED
+  CANCELLED
+  EXPIRED
+}
+
+// 官網付款與銷售訂單分開記錄，日後串接金流回呼時可安全更新付款狀態。
+model StorefrontPayment {
+  id                String                  @id @default(cuid())
+  tenantId          String
+  orderId           String                  @unique
+  method            StorefrontPaymentMethod
+  status            StorefrontPaymentStatus
+  amount            Decimal                 @db.Decimal(18, 2)
+  provider          String?
+  providerReference String?
+  expiresAt         DateTime?
+  paidAt            DateTime?
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+  tenant            Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  order             SalesOrder              @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status, createdAt])
+  @@index([tenantId, method, createdAt])
 }
 
 model Supplier {
@@ -704,13 +784,14 @@ model SalesOrder {
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
-  tenant      Tenant               @relation(fields: [tenantId], references: [id])
-  customer    Customer             @relation(fields: [customerId], references: [id])
-  items       SalesOrderItem[]
-  receivables AccountsReceivable[]
-  returns     SalesReturn[]
-  posSale     PosSale?
-  shipments   SalesShipment[]
+  tenant            Tenant               @relation(fields: [tenantId], references: [id])
+  customer          Customer             @relation(fields: [customerId], references: [id])
+  items             SalesOrderItem[]
+  receivables       AccountsReceivable[]
+  returns           SalesReturn[]
+  posSale           PosSale?
+  shipments         SalesShipment[]
+  storefrontPayment StorefrontPayment?
 
   @@unique([tenantId, number])
   @@index([tenantId])
@@ -2096,26 +2177,29 @@ model TaxRate {
 
 // ─────────────────────────── 系統 / 公司 / Log / 編號 ───────────────────────────
 model CompanySetting {
-  id            String   @id @default(cuid())
-  tenantId      String
-  name          String
-  taxId         String?
-  address       String?
-  phone         String?
-  email         String?
-  logoUrl       String?
-  currency      String   @default("TWD")
-  storeName     String?
-  storeSlug     String?  @unique
-  smtpHost      String?
-  smtpPort      Int?
-  smtpSecure    Boolean  @default(true)
-  smtpUser      String?
-  smtpPassword  String?
-  smtpFromName  String?
-  smtpFromEmail String?
-  updatedAt     DateTime @updatedAt
-  tenant        Tenant   @relation(fields: [tenantId], references: [id])
+  id                         String   @id @default(cuid())
+  tenantId                   String
+  name                       String
+  taxId                      String?
+  address                    String?
+  phone                      String?
+  email                      String?
+  logoUrl                    String?
+  currency                   String   @default("TWD")
+  storeName                  String?
+  storeSlug                  String?  @unique
+  storeTransferBankName      String?
+  storeTransferAccountName   String?
+  storeTransferAccountNumber String?
+  smtpHost                   String?
+  smtpPort                   Int?
+  smtpSecure                 Boolean  @default(true)
+  smtpUser                   String?
+  smtpPassword               String?
+  smtpFromName               String?
+  smtpFromEmail              String?
+  updatedAt                  DateTime @updatedAt
+  tenant                     Tenant   @relation(fields: [tenantId], references: [id])
 
   @@index([tenantId])
 }

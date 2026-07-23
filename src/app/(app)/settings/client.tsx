@@ -39,7 +39,10 @@ export function SettingsClient() {
   return (
     <div className="space-y-6">
       <Card>
-        <CardHeader><CardTitle>公司基本資料</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle>公司基本資料</CardTitle>
+          <CardDescription>公司更名會同步到授權、公司主機與工作站；租戶、資料、啟用碼及安裝程式都不會更換。公司業態如需變更，請由平台管理者先檢查影響後執行保留資料轉換。</CardDescription>
+        </CardHeader>
         <CardContent className="grid grid-cols-2 gap-4 max-w-3xl">
           <div className="space-y-1 col-span-2"><Label>公司名稱 *</Label><Input value={form.name ?? ""} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
           <div className="space-y-1"><Label>統一編號</Label><Input value={form.taxId ?? ""} onChange={(e) => setForm({ ...form, taxId: e.target.value })} /></div>
@@ -72,6 +75,18 @@ export function SettingsClient() {
             </div>
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">
               如需使用自己的品牌網域，電商月租與年租方案另收一次設定費 NT$1,500；網域購買與續費由客戶自行支付。未設定自訂網域不影響上述專屬商城網址使用。
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <div className="text-sm font-bold text-slate-900">商城銀行轉帳資訊</div>
+              <p className="mt-1 text-xs leading-5 text-slate-600">填寫後，選擇銀行轉帳的顧客會在訂單成立頁看到匯款資訊。請只填寫專門對外收款的帳戶。</p>
+              <div className="mt-4 grid gap-4 md:grid-cols-3">
+                <div className="space-y-1"><Label>銀行名稱</Label><Input value={form.storeTransferBankName ?? ""} onChange={(e) => setForm({ ...form, storeTransferBankName: e.target.value })} placeholder="例如：○○銀行" /></div>
+                <div className="space-y-1"><Label>戶名</Label><Input value={form.storeTransferAccountName ?? ""} onChange={(e) => setForm({ ...form, storeTransferAccountName: e.target.value })} placeholder="公司或品牌戶名" /></div>
+                <div className="space-y-1"><Label>匯款帳號</Label><Input value={form.storeTransferAccountNumber ?? ""} onChange={(e) => setForm({ ...form, storeTransferAccountNumber: e.target.value })} placeholder="請輸入對外收款帳號" /></div>
+              </div>
+            </div>
+            <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs leading-5 text-rose-900">
+              信用卡與行動支付目前只提供結帳與 ERP 接單流程體驗，不會實際扣款；正式收款需由客戶提供金流商帳號及串接資料後開通。
             </div>
             <Button onClick={save} disabled={saving}>{saving ? "儲存中..." : "儲存商城設定"}</Button>
           </CardContent>

@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { ApiError, apiHandler, getClientInfo } from "@/lib/api";
 import { planCommerceStockAllocations } from "@/lib/commerce-checkout";
 import { resolveDemoProductImage } from "@/lib/demo-product-media";
-import { createPostedJournal, nextNumberInTransaction } from "@/lib/documents";
+import { nextNumberInTransaction } from "@/lib/documents";
 import { computeLicenseAccess } from "@/lib/license";
 import { prisma } from "@/lib/prisma";
 import { normalizeStoreSlug, storefrontUrl } from "@/lib/storefront-branding";
+import { readStorefrontMemberSession } from "@/lib/storefront-members";
 
 const CheckoutInput = z.object({
   requestId: z.string().uuid(),
@@ -70,7 +70,13 @@ async function getCommerceTenant(rawKey: string) {
       licenseKeyHash: true,
       licenseVersion: true,
       companySettings: {
-        select: { storeName: true, storeSlug: true },
+        select: {
+          storeName: true,
+          storeSlug: true,
+          storeTransferBankName: true,
+          storeTransferAccountName: true,
+          storeTransferAccountNumber: true,
+        },
         take: 1,
       },
     },
@@ -141,6 +147,29 @@ export const GET = apiHandler(async (_req: NextRequest, { params }: { params: { 
     },
     acceptingOrders: access.allowed,
     accessMessage: access.allowed ? null : access.reason,
+    paymentOptions: {
+      card: {
+        enabled: true,
+        gatewayConnected: false,
+        message: "可體驗信用卡結帳與 ERP 接單；正式扣款需由商家提供金流串接資料",
+      },
+      mobile: {
+        enabled: true,
+        gatewayConnected: false,
+        message: "可體驗行動支付結帳與 ERP 接單；正式扣款需由商家提供金流串接資料",
+      },
+      transfer: {
+        enabled: true,
+        configured: Boolean(
+          company?.storeTransferBankName
+          && company.storeTransferAccountName
+          && company.storeTransferAccountNumber
+        ),
+        bankName: company?.storeTransferBankName || null,
+        accountName: company?.storeTransferAccountName || null,
+        accountNumber: company?.storeTransferAccountNumber || null,
+      },
+    },
     products: products.map((product) => ({
       id: product.id,
       sku: product.sku,
@@ -161,6 +190,38 @@ export const POST = apiHandler(async (req: NextRequest, { params }: { params: { 
   if (input.delivery === "HOME" && !input.customer.address) throw new ApiError(400, "宅配訂單請填寫配送地址");
   const { tenant, access } = await getCommerceTenant(params.tenant);
   if (!access.allowed) throw new ApiError(403, access.reason || "此商城目前暫停接單");
+  const memberSession = await readStorefrontMemberSession(req, tenant.id);
+  const company = tenant.companySettings[0];
+  const transferConfigured = Boolean(
+    company?.storeTransferBankName
+    && company.storeTransferAccountName
+    && company.storeTransferAccountNumber
+  );
+  const paymentStatus = input.payment === "TRANSFER" ? "AWAITING_TRANSFER" as const : "GATEWAY_REQUIRED" as const;
+  const paymentDetails = input.payment === "TRANSFER"
+    ? {
+        method: input.payment,
+        status: paymentStatus,
+        charged: false,
+        nextAction: transferConfigured
+          ? "請於 24 小時內完成匯款，匯款備註填寫訂單編號，再由商家確認入帳"
+          : "商家尚未設定匯款帳戶，請聯絡商家取得付款資訊",
+        bankTransfer: transferConfigured ? {
+          bankName: company!.storeTransferBankName!,
+          accountName: company!.storeTransferAccountName!,
+          accountNumber: company!.storeTransferAccountNumber!,
+        } : null,
+      }
+    : {
+        method: input.payment,
+        status: paymentStatus,
+        charged: false,
+        nextAction: "租戶尚未串接實際金流，本次只建立 ERP 訂單且不會扣款",
+        bankTransfer: null,
+      };
+  const checkoutCustomer = memberSession
+    ? { ...input.customer, name: memberSession.member.name, email: memberSession.member.email }
+    : input.customer;
 
   const result = await prisma.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`web-checkout:${tenant.id}`}))`;
@@ -176,7 +237,8 @@ export const POST = apiHandler(async (req: NextRequest, { params }: { params: { 
         status: duplicate.status === "POSTED" ? "庫存與會計已過帳・待付款確認" : duplicate.status,
         total: Number(duplicate.total),
         items: input.items.reduce((sum, item) => sum + item.quantity, 0),
-        recipient: input.customer.name,
+        recipient: checkoutCustomer.name,
+        payment: paymentDetails,
       };
     }
 
@@ -244,20 +306,23 @@ export const POST = apiHandler(async (req: NextRequest, { params }: { params: { 
     const merchandiseTotal = computed.reduce((sum, item) => sum + item.subtotal, 0);
     const shipping = input.delivery === "HOME" && merchandiseTotal < 2000 ? 120 : 0;
     const total = merchandiseTotal + shipping;
-    const email = input.customer.email.toLowerCase();
-    let customer = await tx.customer.findFirst({
-      where: { tenantId: tenant.id, email: { equals: email, mode: "insensitive" } },
-      orderBy: { createdAt: "asc" },
-    });
+    const email = checkoutCustomer.email.toLowerCase();
+    let customer = memberSession
+      ? await tx.customer.findFirst({ where: { id: memberSession.member.customerId, tenantId: tenant.id } })
+      : await tx.customer.findFirst({
+          where: { tenantId: tenant.id, email: { equals: email, mode: "insensitive" } },
+          orderBy: { createdAt: "asc" },
+        });
+    if (memberSession && !customer) throw new ApiError(401, "會員資料已失效，請重新登入");
     if (customer) {
       customer = await tx.customer.update({
         where: { id: customer.id },
         data: {
-          companyName: input.customer.name,
-          contactName: input.customer.name,
-          phone: input.customer.phone,
+          companyName: checkoutCustomer.name,
+          contactName: checkoutCustomer.name,
+          phone: checkoutCustomer.phone,
           email,
-          address: input.customer.address || customer.address,
+          address: checkoutCustomer.address || customer.address,
           isActive: true,
         },
       });
@@ -267,11 +332,11 @@ export const POST = apiHandler(async (req: NextRequest, { params }: { params: { 
         data: {
           tenantId: tenant.id,
           code: customerCode,
-          companyName: input.customer.name,
-          contactName: input.customer.name,
-          phone: input.customer.phone,
+          companyName: checkoutCustomer.name,
+          contactName: checkoutCustomer.name,
+          phone: checkoutCustomer.phone,
           email,
-          address: input.customer.address || null,
+          address: checkoutCustomer.address || null,
           remark: "由品牌官網結帳自動建立",
         },
       });
@@ -286,90 +351,54 @@ export const POST = apiHandler(async (req: NextRequest, { params }: { params: { 
         number: orderNumber,
         customerId: customer.id,
         warehouseId: stockPlan.orderWarehouseId,
-        status: "POSTED",
-        shippedAt: new Date(),
+        status: "SUBMITTED",
         updatedBy: "WEB_CHECKOUT",
         subtotal: merchandiseTotal,
         discount: 0,
         taxAmount: 0,
         total,
         isTaxable: false,
-        remark: `[WEB] request=${input.requestId}; ${paymentLabel}; ${deliveryLabel}; 運費=${shipping}; 地址=${input.customer.address || "門市取貨"}; 規格=${computed.map((item) => `${item.product.sku}:${item.color || "-"}:${item.size || "-"}x${item.quantity}`).join(",")}`,
+        remark: `[WEB] request=${input.requestId}; ${paymentLabel}; ${deliveryLabel}; 運費=${shipping}; 地址=${checkoutCustomer.address || "門市取貨"}; 規格=${computed.map((item) => `${item.product.sku}:${item.color || "-"}:${item.size || "-"}x${item.quantity}`).join(",")}`,
         items: {
           create: computed.map((item) => ({
             productId: item.product.id,
             quantity: item.quantity,
-            shippedQty: item.quantity,
+            shippedQty: 0,
             unitPrice: item.unitPrice,
             discount: 0,
             taxRate: 0,
             subtotal: item.subtotal,
           })),
         },
+        storefrontPayment: {
+          create: {
+            tenantId: tenant.id,
+            method: input.payment,
+            status: paymentStatus,
+            amount: total,
+            expiresAt: input.payment === "TRANSFER" ? new Date(Date.now() + 24 * 60 * 60_000) : null,
+          },
+        },
       },
       select: { id: true, number: true, createdAt: true, total: true },
     });
 
-    if (stockPlan.allocations.length > 0) {
-      const requestedRows = stockPlan.allocations.map((allocation) => Prisma.sql`(${allocation.stockId}, ${allocation.productId}, ${allocation.warehouseId}, ${allocation.quantity}::numeric)`);
-      const updated = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
-        WITH requested("stockId", "productId", "warehouseId", "quantity") AS (
-          VALUES ${Prisma.join(requestedRows)}
-        )
-        UPDATE "InventoryStock" AS stock
-        SET "quantity" = stock."quantity" - requested."quantity"
-        FROM requested
-        WHERE stock."id" = requested."stockId"
-          AND stock."tenantId" = ${tenant.id}
-          AND stock."productId" = requested."productId"
-          AND stock."warehouseId" = requested."warehouseId"
-          AND stock."quantity" >= requested."quantity"
-        RETURNING stock."id"
-      `);
-      if (updated.length !== stockPlan.allocations.length) {
-        throw new ApiError(409, "庫存剛被其他交易更新，請重新確認購物車後再結帳");
-      }
-    }
-    await tx.inventoryTransaction.createMany({
-      data: stockPlan.allocations.map((allocation) => ({
-        tenantId: tenant.id,
-        productId: allocation.productId,
-        warehouseId: allocation.warehouseId,
-        type: "SALES_OUT" as const,
-        quantity: allocation.quantity * -1,
-        unitCost: allocation.unitCost,
-        refType: "WEB_CHECKOUT",
-        refId: order.id,
-        remark: `商城結帳 ${order.number}`,
-      })),
-    });
-    await tx.accountsReceivable.create({
-      data: {
-        tenantId: tenant.id,
-        customerId: customer.id,
-        salesOrderId: order.id,
-        amount: total,
-        paidAmount: 0,
-        status: "POSTED",
-        updatedBy: "WEB_CHECKOUT",
-      },
-    });
-    await createPostedJournal(tx, tenant.id, `商城銷售 ${order.number}`, undefined, [
-      { code: "1132", debit: total, memo: `應收帳款－${order.number}` },
-      { code: "4101", credit: total, memo: `商城銷貨收入－${order.number}` },
-      { code: "5101", debit: stockPlan.cogs, memo: `銷貨成本－${order.number}` },
-      { code: "1201", credit: stockPlan.cogs, memo: `存貨－${order.number}` },
-    ]);
-
     return {
       id: order.number,
       createdAt: order.createdAt.toISOString(),
-      status: input.payment === "TRANSFER" ? "庫存與會計已過帳・等待轉帳確認" : "庫存與會計已過帳・等待金流確認",
+      status: input.payment === "TRANSFER" ? "訂單已進 ERP・等待轉帳確認" : "訂單已進 ERP・等待金流串接",
       total: Number(order.total),
       items: input.items.reduce((sum, item) => sum + item.quantity, 0),
-      recipient: input.customer.name,
+      recipient: checkoutCustomer.name,
+      payment: paymentDetails,
     };
   }, { isolationLevel: "ReadCommitted", maxWait: 10_000, timeout: 30_000 });
 
-  return NextResponse.json({ order: result, erpStatus: "POSTED", inventory: "DEDUCTED", accounting: "POSTED", payment: "PENDING" }, { status: 201 });
+  return NextResponse.json({
+    order: result,
+    erpStatus: "SUBMITTED",
+    inventory: "RESERVED",
+    accounting: "PENDING_FULFILLMENT",
+    payment: result.payment.status,
+  }, { status: 201 });
 });

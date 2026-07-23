@@ -47,4 +47,4 @@ assert.equal(shortage.shortages.length, 1);
 assert.equal(shortage.shortages[0].available, 2);
 assert.equal(shortage.shortages[0].requested, 5);
 
-console.log("Commerce checkout allocation and cost posting verified.");
+console.log("Commerce checkout stock reservation planning verified.");

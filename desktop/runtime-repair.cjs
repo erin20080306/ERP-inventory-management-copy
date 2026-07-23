@@ -6,6 +6,7 @@ const {
   createPrivateKey,
   createPublicKey,
   sign: cryptoSign,
+  timingSafeEqual,
   verify: cryptoVerify,
 } = require("node:crypto");
 const { app, safeStorage } = require("electron");
@@ -59,6 +60,89 @@ function writeDesktopConfig(config) {
   fs.writeFileSync(temporary, `${JSON.stringify(config, null, 2)}\n`, { mode: 0o600 });
   fs.renameSync(temporary, target);
   try { fs.chmodSync(target, 0o600); } catch {}
+}
+
+function parseEnvFile(source) {
+  const values = new Map();
+  for (const rawLine of String(source || "").split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) continue;
+    const match = rawLine.match(/^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/);
+    if (!match) continue;
+    let value = match[2];
+    if (
+      value.length >= 2
+      && ((value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("'") && value.endsWith("'")))
+    ) {
+      value = value.slice(1, -1);
+    }
+    values.set(match[1], value);
+  }
+  return values;
+}
+
+function equalSecret(left, right) {
+  const leftHash = createHash("sha256").update(String(left || "")).digest();
+  const rightHash = createHash("sha256").update(String(right || "")).digest();
+  return timingSafeEqual(leftHash, rightHash);
+}
+
+function syncWorkstationActivationFromLocalHost() {
+  const target = desktopConfigPath();
+  const hostEnvPath = path.join(hostDirectory(), ".env.local");
+  if (!fs.existsSync(target) || !fs.existsSync(hostEnvPath)) return false;
+  if (!safeStorage.isEncryptionAvailable()) {
+    log("local Host activation sync deferred:", "OS secure storage is unavailable");
+    return false;
+  }
+
+  const hostEnv = parseEnvFile(fs.readFileSync(hostEnvPath, "utf8"));
+  const hostActivationKey = String(hostEnv.get("LOCAL_ACTIVATION_KEY") || "").trim();
+  if (hostActivationKey.length < 24 || hostActivationKey.length > 200) {
+    log("local Host activation sync deferred:", "Host activation is unavailable");
+    return false;
+  }
+
+  const config = JSON.parse(fs.readFileSync(target, "utf8"));
+  let workstationActivationKey = "";
+  try {
+    if (config.encryptedActivationKey) {
+      workstationActivationKey = safeStorage.decryptString(Buffer.from(config.encryptedActivationKey, "base64"));
+    }
+  } catch {
+    workstationActivationKey = "";
+  }
+  if (equalSecret(workstationActivationKey, hostActivationKey)) return false;
+
+  const backup = `${target}.before-host-activation-sync-${new Date().toISOString().replace(/[:.]/g, "-")}.bak`;
+  fs.copyFileSync(target, backup);
+  try { fs.chmodSync(backup, 0o600); } catch {}
+
+  const next = {
+    ...config,
+    version: Math.max(Number(config.version || 0), 2),
+    encryptedActivationKey: safeStorage.encryptString(hostActivationKey).toString("base64"),
+    deviceRole: "WORKSTATION",
+    hostActivationSyncedAt: new Date().toISOString(),
+  };
+  for (const key of [
+    "lease",
+    "leaseCheckedAt",
+    "centralPublicKey",
+    "companyCode",
+    "serverUrl",
+    "caCertificate",
+    "discoveryVersion",
+    "discoveryCheckedAt",
+    "centralTenantId",
+    "tenantName",
+    "businessMode",
+  ]) {
+    delete next[key];
+  }
+  writeDesktopConfig(next);
+  log("workstation activation matched the company Host on this computer");
+  return true;
 }
 
 function repairWorkstationIdentity() {
@@ -210,4 +294,5 @@ function scheduleUpdaterRepair() {
 module.exports = {
   repairWorkstationIdentity,
   scheduleUpdaterRepair,
+  syncWorkstationActivationFromLocalHost,
 };

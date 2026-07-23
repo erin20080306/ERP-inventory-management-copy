@@ -3,7 +3,11 @@ const path = require("node:path");
 const { spawn, spawnSync } = require("node:child_process");
 const { app } = require("electron");
 const { refreshActivationDiscovery } = require("./activation-refresh.cjs");
-const { repairWorkstationIdentity, scheduleUpdaterRepair } = require("./runtime-repair.cjs");
+const {
+  repairWorkstationIdentity,
+  scheduleUpdaterRepair,
+  syncWorkstationActivationFromLocalHost,
+} = require("./runtime-repair.cjs");
 
 function log(message, detail = "") {
   const line = `${new Date().toISOString()} ${message}${detail ? ` ${detail}` : ""}\n`;
@@ -185,6 +189,11 @@ async function start() {
     ensureWindowsHostPathCompatibility();
   } catch (error) {
     log("Windows Host path compatibility repair failed:", error?.message || String(error));
+  }
+  try {
+    syncWorkstationActivationFromLocalHost();
+  } catch (error) {
+    log("local Host activation sync failed:", error?.message || String(error));
   }
   scheduleUpdaterRepair();
 

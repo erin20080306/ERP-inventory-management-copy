@@ -246,18 +246,78 @@
 .miniLine small { display: block; color: #8c8880; }
 .checkoutError { margin-top: 18px; border: 1px solid rgba(176,58,46,.22); background: rgba(176,58,46,.07); padding: 12px 14px; color: #8d3028; font-size: 12px; line-height: 1.6; }
 .payButton:disabled { opacity: .65; cursor: not-allowed; }
+.demoCustomerNotice { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 24px; padding: 18px 20px; border: 1px solid color-mix(in srgb, var(--store-accent) 24%, transparent); background: color-mix(in srgb, var(--store-accent) 6%, white); color: #716c64; font-size: 10px; line-height: 1.75; }
+.demoCustomerNotice svg { flex: 0 0 auto; width: 21px; color: var(--store-accent); }
+.demoCustomerNotice strong { display: block; margin-bottom: 2px; color: var(--ink); font-size: 12px; }
+.paymentMethodNote { margin-top: 12px; padding: 12px 14px; border-left: 3px solid var(--store-accent); background: var(--paper); color: #716d65; font-size: 9px; line-height: 1.8; }
+.paymentResult, .paymentResultWarning { width: min(680px, 100%); margin: 26px auto 8px; padding: 22px; border: 1px solid #b9d5c1; background: #f4faf5; color: #4f6354; text-align: left; }
+.paymentResult > div:first-child, .paymentResultWarning { display: flex; align-items: flex-start; gap: 12px; }
+.paymentResult svg, .paymentResultWarning svg { flex: 0 0 auto; width: 21px; }
+.paymentResult span, .paymentResultWarning span { font-size: 10px; line-height: 1.7; }
+.paymentResult strong, .paymentResultWarning strong { display: block; color: var(--ink); font-size: 12px; }
+.paymentResult dl { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; margin: 20px 0 0; background: #dfe8e1; }
+.paymentResult dl > div { padding: 13px; background: #fff; }
+.paymentResult dt { color: #827e77; font-size: 8px; }
+.paymentResult dd { margin: 5px 0 0; color: var(--ink); font-family: monospace; font-size: 11px; font-weight: 800; word-break: break-all; }
+.paymentResult > p { margin: 16px 0 0; font-size: 10px; line-height: 1.8; }
+.paymentResultWarning { border-color: #efc8b8; background: #fff7f2; color: #8b4b35; }
 
+.memberLoading { display: grid; min-height: 420px; place-items: center; align-content: center; gap: 12px; border: 1px solid var(--line); background: var(--paper); text-align: center; }
+.memberLoading svg { width: 38px; height: 38px; color: var(--store-accent); }
+.memberLoading h1 { margin: 0; font-family: Georgia, "Noto Serif TC", serif; font-size: 30px; font-weight: 400; }
+.memberLoading p { margin: 0; color: #817d75; font-size: 10px; }
+.memberAuthLayout { display: grid; min-height: 650px; grid-template-columns: minmax(0, 1.1fr) minmax(380px, .8fr); align-items: center; gap: clamp(42px, 7vw, 100px); padding: clamp(46px, 6vw, 88px); background: linear-gradient(135deg, color-mix(in srgb, var(--paper) 92%, white), #fff); border: 1px solid var(--line); }
+.memberAuthIntro .eyebrow { color: var(--store-accent); }
+.memberAuthIntro h1 { max-width: 720px; margin: 24px 0; font-family: Georgia, "Noto Serif TC", serif; font-size: clamp(42px, 5vw, 72px); font-weight: 400; line-height: 1.12; letter-spacing: -.03em; }
+.memberAuthIntro > p { max-width: 620px; margin: 0 0 38px; color: #6f6b64; font-size: 12px; line-height: 2; }
+.memberAuthIntro > div { display: grid; max-width: 600px; grid-template-columns: 28px 1fr; gap: 14px; align-items: start; padding: 15px 0; border-top: 1px solid var(--line); color: #77736b; font-size: 10px; line-height: 1.75; }
+.memberAuthIntro > div svg { width: 20px; color: var(--store-accent); }
+.memberAuthIntro > div strong { display: block; color: var(--ink); font-size: 12px; }
+.memberAuthCard { padding: clamp(24px, 3vw, 38px); border: 1px solid var(--line); background: rgba(255,255,255,.9); box-shadow: 0 24px 80px rgba(35,31,27,.07); }
+.memberAuthTabs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 28px; padding: 5px; background: var(--paper); }
+.memberAuthTabs button { display: flex; min-height: 45px; align-items: center; justify-content: center; gap: 8px; border: 0; background: transparent; color: #817d75; font-size: 10px; font-weight: 700; cursor: pointer; }
+.memberAuthTabs button svg { width: 16px; }
+.memberAuthTabs .memberAuthTabActive { background: #fff; color: var(--ink); box-shadow: 0 5px 18px rgba(35,31,27,.07); }
+.memberAuthForm { display: flex; flex-direction: column; gap: 16px; }
+.memberAuthForm label { color: #625f59; font-size: 10px; font-weight: 700; }
+.memberAuthForm input { display: block; width: 100%; height: 48px; margin-top: 7px; padding: 0 14px; border: 1px solid var(--line); outline-color: var(--store-accent); background: #fff; color: var(--ink); font-size: 12px; }
+.memberAuthForm input::placeholder { color: #aaa69e; }
+.memberAuthForm > p { margin: 0; color: #8b877f; font-size: 8px; line-height: 1.8; text-align: center; }
+.memberAuthError, .memberAuthNotice { padding: 12px 14px; border: 1px solid rgba(176,58,46,.2); background: rgba(176,58,46,.06); color: #8d3028; font-size: 10px; line-height: 1.6; }
+.memberAuthNotice { border-color: color-mix(in srgb, var(--store-accent) 24%, transparent); background: color-mix(in srgb, var(--store-accent) 7%, white); color: var(--store-accent); }
+.memberPage > .memberAuthNotice { margin-bottom: 24px; }
+.memberAuthSubmit { display: flex; min-height: 52px; align-items: center; justify-content: center; gap: 10px; margin-top: 5px; border: 0; background: var(--ink); color: #fff; font-size: 11px; font-weight: 800; cursor: pointer; }
+.memberAuthSubmit svg { width: 17px; }
+.memberAuthSubmit:disabled { opacity: .6; cursor: not-allowed; }
 .memberHero { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 25px; margin-bottom: 45px; padding: 38px; background: var(--paper); }
 .memberAvatar { display: grid; width: 76px; height: 76px; place-items: center; border-radius: 999px; background: var(--ink); color: white; font-family: Georgia, serif; font-size: 27px; }
 .memberHero span { color: var(--store-accent); font-size: 9px; letter-spacing: .17em; }
 .memberHero h1 { margin: 8px 0; font-family: Georgia, "Noto Serif TC", serif; font-size: 32px; font-weight: 400; }
 .memberHero p { margin: 0; color: #858179; font-size: 9px; }
-.memberHero button { min-height: 40px; padding: 0 17px; border: 1px solid var(--ink); background: transparent; font-size: 10px; cursor: pointer; }
+.memberHero button { display: flex; min-height: 40px; align-items: center; justify-content: center; gap: 7px; padding: 0 17px; border: 1px solid var(--ink); background: transparent; font-size: 10px; cursor: pointer; }
+.memberHero button svg { width: 15px; }
 .memberStats { display: grid; grid-template-columns: repeat(4, 1fr); margin-bottom: 32px; border: 1px solid var(--line); }
 .memberStats article { min-height: 140px; padding: 26px; border-right: 1px solid var(--line); }
 .memberStats article:last-child { border: 0; }
 .memberStats span, .memberStats small { display: block; color: #827f77; font-size: 9px; }
 .memberStats strong { display: block; margin: 12px 0 8px; font-family: Georgia, serif; font-size: 26px; font-weight: 400; }
+.memberAccountPanel { margin-bottom: 32px; padding: clamp(22px, 3vw, 34px); border: 1px solid var(--line); background: #fff; }
+.memberAccountPanel .panelTitle { align-items: flex-start; }
+.memberAccountPanel .panelTitle span { display: block; margin-bottom: 6px; color: var(--store-accent); font-size: 8px; letter-spacing: .16em; }
+.memberAccountPanel .panelTitle button { display: grid; width: 36px; height: 36px; place-items: center; border: 1px solid var(--line); background: transparent; cursor: pointer; }
+.memberAccountPanel .panelTitle button svg { width: 16px; }
+.memberAccountForm { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.memberAccountForm label { color: #625f59; font-size: 10px; font-weight: 700; }
+.memberAccountForm label small { display: block; margin-top: 3px; color: #8d8980; font-size: 8px; font-weight: 400; }
+.memberAccountForm input:not([type="checkbox"]) { display: block; width: 100%; height: 46px; margin-top: 7px; padding: 0 13px; border: 1px solid var(--line); outline-color: var(--store-accent); background: #fff; }
+.memberAccountForm > p, .memberAccountForm > .memberAuthError { grid-column: 1 / -1; }
+.memberAccountForm > p { margin: 0; color: #756f68; font-size: 10px; line-height: 1.8; }
+.memberAccountForm > button { grid-column: 1 / -1; min-height: 48px; border: 0; background: var(--ink); color: #fff; font-size: 10px; font-weight: 800; cursor: pointer; }
+.memberAccountForm > button:disabled { opacity: .6; cursor: not-allowed; }
+.memberAccountDanger { border-color: rgba(176,58,46,.25); background: #fffafa; }
+.memberAccountDanger .memberAccountForm > button { background: #9d342c; }
+.memberAccountForm .deleteConfirmation { display: flex; grid-column: 1 / -1; align-items: center; gap: 9px; }
+.memberAccountForm .deleteConfirmation input { width: 17px; height: 17px; accent-color: #9d342c; }
 .memberPanels { display: grid; grid-template-columns: 1fr 1fr; gap: 25px; }
 .memberPanels article { padding: 28px; border: 1px solid var(--line); }
 .panelTitle { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
@@ -266,6 +326,13 @@
 .memberPanels article > a, .memberPanels article > button { display: grid; width: 100%; min-height: 62px; grid-template-columns: auto 1fr auto; align-items: center; gap: 14px; padding: 0; border: 0; border-top: 1px solid var(--line); background: transparent; text-align: left; cursor: pointer; font-size: 11px; }
 .memberPanels article > a > svg:first-child, .memberPanels article > button > svg:first-child { color: var(--store-accent); }
 .memberPanels article > a span, .memberPanels article > button span { color: #8d8980; font-size: 9px; }
+.memberOrderRows > div { display: flex; min-height: 62px; align-items: center; justify-content: space-between; gap: 18px; border-top: 1px solid var(--line); }
+.memberOrderRows span, .memberOrderRows strong { font-size: 10px; }
+.memberOrderRows strong { text-align: right; }
+.memberOrderRows small { display: block; margin-top: 5px; color: #8d8980; font-size: 8px; font-weight: 400; }
+.memberNoOrders { display: flex; min-height: 180px; align-items: center; justify-content: center; flex-direction: column; gap: 12px; border-top: 1px solid var(--line); color: #8d8980; text-align: center; }
+.memberNoOrders svg { width: 27px; color: var(--store-accent); }
+.memberNoOrders p { max-width: 340px; margin: 0; font-size: 10px; line-height: 1.8; }
 .tierProgress > div { display: flex; justify-content: space-between; color: #76736c; font-size: 10px; }
 .tierProgress > div strong { color: var(--ink); }
 .tierProgress i { display: block; height: 5px; margin: 20px 0; overflow: hidden; border-radius: 999px; background: #e3ded5; }
@@ -384,6 +451,7 @@
   .cartLayout, .checkoutLayout { grid-template-columns: 1fr; }
   .orderSummary, .checkoutSummary { position: static; }
   .memberStats { grid-template-columns: repeat(2, 1fr); }
+  .memberAuthLayout { grid-template-columns: 1fr; gap: 42px; }
   .memberStats article:nth-child(2) { border-right: 0; }
   .memberStats article:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
   .memberPanels { grid-template-columns: 1fr; }
@@ -422,6 +490,13 @@
   .formGrid { grid-template-columns: 1fr; }
   .fullField { grid-column: auto; }
   .checkoutForms fieldset { padding: 20px; }
+  .memberAuthLayout { min-height: 0; padding: 34px 20px; }
+  .memberAuthIntro h1 { font-size: 40px; }
+  .memberAuthIntro > p { margin-bottom: 26px; }
+  .memberAuthCard { padding: 20px 16px; }
+  .memberAuthTabs button { font-size: 9px; }
+  .paymentResult dl, .memberAccountForm { grid-template-columns: 1fr; }
+  .memberAccountForm > p, .memberAccountForm > button, .memberAccountForm > .memberAuthError, .memberAccountForm .deleteConfirmation { grid-column: auto; }
   .memberHero { grid-template-columns: auto 1fr; padding: 25px 20px; }
   .memberHero button { grid-column: 1 / -1; }
   .memberStats article { min-height: 120px; padding: 18px; }

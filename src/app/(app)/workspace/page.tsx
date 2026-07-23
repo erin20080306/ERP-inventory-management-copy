@@ -83,7 +83,7 @@ export default async function WorkspacePage() {
             </div>
           </div>
           <div className="grid gap-px bg-rose-100 md:grid-cols-3">
-            <div className="bg-white/90 p-5"><div className="flex items-center gap-2 text-sm font-bold text-slate-900"><ShoppingCart className="h-4 w-4 text-rose-600" />1．模擬一般消費者</div><p className="mt-2 text-xs leading-5 text-slate-600">另開商城、加入商品並送出訂單；試用不會完成真實金流扣款。</p></div>
+            <div className="bg-white/90 p-5"><div className="flex items-center gap-2 text-sm font-bold text-slate-900"><ShoppingCart className="h-4 w-4 text-rose-600" />1．以王小美體驗結帳</div><p className="mt-2 text-xs leading-5 text-slate-600">王小美是預設體驗顧客，可用來完成商城結帳與 ERP 接單流程；信用卡／行動支付不會真實扣款，正式收款需先串接租戶金流。</p></div>
             <div className="bg-white/90 p-5"><div className="flex items-center gap-2 text-sm font-bold text-slate-900"><ClipboardList className="h-4 w-4 text-indigo-600" />2．回 ERP 接單</div><p className="mt-2 text-xs leading-5 text-slate-600">在銷售管理看到標示 [WEB] 的新訂單與自動建立／合併的客戶資料。</p></div>
             <div className="bg-white/90 p-5"><div className="flex items-center gap-2 text-sm font-bold text-slate-900"><PackageCheck className="h-4 w-4 text-emerald-600" />3．核准與出貨</div><p className="mt-2 text-xs leading-5 text-slate-600">待處理訂單會先保留可售量；完成出貨後才扣實體庫存並銜接應收與傳票。</p></div>
           </div>

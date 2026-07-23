@@ -69,6 +69,34 @@ type AdminData = {
   stats: { totalTenants: number; totalUsers: number; erpCount: number; posCount: number; ecommerceCount: number; activeCount: number; pendingInquiryCount: number };
 };
 
+type ModeTransitionPreview = {
+  tenantName: string;
+  currentMode: BusinessMode;
+  records: {
+    products: number;
+    customers: number;
+    suppliers: number;
+    salesOrders: number;
+    purchaseOrders: number;
+    inventoryTxns: number;
+    journalEntries: number;
+    fixedAssets: number;
+    posSales: number;
+    restaurantOrders: number;
+    storefrontMembers: number;
+    storefrontPayments: number;
+  };
+  protections: {
+    tenantIdUnchanged: boolean;
+    activationKeyUnchanged: boolean;
+    companyCodeUnchanged: boolean;
+    accountingDataPreserved: boolean;
+    inventoryDataPreserved: boolean;
+    transactionHistoryPreserved: boolean;
+    reinstallRequired: boolean;
+  };
+};
+
 const emptyData: AdminData = {
   rows: [],
   inquiries: [],
@@ -225,11 +253,45 @@ function LicenseDialog({ tenant, onClose, onSaved }: { tenant: TenantRow; onClos
   const [paidAt, setPaidAt] = useState(() => toLocalDateTimeInput(new Date()));
   const [paymentNotes, setPaymentNotes] = useState("");
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
+  const [modePreview, setModePreview] = useState<ModeTransitionPreview | null>(null);
+  const [modePreviewLoading, setModePreviewLoading] = useState(false);
+  const [modeConfirmationName, setModeConfirmationName] = useState("");
+  const [preserveModeData, setPreserveModeData] = useState(false);
   const [devices, setDevices] = useState<Array<{ id: string; deviceRole: "SERVER" | "WORKSTATION"; displayName: string | null; platform: string | null; appVersion: string | null; firstSeenAt: string; lastSeenAt: string; revokedAt: string | null }>>([]);
   const plan = PLAN_CATALOG.find((item) => item.code === planCode)!;
   const price = getPlanPrice(plan, billing, mode);
 
   useEffect(() => setPaidAmount(String(price)), [price]);
+
+  useEffect(() => {
+    setModeConfirmationName("");
+    setPreserveModeData(false);
+    if (mode === tenant.businessMode) {
+      setModePreview(null);
+      setModePreviewLoading(false);
+      return;
+    }
+    const controller = new AbortController();
+    setModePreviewLoading(true);
+    fetch(`/api/admin/tenants/mode?tenantId=${encodeURIComponent(tenant.id)}`, {
+      cache: "no-store",
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || "無法載入轉換影響");
+        setModePreview(result);
+      })
+      .catch((error) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setModePreview(null);
+        alert(error instanceof Error ? error.message : "無法載入轉換影響");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setModePreviewLoading(false);
+      });
+    return () => controller.abort();
+  }, [mode, tenant.businessMode, tenant.id]);
 
   useEffect(() => {
     fetch(`/api/admin/licenses/devices?tenantId=${encodeURIComponent(tenant.id)}`)
@@ -278,11 +340,46 @@ function LicenseDialog({ tenant, onClose, onSaved }: { tenant: TenantRow; onClos
     }
   }
 
+  async function submitModeChange() {
+    if (mode !== tenant.businessMode && (!modePreview || !preserveModeData || modeConfirmationName !== tenant.name)) {
+      throw new Error("請完成業態轉換影響確認，並輸入目前完整公司名稱");
+    }
+    const modeResponse = await fetch("/api/admin/tenants/mode", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        tenantId: tenant.id,
+        businessMode: mode,
+        ...(mode !== tenant.businessMode ? {
+          confirmationName: modeConfirmationName,
+          preserveData: preserveModeData,
+        } : {}),
+      }),
+    });
+    const result = await modeResponse.json();
+    if (!modeResponse.ok) throw new Error(result.error || "模式更新失敗");
+    return result;
+  }
+
+  async function changeModeOnly() {
+    setBusy(true);
+    try {
+      const result = await submitModeChange();
+      alert(result.changed
+        ? "公司業態已完成保留資料轉換；公司主機與工作站下次連線會自動取得新版授權，不需重新安裝。"
+        : "公司業態未變更。");
+      await onSaved();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "模式更新失敗");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function save() {
     setBusy(true);
     try {
-      const modeResponse = await fetch("/api/admin/tenants/mode", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tenantId: tenant.id, businessMode: mode }) });
-      if (!modeResponse.ok) throw new Error((await modeResponse.json()).error || "模式更新失敗");
+      await submitModeChange();
       await saveConnection(false);
       if (!paymentConfirmed) throw new Error("請先確認款項已實際入帳");
       const paymentDate = new Date(paidAt);
@@ -368,6 +465,55 @@ function LicenseDialog({ tenant, onClose, onSaved }: { tenant: TenantRow; onClos
               <label className="space-y-2 text-sm"><span className="text-slate-400">付款週期</span><select value={billing} onChange={(event) => setBilling(event.target.value as BillingCycle)} className="h-11 w-full rounded-xl border border-slate-700 bg-slate-950 px-3"><option value="MONTHLY">月租</option><option value="ANNUAL">年租（收 10 個月）</option><option value="ONCE">一次買斷</option></select></label>
               <div className="rounded-xl bg-slate-950 p-4"><div className="text-xs text-slate-500">本次方案金額</div><div className="mt-1 text-xl font-bold text-emerald-300">{formatTwd(price)}</div><div className="mt-1 text-xs text-slate-500">上限 {plan.seats} 台電腦</div></div>
             </div>
+            {mode !== tenant.businessMode && (
+              <div className="mt-5 rounded-xl border border-amber-400/30 bg-amber-400/5 p-4">
+                <div className="flex items-center gap-2 text-sm font-semibold text-amber-100">
+                  {modePreviewLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+                  公司業態轉換確認
+                </div>
+                <p className="mt-1 text-xs leading-5 text-slate-400">轉換只調整可用模組與操作首頁，不建立新租戶、不更換啟用碼，也不要求客戶重新安裝。</p>
+                {modePreview && (
+                  <>
+                    <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+                      {[
+                        ["商品", modePreview.records.products],
+                        ["客戶", modePreview.records.customers],
+                        ["庫存異動", modePreview.records.inventoryTxns],
+                        ["銷售單", modePreview.records.salesOrders],
+                        ["採購單", modePreview.records.purchaseOrders],
+                        ["會計傳票", modePreview.records.journalEntries],
+                        ["POS 交易", modePreview.records.posSales],
+                        ["商城會員", modePreview.records.storefrontMembers],
+                      ].map(([label, value]) => (
+                        <div key={String(label)} className="rounded-lg bg-slate-950 p-2">
+                          <div className="text-slate-500">{label}</div>
+                          <div className="mt-1 font-semibold text-slate-200">{Number(value).toLocaleString()} 筆</div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-3 rounded-lg border border-emerald-400/20 bg-emerald-400/5 p-3 text-xs leading-5 text-emerald-100">
+                      商品、庫存、客戶、供應商、歷史交易、財產與會計資料全部原樣保留；公司代碼、租戶 ID、啟用碼與商城網址也不變。確認後會發布新版授權，主機與工作站下次連線自動同步。
+                    </div>
+                    <label className="mt-3 flex items-start gap-2 text-xs text-slate-200">
+                      <input type="checkbox" checked={preserveModeData} onChange={(event) => setPreserveModeData(event.target.checked)} className="mt-0.5" />
+                      <span>我已檢查上述資料量，確認保留全部原始資料，只切換公司業態與對應模組。</span>
+                    </label>
+                    <label className="mt-3 block space-y-1 text-xs text-slate-400">
+                      <span>輸入目前完整公司名稱「{tenant.name}」確認</span>
+                      <input value={modeConfirmationName} onChange={(event) => setModeConfirmationName(event.target.value)} className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-white" />
+                    </label>
+                    <button
+                      type="button"
+                      disabled={busy || !preserveModeData || modeConfirmationName !== tenant.name}
+                      onClick={() => void changeModeOnly()}
+                      className="mt-3 rounded-lg bg-amber-400 px-4 py-2 text-xs font-bold text-slate-950 disabled:opacity-40"
+                    >
+                      {busy ? "轉換中…" : "只套用業態變更（不建立付款）"}
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
             {tenant.payments.length > 0 && <div className="mt-5 rounded-xl border border-slate-800 bg-slate-950/70 p-4">
               <h3 className="text-sm font-semibold">最近付款紀錄</h3>
               <div className="mt-3 space-y-2">{tenant.payments.map((payment) => <div key={payment.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-900 p-3 text-xs"><div><span className="font-mono text-sky-300">{payment.paymentReference}</span><span className="ml-2 text-slate-500">{payment.paymentMethod === "BANK_TRANSFER" ? "銀行轉帳" : payment.paymentMethod === "CASH" ? "現金" : "其他"}</span></div><div className="text-right"><div className="font-semibold text-emerald-300">{formatTwd(Number(payment.paidAmount))}</div><div className="text-slate-500">{new Date(payment.paidAt).toLocaleString("zh-TW")}</div></div></div>)}</div>
@@ -401,7 +547,7 @@ function LicenseDialog({ tenant, onClose, onSaved }: { tenant: TenantRow; onClos
                 {devices.length === 0 ? <p className="text-xs text-slate-500">尚無電腦使用啟用碼連線</p> : devices.map((device) => <div key={device.id} className="flex items-center justify-between gap-3 rounded-lg bg-slate-900 p-3 text-xs"><div className="min-w-0"><div className="truncate font-medium text-slate-200">{device.deviceRole === "SERVER" ? "公司主機" : "操作工作站"}・{device.displayName || "未命名電腦"}・{device.platform || "未知系統"}</div><div className="mt-1 text-slate-500">首次連線 {new Date(device.firstSeenAt).toLocaleString("zh-TW")}・最後連線 {new Date(device.lastSeenAt).toLocaleString("zh-TW")}{device.revokedAt ? "・已撤銷" : ""}</div></div>{!device.revokedAt && <button onClick={() => void revokeDevice(device.id)} className="shrink-0 rounded-lg border border-rose-500/30 px-2 py-1 text-rose-300 hover:bg-rose-500/10">撤銷</button>}</div>)}
               </div>
             </div>
-            <div className="mt-7 flex flex-wrap justify-between gap-2"><div className="flex gap-2"><button disabled={busy || !paymentConfirmed || !paymentReference.trim() || Number(paidAmount) <= 0} onClick={save} className="rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold hover:bg-indigo-500 disabled:opacity-50">{busy ? "處理中…" : "確認付款後開通"}</button><button onClick={verify} className="rounded-xl border border-slate-700 px-4 py-2.5 text-sm hover:bg-white/5">驗證防竄改紀錄</button></div><button disabled={busy} onClick={revoke} className="rounded-xl border border-rose-500/40 px-4 py-2.5 text-sm text-rose-300 hover:bg-rose-500/10">撤銷授權</button></div>
+            <div className="mt-7 flex flex-wrap justify-between gap-2"><div className="flex gap-2"><button disabled={busy || !paymentConfirmed || !paymentReference.trim() || Number(paidAmount) <= 0 || (mode !== tenant.businessMode && (!modePreview || !preserveModeData || modeConfirmationName !== tenant.name))} onClick={save} className="rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold hover:bg-indigo-500 disabled:opacity-50">{busy ? "處理中…" : "確認付款後開通"}</button><button onClick={verify} className="rounded-xl border border-slate-700 px-4 py-2.5 text-sm hover:bg-white/5">驗證防竄改紀錄</button></div><button disabled={busy} onClick={revoke} className="rounded-xl border border-rose-500/40 px-4 py-2.5 text-sm text-rose-300 hover:bg-rose-500/10">撤銷授權</button></div>
           </>
         )}
       </div>

@@ -105,7 +105,7 @@ export default function SolutionsPage() {
             <ScanLine className="h-3.5 w-3.5" />POS、ERP 與品牌商城一次試用
           </div>
           <h1 className="text-3xl md:text-5xl font-black tracking-tight">你要管理哪一種營運現場？</h1>
-          <p className="text-slate-400 mt-4 leading-7">四種業態共用商品、庫存、帳務與 AI；操作順序、首頁與快捷鍵會依企業辦公、電商品牌、零售收銀或餐飲桌位情境調整。每家公司開通時只能選擇一種業態。</p>
+          <p className="text-slate-400 mt-4 leading-7">四種業態共用商品、庫存、帳務與 AI；操作順序、首頁與快捷鍵會依企業辦公、電商品牌、零售收銀或餐飲桌位情境調整。每家公司同一時間使用一種業態；日後轉型可由管理者先預覽影響，再保留全部資料安全轉換。</p>
         </section>
 
         <section className="relative mb-8 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.055] p-5 shadow-2xl backdrop-blur-xl md:p-7">
