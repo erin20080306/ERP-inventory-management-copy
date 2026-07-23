@@ -14,6 +14,7 @@ function hashToken(value: string) {
 }
 
 export function storefrontMemberCookieName(tenantId: string) {
+  // 每個租戶使用不同 Cookie 名稱，瀏覽器在商城 A 的登入狀態不會送給商城 B。
   return `erin_store_member_${createHash("sha256").update(tenantId).digest("hex").slice(0, 18)}`;
 }
 
