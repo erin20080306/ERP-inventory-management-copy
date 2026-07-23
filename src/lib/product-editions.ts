@@ -69,16 +69,13 @@ export function getProductEdition(value: string | null | undefined) {
 
 /**
  * 目前營運模式可使用的商品目錄範圍。
- * catalogMode 為 null 僅用於尚未完成資料轉換的舊自訂商品，避免升級瞬間遺失客戶資料。
+ * 舊資料已由 migration 歸類；未標示模式的商品不得混入任何模式。
  */
 export function productCatalogScope(value: string | null | undefined) {
   const catalogMode = normalizeBusinessMode(value);
   return {
     isArchived: false,
-    OR: [
-      { catalogMode },
-      { catalogMode: null },
-    ],
+    catalogMode,
   };
 }
 

@@ -1,6 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { ALL_PERMISSIONS, DEFAULT_ROLES } from "../src/lib/permissions";
+import { seedOperationalBaseline } from "../src/lib/seed-operational-baseline";
 import { STANDARD_ACCOUNTS } from "./standard-accounts";
 
 const prisma = new PrismaClient();
@@ -8,7 +9,7 @@ const prisma = new PrismaClient();
 async function main() {
   const requestedMode = process.env.BUSINESS_MODE === "POS"
     ? "POS_RETAIL"
-    : ["ERP", "POS_RETAIL", "POS_RESTAURANT"].includes(process.env.BUSINESS_MODE || "")
+    : ["ERP", "POS_RETAIL", "POS_RESTAURANT", "ECOMMERCE"].includes(process.env.BUSINESS_MODE || "")
       ? process.env.BUSINESS_MODE!
       : "ERP";
   console.log("→ 種子權限資料 ...");
@@ -86,7 +87,9 @@ async function main() {
 
   console.log("→ 稅率 ...");
   const tax5Ex = await prisma.taxRate.findUnique({ where: { tenantId_code: { tenantId: T, code: "VAT5" } } });
-  const tax5 = tax5Ex || await prisma.taxRate.create({ data: { tenantId: T, code: "VAT5", name: "營業稅 5%", rate: 0.05, region: "TW" } });
+  if (!tax5Ex) {
+    await prisma.taxRate.create({ data: { tenantId: T, code: "VAT5", name: "營業稅 5%", rate: 0.05, region: "TW" } });
+  }
   const zeroEx = await prisma.taxRate.findUnique({ where: { tenantId_code: { tenantId: T, code: "ZERO" } } });
   if (!zeroEx) {
     await prisma.taxRate.create({ data: { tenantId: T, code: "ZERO", name: "零稅率", rate: 0, region: "TW" } });
@@ -126,32 +129,14 @@ async function main() {
     }
   }
 
-  console.log("→ 商品分類 / 單位 ...");
-  let cat = await prisma.productCategory.findUnique({ where: { tenantId_code: { tenantId: T, code: "GEN" } } });
-  if (!cat) {
-    cat = await prisma.productCategory.create({ data: { tenantId: T, code: "GEN", name: "一般商品" } });
-  }
-  let unit = await prisma.productUnit.findUnique({ where: { tenantId_code: { tenantId: T, code: "PCS" } } });
-  if (!unit) {
-    unit = await prisma.productUnit.create({ data: { tenantId: T, code: "PCS", name: "個" } });
-  }
-
-  console.log("→ 範例商品 ...");
-  const products = [
-    { sku: "P001", name: "範例商品 A", costPrice: 80, salePrice: 120, safetyStock: 10 },
-    { sku: "P002", name: "範例商品 B", costPrice: 200, salePrice: 320, safetyStock: 5 },
-    { sku: "P003", name: "範例商品 C", costPrice: 1500, salePrice: 2200, safetyStock: 2 },
-  ];
-  for (const p of products) {
-    let prod = await prisma.product.findUnique({ where: { tenantId_sku: { tenantId: T, sku: p.sku } } });
-    if (!prod) {
-      prod = await prisma.product.create({ data: { tenantId: T, ...p, categoryId: cat.id, unitId: unit.id, taxRateId: tax5.id } });
-    }
-    const stockEx = await prisma.inventoryStock.findUnique({ where: { productId_warehouseId: { productId: prod.id, warehouseId: wh.id } } });
-    if (!stockEx) {
-      await prisma.inventoryStock.create({ data: { tenantId: T, productId: prod.id, warehouseId: wh.id, quantity: 50 } });
-    }
-  }
+  console.log("→ 建立符合營運模式的範例商品 ...");
+  await seedOperationalBaseline(prisma, {
+    tenantId: T,
+    tenantName: tenant.name,
+    businessMode: requestedMode,
+    isInternal: tenant.isInternal,
+    mainWarehouseId: wh.id,
+  });
 
   console.log("→ 範例客戶 / 供應商 ...");
   const c1 = await prisma.customer.findUnique({ where: { tenantId_code: { tenantId: T, code: "C001" } } });

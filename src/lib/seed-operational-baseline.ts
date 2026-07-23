@@ -1,4 +1,4 @@
-import { legacyDemoProductImages, resolveDemoProductImage } from "./demo-product-media";
+import { resolveDemoProductImage } from "./demo-product-media";
 
 type BusinessMode = "ERP" | "POS_RETAIL" | "POS_RESTAURANT" | "ECOMMERCE";
 
@@ -39,13 +39,19 @@ export const RETAIL_PRODUCTS: BaselineProduct[] = [
   { categoryCode: "RETAIL-AROMA", categoryName: "香氛保養", sku: "RTL-P011", barcode: "4712000000113", name: "天然精油滾珠瓶", cost: 210, price: 460, quantity: 31, safetyStock: 6, imageUrl: "/demo-products/essential-oil.webp" },
   { categoryCode: "RETAIL-HOT", categoryName: "熱銷推薦", sku: "RTL-P012", barcode: "4712000000120", name: "不鏽鋼餐具組", cost: 240, price: 520, quantity: 29, safetyStock: 6, imageUrl: "/demo-products/cutlery-set.webp" },
 ];
-const COMMERCE_PRODUCTS: BaselineProduct[] = [
+export const COMMERCE_PRODUCTS: BaselineProduct[] = [
   { categoryCode: "EC-TOP", categoryName: "上身", sku: "EC-P001", barcode: "4713000000013", name: "雲感落肩襯衫", cost: 720, price: 1_680, quantity: 18, safetyStock: 5, imageUrl: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=900&q=82" },
   { categoryCode: "EC-BOTTOM", categoryName: "下身", sku: "EC-P002", barcode: "4713000000020", name: "輪廓打褶寬褲", cost: 980, price: 2_280, quantity: 12, safetyStock: 4, imageUrl: "https://images.unsplash.com/photo-1506629082955-511b1aa562c8?auto=format&fit=crop&w=900&q=82" },
   { categoryCode: "EC-KNIT", categoryName: "針織", sku: "EC-P003", barcode: "4713000000037", name: "日常織紋針織衫", cost: 760, price: 1_880, quantity: 24, safetyStock: 6, imageUrl: "https://images.unsplash.com/photo-1576566588028-4147f3842f27?auto=format&fit=crop&w=900&q=82" },
   { categoryCode: "EC-ACC", categoryName: "配件", sku: "EC-P004", barcode: "4713000000044", name: "方形皮革肩背包", cost: 1_120, price: 2_680, quantity: 12, safetyStock: 4, imageUrl: "https://images.unsplash.com/photo-1559563458-527698bf5295?auto=format&fit=crop&w=900&q=82" },
   { categoryCode: "EC-DRESS", categoryName: "套裝", sku: "EC-P005", barcode: "4713000000051", name: "亮黃連帽休閒套裝", cost: 1_280, price: 2_980, quantity: 9, safetyStock: 3, imageUrl: "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=900&q=82" },
   { categoryCode: "EC-SHOES", categoryName: "鞋履", sku: "EC-P006", barcode: "4713000000068", name: "極簡皮革休閒鞋", cost: 1_450, price: 3_280, quantity: 15, safetyStock: 4, imageUrl: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=900&q=82" },
+  { categoryCode: "EC-JACKET", categoryName: "外套", sku: "EC-P007", barcode: "4713000000075", name: "都會寬版牛仔外套", cost: 1_080, price: 2_580, quantity: 14, safetyStock: 4, imageUrl: "https://images.unsplash.com/photo-1542571255-84471dc5581c?auto=format&fit=crop&w=900&q=82" },
+  { categoryCode: "EC-SKIRT", categoryName: "裙裝", sku: "EC-P008", barcode: "4713000000082", name: "黑色百褶短裙", cost: 820, price: 1_980, quantity: 16, safetyStock: 4, imageUrl: "https://images.unsplash.com/photo-1778590328057-5cb7f6af0d2d?auto=format&fit=crop&w=900&q=82" },
+  { categoryCode: "EC-ACC", categoryName: "配件", sku: "EC-P009", barcode: "4713000000099", name: "柔光絲質造型領巾", cost: 360, price: 880, quantity: 22, safetyStock: 5, imageUrl: "https://images.unsplash.com/photo-1677478863154-55ecce8c7536?auto=format&fit=crop&w=900&q=82" },
+  { categoryCode: "EC-ACC", categoryName: "配件", sku: "EC-P010", barcode: "4713000000105", name: "水鑽葉片圈式耳環", cost: 280, price: 680, quantity: 28, safetyStock: 6, imageUrl: "https://images.unsplash.com/photo-1693212793204-bcea856c75fe?auto=format&fit=crop&w=900&q=82" },
+  { categoryCode: "EC-KNIT", categoryName: "針織", sku: "EC-P011", barcode: "4713000000112", name: "蜜糖黃針織開襟衫", cost: 860, price: 2_080, quantity: 18, safetyStock: 5, imageUrl: "https://images.unsplash.com/photo-1610288311735-39b7facbd095?auto=format&fit=crop&w=900&q=82" },
+  { categoryCode: "EC-ACC", categoryName: "配件", sku: "EC-P012", barcode: "4713000000129", name: "經典真皮腰帶", cost: 420, price: 980, quantity: 25, safetyStock: 5, imageUrl: "https://images.unsplash.com/photo-1664286074176-5206ee5dc878?auto=format&fit=crop&w=900&q=82" },
 ];
 export const RESTAURANT_PRODUCTS: BaselineProduct[] = [
   { categoryCode: "MEAL", categoryName: "主餐", sku: "F001", name: "經典牛肉漢堡", cost: 80, price: 220, quantity: 60, safetyStock: 10, imageUrl: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=500&q=80" },
@@ -204,22 +210,13 @@ export async function seedOperationalBaseline(tx: any, input: {
   if (definitions.length > 0) {
     await Promise.all(definitions.map((definition) => tx.product.updateMany({
       where: { tenantId: input.tenantId, sku: definition.sku },
-      data: { catalogMode: definition.catalogMode },
-    })));
-  }
-
-  const productsWithDefaultImages = definitions.filter((definition) => definition.imageUrl);
-  if (productsWithDefaultImages.length > 0) {
-    await Promise.all(productsWithDefaultImages.map((definition) => tx.product.updateMany({
-      where: {
-        tenantId: input.tenantId,
-        sku: definition.sku,
-        OR: [
-          { imageUrl: null },
-          ...legacyDemoProductImages(definition.sku).map((imageUrl) => ({ imageUrl })),
-        ],
+      data: {
+        catalogMode: definition.catalogMode,
+        isArchived: false,
+        name: definition.name,
+        categoryId: categoryIdByCode.get(definition.categoryCode),
+        imageUrl: definition.imageUrl,
       },
-      data: { imageUrl: definition.imageUrl },
     })));
   }
   if (includeRetail) {

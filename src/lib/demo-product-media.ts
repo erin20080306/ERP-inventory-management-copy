@@ -75,13 +75,19 @@ const RETAIL_CATEGORY_IMAGE_POOL: Record<string, string[]> = {
   ],
 };
 
-const COMMERCE_DEMO_IMAGE_BY_SKU: Record<string, string> = {
+export const COMMERCE_DEMO_IMAGE_BY_SKU: Record<string, string> = {
   "EC-P001": "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=900&q=82",
   "EC-P002": "https://images.unsplash.com/photo-1506629082955-511b1aa562c8?auto=format&fit=crop&w=900&q=82",
   "EC-P003": "https://images.unsplash.com/photo-1576566588028-4147f3842f27?auto=format&fit=crop&w=900&q=82",
   "EC-P004": "https://images.unsplash.com/photo-1559563458-527698bf5295?auto=format&fit=crop&w=900&q=82",
   "EC-P005": "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=900&q=82",
   "EC-P006": "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=900&q=82",
+  "EC-P007": "https://images.unsplash.com/photo-1542571255-84471dc5581c?auto=format&fit=crop&w=900&q=82",
+  "EC-P008": "https://images.unsplash.com/photo-1778590328057-5cb7f6af0d2d?auto=format&fit=crop&w=900&q=82",
+  "EC-P009": "https://images.unsplash.com/photo-1677478863154-55ecce8c7536?auto=format&fit=crop&w=900&q=82",
+  "EC-P010": "https://images.unsplash.com/photo-1693212793204-bcea856c75fe?auto=format&fit=crop&w=900&q=82",
+  "EC-P011": "https://images.unsplash.com/photo-1610288311735-39b7facbd095?auto=format&fit=crop&w=900&q=82",
+  "EC-P012": "https://images.unsplash.com/photo-1664286074176-5206ee5dc878?auto=format&fit=crop&w=900&q=82",
 };
 
 const LEGACY_RESTAURANT_IMAGES: Record<string, string> = {
