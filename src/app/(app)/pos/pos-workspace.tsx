@@ -970,10 +970,10 @@ return <div className="grid min-h-[60vh] animate-pulse gap-4 xl:grid-cols-[minma
 
   return (
     <div className="space-y-4">
-      <header className="flex flex-col xl:flex-row xl:items-center justify-between gap-3">
+      <header className="flex flex-col justify-between gap-4 rounded-2xl bg-slate-950 p-5 text-white shadow-xl xl:flex-row xl:items-center">
         <div>
-          <div className="flex items-center gap-2"><Store className="h-6 w-6 text-emerald-600" /><h1 className="text-2xl font-bold">POS 門市收銀</h1></div>
-          <p className="text-sm text-muted-foreground mt-1">{shift.register.name} · 今日 {today.sales} 筆 · 淨額 {formatTwd(today.amount)}{today.refundAmount > 0 ? `（退款 ${formatTwd(today.refundAmount)}）` : ""} · 草稿保護：{draftProtection === "SERVER" ? "伺服器已同步" : draftProtection === "LOCAL" ? "本機已保存、待同步" : draftProtection === "CONFLICT" ? "等待選擇版本" : "待命"}</p>
+          <div className="text-[11px] font-black uppercase tracking-[.22em] text-emerald-400">RETAIL POS / REGISTER 01</div><div className="mt-1 flex items-center gap-2"><Store className="h-6 w-6 text-emerald-400" /><h1 className="text-2xl font-black">快速收銀</h1></div>
+          <p className="mt-1 text-sm text-slate-300">{shift.register.name} · 今日 {today.sales} 筆 · 淨額 {formatTwd(today.amount)}{today.refundAmount > 0 ? `（退款 ${formatTwd(today.refundAmount)}）` : ""} · 草稿保護：{draftProtection === "SERVER" ? "伺服器已同步" : draftProtection === "LOCAL" ? "本機已保存、待同步" : draftProtection === "CONFLICT" ? "等待選擇版本" : "待命"}</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <button onClick={() => setCashPanelOpen(true)} className="h-10 px-4 rounded-lg border hover:bg-muted text-sm inline-flex items-center gap-2"><CircleDollarSign className="h-4 w-4" />錢櫃異動{cashMovements.some((movement) => movement.status === "PENDING") ? `（${cashMovements.filter((movement) => movement.status === "PENDING").length} 待核）` : ""}</button>
@@ -1007,7 +1007,21 @@ return <div className="grid min-h-[60vh] animate-pulse gap-4 xl:grid-cols-[minma
         </div>
       )}
 
-      <div className="grid xl:grid-cols-[1fr_430px] gap-4 items-start">
+      <div className="grid items-start gap-4 xl:grid-cols-[220px_minmax(0,1fr)_390px]">
+        <aside className="overflow-hidden rounded-2xl border bg-card p-3 shadow-sm xl:sticky xl:top-4">
+          <div className="rounded-xl bg-slate-950 p-4 text-white">
+            <div className="text-[11px] text-slate-400">本班營業額</div>
+            <div className="mt-2 text-xl font-black">{formatTwd(today.amount)}</div>
+            <div className="mt-3 flex items-center gap-2 text-[10px] text-emerald-300"><span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />{shift.register.name} 連線正常</div>
+          </div>
+          <nav className="mt-3 space-y-1 text-sm">
+            <button onClick={() => setQuery("")} className="flex h-10 w-full items-center justify-between rounded-lg bg-emerald-50 px-3 font-bold text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">全部商品 <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] text-white">{products.length}</span></button>
+            {["熱銷推薦","生活選物","香氛保養","服飾配件"].map((label) => <button key={label} onClick={() => setQuery("")} className="flex h-10 w-full items-center justify-between rounded-lg px-3 text-muted-foreground hover:bg-muted hover:text-foreground">{label}<span className="text-[10px]">›</span></button>)}
+            <button onClick={() => setHoldPanelOpen(true)} className="flex h-10 w-full items-center justify-between rounded-lg px-3 text-muted-foreground hover:bg-muted hover:text-foreground">暫存訂單 <span className="rounded-full bg-muted px-2 py-0.5 text-[10px]">{heldSales.length}</span></button>
+            <button onClick={() => document.getElementById("pos-refunds")?.scrollIntoView({ behavior: "smooth" })} className="flex h-10 w-full items-center justify-between rounded-lg px-3 text-muted-foreground hover:bg-muted hover:text-foreground">退換貨查詢 <span className="text-[10px]">›</span></button>
+            <button onClick={() => setCashPanelOpen(true)} className="flex h-10 w-full items-center justify-between rounded-lg px-3 text-muted-foreground hover:bg-muted hover:text-foreground">錢櫃異動 <span className="text-[10px]">›</span></button>
+          </nav>
+        </aside>
         <section className="rounded-2xl border bg-card shadow-sm overflow-hidden">
           <div className="p-4 border-b relative">
             <Barcode className="absolute left-7 top-7 h-4 w-4 text-muted-foreground" />
@@ -1028,11 +1042,11 @@ return <div className="grid min-h-[60vh] animate-pulse gap-4 xl:grid-cols-[minma
           </div>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-3 p-4 max-h-[68vh] overflow-y-auto">
             {filteredProducts.map((product) => (
-              <button key={product.id} onClick={() => addProduct(product)} disabled={product.stockTotal <= 0} className="text-left rounded-xl border p-4 hover:border-emerald-400 hover:bg-emerald-50/40 disabled:opacity-45 disabled:hover:bg-transparent transition min-h-28">
-                <div className="text-xs text-muted-foreground font-mono">{product.sku}</div>
-                <div className="font-semibold mt-1 line-clamp-2">{product.name}</div>
-                {product.spec && <div className="text-xs text-muted-foreground mt-1 line-clamp-1">{product.spec}</div>}
-                <div className="flex items-end justify-between mt-4 gap-2"><span className="font-bold text-emerald-700">{formatTwd(Number(product.salePrice))}</span><span className="text-xs text-muted-foreground">庫存 {product.stockTotal}</span></div>
+              <button key={product.id} onClick={() => addProduct(product)} disabled={product.stockTotal <= 0} className="group overflow-hidden rounded-xl border bg-background text-left transition hover:-translate-y-0.5 hover:border-emerald-400 hover:shadow-md disabled:opacity-45 disabled:hover:translate-y-0">
+                <div className="aspect-[4/3] overflow-hidden bg-gradient-to-br from-emerald-50 to-stone-100 dark:from-emerald-950 dark:to-slate-900">
+                  {product.imageUrl ? <img src={product.imageUrl} alt={product.name} className="h-full w-full object-cover transition duration-300 group-hover:scale-105" /> : <div className="flex h-full items-center justify-center text-3xl font-black text-emerald-200">{product.name.slice(0,1)}</div>}
+                </div>
+                <div className="p-3"><div className="text-[10px] font-mono text-muted-foreground">{product.sku}</div><div className="mt-1 line-clamp-2 min-h-10 text-sm font-bold">{product.name}</div>{product.spec && <div className="mt-1 line-clamp-1 text-[11px] text-muted-foreground">{product.spec}</div>}<div className="mt-3 flex items-end justify-between gap-2"><span className="font-black text-emerald-700">{formatTwd(Number(product.salePrice))}</span><span className="text-[11px] text-muted-foreground">庫 {product.stockTotal}</span></div></div>
               </button>
             ))}
             {filteredProducts.length === 0 && <div className="col-span-full py-16 text-center text-muted-foreground"><Search className="h-8 w-8 mx-auto mb-2 opacity-40" />找不到商品</div>}
@@ -1117,7 +1131,7 @@ return <div className="grid min-h-[60vh] animate-pulse gap-4 xl:grid-cols-[minma
         </aside>
       </div>
 
-      <section className="rounded-2xl border bg-card shadow-sm overflow-hidden">
+      <section id="pos-refunds" className="rounded-2xl border bg-card shadow-sm overflow-hidden">
         <div className="p-4 border-b flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div>
             <div className="font-bold flex items-center gap-2"><ReceiptText className="h-5 w-5" />原交易查詢與退款</div>

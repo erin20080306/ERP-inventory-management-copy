@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
+  ArrowLeft,
   ArrowRight,
   BadgeCheck,
   BarChart3,
@@ -163,7 +164,7 @@ function tenantTheme(tenant: string) {
   };
 }
 
-export function FashionStorefront({ tenant, initialView }: { tenant: string; initialView: string }) {
+export function FashionStorefront({ tenant, initialView, managerPreview = false }: { tenant: string; initialView: string; managerPreview?: boolean }) {
   const router = useRouter();
   const theme = tenantTheme(tenant);
   const view = VALID_VIEWS.has(initialView as ViewName) ? initialView as ViewName : "home";
@@ -259,6 +260,12 @@ export function FashionStorefront({ tenant, initialView }: { tenant: string; ini
 
   return (
     <div className={styles.shell} style={{ "--store-accent": theme.accent } as React.CSSProperties}>
+      {managerPreview && (
+        <aside className={styles.managerPreviewDock} aria-label="管理者商城預覽">
+          <div><ShieldCheck size={18} /><span><strong>租戶管理者預覽</strong><small>消費者不會看到此控制列</small></span></div>
+          <Link href="/workspace"><ArrowLeft size={16} />返回 ERP</Link>
+        </aside>
+      )}
       <div className={styles.utilityBar}>
         <div><Zap size={14} /> 店取最快 2 小時 ・ 全館滿 NT$2,000 免運</div>
         <div className={styles.tenantStatus}><span /> {storeLive ? `SaaS 租戶：${theme.domain}` : "功能展示"} ・ {syncMessage}</div>

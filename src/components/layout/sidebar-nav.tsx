@@ -219,7 +219,7 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   const ecommerceFront: NavSection = {
     label: "電商營運",
     items: [
-      { title: "預覽我的商城", href: `/store/${encodeURIComponent(storefrontCode)}`, icon: Store },
+      { title: "一般消費者官網", href: `/store/${encodeURIComponent(storefrontCode)}?managerPreview=1`, icon: Store },
       { title: "網路訂單", href: "/sales", icon: ShoppingBag, perm: "sales.view" },
       { title: "會員／客戶", href: "/customers", icon: Users, perm: "customers.view" },
       { title: "商品與網站庫存", href: "/products", icon: Package, perm: "products.view" },

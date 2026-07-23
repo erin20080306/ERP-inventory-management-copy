@@ -86,7 +86,7 @@ export function TenantExperienceClient({ managerName }: { managerName: string })
       <div className="manager-account-context">
         <b>登入身分：租戶管理者</b>
         <span>正式租戶須先註冊或由平台授權；商城消費者會員無法進入此頁。</span>
-        <em>ATELIER-NOIR・電商商城＋ERP</em>
+        <div className="manager-account-actions"><em>Sites 僅線上體驗，不直接提供安裝檔</em><a href="https://erp-inventory-management-copy.vercel.app/register?mode=ECOMMERCE" target="_blank" rel="noreferrer">正式租戶註冊 ↗</a><a href="https://erp-inventory-management-copy.vercel.app/downloads" target="_blank" rel="noreferrer">主 APP 授權下載 ↗</a></div>
       </div>
 
       {mode === "commerce" && <ErpDemo commerce orders={webOrders} notice={notice} refresh={refreshOrders} />}
@@ -127,7 +127,7 @@ function ErpDemo({ commerce = false, orders, notice, refresh }: {
       <section className="erp-content">
         <header>
           <div><span>{commerce ? "ECOMMERCE / WEB ORDERS" : "ERP / OPERATIONS"}</span><h1>{commerce ? "商城與 ERP 連動中心" : "企業營運總覽"}</h1></div>
-          <div>{commerce ? <a className="live-admin-link" href="/" target="_blank">另開消費者商城 ↗</a> : null}<button onClick={refresh}>重新同步</button><button className="primary">＋ 建立訂單</button></div>
+          <div>{commerce ? <a className="live-admin-link" href="/?managerPreview=1" target="_blank">一般消費者官網 ↗</a> : null}<button onClick={refresh}>重新同步</button><button className="primary">＋ 建立訂單</button></div>
         </header>
         <div className="erp-alert"><i />{notice}<button onClick={refresh}>立即更新</button></div>
         <div className="kpi-grid">

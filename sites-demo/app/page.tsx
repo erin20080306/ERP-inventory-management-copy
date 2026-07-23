@@ -33,8 +33,10 @@ export default function Home() {
   const [cart, setCart] = useState<CartLine[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
   const [toast, setToast] = useState("");
+  const [managerPreview, setManagerPreview] = useState(false);
 
   useEffect(() => {
+    setManagerPreview(new URLSearchParams(window.location.search).get("managerPreview") === "1");
     try {
       const saved = window.localStorage.getItem("erin-commerce-demo-cart");
       if (saved) setCart(JSON.parse(saved));
@@ -73,6 +75,7 @@ export default function Home() {
 
   return (
     <div className="app mode-store">
+      {managerPreview && <aside className="store-manager-dock"><div><strong>租戶管理者預覽</strong><small>一般消費者不會看到此控制列</small></div><a href="/tenant-experience">← 返回 ERP</a></aside>}
       <header className="topbar">
         <button className="logo" onClick={() => setStoreView("home")}>
           <span>ERIN</span>

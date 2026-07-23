@@ -23,10 +23,15 @@ export default async function WorkspacePage() {
   const edition = getProductEdition(mode);
   const permissions = session.user.permissions;
   const isPlatformAdmin = Boolean(session.user.isSuperAdmin);
+  if (!isPlatformAdmin) {
+    if ((mode === "ERP" || mode === "ECOMMERCE") && hasPermission(permissions, "dashboard.view")) redirect("/dashboard");
+    if (mode === "POS_RETAIL" && hasPermission(permissions, "pos.view")) redirect("/pos");
+    if (mode === "POS_RESTAURANT" && hasPermission(permissions, "restaurant.view")) redirect("/pos/restaurant");
+  }
   const storefrontCode = session.user.companyCode || session.user.tenantId;
   const cards = [
     ...((mode === "ECOMMERCE" || isPlatformAdmin)
-      ? [{ title: mode === "ECOMMERCE" ? "預覽我的品牌商城" : "電商租戶網站示範", description: "消費者前台與 ERP 共用商品、可售庫存、會員與網路訂單", href: mode === "ECOMMERCE" ? `/store/${encodeURIComponent(storefrontCode)}` : "/store/atelier-noir", icon: Store, tone: "rose" }]
+      ? [{ title: mode === "ECOMMERCE" ? "預覽我的品牌商城" : "電商租戶網站示範", description: "消費者前台與 ERP 共用商品、可售庫存、會員與網路訂單", href: mode === "ECOMMERCE" ? `/store/${encodeURIComponent(storefrontCode)}?managerPreview=1` : "/store/atelier-noir?managerPreview=1", icon: Store, tone: "rose" }]
       : []),
     ...((mode === "POS_RETAIL" || isPlatformAdmin) && hasPermission(permissions, "pos.view")
       ? [{ title: "零售 POS 收銀", description: "掃碼、會員、促銷、多元支付、退換貨與日結", href: "/pos", icon: ScanBarcode, tone: "emerald" }]
@@ -71,7 +76,7 @@ export default async function WorkspacePage() {
               <p className="mt-2 text-sm leading-6 text-slate-600">商城與後台共用公司代碼 <span className="font-mono font-semibold text-rose-700">{storefrontCode}</span>，訂單、客戶與可售庫存會寫入目前這個租戶。</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Link href={`/store/${encodeURIComponent(storefrontCode)}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-3 text-sm font-bold text-white hover:bg-slate-800">開啟消費者商城 <ArrowUpRight className="h-4 w-4" /></Link>
+              <Link href={`/store/${encodeURIComponent(storefrontCode)}?managerPreview=1`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-3 text-sm font-bold text-white hover:bg-slate-800">開啟消費者商城 <ArrowUpRight className="h-4 w-4" /></Link>
               <Link href="/sales" className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-white px-4 py-3 text-sm font-bold text-rose-700 hover:bg-rose-50">查看 ERP 網路訂單 <ClipboardList className="h-4 w-4" /></Link>
             </div>
           </div>

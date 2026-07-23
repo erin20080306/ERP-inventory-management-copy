@@ -394,23 +394,23 @@ return <div className="grid min-h-[60vh] animate-pulse gap-4 xl:grid-cols-[280px
 
   return (
     <div className="space-y-4">
-      <header className="flex flex-col justify-between gap-3 rounded-2xl border bg-card p-4 lg:flex-row lg:items-center">
+      <header className="flex flex-col justify-between gap-4 rounded-2xl bg-slate-950 p-5 text-white shadow-xl lg:flex-row lg:items-center">
         <div>
-          <h1 className="flex items-center gap-2 text-xl font-black"><UtensilsCrossed className="h-5 w-5 text-orange-600" />餐飲桌位與圖片點餐</h1>
-          <p className="mt-1 text-xs text-muted-foreground">{data.openShift.register.name}・前台點餐、廚房出餐、庫存與會計同步</p>
+          <div className="text-[11px] font-black uppercase tracking-[.22em] text-orange-400">RESTAURANT POS / FRONT</div><h1 className="mt-1 flex items-center gap-2 text-2xl font-black"><UtensilsCrossed className="h-5 w-5 text-orange-400" />桌位、點餐與廚房同步</h1>
+          <p className="mt-1 text-sm text-slate-300">{data.openShift.register.name}・顏色辨識桌況，一個畫面完成開桌、加點、送廚與結帳</p>
         </div>
         <div className="flex flex-wrap gap-2">
           {allowTableManagement && <button onClick={() => setTableManagerOpen(true)} className="inline-flex h-10 items-center gap-2 rounded-lg border border-orange-200 bg-orange-50 px-3 text-sm font-bold text-orange-800 dark:border-orange-900 dark:bg-orange-950/30 dark:text-orange-200"><Settings2 className="h-4 w-4" />桌位設定</button>}
-          <Link href="/pos/restaurant/kitchen" className="inline-flex h-10 items-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-bold text-white"><ChefHat className="h-4 w-4" />廚房看板</Link>
-          <button onClick={() => void load()} className="inline-flex h-10 items-center gap-2 rounded-lg border px-3 text-sm"><RefreshCw className="h-4 w-4" />重新整理</button>
+          <Link href="/pos/restaurant/kitchen" className="inline-flex h-10 items-center gap-2 rounded-lg bg-white px-4 text-sm font-bold text-slate-950"><ChefHat className="h-4 w-4" />廚房看板</Link>
+          <button onClick={() => void load()} className="inline-flex h-10 items-center gap-2 rounded-lg border border-white/20 px-3 text-sm text-white"><RefreshCw className="h-4 w-4" />重新整理</button>
         </div>
       </header>
 
       {allowTableManagement && <TableManager open={tableManagerOpen} onOpenChange={setTableManagerOpen} areas={data.tableSettings ?? []} busy={busy} onAction={action} />}
 
-      <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)_380px]">
+      <div className="grid gap-4 xl:grid-cols-[220px_minmax(0,1fr)_350px]">
         <section className="rounded-2xl border bg-card p-4">
-          <div className="mb-3 font-bold">桌位狀態</div>
+          <div className="mb-1 flex items-center justify-between font-bold"><span>桌位狀態</span><span className="text-[10px] font-normal text-muted-foreground"><i className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-orange-500" />即時同步</span></div><div className="mb-3 text-[11px] text-muted-foreground">點選桌位立即切換訂單</div>
           <div className="space-y-5">
             {data.areas.map((area) => <div key={area.id}>
               <div className="mb-2 text-xs font-semibold text-muted-foreground">{area.name}</div>

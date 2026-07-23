@@ -3,6 +3,7 @@ import { FashionStorefront } from "./storefront";
 
 type StorePageProps = {
   params: Promise<{ tenant: string; view?: string[] }>;
+  searchParams?: Promise<{ managerPreview?: string | string[] }>;
 };
 
 const VIEW_TITLES: Record<string, string> = {
@@ -25,7 +26,9 @@ export async function generateMetadata({ params }: StorePageProps): Promise<Meta
   };
 }
 
-export default async function StorePage({ params }: StorePageProps) {
+export default async function StorePage({ params, searchParams }: StorePageProps) {
   const { tenant, view = [] } = await params;
-  return <FashionStorefront tenant={tenant} initialView={view[0] || "home"} />;
+  const query = searchParams ? await searchParams : undefined;
+  const managerPreview = Array.isArray(query?.managerPreview) ? query?.managerPreview[0] === "1" : query?.managerPreview === "1";
+  return <FashionStorefront tenant={tenant} initialView={view[0] || "home"} managerPreview={managerPreview} />;
 }
