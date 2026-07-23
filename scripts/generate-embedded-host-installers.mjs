@@ -4,7 +4,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 const root = process.cwd();
-const version = "v1.1.1-updater-runtime";
+const version = "v1.1.2-manual-macos-safety";
 const generatedAt = new Date().toISOString();
 const outputPath = path.join(root, "src", "generated", "embedded-host-installers.ts");
 const updaterImage = "erin-erp-host-updater:2";
@@ -83,9 +83,10 @@ function text(file) {
 
 function installerCompose() {
   const source = readFileSync(path.join(root, "docker-compose.local.yml"), "utf8");
-  const updated = source.replace(/image:\s*erin-erp-host-updater:\d+/u, `image: ${updaterImage}`);
-  if (updated === source) throw new Error("Updater image marker was not found in docker-compose.local.yml");
-  return Buffer.from(updated, "utf8");
+  if (!source.includes(`image: ${updaterImage}`)) {
+    throw new Error(`docker-compose.local.yml must use ${updaterImage}`);
+  }
+  return Buffer.from(source, "utf8");
 }
 
 const common = [
@@ -117,7 +118,7 @@ const packages = [
   },
   {
     name: `ErinERP-Host-macOS-${version}.zip`,
-    platform: "macOS 公司主機（一鍵檢查並引導 Docker Desktop）",
+    platform: "macOS 公司主機（手動下載 ZIP，自動辨識 Apple Silicon／Intel）",
     entries: [
       ...common,
       { name: "安裝艾琳ERP.command", content: macRootLauncher, mode: 0o100755 },
