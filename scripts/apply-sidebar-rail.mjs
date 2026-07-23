@@ -54,7 +54,8 @@ let source = readFileSync(navPath, "utf8");
 
 const brandStart = source.indexOf("export function SidebarBrand");
 const navStart = source.indexOf("export function SidebarNav", brandStart);
-if (brandStart < 0 || navStart < 0) throw new Error("找不到 SidebarBrand／SidebarNav 定位點");
+const navLineEnd = source.indexOf("\n", navStart);
+if (brandStart < 0 || navStart < 0 || navLineEnd < 0) throw new Error("找不到 SidebarBrand／SidebarNav 定位點");
 
 const brandAndNavSignature = `export function SidebarBrand({ collapsed = false }: { collapsed?: boolean }) {
   const { data } = useSession();
@@ -78,7 +79,7 @@ const brandAndNavSignature = `export function SidebarBrand({ collapsed = false }
 }
 
 export function SidebarNav({ onNavigate, collapsed = false }: { onNavigate?: () => void; collapsed?: boolean }) {`;
-source = `${source.slice(0, brandStart)}${brandAndNavSignature}${source.slice(source.indexOf("{", navStart) + 1)}`;
+source = `${source.slice(0, brandStart)}${brandAndNavSignature}${source.slice(navLineEnd + 1)}`;
 
 const currentNavStart = source.indexOf("export function SidebarNav");
 const renderStart = source.indexOf('  return (\n    <nav className="flex-1 overflow-y-auto py-3">', currentNavStart);
