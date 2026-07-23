@@ -15,10 +15,13 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-      - name: Apply checkout and commerce v2 patch
+      - name: Apply checkout and commerce v3 patch
         run: |
           node scripts/apply-number-sequence-batch.mjs
-          node scripts/apply-checkout-commerce-v2.mjs
+          node scripts/apply-pos-offers-v3.mjs
+          node scripts/apply-pos-checkout-v3.mjs
+          node scripts/apply-commerce-switch-v3.mjs
+          node -e 'const fs=require("fs");const p=JSON.parse(fs.readFileSync("package.json","utf8"));p.scripts["test:speed"]="node scripts/verify-speed-patch.mjs && node scripts/verify-checkout-commerce-v3.mjs";fs.writeFileSync("package.json",JSON.stringify(p,null,2)+"\n")'
           rm -f .speed-optimization-diagnostic.txt
       - name: Verify speed and switching safeguards
         id: speed_verify
@@ -34,7 +37,7 @@ jobs:
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add .speed-optimization-diagnostic.txt
-          git commit -m "chore: record checkout v2 safeguard failure [skip ci]"
+          git commit -m "chore: record checkout v3 safeguard failure [skip ci]"
           git push origin HEAD:main
       - name: Stop after safeguard failure
         if: steps.speed_verify.outcome == 'failure'
@@ -57,7 +60,7 @@ jobs:
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add .speed-optimization-diagnostic.txt
-          git commit -m "chore: record checkout v2 npm failure [skip ci]"
+          git commit -m "chore: record checkout v3 npm failure [skip ci]"
           git push origin HEAD:main
       - name: Stop after npm failure
         if: steps.npm_ci.outcome == 'failure'
@@ -76,7 +79,7 @@ jobs:
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add .speed-optimization-diagnostic.txt
-          git commit -m "chore: record checkout v2 TypeScript failure [skip ci]"
+          git commit -m "chore: record checkout v3 TypeScript failure [skip ci]"
           git push origin HEAD:main
       - name: Stop after TypeScript failure
         if: steps.typescript.outcome == 'failure'
@@ -86,12 +89,12 @@ jobs:
       - name: Commit optimized runtime
         run: |
           if git diff --quiet; then
-            echo "Checkout v2 optimizations already applied."
+            echo "Checkout v3 optimizations already applied."
             exit 0
           fi
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add src/app src/lib src/components package.json scripts/verify-checkout-commerce-optimizations.mjs
+          git add src/app src/lib package.json
           git add -A .speed-optimization-diagnostic.txt
-          git commit -m "perf: accelerate POS checkout and restore ecommerce ERP switching"
+          git commit -m "perf: accelerate retail and restaurant POS checkout and restore ecommerce ERP switching"
           git push origin HEAD:main
