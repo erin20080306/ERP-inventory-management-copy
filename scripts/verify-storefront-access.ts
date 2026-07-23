@@ -26,7 +26,12 @@ assert.equal(canManageTenantStorefront(tenantAdmin, "another-tenant"), false);
 assert.equal(canManageTenantStorefront({
   ...tenantAdmin,
   permissions: ["dashboard.view", "products.view"],
-}, "SHOP-TW-001"), false, "ordinary tenant users must not receive the management switch");
+}, "SHOP-TW-001"), true, "authorized tenant users should receive their own storefront management switch");
+
+assert.equal(canManageTenantStorefront({
+  ...tenantAdmin,
+  permissions: ["customers.view"],
+}, "SHOP-TW-001"), false, "tenant users without ERP/storefront permissions must not receive the management switch");
 
 assert.equal(canManageTenantStorefront({
   ...tenantAdmin,
