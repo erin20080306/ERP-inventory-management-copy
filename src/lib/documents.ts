@@ -336,7 +336,7 @@ export async function shipSalesOrder(
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`sales:${tenantId}:${orderId}`}))`;
     const order = await tx.salesOrder.findFirst({
       where: { id: orderId, tenantId },
-      include: { items: { include: { product: true } } },
+      include: { items: { include: { product: true } }, storefrontPayment: true },
     });
     if (!order) throw new Error("找不到銷售單");
     if (!["APPROVED", "PARTIALLY_SHIPPED"].includes(order.status)) {
@@ -419,6 +419,7 @@ export async function shipSalesOrder(
       });
     }
 
+    const prepaidStorefront = Boolean(order.storefrontPayment && ["PAID", "PARTIALLY_REFUNDED", "REFUNDED"].includes(order.storefrontPayment.status));
     await tx.accountsReceivable.create({
       data: {
         tenantId,
@@ -426,11 +427,14 @@ export async function shipSalesOrder(
         salesOrderId: order.id,
         salesShipmentId: shipment.id,
         amount: totals.total,
-        status: "POSTED",
+        paidAmount: prepaidStorefront ? totals.total : 0,
+        status: prepaidStorefront ? "PAID" : "POSTED",
       },
     });
     await createPostedJournal(tx, tenantId, `銷售出貨 ${shipment.number}（原單 ${order.number}）`, createdById, [
-      { code: "1132", debit: totals.total, memo: `應收帳款－${shipment.number}` },
+      prepaidStorefront
+        ? { code: "1103", debit: totals.total, memo: `電商已收款－${order.storefrontPayment?.providerReference || order.number}` }
+        : { code: "1132", debit: totals.total, memo: `應收帳款－${shipment.number}` },
       { code: "4101", credit: roundMoney(totals.subtotal - totals.discount), memo: `銷貨收入－${shipment.number}` },
       { code: "2111", credit: totals.taxAmount, memo: `銷項稅額－${shipment.number}` },
       { code: "5101", debit: cogs, memo: `銷貨成本－${shipment.number}` },

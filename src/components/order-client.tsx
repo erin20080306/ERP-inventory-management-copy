@@ -8,7 +8,7 @@ import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { StatusBadge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/layout/page-shell";
 import { toast } from "sonner";
-import { Plus, Loader2, Trash2, Eye, Search, Download, Printer, FileDown, Pencil } from "lucide-react";
+import { Plus, Loader2, Trash2, Eye, Search, Download, Printer, FileDown, Pencil, RotateCcw, CreditCard } from "lucide-react";
 import { formatDate, formatMoney } from "@/lib/utils";
 import { downloadCSV, toCSV } from "@/lib/csv";
 import { useCustomColumns, useCustomFieldValues, CustomColumnDialog, CustomColumnButton, CustomFieldGridCell } from "@/components/custom-columns";
@@ -888,6 +888,12 @@ function ViewOrderDialog({ kind, id, onClose, onChanged }: any) {
   const [warehouses, setWarehouses] = useState<any[]>([]);
   const [fulfillQty, setFulfillQty] = useState<Record<string, number | string>>({});
   const [fulfillmentRemark, setFulfillmentRemark] = useState("");
+  const [paymentReference, setPaymentReference] = useState("");
+  const [refundOpen, setRefundOpen] = useState(false);
+  const [refundQty, setRefundQty] = useState<Record<string, number | string>>({});
+  const [refundDisposition, setRefundDisposition] = useState<Record<string, "SELLABLE" | "DAMAGED" | "SCRAP">>({});
+  const [refundReason, setRefundReason] = useState("");
+  const [refundReference, setRefundReference] = useState("");
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const endpoint = kind === "purchase" ? "/api/purchases" : "/api/sales";
 
@@ -896,6 +902,9 @@ function ViewOrderDialog({ kind, id, onClose, onChanged }: any) {
     const order = await response.json();
     if (!response.ok) throw new Error(order.error || "載入單據失敗");
     setData(order);
+    setPaymentReference(order.storefrontPayment?.providerReference ?? "");
+    setRefundQty(Object.fromEntries((order.items ?? []).map((item: any) => [item.id, 0])));
+    setRefundDisposition(Object.fromEntries((order.items ?? []).map((item: any) => [item.id, "SELLABLE"])));
     const progressField = kind === "purchase" ? "receivedQty" : "shippedQty";
     setFulfillQty(Object.fromEntries((order.items ?? []).map((item: any) => [
       item.id,
@@ -926,7 +935,13 @@ function ViewOrderDialog({ kind, id, onClose, onChanged }: any) {
       const res = await fetch(`${endpoint}/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, warehouseId, items: selectedItems, remark: fulfillmentRemark || undefined }),
+        body: JSON.stringify({
+          action,
+          warehouseId,
+          items: selectedItems,
+          remark: fulfillmentRemark || undefined,
+          providerReference: action === "confirm_payment" ? paymentReference.trim() : undefined,
+        }),
       });
       if (!res.ok) throw new Error((await res.json()).error || "操作失敗");
       const result = await res.json();
@@ -936,7 +951,7 @@ function ViewOrderDialog({ kind, id, onClose, onChanged }: any) {
         toast.success("已處理");
       }
       onChanged();
-      if (isFulfillment && !result.complete) {
+      if ((isFulfillment && !result.complete) || action === "confirm_payment") {
         setFulfillmentRemark("");
         await loadOrder();
       } else {
@@ -949,12 +964,52 @@ function ViewOrderDialog({ kind, id, onClose, onChanged }: any) {
     }
   }
 
+  async function submitStorefrontRefund() {
+    if (!data) return;
+    const items = data.items.map((item: any) => ({
+      orderItemId: item.id,
+      quantity: Number(refundQty[item.id] ?? 0),
+      disposition: refundDisposition[item.id] || "SELLABLE",
+    })).filter((item: any) => Number.isFinite(item.quantity) && item.quantity > 0);
+    if (!items.length) return toast.error("請至少輸入一筆退款數量");
+    if (refundReason.trim().length < 2) return toast.error("請輸入至少 2 個字的退款原因");
+    if (refundReference.trim().length < 2) return toast.error("請輸入金流退款序號或人工退款憑證");
+    setBusyAction("refund");
+    try {
+      const response = await fetch(`/api/sales/${id}/refund`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items, reason: refundReason.trim(), refundReference: refundReference.trim() }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "退款失敗");
+      toast.success(result.message || "退款完成");
+      setRefundOpen(false);
+      setRefundReason("");
+      setRefundReference("");
+      onChanged();
+      await loadOrder();
+    } catch (error: any) {
+      toast.error(error.message);
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
   if (!data) return null;
   const party = kind === "purchase" ? data.supplier : data.customer;
   const progressField = kind === "purchase" ? "receivedQty" : "shippedQty";
   const partialStatus = kind === "purchase" ? "PARTIALLY_RECEIVED" : "PARTIALLY_SHIPPED";
   const canReceiveShip = data.status === "APPROVED" || data.status === partialStatus;
   const fulfillmentDocs = kind === "purchase" ? (data.receipts ?? []) : (data.shipments ?? []);
+  const storefrontPayment = kind === "sales" ? data.storefrontPayment : null;
+  const refundablePayment = storefrontPayment && ["PAID", "PARTIALLY_REFUNDED"].includes(storefrontPayment.status);
+  const canStorefrontRefund = Boolean(refundablePayment && ["PARTIALLY_SHIPPED", "POSTED"].includes(data.status) && data.items.some((item: any) => Number(item.shippedQty) - Number(item.returnedQty ?? 0) > 0.00001));
+  const refundEstimate = Math.round(data.items.reduce((sum: number, item: any) => {
+    const quantity = Number(refundQty[item.id] ?? 0);
+    const ratio = Number(item.quantity) > 0 ? quantity / Number(item.quantity) : 0;
+    return sum + (quantity * Number(item.unitPrice) - Number(item.discount ?? 0) * ratio) * (1 + Number(item.taxRate ?? 0));
+  }, 0) * 100) / 100;
 
   return (
     <Dialog open onOpenChange={(v) => !v && onClose()}>
@@ -978,6 +1033,24 @@ function ViewOrderDialog({ kind, id, onClose, onChanged }: any) {
             <div className="font-bold">{formatMoney(data.total)}</div>
           </div>
         </div>
+
+        {storefrontPayment && (
+          <div className="rounded-xl border border-indigo-200 bg-indigo-50/50 p-4 text-sm space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="font-bold flex items-center gap-2"><CreditCard className="h-4 w-4" />電商付款</div>
+              <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold">{storefrontPayment.method}・{storefrontPayment.status === "PAID" ? "已付款" : storefrontPayment.status === "PARTIALLY_REFUNDED" ? "部分退款" : storefrontPayment.status === "REFUNDED" ? "已全額退款" : storefrontPayment.status}</span>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-3 text-xs"><div>原付款 <strong>{formatMoney(storefrontPayment.amount)}</strong></div><div>已退款 <strong className="text-rose-700">{formatMoney(storefrontPayment.refundedAmount ?? 0)}</strong></div><div>付款憑證 <strong>{storefrontPayment.providerReference || "尚未確認"}</strong></div></div>
+            {!["PAID", "PARTIALLY_REFUNDED", "REFUNDED", "CANCELLED", "EXPIRED"].includes(storefrontPayment.status) && (
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Input value={paymentReference} onChange={(event) => setPaymentReference(event.target.value)} placeholder="付款交易序號／轉帳憑證" disabled={busyAction !== null} />
+                <Button disabled={busyAction !== null || paymentReference.trim().length < 2} onClick={() => act("confirm_payment")}><CreditCard className="h-4 w-4" />確認已收款</Button>
+              </div>
+            )}
+            <div className="text-xs text-indigo-800">確認付款後，出貨會自動入銀行、沖應收並建立傳票；未收款訂單請作廢，不要使用退款。</div>
+          </div>
+        )}
+
         <div className="overflow-x-auto border rounded-md">
           <table className="w-full text-sm min-w-[720px]">
             <thead className="bg-muted/50 text-xs text-muted-foreground">
@@ -1086,6 +1159,29 @@ function ViewOrderDialog({ kind, id, onClose, onChanged }: any) {
           </div>
         )}
 
+        {kind === "sales" && data.returns?.length > 0 && (
+          <div className="space-y-2 border-t pt-3">
+            <Label>退貨／退款歷史</Label>
+            <div className="overflow-x-auto rounded-md border">
+              <table className="w-full min-w-[620px] text-sm"><thead className="bg-muted/50 text-xs"><tr><th className="p-2 text-left">退貨單</th><th className="p-2 text-left">日期</th><th className="p-2 text-left">原因／退款憑證</th><th className="p-2 text-right">金額</th></tr></thead><tbody>{data.returns.map((item: any) => <tr key={item.id} className="border-t"><td className="p-2 font-mono text-xs">{item.number}</td><td className="p-2">{formatDate(item.returnDate)}</td><td className="p-2">{item.reason || "—"}<div className="text-xs text-muted-foreground">{item.refundReference || "—"}</div></td><td className="p-2 text-right text-rose-700">{formatMoney(item.total)}</td></tr>)}</tbody></table>
+            </div>
+          </div>
+        )}
+
+        {refundOpen && storefrontPayment && (
+          <div className="space-y-4 rounded-xl border-2 border-rose-300 bg-rose-50/40 p-4">
+            <div><div className="font-bold flex items-center gap-2"><RotateCcw className="h-4 w-4" />電商原交易退款</div><div className="mt-1 text-xs text-muted-foreground">只能退已出貨且尚未退回的數量；良品回庫，瑕疵／報廢不回可售庫存。</div></div>
+            <div className="overflow-x-auto rounded-md border bg-background">
+              <table className="w-full min-w-[820px] text-sm"><thead className="bg-muted/50 text-xs"><tr><th className="p-2 text-left">商品</th><th className="p-2 text-right">已出</th><th className="p-2 text-right">已退</th><th className="p-2 text-right">可退</th><th className="p-2 text-right">本次</th><th className="p-2 text-left">品況</th></tr></thead><tbody>{data.items.map((item: any) => {
+                const remaining = Math.max(0, Math.round((Number(item.shippedQty) - Number(item.returnedQty ?? 0)) * 10_000) / 10_000);
+                return <tr key={item.id} className="border-t"><td className="p-2"><div className="font-medium">{item.product?.name}</div><div className="font-mono text-xs text-muted-foreground">{item.product?.sku}</div></td><td className="p-2 text-right">{Number(item.shippedQty)}</td><td className="p-2 text-right">{Number(item.returnedQty ?? 0)}</td><td className="p-2 text-right font-semibold">{remaining}</td><td className="p-2"><Input type="number" min="0" max={remaining} step="0.0001" value={refundQty[item.id] ?? 0} disabled={remaining <= 0 || busyAction !== null} onChange={(event) => setRefundQty((current) => ({ ...current, [item.id]: event.target.value }))} className="ml-auto h-8 w-28 text-right" /></td><td className="p-2"><select value={refundDisposition[item.id] || "SELLABLE"} onChange={(event) => setRefundDisposition((current) => ({ ...current, [item.id]: event.target.value as any }))} disabled={remaining <= 0 || busyAction !== null} className="h-8 rounded-md border bg-background px-2"><option value="SELLABLE">良品／回可售庫存</option><option value="DAMAGED">瑕疵／不回庫</option><option value="SCRAP">報廢／不回庫</option></select></td></tr>;
+              })}</tbody></table>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2"><div className="space-y-1"><Label>退款原因</Label><Textarea value={refundReason} onChange={(event) => setRefundReason(event.target.value)} placeholder="例如：客戶取消、商品瑕疵" disabled={busyAction !== null} /></div><div className="space-y-1"><Label>金流退款序號／人工退款憑證</Label><Input value={refundReference} onChange={(event) => setRefundReference(event.target.value)} placeholder="必填，供對帳與稽核" disabled={busyAction !== null} /><div className="text-sm">本次預估退款 <strong className="text-rose-700">{formatMoney(refundEstimate)}</strong></div></div></div>
+            <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setRefundOpen(false)} disabled={busyAction !== null}>取消</Button><Button variant="destructive" onClick={submitStorefrontRefund} disabled={busyAction !== null || refundEstimate <= 0}>{busyAction === "refund" ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}確認退款並過帳</Button></div>
+          </div>
+        )}
+
         <DialogFooter className="gap-2 flex-wrap flex-col-reverse md:flex-row">
           <Button
             variant="outline"
@@ -1099,6 +1195,9 @@ function ViewOrderDialog({ kind, id, onClose, onChanged }: any) {
               <Button variant="outline" onClick={() => act("approve")}>審核</Button>
               <Button variant="destructive" onClick={() => act("reject")}>駁回</Button>
             </>
+          )}
+          {canStorefrontRefund && !refundOpen && (
+            <Button variant="destructive" disabled={busyAction !== null} onClick={() => setRefundOpen(true)}><RotateCcw className="h-4 w-4" />原交易退款</Button>
           )}
           {canReceiveShip && (
             <Button disabled={busyAction !== null} onClick={() => act(kind === "purchase" ? "receive" : "ship")}>

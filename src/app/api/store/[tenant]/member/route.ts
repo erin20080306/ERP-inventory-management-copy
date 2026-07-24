@@ -43,7 +43,7 @@ export const GET = apiHandler(async (req: NextRequest, { params }: { params: { t
         createdAt: true,
         _count: { select: { items: true } },
         storefrontPayment: {
-          select: { method: true, status: true, paidAt: true },
+          select: { method: true, status: true, paidAt: true, refundedAmount: true },
         },
       },
     }),
@@ -87,6 +87,7 @@ export const GET = apiHandler(async (req: NextRequest, { params }: { params: { t
         method: order.storefrontPayment.method,
         status: order.storefrontPayment.status,
         charged: Boolean(order.storefrontPayment.paidAt),
+        refundedAmount: Number(order.storefrontPayment.refundedAmount),
         nextAction: order.storefrontPayment.status === "AWAITING_TRANSFER"
           ? "等待商家確認匯款"
           : order.storefrontPayment.status === "GATEWAY_REQUIRED"

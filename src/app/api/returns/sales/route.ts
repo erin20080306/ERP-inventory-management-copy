@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiHandler, requirePermission, requireTenantId, audit, nextNumber, getCurrentUserId } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
-import { calcTotals } from "@/lib/documents";
+import { calcTotals, createPostedJournal } from "@/lib/documents";
 
 export const GET = apiHandler(async (req: NextRequest) => {
   await requirePermission("returns.view");
@@ -109,19 +109,37 @@ export const PATCH = apiHandler(async (req: NextRequest) => {
     if (existing.status !== "APPROVED") throw new Error("只有已核准退貨單可以過帳");
     await prisma.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`sales-return:${tenantId}:${id}`}))`;
-      const ret = await tx.salesReturn.findFirst({ where: { id, tenantId, status: "APPROVED" }, include: { items: true, salesOrder: { include: { items: true } } } });
+      const ret = await tx.salesReturn.findFirst({ where: { id, tenantId, status: "APPROVED" }, include: { items: { include: { product: true } }, salesOrder: { include: { items: true } } } });
       if (!ret) throw new Error("退貨單已由其他人員處理，請重新整理");
       if (!ret?.salesOrder || ret.salesOrder.status !== "POSTED" || !ret.salesOrder.warehouseId) throw new Error("退貨單必須關聯已出貨銷售單與原出貨倉庫");
       if (ret.customerId !== ret.salesOrder.customerId) throw new Error("退貨客戶與原銷售單不一致");
+      const sourceItems = new Map(ret.salesOrder.items.map((item) => [item.productId, item]));
       const source = new Map(ret.salesOrder.items.map((item) => [item.productId, Number(item.shippedQty)]));
       const prior = await tx.salesReturnItem.groupBy({ by: ["productId"], where: { return: { salesOrderId: ret.salesOrderId, status: "POSTED" } }, _sum: { quantity: true } });
       const priorMap = new Map(prior.map((row) => [row.productId, Number(row._sum.quantity ?? 0)]));
       for (const item of ret.items) {
         if (Number(item.quantity) + (priorMap.get(item.productId) ?? 0) > (source.get(item.productId) ?? 0)) throw new Error("退貨數量不可超過原出貨數量");
         await tx.inventoryStock.upsert({ where: { productId_warehouseId: { productId: item.productId, warehouseId: ret.salesOrder.warehouseId } }, update: { quantity: { increment: item.quantity } }, create: { tenantId, productId: item.productId, warehouseId: ret.salesOrder.warehouseId, quantity: item.quantity } });
-        await tx.inventoryTransaction.create({ data: { tenantId, productId: item.productId, warehouseId: ret.salesOrder.warehouseId, type: "SALES_RETURN_IN", quantity: item.quantity, refType: "SALES_RETURN", refId: ret.id, remark: `銷貨退回 ${ret.number}` } });
+        await tx.inventoryTransaction.create({ data: { tenantId, productId: item.productId, warehouseId: ret.salesOrder.warehouseId, type: "SALES_RETURN_IN", quantity: item.quantity, unitCost: item.product.costPrice, refType: "SALES_RETURN", refId: ret.id, remark: `銷貨退回 ${ret.number}` } });
+        const sourceItem = sourceItems.get(item.productId);
+        if (sourceItem) {
+          await tx.salesOrderItem.update({ where: { id: sourceItem.id }, data: { returnedQty: { increment: item.quantity } } });
+          await tx.salesReturnItem.update({ where: { id: item.id }, data: { salesOrderItemId: sourceItem.id, disposition: "SELLABLE" } });
+        }
       }
+      const returnSubtotal = Math.round(ret.items.reduce((sum, item) => sum + Number(item.subtotal), 0) * 100) / 100;
+      const returnTax = Math.round((Number(ret.total) - returnSubtotal) * 100) / 100;
+      const returnCogs = Math.round(ret.items.reduce((sum, item) => sum + Number(item.quantity) * Number(item.product.costPrice), 0) * 100) / 100;
       await tx.accountsReceivable.create({ data: { tenantId, customerId: ret.customerId, salesOrderId: ret.salesOrderId, amount: Number(ret.total) * -1, status: "POSTED", updatedBy: currentUserId } });
+      await createPostedJournal(tx, tenantId, `銷貨退回 ${ret.number}（原單 ${ret.salesOrder.number}）`, session.user.id, [
+        { code: "4102", debit: returnSubtotal, memo: `銷貨退回－${ret.number}` },
+        { code: "2111", debit: returnTax, memo: `銷項稅額轉回－${ret.number}` },
+        { code: "1132", credit: Number(ret.total), memo: `應收帳款沖回－${ret.number}` },
+        ...(returnCogs > 0 ? [
+          { code: "1201", debit: returnCogs, memo: `退貨入庫－${ret.number}` },
+          { code: "5101", credit: returnCogs, memo: `銷貨成本轉回－${ret.number}` },
+        ] : []),
+      ]);
       await tx.salesReturn.update({ where: { id: ret.id }, data: { status: "POSTED", updatedBy: currentUserId } });
     }, { isolationLevel: "ReadCommitted" });
   } else if (action === "void") {

@@ -6,10 +6,12 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const session = await requirePosPermission("view", "sales.view");
   const tenantId = await requireTenantId(session);
   const query = (req.nextUrl.searchParams.get("q") ?? "").trim();
+  const channel = req.nextUrl.searchParams.get("channel") ?? "all";
   const sales = await prisma.posSale.findMany({
     where: {
       tenantId,
       status: { not: "VOIDED" },
+      ...(channel === "restaurant" ? { restaurantOrder: { isNot: null } } : {}),
       ...(query ? {
         OR: [
           { number: { contains: query, mode: "insensitive" as const } },
@@ -29,6 +31,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
       createdAt: true,
       register: { select: { code: true, name: true } },
       customer: { select: { companyName: true } },
+      restaurantOrder: { select: { number: true, table: { select: { name: true } } } },
       items: { select: { quantity: true, returnedQty: true } },
       refunds: { where: { status: "COMPLETED" }, select: { total: true } },
     },
