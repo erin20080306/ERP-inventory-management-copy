@@ -27,6 +27,7 @@ async function main() {
     data: {
       username,
       isSuperAdmin: true,
+      isTenantOwner: false,
       passwordHash: hash,
       isActive: true,
     },

@@ -24,11 +24,15 @@ async function main() {
 
   console.log("→ 種子角色 ...");
   for (const [key, def] of Object.entries(DEFAULT_ROLES)) {
-    const role = await prisma.role.upsert({
-      where: { name: def.name },
-      update: {},
-      create: { name: def.name, description: key, isSystem: key === "SUPER_ADMIN" },
-    });
+    const existingRole = await prisma.role.findFirst({ where: { tenantId: null, name: def.name } });
+    const role = existingRole
+      ? await prisma.role.update({
+          where: { id: existingRole.id },
+          data: { description: key, isSystem: key === "SUPER_ADMIN" },
+        })
+      : await prisma.role.create({
+          data: { tenantId: null, name: def.name, description: key, isSystem: key === "SUPER_ADMIN" },
+        });
     const codes = def.permissions === "*" ? allPerms.map((p: any) => p.code) : def.permissions;
     await prisma.rolePermission.deleteMany({ where: { roleId: role.id } });
     await prisma.rolePermission.createMany({
@@ -56,10 +60,14 @@ async function main() {
 
   const admin = await prisma.user.upsert({
     where: { username: adminUser },
-    update: { passwordHash: hash, name: "系統管理員", email: adminEmail, isActive: true },
-    create: { tenantId: T, username: adminUser, name: "系統管理員", email: adminEmail, passwordHash: hash },
+    update: { tenantId: T, passwordHash: hash, name: "系統管理員", email: adminEmail, isActive: true, isTenantOwner: true },
+    create: { tenantId: T, username: adminUser, name: "系統管理員", email: adminEmail, passwordHash: hash, isTenantOwner: true },
   });
-  const superRole = await prisma.role.findUnique({ where: { name: "系統管理員" } });
+  await prisma.user.updateMany({
+    where: { tenantId: T, id: { not: admin.id }, isTenantOwner: true },
+    data: { isTenantOwner: false },
+  });
+  const superRole = await prisma.role.findFirst({ where: { tenantId: null, name: "系統管理員" } });
   if (superRole) {
     await prisma.userRole.upsert({
       where: { userId_roleId: { userId: admin.id, roleId: superRole.id } },

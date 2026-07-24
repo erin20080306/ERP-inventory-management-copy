@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { formatDateTime } from "@/lib/utils";
+import { useSession } from "next-auth/react";
 
 function UserDialog({ open, onClose, row, onSaved }: any) {
   const [form, setForm] = useState<any>({});
@@ -58,13 +59,28 @@ function UserDialog({ open, onClose, row, onSaved }: any) {
             <div className="border rounded-md p-3 grid grid-cols-2 gap-2">
               {allRoles.map((r) => (
                 <label key={r.id} className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" checked={(form.roleIds ?? []).includes(r.id)} onChange={() => toggleRole(r.id)} />
+                  <input
+                    type="checkbox"
+                    checked={(form.roleIds ?? []).includes(r.id)}
+                    disabled={r.tenantId === null && r.name === "系統管理員"}
+                    onChange={() => toggleRole(r.id)}
+                  />
                   {r.name}
+                  {r.tenantId === null && r.name === "系統管理員" && <Badge variant="outline">擁有人專用</Badge>}
                 </label>
               ))}
             </div>
           </div>
-          <label className="flex items-center gap-2 text-sm col-span-2"><input type="checkbox" checked={!!form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} />啟用</label>
+          <label className="flex items-center gap-2 text-sm col-span-2">
+            <input
+              type="checkbox"
+              checked={!!form.isActive}
+              disabled={!!row?.isTenantOwner}
+              onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
+            />
+            啟用
+            {row?.isTenantOwner && <span className="text-xs text-muted-foreground">租戶擁有人不可停用</span>}
+          </label>
         </div>
         <DialogFooter><Button variant="outline" onClick={onClose}>取消</Button><Button onClick={save}>儲存</Button></DialogFooter>
       </DialogContent>
@@ -73,17 +89,24 @@ function UserDialog({ open, onClose, row, onSaved }: any) {
 }
 
 export function UserClient() {
+  const { data: session } = useSession();
+  const isTenantOwner = Boolean(session?.user?.isTenantOwner && !session.user.isSuperAdmin);
   return (
     <CrudTable
       endpoint="/api/users"
       searchPlaceholder="搜尋 帳號 / 姓名 / Email"
       FormDialog={UserDialog}
+      canCreate={isTenantOwner}
+      canEdit={isTenantOwner}
+      canDelete={isTenantOwner}
+      canDeleteRow={(row: any) => !row.isTenantOwner}
       columns={[
         { key: "username", title: "帳號", render: (r: any) => <span className="font-mono text-xs">{r.username}</span> },
         { key: "name", title: "姓名" },
         { key: "email", title: "Email" },
         { key: "roles", title: "角色", render: (r: any) => (
           <div className="flex flex-wrap gap-1">
+            {r.isTenantOwner && <Badge variant="success">租戶擁有人</Badge>}
             {(r.roles ?? []).map((ro: any) => <Badge key={ro.id} variant="info">{ro.name}</Badge>)}
           </div>
         )},

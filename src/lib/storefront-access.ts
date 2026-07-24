@@ -8,6 +8,7 @@ export type StorefrontAccessUser = {
   permissions?: string[] | null;
   businessMode?: BusinessMode | string | null;
   isSuperAdmin?: boolean | null;
+  isTenantOwner?: boolean | null;
 };
 
 function normalizedTenantKey(value: string | null | undefined) {
@@ -20,7 +21,7 @@ function normalizedTenantKey(value: string | null | undefined) {
 }
 
 export function isTenantHighestPrivilege(user: StorefrontAccessUser | null | undefined) {
-  return Boolean(user && !user.isSuperAdmin && Array.isArray(user.permissions) && user.permissions.includes("*"));
+  return Boolean(user && !user.isSuperAdmin && user.isTenantOwner);
 }
 
 export function canAccessTenantErp(user: StorefrontAccessUser | null | undefined) {
@@ -63,7 +64,7 @@ export function canManageTenantStorefront(user: StorefrontAccessUser | null | un
       .filter(Boolean)
       .includes(requested);
   }
-  if (!tenantStorefrontPath(user)) return false;
+  if (!isTenantHighestPrivilege(user) || !tenantStorefrontPath(user)) return false;
   return [user.tenantId, user.companyCode, user.storeSlug].map(normalizedTenantKey).filter(Boolean).includes(requested);
 }
 
@@ -79,6 +80,6 @@ export function canManageTenantMedicalSite(user: StorefrontAccessUser | null | u
       .filter(Boolean)
       .includes(requested);
   }
-  if (!tenantMedicalSitePath(user)) return false;
+  if (!isTenantHighestPrivilege(user) || !tenantMedicalSitePath(user)) return false;
   return [user.tenantId, user.companyCode, user.storeSlug].map(normalizedTenantKey).filter(Boolean).includes(requested);
 }

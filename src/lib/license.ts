@@ -63,7 +63,10 @@ function readPrimaryAccount(payload: Record<string, unknown>): PrimaryAccountSna
 async function syncPrimaryAccount(tx: Prisma.TransactionClient, tenantId: string, payload: Record<string, unknown>) {
   const account = readPrimaryAccount(payload);
   if (!account) return;
-  const adminRole = await tx.role.findUnique({ where: { name: "系統管理員" }, select: { id: true } });
+  const adminRole = await tx.role.findFirst({
+    where: { tenantId: null, name: "系統管理員" },
+    select: { id: true },
+  });
   if (!adminRole) throw new Error("本機系統管理員角色尚未初始化");
 
   const [usernameOwner, emailOwner] = await Promise.all([
@@ -84,14 +87,36 @@ async function syncPrimaryAccount(tx: Prisma.TransactionClient, tenantId: string
     : await tx.user.findUnique({ where: { username: localUsername }, select: { id: true } });
   if (aliasOwner && aliasOwner.id !== existing?.id) throw new Error("中央帳號的本機別名已被使用");
 
+  await tx.user.updateMany({
+    where: { tenantId, isTenantOwner: true },
+    data: { isTenantOwner: false },
+  });
   const user = existing
     ? await tx.user.update({
         where: { id: existing.id },
-        data: { tenantId, username: localUsername, email: account.email, name: account.name, passwordHash: account.passwordHash, isActive: true, isPaid: true },
+        data: {
+          tenantId,
+          username: localUsername,
+          email: account.email,
+          name: account.name,
+          passwordHash: account.passwordHash,
+          isActive: true,
+          isPaid: true,
+          isTenantOwner: true,
+        },
         select: { id: true },
       })
     : await tx.user.create({
-        data: { tenantId, username: localUsername, email: account.email, name: account.name, passwordHash: account.passwordHash, isActive: true, isPaid: true },
+        data: {
+          tenantId,
+          username: localUsername,
+          email: account.email,
+          name: account.name,
+          passwordHash: account.passwordHash,
+          isActive: true,
+          isPaid: true,
+          isTenantOwner: true,
+        },
         select: { id: true },
       });
   await tx.userRole.upsert({

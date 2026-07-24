@@ -9,8 +9,11 @@ import { EmptyState } from "@/components/layout/page-shell";
 import { toast } from "sonner";
 import { Plus, Edit2, Trash2 } from "lucide-react";
 import { MODULE_LABELS, ACTION_LABELS } from "@/lib/permissions";
+import { useSession } from "next-auth/react";
 
 export function RolesClient() {
+  const { data: session } = useSession();
+  const isTenantOwner = Boolean(session?.user?.isTenantOwner && !session.user.isSuperAdmin);
   const [roles, setRoles] = useState<any[]>([]);
   const [permissions, setPermissions] = useState<any[]>([]);
   const [editing, setEditing] = useState<any>(null);
@@ -35,7 +38,7 @@ export function RolesClient() {
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
-        <Button onClick={() => { setEditing(null); setOpen(true); }}><Plus className="h-4 w-4" />新增角色</Button>
+        {isTenantOwner && <Button onClick={() => { setEditing(null); setOpen(true); }}><Plus className="h-4 w-4" />新增租戶角色</Button>}
       </div>
       <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
         {roles.length === 0 && <EmptyState />}
@@ -47,9 +50,12 @@ export function RolesClient() {
                 <div className="text-xs text-muted-foreground mt-1">{r.description}</div>
               </div>
               <div className="flex items-center gap-1">
-                <Button variant="ghost" size="icon" onClick={() => { setEditing(r); setOpen(true); }}><Edit2 className="h-4 w-4" /></Button>
-                {!r.isSystem && (
-                  <Button variant="ghost" size="icon" onClick={() => onDelete(r)}><Trash2 className="h-4 w-4 text-red-600" /></Button>
+                {r.tenantId === null && <Badge variant="outline">系統範本</Badge>}
+                {isTenantOwner && r.tenantId !== null && (
+                  <>
+                    <Button variant="ghost" size="icon" onClick={() => { setEditing(r); setOpen(true); }}><Edit2 className="h-4 w-4" /></Button>
+                    <Button variant="ghost" size="icon" onClick={() => onDelete(r)}><Trash2 className="h-4 w-4 text-red-600" /></Button>
+                  </>
                 )}
               </div>
             </CardHeader>

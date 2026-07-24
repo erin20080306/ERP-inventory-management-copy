@@ -150,6 +150,7 @@ export function CrudTable<T extends { id: string }>({
   canCreate = true,
   canEdit = true,
   canDelete = true,
+  canDeleteRow,
   FormDialog,
   initialQuery,
   exportable = true,
@@ -170,6 +171,7 @@ export function CrudTable<T extends { id: string }>({
   canCreate?: boolean;
   canEdit?: boolean;
   canDelete?: boolean;
+  canDeleteRow?: (row: T) => boolean;
   exportable?: boolean;
   exportName?: string;
   pdfTitle?: string;
@@ -316,6 +318,7 @@ export function CrudTable<T extends { id: string }>({
   const showRefreshing = isValidating && !!data && !isLoading;
 
   async function onDelete(row: T) {
+    if (canDeleteRow && !canDeleteRow(row)) return;
     if (!confirm("確定要刪除？")) return;
     try {
       const res = await fetch(`${endpoint}/${row.id}`, { method: "DELETE" });
@@ -837,7 +840,7 @@ export function CrudTable<T extends { id: string }>({
                               <Pencil className="h-4 w-4 text-blue-600" />
                             </Button>
                           )}
-                          {canDelete && (
+                          {canDelete && (!canDeleteRow || canDeleteRow(row)) && (
                             <Button variant="ghost" size="icon" onClick={() => onDelete(row)}>
                               <Trash2 className="h-4 w-4 text-red-600" />
                             </Button>
@@ -864,7 +867,7 @@ export function CrudTable<T extends { id: string }>({
           {moduleKey && <button type="button" className="flex w-full items-center gap-2 rounded px-3 py-2 text-left hover:bg-muted" onClick={() => { customCols.setOpen(true); setContextMenu(null); }}><Settings2 className="h-4 w-4" />新增／刪減自訂欄位</button>}
           {visibleColumns.length > 1 && <button type="button" className="flex w-full items-center gap-2 rounded px-3 py-2 text-left hover:bg-muted" onClick={() => { hideColumn(contextMenu.colKey); setContextMenu(null); }}><EyeOff className="h-4 w-4" />隱藏此欄</button>}
           {hiddenColumns.length > 0 && <button type="button" className="flex w-full items-center gap-2 rounded px-3 py-2 text-left hover:bg-muted" onClick={() => { restoreColumns(); setContextMenu(null); }}><RotateCcw className="h-4 w-4" />恢復隱藏欄位</button>}
-          {canDelete && <><div className="my-1 border-t" /><button type="button" className="flex w-full items-center gap-2 rounded px-3 py-2 text-left text-destructive hover:bg-destructive/10" onClick={() => { const row = contextMenu.row; setContextMenu(null); void onDelete(row); }}><Trash2 className="h-4 w-4" />刪除此筆</button></>}
+          {canDelete && (!canDeleteRow || canDeleteRow(contextMenu.row)) && <><div className="my-1 border-t" /><button type="button" className="flex w-full items-center gap-2 rounded px-3 py-2 text-left text-destructive hover:bg-destructive/10" onClick={() => { const row = contextMenu.row; setContextMenu(null); void onDelete(row); }}><Trash2 className="h-4 w-4" />刪除此筆</button></>}
         </div>;
       })()}
 

@@ -104,10 +104,9 @@ async function main() {
   const tenant = await prisma.tenant.create({ data: { name: `公司代碼測試-${Date.now()}`, businessMode: "POS_RESTAURANT" } });
   tenantId = tenant.id;
   const ownerPassword = "OriginalAccount2026!";
-  const adminRole = await prisma.role.upsert({
-    where: { name: "系統管理員" },
-    update: {},
-    create: { name: "系統管理員", description: "discovery-test", isSystem: true },
+  const existingAdminRole = await prisma.role.findFirst({ where: { tenantId: null, name: "系統管理員" } });
+  const adminRole = existingAdminRole ?? await prisma.role.create({
+    data: { tenantId: null, name: "系統管理員", description: "discovery-test", isSystem: true },
   });
   const owner = await prisma.user.create({
     data: {
@@ -116,6 +115,7 @@ async function main() {
       email: `owner-${tenantId}@example.test`,
       name: "原本註冊管理員",
       passwordHash: await bcrypt.hash(ownerPassword, 4),
+      isTenantOwner: true,
     },
   });
   ownerEmail = owner.email;
@@ -215,8 +215,10 @@ async function main() {
   assert.equal(syncedOwner.tenantId, localTenant.id);
   assert.match(syncedOwner.username, /^remote-[a-f0-9]{24}$/);
   assert.equal(await bcrypt.compare(ownerPassword, syncedOwner.passwordHash), true);
+  assert.equal(syncedOwner.isTenantOwner, true);
   assert.equal(syncedOwner.userRoles.some((item) => item.role.name === "系統管理員"), true);
   const preservedBackup = await prisma.user.findUniqueOrThrow({ where: { username: "admin" } });
+  assert.equal(preservedBackup.isTenantOwner, false);
   assert.equal(preservedBackup.email, "local-admin@erin-erp.local");
   assert.equal(await bcrypt.compare(backupPassword, preservedBackup.passwordHash), true);
   assert.equal(await prisma.loginLog.count({ where: { username: owner.email, success: false } }), 0);

@@ -97,7 +97,10 @@ export async function POST(req: NextRequest) {
 
     const passwordHash = await bcrypt.hash(password, 12);
     const acceptedAt = new Date();
-    const adminRole = await prisma.role.findUnique({ where: { name: "系統管理員" }, select: { id: true } });
+    const adminRole = await prisma.role.findFirst({
+      where: { tenantId: null, name: "系統管理員" },
+      select: { id: true },
+    });
     if (!adminRole) {
       return NextResponse.json({ error: "系統角色尚未初始化，請聯絡艾琳設計" }, { status: 503 });
     }
@@ -120,6 +123,7 @@ export async function POST(req: NextRequest) {
           lastLoginIp: ip,
           termsAcceptedAt: acceptedAt,
           privacyAcceptedAt: acceptedAt,
+          isTenantOwner: true,
         },
       });
       await tx.userRole.create({ data: { userId: user.id, roleId: adminRole.id } });

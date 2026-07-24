@@ -33,7 +33,6 @@ async function storefrontIdentity(rawKey: string) {
       ],
     },
     select: {
-      id: true,
       name: true,
       companySettings: { select: { storeName: true, storeSlug: true }, take: 1 },
     },
@@ -54,8 +53,7 @@ export async function generateMetadata({ params }: StorePageProps): Promise<Meta
 export default async function StorePage({ params }: StorePageProps) {
   const { tenant, view = [] } = await params;
   const [session, identity] = await Promise.all([getSession(), storefrontIdentity(tenant)]);
-  const managerAccess = canManageTenantStorefront(session?.user, tenant)
-    || Boolean(!session?.user?.isSuperAdmin && identity?.id && session?.user?.tenantId === identity.id);
+  const managerAccess = canManageTenantStorefront(session?.user, tenant);
   const managerBackHref = session?.user?.isSuperAdmin ? "/admin" : "/products";
   const managerErpHref = session?.user?.isSuperAdmin ? "/workspace" : "/dashboard";
   return <FashionStorefront tenant={tenant} initialView={view[0] || "home"} initialStoreName={identity?.companySettings[0]?.storeName || identity?.name} managerAccess={managerAccess} managerBackHref={managerBackHref} managerErpHref={managerErpHref} />;

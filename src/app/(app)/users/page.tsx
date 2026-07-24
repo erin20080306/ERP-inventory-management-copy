@@ -6,7 +6,7 @@ export default async function Page() {
   const g = await requirePermissionOrForbidden("users.view");
   if (g.forbidden) return g.element;
   return (
-    <PageShell title="使用者管理" description="新增 / 停用 / 刪除使用者，並指派角色與權限">
+    <PageShell title="使用者管理" description="由租戶擁有人新增同租戶使用者，並指派租戶內可用的角色與權限">
       <UserClient />
     </PageShell>
   );

@@ -20,6 +20,7 @@ declare module "next-auth" {
       businessMode?: BusinessMode;
       isSuperAdmin?: boolean;
       isInternalAdminTenant?: boolean;
+      isTenantOwner?: boolean;
     };
   }
 }
@@ -35,6 +36,7 @@ declare module "next-auth/jwt" {
     businessMode?: BusinessMode;
     isSuperAdmin?: boolean;
     isInternalAdminTenant?: boolean;
+    isTenantOwner?: boolean;
   }
 }
 
@@ -95,13 +97,10 @@ export const authOptions: NextAuthOptions = {
 
         const roles = (user.userRoles as any[]).map((ur) => ur.role.name);
         const permsSet = new Set<string>();
-        let isSuper = false;
         for (const ur of user.userRoles as any[]) {
-          if (ur.role.name === "系統管理員") isSuper = true;
           for (const rp of ur.role.permissions as any[]) permsSet.add(rp.permission.code);
         }
-        if ((user as any).isSuperAdmin) isSuper = true;
-        const permissions = isSuper ? ["*"] : Array.from(permsSet);
+        const permissions = user.isTenantOwner || user.isSuperAdmin ? ["*"] : Array.from(permsSet);
 
         let tenantId = user.tenantId ?? "";
         let companyCode = (user as any).tenant?.companyCode ?? tenantId;
@@ -139,6 +138,7 @@ export const authOptions: NextAuthOptions = {
           businessMode,
           isSuperAdmin: (user as any).isSuperAdmin,
           isInternalAdminTenant,
+          isTenantOwner: user.isTenantOwner,
         } as any;
       },
     }),
@@ -157,6 +157,14 @@ export const authOptions: NextAuthOptions = {
         token.businessMode = u.businessMode;
         token.isSuperAdmin = u.isSuperAdmin;
         token.isInternalAdminTenant = u.isInternalAdminTenant;
+        token.isTenantOwner = u.isTenantOwner;
+      }
+      if (token.uid && token.isTenantOwner === undefined) {
+        const persistedUser = await prisma.user.findUnique({
+          where: { id: token.uid },
+          select: { isTenantOwner: true },
+        });
+        token.isTenantOwner = persistedUser?.isTenantOwner ?? false;
       }
       if (token.isSuperAdmin && token.uid && !token.isInternalAdminTenant) {
         const internalTenant = await ensureInternalAdminTenant(token.uid);
@@ -185,6 +193,7 @@ export const authOptions: NextAuthOptions = {
         businessMode: token.businessMode ?? "ERP",
         isSuperAdmin: token.isSuperAdmin,
         isInternalAdminTenant: token.isInternalAdminTenant,
+        isTenantOwner: token.isTenantOwner,
       };
       return session;
     },

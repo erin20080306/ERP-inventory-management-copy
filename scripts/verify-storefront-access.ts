@@ -29,6 +29,7 @@ const tenantAdmin = {
   permissions: ["*"],
   businessMode: "ECOMMERCE" as const,
   isSuperAdmin: false,
+  isTenantOwner: true,
 };
 
 assert.equal(isTenantHighestPrivilege(tenantAdmin), true);
@@ -53,8 +54,9 @@ assert.equal(canManageTenantMedicalSite(medicalAdmin, "another-tenant"), false);
 
 assert.equal(canManageTenantStorefront({
   ...tenantAdmin,
+  isTenantOwner: false,
   permissions: ["dashboard.view", "products.view"],
-}, "SHOP-TW-001"), true, "authorized tenant users should receive their own storefront management switch");
+}, "SHOP-TW-001"), false, "only the tenant highest-privilege user should receive storefront management controls");
 
 assert.equal(canManageTenantStorefront({
   ...tenantAdmin,
@@ -217,7 +219,9 @@ assert.match(commerceStorefront, /setAcceptingOrders\(false\)/);
 assert.match(commerceStorefront, /setProducts\(\[\]\)/);
 assert.doesNotMatch(commerceStorefront, /DEMO-/);
 assert.doesNotMatch(commerceStorefront, /展示訂單/);
-assert.match(commerceStorePage, /session\?\.user\?\.tenantId === identity\.id/);
+assert.doesNotMatch(commerceStorePage, /session\?\.user\?\.tenantId === identity\.id/);
+assert.match(commerceStorePage, /managerAccess = canManageTenantStorefront/);
+assert.match(commerceStorefront, /租戶管理者預覽/);
 assert.match(commerceStorePage, /managerErpHref = session\?\.user\?\.isSuperAdmin \? "\/workspace" : "\/dashboard"/);
 assert.match(commerceWorkspace, /href=\{tenantStorefrontHref\}/);
 assert.match(commerceDashboard, /href=\{storefrontHref\}/);

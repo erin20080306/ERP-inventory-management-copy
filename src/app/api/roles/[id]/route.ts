@@ -1,32 +1,39 @@
 import { NextRequest, NextResponse } from "next/server";
-import { apiHandler, requirePermission, audit, logPermissionChange, getClientInfo } from "@/lib/api";
+import { ApiError, apiHandler, audit, logPermissionChange, getClientInfo } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
+import { requireTenantOwner, validatePermissionIds } from "@/lib/tenant-owner";
 
 export const PUT = apiHandler(async (req: NextRequest, { params }: { params: { id: string } }) => {
-  const session = await requirePermission("roles.edit");
-  const { name, description, permissionIds } = await req.json();
+  const { session, tenantId } = await requireTenantOwner("roles.edit");
+  const body = await req.json();
+  const name = String(body.name || "").trim();
+  const description = String(body.description || "").trim() || null;
+  if (!name || name.length > 80) throw new ApiError(400, "角色名稱需為 1～80 個字元");
+  const permissionIds = await validatePermissionIds(body.permissionIds ?? []);
   const { ip, userAgent } = getClientInfo(req);
-  
-  // Get current permissions before update
-  const currentRole = await prisma.role.findUnique({
-    where: { id: params.id },
+
+  const currentRole = await prisma.role.findFirst({
+    where: { id: params.id, tenantId },
     include: { permissions: true },
   });
-  if (!currentRole) throw new Error("找不到角色");
-  
-  const beforePermissions = currentRole.permissions.map((p: any) => p.id);
-  
-  await prisma.role.update({ where: { id: params.id }, data: { name, description } });
-  if (Array.isArray(permissionIds)) {
-    await prisma.rolePermission.deleteMany({ where: { roleId: params.id } });
+  if (!currentRole) throw new ApiError(404, "找不到此租戶可編輯的角色");
+  const duplicate = await prisma.role.findFirst({
+    where: { tenantId, name, NOT: { id: params.id } },
+    select: { id: true },
+  });
+  if (duplicate) throw new ApiError(409, "此租戶已存在同名角色");
+  const beforePermissions = currentRole.permissions.map((p) => p.permissionId);
+
+  await prisma.$transaction(async (tx) => {
+    await tx.role.update({ where: { id: params.id }, data: { name, description } });
+    await tx.rolePermission.deleteMany({ where: { roleId: params.id } });
     if (permissionIds.length) {
-      await prisma.rolePermission.createMany({
-        data: permissionIds.map((pid: string) => ({ roleId: params.id, permissionId: pid })),
+      await tx.rolePermission.createMany({
+        data: permissionIds.map((permissionId) => ({ roleId: params.id, permissionId })),
       });
     }
-  }
-  
-  // Log permission change
+  });
+
   await logPermissionChange({
     userId: session.user.id,
     roleId: params.id,
@@ -37,27 +44,24 @@ export const PUT = apiHandler(async (req: NextRequest, { params }: { params: { i
     ip,
     userAgent,
   });
-  
+
   await audit({ userId: session.user.id, action: "update", module: "roles", refId: params.id });
   return NextResponse.json({ ok: true });
 });
 
 export const DELETE = apiHandler(async (req: NextRequest, { params }: { params: { id: string } }) => {
-  const session = await requirePermission("roles.delete");
+  const { session, tenantId } = await requireTenantOwner("roles.delete");
   const { ip, userAgent } = getClientInfo(req);
-  
-  const r = await prisma.role.findUnique({ 
-    where: { id: params.id },
+
+  const r = await prisma.role.findFirst({
+    where: { id: params.id, tenantId },
     include: { permissions: true },
   });
-  if (r?.isSystem) throw new Error("系統角色不可刪除");
-  
-  // Get current permissions before delete
-  const beforePermissions = r?.permissions.map((p: any) => p.id) || [];
-  
+  if (!r) throw new ApiError(404, "找不到此租戶可刪除的角色");
+  const beforePermissions = r.permissions.map((p) => p.permissionId);
+
   await prisma.role.delete({ where: { id: params.id } });
-  
-  // Log permission change
+
   await logPermissionChange({
     userId: session.user.id,
     roleId: params.id,
@@ -67,7 +71,7 @@ export const DELETE = apiHandler(async (req: NextRequest, { params }: { params: 
     ip,
     userAgent,
   });
-  
+
   await audit({ userId: session.user.id, action: "delete", module: "roles", refId: params.id });
   return NextResponse.json({ ok: true });
 });

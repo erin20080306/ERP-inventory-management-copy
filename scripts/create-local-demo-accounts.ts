@@ -33,7 +33,7 @@ async function ensureProduct(input: { tenantId: string; categoryId: string; unit
 }
 
 async function main() {
-  const adminRole = await prisma.role.findUnique({ where: { name: "系統管理員" } });
+  const adminRole = await prisma.role.findFirst({ where: { tenantId: null, name: "系統管理員" } });
   if (!adminRole) throw new Error("缺少系統管理員角色，請先套用 migrations");
 
   for (const account of accounts) {
@@ -51,8 +51,12 @@ async function main() {
     const passwordHash = await bcrypt.hash(account.password, 12);
     const user = await prisma.user.upsert({
       where: { username: account.username },
-      update: { tenantId: tenant.id, email: account.email, name: account.name, passwordHash, isActive: true, trialStart: createdAt, isPaid: false, paymentType: null, subscriptionEnd: null },
-      create: { tenantId: tenant.id, username: account.username, email: account.email, name: account.name, passwordHash, isActive: true, trialStart: createdAt },
+      update: { tenantId: tenant.id, email: account.email, name: account.name, passwordHash, isActive: true, isTenantOwner: true, trialStart: createdAt, isPaid: false, paymentType: null, subscriptionEnd: null },
+      create: { tenantId: tenant.id, username: account.username, email: account.email, name: account.name, passwordHash, isActive: true, isTenantOwner: true, trialStart: createdAt },
+    });
+    await prisma.user.updateMany({
+      where: { tenantId: tenant.id, id: { not: user.id }, isTenantOwner: true },
+      data: { isTenantOwner: false },
     });
     await prisma.userRole.upsert({ where: { userId_roleId: { userId: user.id, roleId: adminRole.id } }, update: {}, create: { userId: user.id, roleId: adminRole.id } });
     await seedTenantDefaults(tenant.id);

@@ -36,67 +36,68 @@ model Tenant {
   discoveryVersion       Int       @default(0)
   discoveryUpdatedAt     DateTime?
 
-  users                    User[]
-  productCategories        ProductCategory[]
-  productUnits             ProductUnit[]
-  products                 Product[]
-  customers                Customer[]
-  storefrontMembers        StorefrontMember[]
-  storefrontMemberSessions StorefrontMemberSession[]
-  storefrontPayments       StorefrontPayment[]
-  suppliers                Supplier[]
-  warehouses               Warehouse[]
-  inventoryStocks          InventoryStock[]
-  inventoryTxns            InventoryTransaction[]
-  stockAdjustments         StockAdjustment[]
-  stockTransfers           StockTransfer[]
-  purchaseOrders           PurchaseOrder[]
-  salesOrders              SalesOrder[]
-  quotations               Quotation[]
-  salesReturns             SalesReturn[]
-  purchaseReturns          PurchaseReturn[]
-  chartOfAccounts          ChartOfAccount[]
-  journalEntries           JournalEntry[]
-  accountsReceivable       AccountsReceivable[]
-  receivePayments          ReceivePayment[]
-  accountsPayable          AccountsPayable[]
-  supplierPayments         SupplierPayment[]
-  cashAccounts             CashAccount[]
-  bankAccounts             BankAccount[]
-  invoices                 Invoice[]
-  taxRates                 TaxRate[]
-  companySettings          CompanySetting[]
-  numberSequences          NumberSequence[]
-  notesReceivable          NoteReceivable[]
-  notesPayable             NotePayable[]
-  departments              Department[]
-  employees                Employee[]
-  payrollPeriods           PayrollPeriod[]
-  fixedAssets              FixedAsset[]
-  fixedAssetDepreciations  FixedAssetDepreciation[]
-  discountNotes            DiscountNote[]
-  invoiceTracks            InvoiceTrack[]
-  salaryStructures         SalaryStructure[]
-  salaryChanges            SalaryChange[]
-  licenseDevices           LicenseDevice[]
-  licenseEvents            LicenseEvent[]
-  posRegisters             PosRegister[]
-  posShifts                PosShift[]
-  posSales                 PosSale[]
-  posRefunds               PosRefund[]
-  posCashMovements         PosCashMovement[]
-  posHeldSales             PosHeldSale[]
-  posCartDrafts            PosCartDraft[]
-  electronicInvoices       ElectronicInvoice[]
-  electronicInvoiceEvents  ElectronicInvoiceEvent[]
-  posPromotions            PosPromotion[]
-  posCoupons               PosCoupon[]
-  posCouponRedemptions     PosCouponRedemption[]
-  posManagerApprovals      PosManagerApproval[]
-  restaurantAreas          RestaurantArea[]
-  restaurantTables         RestaurantTable[]
-  restaurantOrders         RestaurantOrder[]
-  restaurantKitchenTickets RestaurantKitchenTicket[]
+  users                     User[]
+  roles                     Role[]
+  productCategories         ProductCategory[]
+  productUnits              ProductUnit[]
+  products                  Product[]
+  customers                 Customer[]
+  storefrontMembers         StorefrontMember[]
+  storefrontMemberSessions  StorefrontMemberSession[]
+  storefrontPayments        StorefrontPayment[]
+  suppliers                 Supplier[]
+  warehouses                Warehouse[]
+  inventoryStocks           InventoryStock[]
+  inventoryTxns             InventoryTransaction[]
+  stockAdjustments          StockAdjustment[]
+  stockTransfers            StockTransfer[]
+  purchaseOrders            PurchaseOrder[]
+  salesOrders               SalesOrder[]
+  quotations                Quotation[]
+  salesReturns              SalesReturn[]
+  purchaseReturns           PurchaseReturn[]
+  chartOfAccounts           ChartOfAccount[]
+  journalEntries            JournalEntry[]
+  accountsReceivable        AccountsReceivable[]
+  receivePayments           ReceivePayment[]
+  accountsPayable           AccountsPayable[]
+  supplierPayments          SupplierPayment[]
+  cashAccounts              CashAccount[]
+  bankAccounts              BankAccount[]
+  invoices                  Invoice[]
+  taxRates                  TaxRate[]
+  companySettings           CompanySetting[]
+  numberSequences           NumberSequence[]
+  notesReceivable           NoteReceivable[]
+  notesPayable              NotePayable[]
+  departments               Department[]
+  employees                 Employee[]
+  payrollPeriods            PayrollPeriod[]
+  fixedAssets               FixedAsset[]
+  fixedAssetDepreciations   FixedAssetDepreciation[]
+  discountNotes             DiscountNote[]
+  invoiceTracks             InvoiceTrack[]
+  salaryStructures          SalaryStructure[]
+  salaryChanges             SalaryChange[]
+  licenseDevices            LicenseDevice[]
+  licenseEvents             LicenseEvent[]
+  posRegisters              PosRegister[]
+  posShifts                 PosShift[]
+  posSales                  PosSale[]
+  posRefunds                PosRefund[]
+  posCashMovements          PosCashMovement[]
+  posHeldSales              PosHeldSale[]
+  posCartDrafts             PosCartDraft[]
+  electronicInvoices        ElectronicInvoice[]
+  electronicInvoiceEvents   ElectronicInvoiceEvent[]
+  posPromotions             PosPromotion[]
+  posCoupons                PosCoupon[]
+  posCouponRedemptions      PosCouponRedemption[]
+  posManagerApprovals       PosManagerApproval[]
+  restaurantAreas           RestaurantArea[]
+  restaurantTables          RestaurantTable[]
+  restaurantOrders          RestaurantOrder[]
+  restaurantKitchenTickets  RestaurantKitchenTicket[]
   medicalServices           MedicalService[]
   medicalAppointments       MedicalAppointment[]
   medicalTreatmentPackages  MedicalTreatmentPackage[]
@@ -106,16 +107,16 @@ model Tenant {
   medicalConsents           MedicalConsent[]
   medicalTreatmentRecords   MedicalTreatmentRecord[]
   medicalReceipts           MedicalReceipt[]
-  loyaltyTransactions      CustomerLoyaltyTransaction[]
-  purchaseReceipts         PurchaseReceipt[]
-  salesShipments           SalesShipment[]
-  accountingPeriods        AccountingPeriod[]
-  auditLogs                AuditLog[]
-  offlineLease             OfflineLicenseLease?
-  customColumnDefinitions  CustomColumnDefinition[]
-  customFieldValues        CustomFieldValue[]
-  planInquiries            PlanInquiry[]
-  licensePayments          LicensePayment[]
+  loyaltyTransactions       CustomerLoyaltyTransaction[]
+  purchaseReceipts          PurchaseReceipt[]
+  salesShipments            SalesShipment[]
+  accountingPeriods         AccountingPeriod[]
+  auditLogs                 AuditLog[]
+  offlineLease              OfflineLicenseLease?
+  customColumnDefinitions   CustomColumnDefinition[]
+  customFieldValues         CustomFieldValue[]
+  planInquiries             PlanInquiry[]
+  licensePayments           LicensePayment[]
 
   @@index([isInternal])
 }
@@ -164,6 +165,8 @@ model User {
   passwordHash      String
   isActive          Boolean   @default(true)
   isSuperAdmin      Boolean   @default(false)
+  // 每個客戶租戶唯一的註冊／授權擁有人；只有此帳號可決定後續使用者權限。
+  isTenantOwner     Boolean   @default(false)
   trialStart        DateTime  @default(now())
   isPaid            Boolean   @default(false)
   paymentType       String? // "ONCE" = 永久, "MONTHLY" = 月付
@@ -296,13 +299,18 @@ model OfflineLicenseLease {
 
 model Role {
   id          String           @id @default(cuid())
-  name        String           @unique
+  tenantId    String?
+  name        String
   description String?
   isSystem    Boolean          @default(false)
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
+  tenant      Tenant?          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   permissions RolePermission[]
   users       UserRole[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
 }
 
 model Permission {
@@ -364,35 +372,35 @@ model ProductUnit {
 }
 
 model Product {
-  id          String   @id @default(cuid())
-  tenantId    String
+  id             String   @id @default(cuid())
+  tenantId       String
   // 商品目錄依租戶營運模式隔離；保留舊模式商品供歷史單據引用。
-  catalogMode String?
-  sku         String
-  barcode     String?
-  name        String
-  spec        String?
-  description String?
-  imageUrl    String?
-  categoryId  String?
-  unitId      String?
-  costPrice   Decimal  @default(0) @db.Decimal(18, 4)
-  salePrice   Decimal  @default(0) @db.Decimal(18, 4)
-  safetyStock   Decimal  @default(0) @db.Decimal(18, 4)
+  catalogMode    String?
+  sku            String
+  barcode        String?
+  name           String
+  spec           String?
+  description    String?
+  imageUrl       String?
+  categoryId     String?
+  unitId         String?
+  costPrice      Decimal  @default(0) @db.Decimal(18, 4)
+  salePrice      Decimal  @default(0) @db.Decimal(18, 4)
+  safetyStock    Decimal  @default(0) @db.Decimal(18, 4)
   trackInventory Boolean  @default(true)
-  taxRateId   String?
-  isActive    Boolean  @default(true)
-  isPublished Boolean  @default(true)
-  isArchived  Boolean  @default(false)
-  remark      String?
-  updatedBy   String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  taxRateId      String?
+  isActive       Boolean  @default(true)
+  isPublished    Boolean  @default(true)
+  isArchived     Boolean  @default(false)
+  remark         String?
+  updatedBy      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  tenant               Tenant                 @relation(fields: [tenantId], references: [id])
-  category             ProductCategory?       @relation(fields: [categoryId], references: [id])
-  unit                 ProductUnit?           @relation(fields: [unitId], references: [id])
-  taxRate              TaxRate?               @relation(fields: [taxRateId], references: [id])
+  tenant               Tenant                     @relation(fields: [tenantId], references: [id])
+  category             ProductCategory?           @relation(fields: [categoryId], references: [id])
+  unit                 ProductUnit?               @relation(fields: [unitId], references: [id])
+  taxRate              TaxRate?                   @relation(fields: [taxRateId], references: [id])
   stocks               InventoryStock[]
   txns                 InventoryTransaction[]
   purchaseItems        PurchaseOrderItem[]
@@ -437,21 +445,21 @@ model Customer {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  tenant              Tenant                       @relation(fields: [tenantId], references: [id])
-  salesOrders         SalesOrder[]
-  quotations          Quotation[]
-  receivables         AccountsReceivable[]
-  receivePayments     ReceivePayment[]
-  salesReturns        SalesReturn[]
-  invoices            Invoice[]
-  notes               NoteReceivable[]
-  discountNotes       DiscountNote[]
-  posSales            PosSale[]
-  loyaltyPoints       Int                          @default(0)
-  loyaltyTier         String                       @default("STANDARD")
-  loyaltyTransactions CustomerLoyaltyTransaction[]
-  couponRedemptions   PosCouponRedemption[]
-  storefrontMember       StorefrontMember?
+  tenant                  Tenant                       @relation(fields: [tenantId], references: [id])
+  salesOrders             SalesOrder[]
+  quotations              Quotation[]
+  receivables             AccountsReceivable[]
+  receivePayments         ReceivePayment[]
+  salesReturns            SalesReturn[]
+  invoices                Invoice[]
+  notes                   NoteReceivable[]
+  discountNotes           DiscountNote[]
+  posSales                PosSale[]
+  loyaltyPoints           Int                          @default(0)
+  loyaltyTier             String                       @default("STANDARD")
+  loyaltyTransactions     CustomerLoyaltyTransaction[]
+  couponRedemptions       PosCouponRedemption[]
+  storefrontMember        StorefrontMember?
   medicalAppointments     MedicalAppointment[]
   medicalPackagePurchases MedicalPackagePurchase[]
   medicalWallet           MedicalWallet?
@@ -1069,26 +1077,26 @@ model PosRegister {
 }
 
 model PosShift {
-  id               String            @id @default(cuid())
-  tenantId         String
-  registerId       String
-  userId           String
-  closedById       String?
-  status           PosShiftStatus    @default(OPEN)
-  openingCash      Decimal           @default(0) @db.Decimal(18, 2)
-  expectedCash     Decimal?          @db.Decimal(18, 2)
-  closingCash      Decimal?          @db.Decimal(18, 2)
-  difference       Decimal?          @db.Decimal(18, 2)
-  openedAt         DateTime          @default(now())
-  closedAt         DateTime?
-  tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  register         PosRegister       @relation(fields: [registerId], references: [id])
-  sales            PosSale[]
-  refunds          PosRefund[]
-  cashMovements    PosCashMovement[]
-  heldSales        PosHeldSale[]
-  cartDrafts       PosCartDraft[]
-  restaurantOrders RestaurantOrder[]
+  id                        String                     @id @default(cuid())
+  tenantId                  String
+  registerId                String
+  userId                    String
+  closedById                String?
+  status                    PosShiftStatus             @default(OPEN)
+  openingCash               Decimal                    @default(0) @db.Decimal(18, 2)
+  expectedCash              Decimal?                   @db.Decimal(18, 2)
+  closingCash               Decimal?                   @db.Decimal(18, 2)
+  difference                Decimal?                   @db.Decimal(18, 2)
+  openedAt                  DateTime                   @default(now())
+  closedAt                  DateTime?
+  tenant                    Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  register                  PosRegister                @relation(fields: [registerId], references: [id])
+  sales                     PosSale[]
+  refunds                   PosRefund[]
+  cashMovements             PosCashMovement[]
+  heldSales                 PosHeldSale[]
+  cartDrafts                PosCartDraft[]
+  restaurantOrders          RestaurantOrder[]
   medicalWalletTransactions MedicalWalletTransaction[]
 
   @@index([tenantId, status])
@@ -1311,46 +1319,46 @@ model ElectronicInvoiceEvent {
 }
 
 model PosSale {
-  id                    String                       @id @default(cuid())
-  tenantId              String
-  clientRequestId       String?
-  shiftId               String
-  registerId            String
-  customerId            String?
-  salesOrderId          String?                      @unique
-  exchangeRefundId      String?                      @unique
-  promotionId           String?
-  number                String
-  status                PosSaleStatus                @default(COMPLETED)
-  subtotal              Decimal                      @default(0) @db.Decimal(18, 2)
-  discount              Decimal                      @default(0) @db.Decimal(18, 2)
-  promotionDiscount     Decimal                      @default(0) @db.Decimal(18, 2)
-  couponDiscount        Decimal                      @default(0) @db.Decimal(18, 2)
-  pointsDiscount        Decimal                      @default(0) @db.Decimal(18, 2)
-  loyaltyPointsEarned   Int                          @default(0)
-  loyaltyPointsRedeemed Int                          @default(0)
-  taxAmount             Decimal                      @default(0) @db.Decimal(18, 2)
-  total                 Decimal                      @default(0) @db.Decimal(18, 2)
-  paidAmount            Decimal                      @default(0) @db.Decimal(18, 2)
-  changeDue             Decimal                      @default(0) @db.Decimal(18, 2)
-  receiptNo             String?
-  voidReason            String?
-  voidedAt              DateTime?
-  createdAt             DateTime                     @default(now())
-  tenant                Tenant                       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  shift                 PosShift                     @relation(fields: [shiftId], references: [id])
-  register              PosRegister                  @relation(fields: [registerId], references: [id])
-  customer              Customer?                    @relation(fields: [customerId], references: [id])
-  salesOrder            SalesOrder?                  @relation(fields: [salesOrderId], references: [id], onDelete: SetNull)
-  exchangeRefund        PosRefund?                   @relation("PosExchange", fields: [exchangeRefundId], references: [id], onDelete: SetNull)
-  promotion             PosPromotion?                @relation(fields: [promotionId], references: [id], onDelete: SetNull)
-  items                 PosSaleItem[]
-  payments              PosPayment[]
-  refunds               PosRefund[]
-  electronicInvoice     ElectronicInvoice?
-  couponRedemption      PosCouponRedemption?
-  managerApproval       PosManagerApproval?
-  loyaltyTransactions   CustomerLoyaltyTransaction[]
+  id                     String                       @id @default(cuid())
+  tenantId               String
+  clientRequestId        String?
+  shiftId                String
+  registerId             String
+  customerId             String?
+  salesOrderId           String?                      @unique
+  exchangeRefundId       String?                      @unique
+  promotionId            String?
+  number                 String
+  status                 PosSaleStatus                @default(COMPLETED)
+  subtotal               Decimal                      @default(0) @db.Decimal(18, 2)
+  discount               Decimal                      @default(0) @db.Decimal(18, 2)
+  promotionDiscount      Decimal                      @default(0) @db.Decimal(18, 2)
+  couponDiscount         Decimal                      @default(0) @db.Decimal(18, 2)
+  pointsDiscount         Decimal                      @default(0) @db.Decimal(18, 2)
+  loyaltyPointsEarned    Int                          @default(0)
+  loyaltyPointsRedeemed  Int                          @default(0)
+  taxAmount              Decimal                      @default(0) @db.Decimal(18, 2)
+  total                  Decimal                      @default(0) @db.Decimal(18, 2)
+  paidAmount             Decimal                      @default(0) @db.Decimal(18, 2)
+  changeDue              Decimal                      @default(0) @db.Decimal(18, 2)
+  receiptNo              String?
+  voidReason             String?
+  voidedAt               DateTime?
+  createdAt              DateTime                     @default(now())
+  tenant                 Tenant                       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  shift                  PosShift                     @relation(fields: [shiftId], references: [id])
+  register               PosRegister                  @relation(fields: [registerId], references: [id])
+  customer               Customer?                    @relation(fields: [customerId], references: [id])
+  salesOrder             SalesOrder?                  @relation(fields: [salesOrderId], references: [id], onDelete: SetNull)
+  exchangeRefund         PosRefund?                   @relation("PosExchange", fields: [exchangeRefundId], references: [id], onDelete: SetNull)
+  promotion              PosPromotion?                @relation(fields: [promotionId], references: [id], onDelete: SetNull)
+  items                  PosSaleItem[]
+  payments               PosPayment[]
+  refunds                PosRefund[]
+  electronicInvoice      ElectronicInvoice?
+  couponRedemption       PosCouponRedemption?
+  managerApproval        PosManagerApproval?
+  loyaltyTransactions    CustomerLoyaltyTransaction[]
   restaurantOrder        RestaurantOrder?
   medicalAppointment     MedicalAppointment?
   medicalPackagePurchase MedicalPackagePurchase?
