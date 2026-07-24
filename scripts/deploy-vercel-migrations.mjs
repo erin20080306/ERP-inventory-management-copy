@@ -5,6 +5,11 @@ if (process.env.VERCEL !== "1") {
   process.exit(0);
 }
 
+if (!process.env.DATABASE_URL && process.env.VERCEL_ENV === "preview") {
+  console.log("Prisma migration deploy skipped for Vercel Preview without DATABASE_URL.");
+  process.exit(0);
+}
+
 if (!process.env.DATABASE_URL) {
   console.error("DATABASE_URL is required for Vercel migration deploy.");
   process.exit(1);
