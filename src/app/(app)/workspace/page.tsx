@@ -105,7 +105,7 @@ export default async function WorkspacePage() {
             </div>
             <div className="flex flex-wrap gap-2">
               <Link href={tenantStorefrontHref} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-3 text-sm font-bold text-white hover:bg-slate-800">進入商店官網 <ArrowUpRight className="h-4 w-4" /></Link>
-              <Link href="/sales" className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-white px-4 py-3 text-sm font-bold text-rose-700 hover:bg-rose-50">查看 ERP 網路訂單 <ClipboardList className="h-4 w-4" /></Link>
+              <Link href="/fulfillment" className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-white px-4 py-3 text-sm font-bold text-rose-700 hover:bg-rose-50">ERP 接單與出貨 <ClipboardList className="h-4 w-4" /></Link>
             </div>
           </div>
           {commerceStats && <div className="grid gap-px border-b border-rose-100 bg-rose-100 sm:grid-cols-2 xl:grid-cols-4">

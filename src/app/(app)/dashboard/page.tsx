@@ -116,7 +116,7 @@ export default async function DashboardPage() {
         </div>
         <div className="flex flex-wrap gap-2">
           {commerce && <Link href={storefrontHref} target="_blank" rel="noreferrer" className="inline-flex h-10 items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-4 text-sm font-bold text-indigo-800 hover:bg-indigo-100 dark:border-indigo-900 dark:bg-indigo-950/40 dark:text-indigo-200"><Globe2 className="h-4 w-4" />進入商店官網 <ArrowUpRight className="h-4 w-4" /></Link>}
-          {access.sales && <Link href="/sales" className="inline-flex h-10 items-center gap-2 rounded-lg bg-indigo-600 px-4 text-sm font-bold text-white hover:bg-indigo-500"><ShoppingCart className="h-4 w-4" />{commerce ? "網路訂單" : "建立銷售訂單"}</Link>}
+          {access.sales && <Link href={commerce ? "/fulfillment" : "/sales"} className="inline-flex h-10 items-center gap-2 rounded-lg bg-indigo-600 px-4 text-sm font-bold text-white hover:bg-indigo-500"><ShoppingCart className="h-4 w-4" />{commerce ? "接單與出貨" : "建立銷售訂單"}</Link>}
         </div>
       </header>
 
