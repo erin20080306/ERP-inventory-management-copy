@@ -12,10 +12,13 @@ on:
       - "prisma/**"
       - "src/**"
       - "public/**"
+      - "scripts/verify-company-discovery.ts"
       - "scripts/verify-host-update.mjs"
+      - "scripts/verify-installed-storefront-sync.ts"
       - "package.json"
       - "package-lock.json"
       - "next.config.*"
+      - ".github/workflows/release-desktop.yml"
       - ".github/workflows/publish-host-container-image.yml"
   workflow_dispatch:
 
