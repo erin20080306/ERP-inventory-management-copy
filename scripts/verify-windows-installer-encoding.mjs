@@ -74,6 +74,11 @@ assert.match(
   /cpSync\(path\.join\(root, "installer", "安裝艾琳ERP\.ps1"\), path\.join\(windows, "installer", "Install-ErinERP\.ps1"\)\)/,
   "GitHub Release builder must copy the BOM-preserving source bytes",
 );
+assert.match(
+  releaseBuilder,
+  /const imageTag = process\.argv\[3\] \|\| "latest";/,
+  "Tagged manual Host installers must pull the smoke-tested latest image unless an explicit image tag is supplied",
+);
 
 if (process.platform === "win32") {
   execFileSync(
