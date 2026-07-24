@@ -1,5 +1,5 @@
 // This file is advanced only after the multi-platform Host image passes its smoke test.
 export const CURRENT_HOST_RELEASE = {
-  version: "409763db4c563e8f4fc592ad82772ab48f67a661",
-  publishedAt: "2026-07-24T07:42:37.000Z",
+  version: "cecec1956fa2847c5baa1f1e8d366f8288918309",
+  publishedAt: "2026-07-24T09:48:06.000Z",
 } as const;
