@@ -1,4 +1,4 @@
-$ErrorActionPreference = "Stop"
+﻿$ErrorActionPreference = "Stop"
 $PackageDir = Split-Path -Parent $PSScriptRoot
 $InstallDir = Join-Path $env:USERPROFILE "ErinERP"
 $DeviceDir = Join-Path $env:ProgramData "ErinERP"
