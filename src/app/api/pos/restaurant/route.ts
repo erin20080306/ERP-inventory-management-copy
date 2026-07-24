@@ -5,6 +5,7 @@ import { hasPermission } from "@/lib/auth";
 import { resolveDemoProductImage } from "@/lib/demo-product-media";
 import { nextNumberFastInTransaction } from "@/lib/number-sequence";
 import { prisma } from "@/lib/prisma";
+import { getPosDailySummary, getPosShiftCashPosition } from "@/lib/pos-daily-summary";
 import { productCatalogScope } from "@/lib/product-editions";
 import { createRestaurantTable, deleteRestaurantTableSafely, setRestaurantTableActive, updateRestaurantTable } from "@/lib/restaurant-tables";
 
@@ -67,17 +68,20 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const catalogScope = productCatalogScope("POS_RESTAURANT");
   const kitchenOnly = req.nextUrl.searchParams.get("view") === "kitchen";
   const canManageTables = hasPermission(session.user.permissions, "restaurant.manage");
-  const [registers, openShift, areas, products, stockTotals, categories, kitchenTickets, tableSettings] = await Promise.all([
+  const openShiftPromise = prisma.posShift.findFirst({
+    where: { tenantId, userId: session.user.id, status: "OPEN" },
+    include: { register: { select: { id: true, code: true, name: true, warehouseId: true } } },
+    orderBy: { openedAt: "desc" },
+  });
+  const [registers, openShift, today, shiftCash, areas, products, stockTotals, categories, kitchenTickets, tableSettings] = await Promise.all([
     prisma.posRegister.findMany({
       where: { tenantId, isActive: true },
       select: { id: true, code: true, name: true, warehouseId: true, warehouse: { select: { name: true } } },
       orderBy: { code: "asc" },
     }),
-    prisma.posShift.findFirst({
-      where: { tenantId, userId: session.user.id, status: "OPEN" },
-      include: { register: { select: { id: true, code: true, name: true, warehouseId: true } } },
-      orderBy: { openedAt: "desc" },
-    }),
+    openShiftPromise,
+    kitchenOnly ? Promise.resolve(null) : getPosDailySummary(tenantId),
+    kitchenOnly ? Promise.resolve(null) : openShiftPromise.then((shift) => getPosShiftCashPosition(shift)),
     kitchenOnly ? Promise.resolve([]) : prisma.restaurantArea.findMany({
       where: { tenantId, isActive: true },
       include: {
@@ -128,6 +132,8 @@ export const GET = apiHandler(async (req: NextRequest) => {
   return NextResponse.json({
     registers,
     openShift,
+    today,
+    shiftCash,
     areas,
     categories,
     products: products.map((product) => ({ ...product, imageUrl: resolveDemoProductImage(product.sku, product.imageUrl), salePrice: Number(product.salePrice), stockTotal: stockByProduct.get(product.id) ?? 0 })),

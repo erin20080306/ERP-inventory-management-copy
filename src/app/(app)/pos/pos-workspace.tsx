@@ -80,7 +80,8 @@ export function PosWorkspace() {
   const [registers, setRegisters] = useState<Register[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [shift, setShift] = useState<Shift | null>(null);
-  const [today, setToday] = useState({ sales: 0, refunds: 0, grossAmount: 0, refundAmount: 0, amount: 0 });
+  const [today, setToday] = useState({ sales: 0, refunds: 0, grossAmount: 0, refundAmount: 0, amount: 0, soldQuantity: 0, refundedQuantity: 0, netQuantity: 0 });
+  const [shiftCash, setShiftCash] = useState<{ openingCash: number; cashSales: number; cashRefunds: number; expectedCash: number } | null>(null);
   const [recentSales, setRecentSales] = useState<RecentSale[]>([]);
   const [saleQuery, setSaleQuery] = useState("");
   const [products, setProducts] = useState<Product[]>([]);
@@ -145,7 +146,8 @@ export function PosWorkspace() {
     setRegisters(data.registers ?? []);
     setWarehouses(data.warehouses ?? []);
     setShift(data.openShift ?? null);
-    setToday(data.today ?? { sales: 0, refunds: 0, grossAmount: 0, refundAmount: 0, amount: 0 });
+    setToday(data.today ?? { sales: 0, refunds: 0, grossAmount: 0, refundAmount: 0, amount: 0, soldQuantity: 0, refundedQuantity: 0, netQuantity: 0 });
+    setShiftCash(data.shiftCash ?? null);
     setRecentSales(data.recentSales ?? []);
     setSelectedRegister((value) => value || data.registers?.[0]?.id || "");
     return data.openShift as Shift | null;
@@ -727,7 +729,7 @@ export function PosWorkspace() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "開班失敗");
-      toast.success("開班完成，可以開始結帳");
+      toast.success(data.journal ? `開班完成，零用金傳票 ${data.journal.number} 已過帳` : "開班完成，可以開始結帳");
       await refresh();
     } catch (error: any) {
       toast.error(error.message);
@@ -767,7 +769,7 @@ export function PosWorkspace() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "結班失敗");
-      toast.success(`結班完成，現金差額 ${formatTwd(data.summary.difference)}`);
+      toast.success(`結班完成，現金差額 ${formatTwd(data.summary.difference)}${data.journal ? `；零用金傳票 ${data.journal.number} 已過帳` : ""}`);
       setLastCloseSummary(data.summary);
       setShiftPreview(null);
       setCart([]);
@@ -972,8 +974,9 @@ return <div className="grid min-h-[60vh] animate-pulse gap-4 xl:grid-cols-[minma
                   {registers.map((register) => <option key={register.id} value={register.id}>{register.name} · {register.warehouse.name}</option>)}
                 </select>
               </label>
-              <label className="block text-sm font-medium">開班備用金
+              <label className="block text-sm font-medium">開店零用金（會計入帳）
                 <input value={openingCash} onChange={(event) => setOpeningCash(event.target.value)} inputMode="decimal" className="mt-1 w-full h-11 rounded-lg border bg-background px-3" />
+                <span className="mt-2 block text-xs leading-5 text-muted-foreground">大於 0 時自動過帳：借記庫存現金、貸記零用金；不列入營業額。結班時原額轉回零用金。</span>
               </label>
               <button onClick={openShift} disabled={busy} className="w-full h-12 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold disabled:opacity-50">{busy ? "開班中…" : "確認開班"}</button>
             </>
@@ -997,6 +1000,14 @@ return <div className="grid min-h-[60vh] animate-pulse gap-4 xl:grid-cols-[minma
           <button onClick={() => { void refresh(); }} className="h-10 w-10 inline-flex items-center justify-center rounded-lg border hover:bg-muted" aria-label="重新整理"><RefreshCw className="h-4 w-4" /></button>
         </div>
       </header>
+
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <div className="rounded-xl border bg-card p-4"><div className="text-xs font-bold text-muted-foreground">今日淨營業額</div><div className="mt-2 text-xl font-black">{formatTwd(today.amount)}</div><div className="mt-1 text-[11px] text-muted-foreground">退款 {formatTwd(today.refundAmount)}</div></div>
+        <div className="rounded-xl border bg-card p-4"><div className="text-xs font-bold text-muted-foreground">今日淨售出件數</div><div className="mt-2 text-xl font-black">{today.netQuantity}</div><div className="mt-1 text-[11px] text-muted-foreground">售出 {today.soldQuantity}／退回 {today.refundedQuantity}</div></div>
+        <div className="rounded-xl border bg-card p-4"><div className="text-xs font-bold text-muted-foreground">今日交易筆數</div><div className="mt-2 text-xl font-black">{today.sales}</div><div className="mt-1 text-[11px] text-muted-foreground">退款 {today.refunds} 筆</div></div>
+        <div className="rounded-xl border bg-card p-4"><div className="text-xs font-bold text-muted-foreground">開店零用金</div><div className="mt-2 text-xl font-black">{formatTwd(shiftCash?.openingCash ?? shift.openingCash)}</div><div className="mt-1 text-[11px] text-emerald-700">已納入會計傳票</div></div>
+        <div className="rounded-xl border bg-card p-4"><div className="text-xs font-bold text-muted-foreground">目前應有現金</div><div className="mt-2 text-xl font-black">{formatTwd(shiftCash?.expectedCash ?? shift.openingCash)}</div><div className="mt-1 text-[11px] text-muted-foreground">含現金銷售與已核准錢櫃異動</div></div>
+      </section>
 
       {recoveryDraft && (
         <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-950 flex flex-col lg:flex-row lg:items-center justify-between gap-4">

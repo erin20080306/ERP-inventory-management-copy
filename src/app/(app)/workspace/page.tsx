@@ -3,7 +3,9 @@ import { redirect } from "next/navigation";
 import { ArrowUpRight, Building2, Calculator, ClipboardList, Package, PackageCheck, ScanBarcode, Shield, ShoppingCart, Store, UtensilsCrossed } from "lucide-react";
 import { getSession } from "@/lib/api";
 import { hasPermission } from "@/lib/auth";
+import { getDashboardKpis } from "@/lib/dashboard";
 import { getProductEdition, normalizeBusinessMode } from "@/lib/product-editions";
+import { formatMoney, formatNumber } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +31,9 @@ export default async function WorkspacePage() {
     if (mode === "POS_RESTAURANT" && hasPermission(permissions, "restaurant.view")) redirect("/pos/restaurant");
   }
   const storefrontCode = session.user.companyCode || session.user.tenantId;
+  const commerceStats = mode === "ECOMMERCE" && session.user.tenantId
+    ? await getDashboardKpis(session.user.tenantId, { webOnly: true })
+    : null;
   const cards = [
     ...((mode === "ECOMMERCE" || isPlatformAdmin)
       ? [{ title: mode === "ECOMMERCE" ? "預覽我的品牌商城" : "電商租戶網站示範", description: "消費者前台與 ERP 共用商品、可售庫存、會員與網路訂單", href: mode === "ECOMMERCE" ? `/store/${encodeURIComponent(storefrontCode)}` : "/store/atelier-noir", icon: Store, tone: "rose" }]
@@ -82,6 +87,12 @@ export default async function WorkspacePage() {
               <Link href="/sales" className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-white px-4 py-3 text-sm font-bold text-rose-700 hover:bg-rose-50">查看 ERP 網路訂單 <ClipboardList className="h-4 w-4" /></Link>
             </div>
           </div>
+          {commerceStats && <div className="grid gap-px border-b border-rose-100 bg-rose-100 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="bg-white/95 p-5"><div className="text-xs font-bold text-slate-500">今日官網營業額</div><div className="mt-2 text-2xl font-black text-slate-950">{formatMoney(commerceStats.todaySales)}</div><div className="mt-1 text-[11px] text-slate-500">僅計算 [WEB] 官網訂單</div></div>
+            <div className="bg-white/95 p-5"><div className="text-xs font-bold text-slate-500">今日官網訂單</div><div className="mt-2 text-2xl font-black text-slate-950">{formatNumber(commerceStats.todayOrders)}</div><div className="mt-1 text-[11px] text-slate-500">以台北營業日統計</div></div>
+            <div className="bg-white/95 p-5"><div className="text-xs font-bold text-slate-500">今日售出件數</div><div className="mt-2 text-2xl font-black text-slate-950">{formatNumber(commerceStats.todayQuantity)}</div><div className="mt-1 text-[11px] text-slate-500">官網訂單商品數量合計</div></div>
+            <div className="bg-white/95 p-5"><div className="text-xs font-bold text-slate-500">開店零用金</div><div className="mt-2 text-xl font-black text-slate-950">不適用</div><div className="mt-1 text-[11px] text-slate-500">線上付款沒有實體錢櫃，不建立零用金傳票</div></div>
+          </div>}
           <div className="grid gap-px bg-rose-100 md:grid-cols-3">
             <div className="bg-white/90 p-5"><div className="flex items-center gap-2 text-sm font-bold text-slate-900"><ShoppingCart className="h-4 w-4 text-rose-600" />1．以王小美體驗結帳</div><p className="mt-2 text-xs leading-5 text-slate-600">王小美是預設體驗顧客，可用來完成商城結帳與 ERP 接單流程；信用卡／行動支付不會真實扣款，正式收款需先串接租戶金流。</p></div>
             <div className="bg-white/90 p-5"><div className="flex items-center gap-2 text-sm font-bold text-slate-900"><ClipboardList className="h-4 w-4 text-indigo-600" />2．回 ERP 接單</div><p className="mt-2 text-xs leading-5 text-slate-600">在銷售管理看到標示 [WEB] 的新訂單與自動建立／合併的客戶資料。</p></div>

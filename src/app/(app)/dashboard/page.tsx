@@ -53,7 +53,7 @@ export default async function DashboardPage() {
   const mode = normalizeBusinessMode(session.user.businessMode);
   const commerce = mode === "ECOMMERCE";
   const companyCode = session.user.companyCode || tenantId;
-  const s = await getDashboardKpis(tenantId);
+  const s = await getDashboardKpis(tenantId, { webOnly: commerce });
 
   return (
     <div className="space-y-5">
@@ -70,10 +70,17 @@ export default async function DashboardPage() {
       </header>
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <KPI icon={Receipt} label="今日營業額" value={formatMoney(s.todaySales)} hint="較昨日持續更新" />
-        <KPI icon={TrendingUp} label="本月銷售額" value={formatMoney(s.monthSales)} hint="銷售與 POS 合併" />
-        <KPI icon={ShoppingCart} label={commerce ? "待處理網路訂單" : "未出貨訂單"} value={formatNumber(s.unshipped)} hint="核准後進入出貨" warning={s.unshipped > 0} />
-        <KPI icon={AlertTriangle} label="低庫存商品" value={formatNumber(s.lowStockCount)} hint="低於安全庫存" warning={s.lowStockCount > 0} />
+        {commerce ? <>
+          <KPI icon={Receipt} label="今日官網營業額" value={formatMoney(s.todaySales)} hint="僅計算官網訂單，不含零用金" />
+          <KPI icon={ShoppingCart} label="今日官網訂單" value={formatNumber(s.todayOrders)} hint="以台北營業日統計" />
+          <KPI icon={Package} label="今日售出件數" value={formatNumber(s.todayQuantity)} hint="今日官網訂單商品總數" />
+          <KPI icon={AlertTriangle} label="待處理網路訂單" value={formatNumber(s.unshipped)} hint="核准後進入出貨" warning={s.unshipped > 0} />
+        </> : <>
+          <KPI icon={Receipt} label="今日營業額" value={formatMoney(s.todaySales)} hint="較昨日持續更新" />
+          <KPI icon={TrendingUp} label="本月銷售額" value={formatMoney(s.monthSales)} hint="銷售與 POS 合併" />
+          <KPI icon={ShoppingCart} label="未出貨訂單" value={formatNumber(s.unshipped)} hint="核准後進入出貨" warning={s.unshipped > 0} />
+          <KPI icon={AlertTriangle} label="低庫存商品" value={formatNumber(s.lowStockCount)} hint="低於安全庫存" warning={s.lowStockCount > 0} />
+        </>}
       </section>
 
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
