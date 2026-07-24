@@ -202,6 +202,9 @@ async function main() {
     status: 200,
     headers: { "Content-Type": "application/json" },
   })) as typeof fetch;
+  // 正式環境的中央平台與客戶主機使用不同資料庫。CI 將兩者放在同一個
+  // PostgreSQL schema，因此同步前先把公司代碼的唯一鍵所有權移交給本機 fixture。
+  await prisma.tenant.update({ where: { id: tenantId }, data: { companyCode: null } });
   await refreshLocalLicenseLease(localTenant.id);
   const localAccess = await resolveLocalLicenseAccess(localTenant.id);
   assert.equal(localAccess.expiresAt, activation.expiresAt?.toISOString());
@@ -229,6 +232,9 @@ async function main() {
   assert.equal(await bcrypt.compare(backupPassword, preservedBackup.passwordHash), true);
   assert.equal(await prisma.loginLog.count({ where: { username: owner.email, success: false } }), 0);
   assert.equal(await prisma.restaurantTable.count({ where: { tenantId: localTenant.id, isActive: true } }), 12);
+  // 後續中央 discovery 測試需要將唯一公司代碼移回中央 fixture。
+  await prisma.tenant.update({ where: { id: localTenant.id }, data: { companyCode: null } });
+  await prisma.tenant.update({ where: { id: tenantId }, data: { companyCode: activation.companyCode } });
   globalThis.fetch = originalFetch;
 
   const invalidResponse = await discover(request("/api/license/discover", {
