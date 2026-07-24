@@ -114,6 +114,7 @@ assert.deepEqual(daily, {
 const cash = await getPosShiftCashPosition({ id: "shift", openingCash: 3_000 }, {
   posPayment: { aggregate: async () => ({ _sum: { amount: 8_000 } }) },
   posRefundPayment: { aggregate: async () => ({ _sum: { amount: 500 } }) },
+  medicalWalletTransaction: { aggregate: async () => ({ _sum: { amount: 1_000 } }) },
   posCashMovement: {
     groupBy: async () => [
       { type: "PAID_IN", _sum: { amount: 200 } },
@@ -122,7 +123,8 @@ const cash = await getPosShiftCashPosition({ id: "shift", openingCash: 3_000 }, 
     ],
   },
 });
-assert.equal(cash?.expectedCash, 8_600);
+assert.equal(cash?.cashWalletTopUps, 1_000);
+assert.equal(cash?.expectedCash, 9_600);
 
 const ledgerCash = await getLedgerCashBalance("tenant", {
   chartOfAccount: { findMany: async () => [{ id: "cash", code: "1101", name: "庫存現金", openingBalance: 500 }] },

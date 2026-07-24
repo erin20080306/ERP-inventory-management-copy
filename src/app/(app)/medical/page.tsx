@@ -10,5 +10,5 @@ export default async function MedicalPage() {
   if (!session?.user) redirect("/login");
   if (!session.user.isSuperAdmin && normalizeBusinessMode(session.user.businessMode) !== "POS_MEDICAL") redirect("/workspace");
   const tenantKey = session.user.companyCode || session.user.tenantId || "atelier-clinic";
-  return <MedicalWorkspace publicSiteHref={`/medical/${encodeURIComponent(tenantKey)}`} />;
+  return <MedicalWorkspace publicSiteHref={`/medical/${encodeURIComponent(tenantKey)}`} tenantCacheKey={session.user.tenantId || tenantKey} />;
 }

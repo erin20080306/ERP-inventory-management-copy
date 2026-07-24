@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/layout/page-shell";
 import { Loader2, Search, FileDown, Download, Printer, Upload, Pencil, Save, X } from "lucide-react";
-import { formatDate, formatMoney, formatNumber } from "@/lib/utils";
+import { formatDate, formatMoney, formatNumber, formatUnitPrice } from "@/lib/utils";
 import { downloadCSV, toCSV } from "@/lib/csv";
 import { toast } from "sonner";
 import { useCustomColumns, useCustomFieldValues, CustomColumnDialog, CustomColumnButton, CustomFieldGridCell } from "@/components/custom-columns";
@@ -28,8 +28,8 @@ const MODULES: Module[] = [
       { key: "sku", title: "SKU", editable: true },
       { key: "name", title: "名稱", editable: true },
       { key: "spec", title: "規格", editable: true },
-      { key: "costPrice", title: "成本", render: (r) => formatMoney(r.costPrice), editable: true },
-      { key: "salePrice", title: "售價", render: (r) => formatMoney(r.salePrice), editable: true },
+      { key: "costPrice", title: "成本", render: (r) => formatUnitPrice(r.costPrice), editable: true },
+      { key: "salePrice", title: "售價", render: (r) => formatUnitPrice(r.salePrice), editable: true },
       { key: "createdAt", title: "建立日期", render: (r) => formatDate(r.createdAt) },
     ],
   },

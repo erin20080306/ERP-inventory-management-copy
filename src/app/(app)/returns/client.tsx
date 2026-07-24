@@ -68,7 +68,7 @@ function ReturnDialog({ open, onClose, row, onSaved, type }: any) {
     const price = Number((newItems as any)[idx].unitPrice);
     const discount = Number((newItems as any)[idx].discount);
     const taxRate = Number((newItems as any)[idx].taxRate);
-    const subtotal = (qty * price - discount) * (1 + taxRate / 100);
+    const subtotal = Math.round((qty * price - Math.round(discount)) * (1 + taxRate / 100));
     (newItems as any)[idx].subtotal = subtotal;
     setItems(newItems);
   };
@@ -173,7 +173,7 @@ function ReturnDialog({ open, onClose, row, onSaved, type }: any) {
                         </select>
                       </TD>
                       <TD><Input type="number" step="1" value={item.quantity} onChange={(e) => updateItem(idx, "quantity", e.target.value)} className="w-20" /></TD>
-                      <TD><Input type="number" step="1" value={item.unitPrice} onChange={(e) => updateItem(idx, "unitPrice", e.target.value)} className="w-24" /></TD>
+                      <TD><Input type="number" step="0.0001" value={item.unitPrice} onChange={(e) => updateItem(idx, "unitPrice", e.target.value)} className="w-24" /></TD>
                       <TD><Input type="number" step="1" value={item.discount} onChange={(e) => updateItem(idx, "discount", e.target.value)} className="w-20" /></TD>
                       <TD><Input type="number" step="1" value={item.taxRate} onChange={(e) => updateItem(idx, "taxRate", e.target.value)} className="w-16" /></TD>
                       <TD>{formatMoney(item.subtotal)}</TD>

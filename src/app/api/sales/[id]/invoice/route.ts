@@ -15,7 +15,7 @@ export const POST = apiHandler(async (_req: NextRequest, { params }: { params: {
     throw new Error("草稿或已作廢銷售單無法開立發票");
   }
   const number = await nextNumber("INV", tenantId);
-  const amountExTax = +(Number(order.subtotal) - Number(order.discount)).toFixed(2);
+  const amountExTax = roundInvoiceAmount(Number(order.subtotal) - Number(order.discount));
   const taxAmount = roundInvoiceTax(order.taxAmount);
   const totalAmount = roundInvoiceAmount(amountExTax + taxAmount);
 

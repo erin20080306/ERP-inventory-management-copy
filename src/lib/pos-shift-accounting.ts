@@ -12,7 +12,7 @@ type ShiftJournalInput = {
 };
 
 function roundMoney(value: number) {
-  return Math.round((value + Number.EPSILON) * 100) / 100;
+  return Math.round(value + Number.EPSILON);
 }
 
 async function resolveCashAccounts(tx: any, tenantId: string) {

@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { ApiError, apiHandler, audit, requirePosPermission, requireTenantId } from "@/lib/api";
-import { hasPermission } from "@/lib/auth";
+import { hasPermission } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { createShiftOpeningCashJournal } from "@/lib/pos-shift-accounting";
 
 const ShiftAction = z.discriminatedUnion("action", [
-  z.object({ action: z.literal("OPEN"), registerId: z.string().min(1), openingCash: z.coerce.number().min(0).max(10_000_000) }),
+  z.object({ action: z.literal("OPEN"), registerId: z.string().min(1), openingCash: z.coerce.number().int().min(0).max(10_000_000) }),
   z.object({ action: z.literal("PREVIEW"), shiftId: z.string().min(1) }),
-  z.object({ action: z.literal("CLOSE"), shiftId: z.string().min(1), closingCash: z.coerce.number().min(0).max(10_000_000) }),
+  z.object({ action: z.literal("CLOSE"), shiftId: z.string().min(1), closingCash: z.coerce.number().int().min(0).max(10_000_000) }),
 ]);
 
 export const POST = apiHandler(async (req: NextRequest) => {
@@ -65,7 +65,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
     });
     if (!shift) throw new ApiError(404, "找不到你的未結班班次");
 
-    const [salesPayments, refundPayments, salesTotal, refundsTotal, cashMovements, pendingMovementCount, heldSaleCount, draftCount, restaurantOrderCount] = await Promise.all([
+    const [salesPayments, refundPayments, walletTopUpPayments, salesTotal, refundsTotal, cashMovements, pendingMovementCount, heldSaleCount, draftCount, restaurantOrderCount] = await Promise.all([
       tx.posPayment.groupBy({
         by: ["method"],
         where: { sale: { shiftId: shift.id, status: { not: "VOIDED" } } },
@@ -74,6 +74,11 @@ export const POST = apiHandler(async (req: NextRequest) => {
       tx.posRefundPayment.groupBy({
         by: ["method"],
         where: { refund: { shiftId: shift.id, status: "COMPLETED" } },
+        _sum: { amount: true },
+      }),
+      tx.medicalWalletTransaction.groupBy({
+        by: ["paymentMethod"],
+        where: { shiftId: shift.id, type: "TOP_UP" },
         _sum: { amount: true },
       }),
       tx.posSale.aggregate({
@@ -112,6 +117,18 @@ export const POST = apiHandler(async (req: NextRequest) => {
       const current = methodMap.get(row.method) ?? { sales: 0, refunds: 0, net: 0 };
       methodMap.set(row.method, { ...current, refunds, net: current.sales - refunds });
     }
+    let walletTopUps = 0;
+    for (const row of walletTopUpPayments) {
+      if (!row.paymentMethod) continue;
+      const amount = Number(row._sum.amount ?? 0);
+      walletTopUps += amount;
+      const current = methodMap.get(row.paymentMethod) ?? { sales: 0, refunds: 0, net: 0 };
+      methodMap.set(row.paymentMethod, {
+        ...current,
+        sales: current.sales + amount,
+        net: current.net + amount,
+      });
+    }
     const cash = methodMap.get("CASH") ?? { sales: 0, refunds: 0, net: 0 };
     const movementTotals = { paidIn: 0, paidOut: 0, safeDrop: 0 };
     for (const movement of cashMovements) {
@@ -120,8 +137,8 @@ export const POST = apiHandler(async (req: NextRequest) => {
       if (movement.type === "PAID_OUT") movementTotals.paidOut += amount;
       if (movement.type === "SAFE_DROP") movementTotals.safeDrop += amount;
     }
-    const expectedCash = Math.round((Number(shift.openingCash) + cash.net + movementTotals.paidIn - movementTotals.paidOut - movementTotals.safeDrop) * 100) / 100;
-    const difference = closingCash === null ? null : Math.round((closingCash - expectedCash) * 100) / 100;
+    const expectedCash = Math.round(Number(shift.openingCash) + cash.net + movementTotals.paidIn - movementTotals.paidOut - movementTotals.safeDrop);
+    const difference = closingCash === null ? null : Math.round(closingCash - expectedCash);
     const operators = await tx.user.findMany({
       where: { id: { in: [...new Set([shift.userId, session.user.id])] } },
       select: { id: true, name: true, username: true },
@@ -168,6 +185,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
         netSales: Number(salesTotal._sum.total ?? 0) - Number(refundsTotal._sum.total ?? 0),
         saleCount: salesTotal._count._all,
         refundCount: refundsTotal._count._all,
+        walletTopUps,
         payments: [...methodMap.entries()].map(([method, values]) => ({ method, ...values })),
         cashMovements: movementTotals,
         pendingMovementCount,

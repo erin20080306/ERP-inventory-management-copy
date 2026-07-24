@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/api";
-import { hasPermission } from "@/lib/auth";
+import { hasPermission } from "@/lib/permissions";
 import { normalizeBusinessMode } from "@/lib/product-editions";
 import { RestaurantEnhancements } from "../restaurant-enhancements";
 import { RestaurantWorkspace } from "../restaurant-workspace";

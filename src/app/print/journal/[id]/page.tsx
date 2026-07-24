@@ -25,7 +25,7 @@ export default async function PrintJournal({ params }: { params: Promise<{ id: s
     const digits = ["零", "壹", "貳", "參", "肆", "伍", "陸", "柒", "捌", "玖"];
     const units = ["", "拾", "佰", "仟"];
     const bigUnits = ["", "萬", "億"];
-    const [intStr, decStr = ""] = String(Math.abs(n).toFixed(2)).split(".");
+    const intStr = String(Math.abs(Math.round(n)));
     let result = "";
     let gi = 0;
     let rest = intStr;
@@ -43,29 +43,18 @@ export default async function PrintJournal({ params }: { params: Promise<{ id: s
       gi++;
     }
     result += "元";
-    const d1 = Number(decStr[0] ?? 0);
-    const d2 = Number(decStr[1] ?? 0);
-    if (d1 === 0 && d2 === 0) result += "整";
-    else result += (d1 ? digits[d1] + "角" : "") + (d2 ? digits[d2] + "分" : "");
-    return result;
+    return `${result}整`;
   }
 
   const statusLabel: Record<string, string> = { DRAFT: "草稿", POSTED: "已過帳", VOID: "已作廢" };
 
-  // 將金額拆成 11 個位數欄 (億千百十萬千百十元角分)
-  const AMOUNT_UNITS = ["億", "仟", "佰", "拾", "萬", "仟", "佰", "拾", "元", "角", "分"];
+  // 傳票只使用整數金額，拆成 9 個位數欄（億千百十萬千百十元）。
+  const AMOUNT_UNITS = ["億", "仟", "佰", "拾", "萬", "仟", "佰", "拾", "元"];
   function splitAmount(n: number): string[] {
     if (!n) return AMOUNT_UNITS.map(() => "");
-    const cents = Math.round(Math.abs(n) * 100);
-    const intPart = Math.floor(cents / 100);
-    const fracPart = cents % 100;
-    const intStr = String(intPart);
+    const intStr = String(Math.abs(Math.round(n)));
     const padded = intStr.padStart(9, " ");
-    const arr = padded.split("").map((c) => (c === " " ? "" : c));
-    arr.push(String(Math.floor(fracPart / 10)));
-    arr.push(String(fracPart % 10));
-    // 結果長度 11，對應 AMOUNT_UNITS
-    return arr;
+    return padded.split("").map((c) => (c === " " ? "" : c));
   }
 
   // 中式年月日 (民國年)

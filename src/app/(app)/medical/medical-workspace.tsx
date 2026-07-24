@@ -6,7 +6,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   CalendarDays,
   CheckCircle2,
+  CircleDollarSign,
   ClipboardSignature,
+  Clock3,
   ExternalLink,
   FileClock,
   HeartPulse,
@@ -15,8 +17,11 @@ import {
   Plus,
   ReceiptText,
   RefreshCw,
+  ShieldCheck,
   Sparkles,
+  UserRound,
   WalletCards,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -64,13 +69,100 @@ type MedicalData = {
   customers: Customer[];
   purchases: Purchase[];
   receipts: Receipt[];
+  settings?: { storeSlug?: string | null } | null;
+};
+type ShiftOperator = { id: string; name: string; username: string };
+type CashMovement = {
+  id: string;
+  type: "PAID_IN" | "PAID_OUT" | "SAFE_DROP";
+  status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
+  amount: number | string;
+  reason: string;
+  requestedAt: string;
+};
+type ShiftSummary = {
+  openingCash: number;
+  expectedCash: number;
+  closingCash: number | null;
+  difference: number | null;
+  openedBy: ShiftOperator;
+  closingBy: ShiftOperator;
+  grossSales: number;
+  refunds: number;
+  netSales: number;
+  saleCount: number;
+  refundCount: number;
+  walletTopUps?: number;
+  payments: Array<{ method: string; sales: number; refunds: number; net: number }>;
+  cashMovements: { paidIn: number; paidOut: number; safeDrop: number };
+  pendingMovementCount?: number;
 };
 type PosData = {
   registers: Array<{ id: string; code: string; name: string }>;
-  openShift: { id: string; openingCash: number; register: { name: string } } | null;
-  today?: { netSales?: number; itemQuantity?: number };
-  shiftCash?: { expectedCash?: number };
+  openShift: {
+    id: string;
+    openingCash: number;
+    openedAt: string;
+    openedBy: ShiftOperator;
+    register: { id: string; code: string; name: string; warehouseId: string };
+  } | null;
+  today?: { amount?: number; grossAmount?: number; refundAmount?: number; netQuantity?: number };
+  shiftCash?: {
+    openingCash: number;
+    cashSales: number;
+    cashWalletTopUps?: number;
+    cashRefunds: number;
+    expectedCash: number;
+    cashMovements: { paidIn: number; paidOut: number; safeDrop: number };
+  } | null;
+  ledgerCashBalance?: number;
+  cashMovements?: CashMovement[];
+  capabilities?: { canApproveCash?: boolean };
 };
+
+const CASH_MOVEMENT_LABELS = {
+  PAID_IN: "投入現金",
+  PAID_OUT: "提出現金",
+  SAFE_DROP: "營業中抽離／入庫",
+} as const;
+const CASH_MOVEMENT_STATUS = {
+  PENDING: "等待主管",
+  APPROVED: "已核准",
+  REJECTED: "已拒絕",
+  CANCELLED: "已取消",
+} as const;
+const PAYMENT_LABELS: Record<string, string> = {
+  CASH: "現金",
+  CARD: "信用卡",
+  MOBILE: "行動支付",
+  TRANSFER: "轉帳",
+  WALLET: "會員儲值",
+  MIXED: "混合付款",
+};
+const MEDICAL_BOOTSTRAP_CACHE_PREFIX = "erin-medical-pos-bootstrap-v2";
+const MEDICAL_BOOTSTRAP_CACHE_TTL_MS = 15_000;
+
+function medicalBootstrapCacheKey(tenantCacheKey: string) {
+  return `${MEDICAL_BOOTSTRAP_CACHE_PREFIX}:${tenantCacheKey}`;
+}
+
+function readMedicalBootstrapCache(tenantCacheKey: string): { medical: MedicalData; pos: PosData } | null {
+  try {
+    const raw = window.sessionStorage.getItem(medicalBootstrapCacheKey(tenantCacheKey));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed.medical || !parsed.pos || Date.now() - Number(parsed.savedAt || 0) > MEDICAL_BOOTSTRAP_CACHE_TTL_MS) return null;
+    return { medical: parsed.medical as MedicalData, pos: parsed.pos as PosData };
+  } catch {
+    return null;
+  }
+}
+
+function writeMedicalBootstrapCache(tenantCacheKey: string, medical: MedicalData, pos: PosData) {
+  try {
+    window.sessionStorage.setItem(medicalBootstrapCacheKey(tenantCacheKey), JSON.stringify({ medical, pos, savedAt: Date.now() }));
+  } catch {}
+}
 
 const tabs = [
   ["schedule", "今日排程", CalendarDays],
@@ -90,7 +182,7 @@ async function jsonFetch(url: string, init?: RequestInit) {
   return data;
 }
 
-export function MedicalWorkspace({ publicSiteHref }: { publicSiteHref: string }) {
+export function MedicalWorkspace({ publicSiteHref, tenantCacheKey }: { publicSiteHref: string; tenantCacheKey: string }) {
   const [medical, setMedical] = useState<MedicalData | null>(null);
   const [pos, setPos] = useState<PosData | null>(null);
   const [tab, setTab] = useState<(typeof tabs)[number][0]>("schedule");
@@ -98,31 +190,48 @@ export function MedicalWorkspace({ publicSiteHref }: { publicSiteHref: string })
   const [selectedProductId, setSelectedProductId] = useState("");
   const [customerId, setCustomerId] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("CASH");
-  const [openingCash, setOpeningCash] = useState("3000");
+  const [openingCash, setOpeningCash] = useState("0");
+  const [cashPanelOpen, setCashPanelOpen] = useState(false);
+  const [cashMovementType, setCashMovementType] = useState<CashMovement["type"]>("PAID_IN");
+  const [cashMovementAmount, setCashMovementAmount] = useState("");
+  const [cashMovementReason, setCashMovementReason] = useState("");
+  const [shiftPreview, setShiftPreview] = useState<ShiftSummary | null>(null);
+  const [closingCash, setClosingCash] = useState("");
   const [newPatient, setNewPatient] = useState({ name: "", phone: "", email: "" });
   const [appointmentForm, setAppointmentForm] = useState({ customerId: "", serviceId: "", startAt: "", practitionerName: "林醫師", room: "諮詢室 A" });
   const [walletForm, setWalletForm] = useState({ customerId: "", amount: "5000", paymentMethod: "CASH" });
   const [packageSelections, setPackageSelections] = useState<Record<string, string>>({});
 
+  const hydrate = useCallback((nextMedical: MedicalData, nextPos: PosData) => {
+    setMedical(nextMedical);
+    setPos(nextPos);
+    setCustomerId((current) => current || nextMedical.customers[0]?.id || "");
+    setAppointmentForm((current) => ({ ...current, customerId: current.customerId || nextMedical.customers[0]?.id || "", serviceId: current.serviceId || nextMedical.services[0]?.id || "" }));
+    setWalletForm((current) => ({ ...current, customerId: current.customerId || nextMedical.customers[0]?.id || "" }));
+    setSelectedProductId((current) => current || nextMedical.services[0]?.product.id || "");
+  }, []);
+
   const load = useCallback(async () => {
     setBusy(true);
     try {
-      const nextMedical = await jsonFetch("/api/medical/bootstrap");
-      const nextPos = await jsonFetch("/api/pos/bootstrap");
-      setMedical(nextMedical);
-      setPos(nextPos);
-      setCustomerId((current) => current || nextMedical.customers[0]?.id || "");
-      setAppointmentForm((current) => ({ ...current, customerId: current.customerId || nextMedical.customers[0]?.id || "", serviceId: current.serviceId || nextMedical.services[0]?.id || "" }));
-      setWalletForm((current) => ({ ...current, customerId: current.customerId || nextMedical.customers[0]?.id || "" }));
-      setSelectedProductId((current) => current || nextMedical.services[0]?.product.id || "");
+      const [nextMedical, nextPos] = await Promise.all([
+        jsonFetch("/api/medical/bootstrap"),
+        jsonFetch("/api/pos/bootstrap"),
+      ]);
+      hydrate(nextMedical, nextPos);
+      writeMedicalBootstrapCache(tenantCacheKey, nextMedical, nextPos);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "載入失敗");
     } finally {
       setBusy(false);
     }
-  }, []);
+  }, [hydrate, tenantCacheKey]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const cached = readMedicalBootstrapCache(tenantCacheKey);
+    if (cached) hydrate(cached.medical, cached.pos);
+    void load();
+  }, [hydrate, load, tenantCacheKey]);
 
   const products = useMemo(() => [
     ...(medical?.services.map((item) => ({ id: item.product.id, name: item.product.name, price: item.product.salePrice, imageUrl: item.product.imageUrl, kind: "服務" })) ?? []),
@@ -130,21 +239,112 @@ export function MedicalWorkspace({ publicSiteHref }: { publicSiteHref: string })
   ], [medical]);
   const selectedProduct = products.find((item) => item.id === selectedProductId);
   const selectedCustomer = medical?.customers.find((item) => item.id === customerId);
+  const resolvedPublicSiteHref = medical?.settings?.storeSlug
+    ? `/medical/${encodeURIComponent(medical.settings.storeSlug)}`
+    : publicSiteHref;
 
   async function openShift() {
     if (!pos?.registers[0]) return;
+    const openingAmount = Math.round(Number(openingCash || 0));
+    if (!Number.isFinite(openingAmount) || openingAmount < 0) return toast.error("開班零用金格式不正確");
     setBusy(true);
     try {
       await jsonFetch("/api/pos/shifts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "OPEN", registerId: pos.registers[0].id, openingCash: Number(openingCash) }),
+        body: JSON.stringify({ action: "OPEN", registerId: pos.registers[0].id, openingCash: openingAmount }),
       });
       toast.success("醫美櫃台已開班，零用金已保留帳務紀錄");
       await load();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "開班失敗");
     } finally { setBusy(false); }
+  }
+
+  async function requestCashMovement() {
+    if (!pos?.openShift) return;
+    const amount = Math.round(Number(cashMovementAmount));
+    if (!Number.isFinite(amount) || amount <= 0) return toast.error("請輸入大於 0 的整數金額");
+    if (cashMovementReason.trim().length < 2) return toast.error("請填寫至少 2 個字的異動原因");
+    setBusy(true);
+    try {
+      const result = await jsonFetch("/api/pos/cash-movements", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "REQUEST",
+          shiftId: pos.openShift.id,
+          type: cashMovementType,
+          amount,
+          reason: cashMovementReason.trim(),
+        }),
+      });
+      toast.success(result.message || "錢櫃異動申請已送出");
+      setCashMovementAmount("");
+      setCashMovementReason("");
+      await load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "錢櫃異動申請失敗");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function decideCashMovement(movementId: string, action: "APPROVE" | "REJECT") {
+    setBusy(true);
+    try {
+      await jsonFetch("/api/pos/cash-movements", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, movementId }),
+      });
+      toast.success(action === "APPROVE" ? "錢櫃異動已核准並納入應有現金" : "錢櫃異動已拒絕");
+      await load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "主管處理失敗");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function previewCloseShift() {
+    if (!pos?.openShift) return;
+    setBusy(true);
+    try {
+      const result = await jsonFetch("/api/pos/shifts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "PREVIEW", shiftId: pos.openShift.id }),
+      });
+      setShiftPreview(result.summary);
+      setClosingCash("");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "結班預覽失敗");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function closeShift() {
+    if (!pos?.openShift || !shiftPreview || closingCash === "") return;
+    const actualCash = Math.round(Number(closingCash));
+    if (!Number.isFinite(actualCash) || actualCash < 0) return toast.error("實點現金格式不正確");
+    setBusy(true);
+    try {
+      const result = await jsonFetch("/api/pos/shifts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "CLOSE", shiftId: pos.openShift.id, closingCash: actualCash }),
+      });
+      toast.success(`結班完成；實點與應有差額 ${money(Number(result.summary.difference))}`);
+      setShiftPreview(null);
+      setClosingCash("");
+      await load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "結班失敗");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function createCustomer() {
@@ -176,7 +376,7 @@ export function MedicalWorkspace({ publicSiteHref }: { publicSiteHref: string })
           shiftId: pos.openShift.id,
           customerId,
           items: [{ productId: selectedProduct.id, quantity: 1, discount: 0 }],
-          payments: [{ method: paymentMethod, amount: selectedProduct.price }],
+          payments: [{ method: paymentMethod, amount: Math.round(selectedProduct.price) }],
           medical: { patientName: selectedCustomer.companyName, practitionerName: "林醫師" },
         }),
       });
@@ -217,12 +417,13 @@ export function MedicalWorkspace({ publicSiteHref }: { publicSiteHref: string })
   async function topUp() {
     const customer = medical?.customers.find((item) => item.id === walletForm.customerId);
     if (!customer) return;
+    if (!pos?.openShift) return toast.error("會員儲值收款前請先開班");
     setBusy(true);
     try {
       const result = await jsonFetch("/api/medical/wallet", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...walletForm, amount: Number(walletForm.amount), patientName: customer.companyName }),
+        body: JSON.stringify({ ...walletForm, shiftId: pos.openShift.id, amount: Math.round(Number(walletForm.amount)), patientName: customer.companyName }),
       });
       toast.success(`儲值完成，餘額 ${money(result.balanceAfter)}`);
       await load();
@@ -244,7 +445,7 @@ export function MedicalWorkspace({ publicSiteHref }: { publicSiteHref: string })
             <h1 className="mt-3 text-3xl font-black tracking-tight text-stone-900">醫美診所營運管理 POS</h1>
             <p className="mt-3 max-w-2xl text-sm leading-7 text-stone-600">從官網圖片選服務、預約、同意書、療程套票與會員儲值，到醫療收據、耗材出庫及會計傳票，使用同一租戶資料。</p>
             <div className="mt-5 flex flex-wrap gap-2">
-              <Link href={publicSiteHref} target="_blank" className="inline-flex items-center gap-2 rounded-full bg-stone-900 px-5 py-2.5 text-sm font-bold text-white"><ExternalLink className="h-4 w-4" />進入診所官網</Link>
+              <Link href={resolvedPublicSiteHref} className="inline-flex items-center gap-2 rounded-full bg-stone-900 px-5 py-2.5 text-sm font-bold text-white"><ExternalLink className="h-4 w-4" />進入我的診所官網</Link>
               <button onClick={() => void load()} className="inline-flex items-center gap-2 rounded-full border border-stone-200 bg-white px-4 py-2.5 text-sm font-semibold text-stone-700"><RefreshCw className="h-4 w-4" />重新整理</button>
             </div>
           </div>
@@ -255,7 +456,7 @@ export function MedicalWorkspace({ publicSiteHref }: { publicSiteHref: string })
         <div className="grid border-t border-rose-100 bg-white sm:grid-cols-2 xl:grid-cols-4">
           {[
             ["今日預約", `${medical.appointments.length} 筆`, CalendarDays],
-            ["本班營業額", money(Number(pos.today?.netSales ?? 0)), ReceiptText],
+            ["今日淨營業額", money(Number(pos.today?.amount ?? 0)), ReceiptText],
             ["目前應有現金", money(Number(pos.shiftCash?.expectedCash ?? pos.openShift?.openingCash ?? 0)), WalletCards],
             ["待完成療程", `${medical.appointments.filter((item) => !["COMPLETED", "CANCELLED"].includes(item.status)).length} 筆`, FileClock],
           ].map(([label, value, Icon], index) => (
@@ -269,8 +470,46 @@ export function MedicalWorkspace({ publicSiteHref }: { publicSiteHref: string })
 
       {!pos.openShift && (
         <section className="flex flex-col justify-between gap-4 rounded-2xl border border-amber-200 bg-amber-50 p-5 md:flex-row md:items-center">
-          <div><div className="font-bold text-amber-950">收款前請先開班</div><p className="mt-1 text-sm text-amber-800">有現金管理權限的人員可輸入開班零用金；系統會留下人員、時間與傳票。</p></div>
-          <div className="flex items-center gap-2"><input value={openingCash} onChange={(event) => setOpeningCash(event.target.value)} type="number" className="h-11 w-36 rounded-xl border border-amber-200 bg-white px-3" /><button onClick={() => void openShift()} disabled={busy} className="h-11 rounded-xl bg-amber-900 px-5 text-sm font-bold text-white">開班</button></div>
+          <div><div className="font-bold text-amber-950">值班人員收款前請先開班</div><p className="mt-1 text-sm text-amber-800">系統會記錄值班人員、收銀台、開班時間與零用金傳票；沒有現金核准權限時以 0 元開班。</p></div>
+          <div className="flex items-center gap-2"><input value={openingCash} onChange={(event) => setOpeningCash(event.target.value.replace(/[^\d]/g, ""))} type="number" step="1" min="0" disabled={!pos.capabilities?.canApproveCash} title={pos.capabilities?.canApproveCash ? "輸入開班零用金" : "需現金核准權限"} className="h-11 w-36 rounded-xl border border-amber-200 bg-white px-3 disabled:bg-amber-100 disabled:text-amber-600" /><button onClick={() => void openShift()} disabled={busy} className="h-11 rounded-xl bg-amber-900 px-5 text-sm font-bold text-white">開始值班</button></div>
+        </section>
+      )}
+
+      {pos.openShift && (
+        <section className="rounded-2xl border border-rose-100 bg-white p-5 shadow-sm">
+          <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
+            <div>
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="inline-flex items-center gap-2 font-black text-stone-900"><UserRound className="h-5 w-5 text-rose-500" />值班人員：{pos.openShift.openedBy.name}</div>
+                <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">值班中</span>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs text-stone-500">
+                <span>{pos.openShift.register.code}・{pos.openShift.register.name}</span>
+                <span className="inline-flex items-center gap-1"><Clock3 className="h-3.5 w-3.5" />{new Date(pos.openShift.openedAt).toLocaleString("zh-TW")}</span>
+                <span>帳號 {pos.openShift.openedBy.username || "—"}</span>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button onClick={() => setCashPanelOpen(true)} className="inline-flex h-10 items-center gap-2 rounded-xl border px-4 text-sm font-bold text-stone-700 hover:bg-stone-50"><CircleDollarSign className="h-4 w-4" />錢櫃收付{pos.cashMovements?.some((item) => item.status === "PENDING") ? `（${pos.cashMovements.filter((item) => item.status === "PENDING").length} 待核）` : ""}</button>
+              <button onClick={() => void previewCloseShift()} disabled={busy} className="inline-flex h-10 items-center gap-2 rounded-xl bg-stone-900 px-4 text-sm font-bold text-white disabled:opacity-40"><ShieldCheck className="h-4 w-4" />結班盤點</button>
+            </div>
+          </div>
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+            {[
+              ["開班零用金", pos.shiftCash?.openingCash ?? pos.openShift.openingCash, "＋"],
+              ["現金療程／套票", pos.shiftCash?.cashSales ?? 0, "＋"],
+              ["現金會員儲值", pos.shiftCash?.cashWalletTopUps ?? 0, "＋"],
+              ["現金退款", pos.shiftCash?.cashRefunds ?? 0, "－"],
+              ["投入－提出－抽離", (pos.shiftCash?.cashMovements.paidIn ?? 0) - (pos.shiftCash?.cashMovements.paidOut ?? 0) - (pos.shiftCash?.cashMovements.safeDrop ?? 0), "±"],
+              ["目前應有現金", pos.shiftCash?.expectedCash ?? pos.openShift.openingCash, "="],
+            ].map(([label, value, operator], index) => (
+              <div key={String(label)} className={`rounded-xl border p-3 ${index === 5 ? "border-rose-200 bg-rose-50" : "bg-stone-50"}`}>
+                <div className="text-[11px] font-bold text-stone-500">{operator} {label}</div>
+                <div className={`mt-1 text-lg font-black ${index === 5 ? "text-rose-700" : "text-stone-900"}`}>{money(Number(value))}</div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 text-xs leading-5 text-stone-500">應有現金＝開班零用金＋現金療程／套票收款＋現金會員儲值－現金退款＋已核准投入－已核准提出－營業中抽離。帳上庫存現金目前為 {money(Number(pos.ledgerCashBalance ?? 0))}。</div>
         </section>
       )}
 
@@ -327,7 +566,7 @@ export function MedicalWorkspace({ publicSiteHref }: { publicSiteHref: string })
 
       {tab === "members" && (
         <div className="grid gap-5 lg:grid-cols-2">
-          <section className="rounded-2xl border bg-white p-5"><h2 className="text-lg font-black">會員儲值</h2><p className="mt-1 text-sm text-stone-500">儲值先列預收款，使用儲值金付款時自動沖銷。</p><div className="mt-4 space-y-3"><select value={walletForm.customerId} onChange={(e) => setWalletForm({ ...walletForm, customerId: e.target.value })} className="h-11 w-full rounded-xl border px-3">{medical.customers.map((item) => <option key={item.id} value={item.id}>{item.companyName}・目前 {money(item.walletBalance)}</option>)}</select><input value={walletForm.amount} onChange={(e) => setWalletForm({ ...walletForm, amount: e.target.value })} type="number" className="h-11 w-full rounded-xl border px-3" /><select value={walletForm.paymentMethod} onChange={(e) => setWalletForm({ ...walletForm, paymentMethod: e.target.value })} className="h-11 w-full rounded-xl border px-3"><option value="CASH">現金</option><option value="CARD">信用卡</option><option value="MOBILE">行動支付</option><option value="TRANSFER">轉帳</option></select><button onClick={() => void topUp()} disabled={!walletForm.customerId || Number(walletForm.amount) <= 0} className="h-11 w-full rounded-xl bg-stone-900 font-bold text-white">確認儲值並列預收款</button></div></section>
+          <section className="rounded-2xl border bg-white p-5"><h2 className="text-lg font-black">會員儲值</h2><p className="mt-1 text-sm text-stone-500">儲值先列預收款，使用儲值金付款時自動沖銷；現金儲值會綁定目前班次並列入應有現金。</p><div className="mt-4 space-y-3"><select value={walletForm.customerId} onChange={(e) => setWalletForm({ ...walletForm, customerId: e.target.value })} className="h-11 w-full rounded-xl border px-3">{medical.customers.map((item) => <option key={item.id} value={item.id}>{item.companyName}・目前 {money(item.walletBalance)}</option>)}</select><input value={walletForm.amount} onChange={(e) => setWalletForm({ ...walletForm, amount: e.target.value.replace(/[^\d]/g, "") })} type="number" step="1" min="1" className="h-11 w-full rounded-xl border px-3" /><select value={walletForm.paymentMethod} onChange={(e) => setWalletForm({ ...walletForm, paymentMethod: e.target.value })} className="h-11 w-full rounded-xl border px-3"><option value="CASH">現金</option><option value="CARD">信用卡</option><option value="MOBILE">行動支付</option><option value="TRANSFER">轉帳</option></select><button onClick={() => void topUp()} disabled={busy || !pos.openShift || !walletForm.customerId || Number(walletForm.amount) <= 0} className="h-11 w-full rounded-xl bg-stone-900 font-bold text-white disabled:opacity-40">{pos.openShift ? "確認儲值並列預收款" : "請先開班再收款"}</button></div></section>
           <section className="rounded-2xl border bg-white p-5"><h2 className="text-lg font-black">有效療程套票</h2><div className="mt-4 space-y-3">{medical.purchases.map((item) => <div key={item.id} className="rounded-xl border p-4"><div className="flex justify-between gap-3"><div><div className="font-bold">{item.customer.companyName}</div><div className="mt-1 text-sm text-stone-500">{item.package.name}</div></div><div className="text-right"><div className="text-2xl font-black text-rose-600">{item.remainingSessions}</div><div className="text-[10px] text-stone-400">剩餘堂數</div></div></div></div>)}{!medical.purchases.length && <div className="rounded-xl border border-dashed p-8 text-center text-sm text-stone-400">尚無已購套票</div>}</div></section>
         </div>
       )}
@@ -337,6 +576,57 @@ export function MedicalWorkspace({ publicSiteHref }: { publicSiteHref: string })
           <div className="flex items-center justify-between"><div><h2 className="text-lg font-black">同意書、療程與收據稽核</h2><p className="mt-1 text-sm text-stone-500">保留簽署人、版本、術前術後紀錄、執行人員、耗材與帳務軌跡。</p></div><PackageCheck className="h-8 w-8 text-rose-400" /></div>
           <div className="mt-5 overflow-x-auto"><table className="w-full min-w-[700px] text-left text-sm"><thead className="border-b text-xs text-stone-400"><tr><th className="p-3">收據號碼</th><th>就診人</th><th>開立時間</th><th>金額</th><th>狀態</th><th /></tr></thead><tbody>{medical.receipts.map((item) => <tr key={item.id} className="border-b last:border-0"><td className="p-3 font-mono text-xs">{item.number}</td><td>{item.patientName}</td><td>{new Date(item.issuedAt).toLocaleString("zh-TW")}</td><td className="font-bold">{money(item.total)}</td><td>{item.status}</td><td><Link href={`/print/medical-receipt/${item.id}`} target="_blank" className="font-bold text-rose-600">列印</Link></td></tr>)}</tbody></table></div>
         </section>
+      )}
+
+      {cashPanelOpen && pos.openShift && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-label="醫美 POS 錢櫃收付">
+          <div className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
+            <div className="flex items-start justify-between gap-4 border-b p-5">
+              <div><div className="flex items-center gap-2 text-lg font-black"><CircleDollarSign className="h-5 w-5 text-rose-500" />錢櫃投入／提出／抽離</div><p className="mt-1 text-xs text-stone-500">每筆都保留申請人、時間、原因與主管決定；只有已核准項目會改變應有現金。</p></div>
+              <button onClick={() => setCashPanelOpen(false)} aria-label="關閉錢櫃收付"><X className="h-5 w-5" /></button>
+            </div>
+            <div className="space-y-5 p-5">
+              <div className="grid gap-3 rounded-xl border bg-stone-50 p-4 md:grid-cols-[180px_150px_1fr_auto]">
+                <select value={cashMovementType} onChange={(event) => setCashMovementType(event.target.value as CashMovement["type"])} className="h-10 rounded-lg border bg-white px-3 text-sm"><option value="PAID_IN">投入現金</option><option value="PAID_OUT">提出現金</option><option value="SAFE_DROP">營業中抽離／入庫</option></select>
+                <input value={cashMovementAmount} onChange={(event) => setCashMovementAmount(event.target.value.replace(/[^\d]/g, ""))} inputMode="numeric" placeholder="整數金額" className="h-10 rounded-lg border bg-white px-3 text-right" />
+                <input value={cashMovementReason} onChange={(event) => setCashMovementReason(event.target.value)} placeholder="原因，例如：補充零錢、支付臨時費用" className="h-10 min-w-0 rounded-lg border bg-white px-3" />
+                <button onClick={() => void requestCashMovement()} disabled={busy} className="h-10 rounded-lg bg-rose-600 px-4 text-sm font-bold text-white disabled:opacity-40">送出申請</button>
+              </div>
+              <div className="overflow-x-auto rounded-xl border">
+                <table className="w-full min-w-[820px] text-sm">
+                  <thead className="bg-stone-50 text-xs text-stone-500"><tr><th className="p-3 text-left">時間</th><th className="p-3 text-left">類型</th><th className="p-3 text-right">金額</th><th className="p-3 text-left">原因</th><th className="p-3 text-left">狀態</th><th className="p-3 text-right">主管操作</th></tr></thead>
+                  <tbody>
+                    {(pos.cashMovements ?? []).map((movement) => <tr key={movement.id} className="border-t"><td className="p-3">{new Date(movement.requestedAt).toLocaleString("zh-TW")}</td><td className="p-3">{CASH_MOVEMENT_LABELS[movement.type]}</td><td className="p-3 text-right font-bold">{money(Number(movement.amount))}</td><td className="p-3">{movement.reason}</td><td className="p-3">{CASH_MOVEMENT_STATUS[movement.status]}</td><td className="p-3 text-right">{movement.status === "PENDING" && pos.capabilities?.canApproveCash ? <div className="inline-flex gap-2"><button onClick={() => void decideCashMovement(movement.id, "REJECT")} disabled={busy} className="h-8 rounded-lg border px-3">拒絕</button><button onClick={() => void decideCashMovement(movement.id, "APPROVE")} disabled={busy} className="inline-flex h-8 items-center gap-1 rounded-lg bg-emerald-600 px-3 font-bold text-white"><ShieldCheck className="h-4 w-4" />核准</button></div> : <span className="text-xs text-stone-400">{movement.status === "PENDING" ? "等待具現金核准權限的主管" : "—"}</span>}</td></tr>)}
+                    {(pos.cashMovements ?? []).length === 0 && <tr><td colSpan={6} className="p-8 text-center text-stone-400">本班尚無錢櫃異動</td></tr>}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {shiftPreview && pos.openShift && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-label="醫美 POS 結班盤點">
+          <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b p-5"><div className="text-lg font-black">結班盤點</div><button onClick={() => setShiftPreview(null)} disabled={busy} aria-label="關閉結班盤點"><X className="h-5 w-5" /></button></div>
+            <div className="space-y-5 p-5">
+              <div className="grid grid-cols-2 gap-3 rounded-xl border p-4 text-sm"><div><div className="text-stone-500">開班人員</div><div className="mt-1 font-bold">{shiftPreview.openedBy.name}</div></div><div><div className="text-stone-500">結班人員</div><div className="mt-1 font-bold">{shiftPreview.closingBy.name}</div></div></div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-xl bg-stone-50 p-3"><div className="text-xs text-stone-500">療程／套票淨銷售</div><div className="mt-1 font-black">{money(shiftPreview.netSales)}・{shiftPreview.saleCount} 筆</div></div>
+                <div className="rounded-xl bg-stone-50 p-3"><div className="text-xs text-stone-500">會員儲值收款</div><div className="mt-1 font-black">{money(shiftPreview.walletTopUps ?? 0)}</div></div>
+                <div className="rounded-xl bg-stone-50 p-3"><div className="text-xs text-stone-500">退款</div><div className="mt-1 font-black text-rose-700">{money(shiftPreview.refunds)}・{shiftPreview.refundCount} 筆</div></div>
+                <div className="rounded-xl bg-emerald-50 p-3"><div className="text-xs text-emerald-700">應有現金</div><div className="mt-1 text-xl font-black text-emerald-800">{money(shiftPreview.expectedCash)}</div></div>
+              </div>
+              <div className="overflow-x-auto rounded-xl border"><table className="w-full text-sm"><thead className="bg-stone-50 text-xs text-stone-500"><tr><th className="p-2 text-left">付款方式</th><th className="p-2 text-right">收款</th><th className="p-2 text-right">退款</th><th className="p-2 text-right">淨額</th></tr></thead><tbody>{shiftPreview.payments.map((payment) => <tr key={payment.method} className="border-t"><td className="p-2">{PAYMENT_LABELS[payment.method] || payment.method}</td><td className="p-2 text-right">{money(payment.sales)}</td><td className="p-2 text-right text-rose-700">{money(payment.refunds)}</td><td className="p-2 text-right font-bold">{money(payment.net)}</td></tr>)}</tbody></table></div>
+              <div className="grid grid-cols-3 gap-2 text-xs"><div className="rounded-lg bg-emerald-50 p-3"><div className="text-emerald-700">核准投入</div><div className="mt-1 font-bold">{money(shiftPreview.cashMovements.paidIn)}</div></div><div className="rounded-lg bg-rose-50 p-3"><div className="text-rose-700">核准提出</div><div className="mt-1 font-bold">{money(shiftPreview.cashMovements.paidOut)}</div></div><div className="rounded-lg bg-indigo-50 p-3"><div className="text-indigo-700">營業中抽離</div><div className="mt-1 font-bold">{money(shiftPreview.cashMovements.safeDrop)}</div></div></div>
+              {Boolean(shiftPreview.pendingMovementCount) && <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">尚有 {shiftPreview.pendingMovementCount} 筆錢櫃異動待主管處理，處理後才能結班。</div>}
+              <label className="block text-sm font-bold">實際點收現金<input autoFocus value={closingCash} onChange={(event) => setClosingCash(event.target.value.replace(/[^\d]/g, ""))} inputMode="numeric" placeholder="請輸入實點整數金額" className="mt-1 h-12 w-full rounded-xl border px-3 text-right text-lg" /></label>
+              <div className="flex items-center justify-between rounded-xl border p-4"><span className="text-sm text-stone-500">現金差額（實點－應有）</span><strong className={`text-xl ${closingCash !== "" && Number(closingCash) === shiftPreview.expectedCash ? "text-emerald-700" : "text-rose-700"}`}>{closingCash === "" ? "—" : money(Number(closingCash) - shiftPreview.expectedCash)}</strong></div>
+              <div className="flex justify-end gap-2"><button onClick={() => setShiftPreview(null)} disabled={busy} className="h-11 rounded-xl border px-5">繼續值班</button><button onClick={() => void closeShift()} disabled={busy || closingCash === "" || Boolean(shiftPreview.pendingMovementCount)} className="h-11 rounded-xl bg-stone-900 px-5 font-bold text-white disabled:opacity-40">確認結班</button></div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

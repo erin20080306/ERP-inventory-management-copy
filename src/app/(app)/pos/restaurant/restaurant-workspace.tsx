@@ -224,9 +224,9 @@ export function RestaurantWorkspace({ kitchenOnly = false, canManageTables = fal
     return categoryMatches && (!needle || `${product.sku} ${product.name}`.toLowerCase().includes(needle));
   }), [categoryId, data, query]);
   const daily = data?.today ?? { sales: 0, refunds: 0, grossAmount: 0, refundAmount: 0, amount: 0, soldQuantity: 0, refundedQuantity: 0, netQuantity: 0 };
-  const orderTotal = (selectedOrder?.items ?? [])
+  const orderTotal = Math.round((selectedOrder?.items ?? [])
     .filter((item) => item.status !== "CANCELLED")
-    .reduce((sum, item) => sum + Number(item.quantity) * Number(item.unitPrice), 0);
+    .reduce((sum, item) => sum + Number(item.quantity) * Number(item.unitPrice), 0));
 
   function updateOrderLocally(orderId: string, updater: (order: Order) => Order) {
     setData((current) => current ? {
@@ -432,13 +432,14 @@ export function RestaurantWorkspace({ kitchenOnly = false, canManageTables = fal
 
   async function requestCashMovement() {
     if (!data?.openShift) return;
-    if (Number(cashMovementAmount) <= 0 || cashMovementReason.trim().length < 2) return toast.error("請輸入正確金額與至少 2 個字的原因");
+    const amount = Math.round(Number(cashMovementAmount));
+    if (!Number.isFinite(amount) || amount <= 0 || cashMovementReason.trim().length < 2) return toast.error("請輸入正確整數金額與至少 2 個字的原因");
     setBusy(true);
     try {
       const response = await fetch("/api/pos/cash-movements", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "REQUEST", shiftId: data.openShift.id, type: cashMovementType, amount: Number(cashMovementAmount), reason: cashMovementReason }),
+        body: JSON.stringify({ action: "REQUEST", shiftId: data.openShift.id, type: cashMovementType, amount, reason: cashMovementReason }),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "錢櫃異動申請失敗");
@@ -478,7 +479,7 @@ export function RestaurantWorkspace({ kitchenOnly = false, canManageTables = fal
       const response = await fetch("/api/pos/shifts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "OPEN", registerId, openingCash: Number(openingCash || 0) }),
+        body: JSON.stringify({ action: "OPEN", registerId, openingCash: Math.round(Number(openingCash || 0)) }),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "開班失敗");
@@ -518,7 +519,7 @@ export function RestaurantWorkspace({ kitchenOnly = false, canManageTables = fal
       const response = await fetch("/api/pos/shifts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "CLOSE", shiftId: data.openShift.id, closingCash: Number(closingCash) }),
+        body: JSON.stringify({ action: "CLOSE", shiftId: data.openShift.id, closingCash: Math.round(Number(closingCash)) }),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "結班失敗");
@@ -561,7 +562,7 @@ export function RestaurantWorkspace({ kitchenOnly = false, canManageTables = fal
           items: selectedOrder.items
             .filter((item) => item.status !== "CANCELLED")
             .map((item) => ({ productId: item.productId, quantity: Number(item.quantity), discount: 0 })),
-          payments: [{ method, amount: tendered, reference: reference?.trim() || null }],
+          payments: [{ method, amount: Math.round(tendered), reference: reference?.trim() || null }],
           invoice: invoiceMode === "NONE" ? null : {
             mode: invoiceMode,
             buyerTaxId: invoiceBuyerTaxId.trim() || null,
@@ -648,7 +649,7 @@ return <div className="grid min-h-[60vh] animate-pulse gap-4 xl:grid-cols-[280px
           </label>
           <label className="block text-sm font-medium">
             開班庫存現金（由零用金轉入）
-            <input value={openingCash} onChange={(event) => setOpeningCash(event.target.value)} inputMode="decimal" disabled={!canManageOpeningCash} className="mt-1 h-11 w-full rounded-lg border bg-background px-3 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground" />
+            <input value={openingCash} onChange={(event) => setOpeningCash(event.target.value.replace(/[^\d]/g, ""))} inputMode="numeric" disabled={!canManageOpeningCash} className="mt-1 h-11 w-full rounded-lg border bg-background px-3 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground" />
             <span className="mt-2 block text-xs leading-5 text-muted-foreground">{canManageOpeningCash ? "可輸入或修改；大於 0 時自動過帳：借記庫存現金、貸記零用金。開班後若需調整，請使用錢櫃投入／提出。" : "需要現金管理／核准權限才能輸入或修改；目前將以 0 元開班。"}</span>
           </label>
           <button onClick={openShift} disabled={busy || !registerId} data-shortcut="save" className="h-12 w-full rounded-xl bg-orange-600 font-bold text-white disabled:opacity-50">
@@ -694,7 +695,7 @@ return <div className="grid min-h-[60vh] animate-pulse gap-4 xl:grid-cols-[280px
           <div className="space-y-5">
             <div className="grid gap-3 rounded-xl border bg-muted/30 p-4 md:grid-cols-[180px_160px_1fr_auto]">
               <select value={cashMovementType} onChange={(event) => setCashMovementType(event.target.value as "PAID_IN" | "PAID_OUT" | "SAFE_DROP")} className="h-10 rounded-lg border bg-background px-3 text-sm"><option value="PAID_IN">投入現金</option><option value="PAID_OUT">提出現金</option><option value="SAFE_DROP">營業中抽離／入庫</option></select>
-              <input value={cashMovementAmount} onChange={(event) => setCashMovementAmount(event.target.value)} inputMode="decimal" placeholder="金額" className="h-10 rounded-lg border bg-background px-3 text-right" />
+              <input value={cashMovementAmount} onChange={(event) => setCashMovementAmount(event.target.value.replace(/[^\d]/g, ""))} inputMode="numeric" placeholder="整數金額" className="h-10 rounded-lg border bg-background px-3 text-right" />
               <input value={cashMovementReason} onChange={(event) => setCashMovementReason(event.target.value)} placeholder="原因，例如：補充零錢、支付臨時運費" className="h-10 min-w-0 rounded-lg border bg-background px-3" />
               <button onClick={() => void requestCashMovement()} disabled={busy} className="h-10 rounded-lg bg-orange-600 px-4 font-semibold text-white disabled:opacity-40">送出申請</button>
             </div>
@@ -717,7 +718,7 @@ return <div className="grid min-h-[60vh] animate-pulse gap-4 xl:grid-cols-[280px
               <div className="rounded-xl bg-orange-50 p-3"><div className="text-orange-700">本班淨銷售</div><div className="mt-1 font-black text-orange-900">{money(closePreview.netSales)}</div></div>
               <div className="rounded-xl bg-emerald-50 p-3"><div className="text-emerald-700">應有現金</div><div className="mt-1 font-black text-emerald-900">{money(closePreview.expectedCash)}</div></div>
             </div>
-            <label className="block text-sm font-bold">實點現金<input autoFocus value={closingCash} onChange={(event) => setClosingCash(event.target.value)} inputMode="decimal" className="mt-2 h-12 w-full rounded-xl border bg-background px-3 text-right text-xl font-black" /></label>
+            <label className="block text-sm font-bold">實點現金<input autoFocus value={closingCash} onChange={(event) => setClosingCash(event.target.value.replace(/[^\d]/g, ""))} inputMode="numeric" className="mt-2 h-12 w-full rounded-xl border bg-background px-3 text-right text-xl font-black" /></label>
             <div className="flex items-center justify-between rounded-xl border p-4"><span className="text-sm text-muted-foreground">預計現金差額</span><strong className={closingCash !== "" && Number(closingCash) === closePreview.expectedCash ? "text-emerald-700" : "text-rose-700"}>{closingCash === "" ? "—" : money(Number(closingCash) - closePreview.expectedCash)}</strong></div>
             <button disabled={busy || closingCash === ""} onClick={() => void closeShift()} className="h-12 w-full rounded-xl bg-orange-600 font-bold text-white disabled:opacity-40">確認結班並轉回零用金</button>
           </div>}
@@ -728,7 +729,7 @@ return <div className="grid min-h-[60vh] animate-pulse gap-4 xl:grid-cols-[280px
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle>{paymentDialog === "CASH" ? "現金收款" : "刷卡確認"}</DialogTitle><DialogDescription>桌單金額 {money(orderTotal)}。收款完成後前台立即結帳，ERP 與帳務在背景同步。</DialogDescription></DialogHeader>
           {paymentDialog === "CASH" ? <div className="space-y-4">
-            <label className="block text-sm font-bold">實收現金<input autoFocus value={cashReceived} onChange={(event) => setCashReceived(event.target.value)} inputMode="decimal" placeholder="請輸入客人交付金額" className="mt-2 h-12 w-full rounded-xl border bg-background px-3 text-right text-xl font-black" /></label>
+            <label className="block text-sm font-bold">實收現金<input autoFocus value={cashReceived} onChange={(event) => setCashReceived(event.target.value.replace(/[^\d]/g, ""))} inputMode="numeric" placeholder="請輸入整數交付金額" className="mt-2 h-12 w-full rounded-xl border bg-background px-3 text-right text-xl font-black" /></label>
             <div className="grid grid-cols-4 gap-2">{[orderTotal, Math.ceil(orderTotal / 100) * 100, Math.ceil(orderTotal / 500) * 500, Math.ceil(orderTotal / 1000) * 1000].filter((value, index, values) => values.indexOf(value) === index).map((value) => <button key={value} onClick={() => setCashReceived(String(value))} className="h-9 rounded-lg border text-xs">{value === orderTotal ? "剛好" : money(value)}</button>)}</div>
             <div className="flex items-center justify-between rounded-xl bg-emerald-50 p-4"><span className="text-sm text-emerald-800">找零</span><strong className="text-2xl text-emerald-800">{money(Math.max(0, Number(cashReceived || 0) - orderTotal))}</strong></div>
             <button disabled={busy || Number(cashReceived || 0) < orderTotal} onClick={() => void checkout("CASH", Number(cashReceived || 0))} className="h-12 w-full rounded-xl bg-emerald-600 font-bold text-white disabled:opacity-40">確認收現並完成結帳</button>

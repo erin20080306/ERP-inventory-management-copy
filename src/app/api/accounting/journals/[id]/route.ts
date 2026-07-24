@@ -25,6 +25,9 @@ async function assertTenantAccounts(tx: any, tenantId: string, lines: any[]) {
 
 function assertBalanced(lines: any[]) {
   if (!lines?.length) throw new ApiError(400, "請至少新增一筆分錄");
+  if (lines.some((line: any) => !Number.isInteger(Number(line.debit || 0)) || !Number.isInteger(Number(line.credit || 0)))) {
+    throw new ApiError(400, "傳票借貸金額必須為整數；只有商品單價可保留小數");
+  }
   const totalDebit = lines.reduce((sum: number, line: any) => sum + Number(line.debit || 0), 0);
   const totalCredit = lines.reduce((sum: number, line: any) => sum + Number(line.credit || 0), 0);
   if (Math.abs(totalDebit - totalCredit) > 0.001 || totalDebit === 0) {

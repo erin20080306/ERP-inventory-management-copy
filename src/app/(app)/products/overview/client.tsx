@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { formatMoney, formatNumber, formatDate } from "@/lib/utils";
+import { formatMoney, formatNumber, formatUnitPrice, formatDate } from "@/lib/utils";
 import { Loader2, Search, Download, FileDown, Printer } from "lucide-react";
 import { downloadCSV, toCSV } from "@/lib/csv";
 import { toast } from "sonner";
@@ -122,8 +122,8 @@ export default function OverviewClient() {
                   <TD>{item.spec || "-"}</TD>
                   <TD>{item.category || "-"}</TD>
                   <TD>{item.unit || "-"}</TD>
-                  <TD>{formatMoney(item.costPrice)}</TD>
-                  <TD>{formatMoney(item.salePrice)}</TD>
+                  <TD>{formatUnitPrice(item.costPrice)}</TD>
+                  <TD>{formatUnitPrice(item.salePrice)}</TD>
                   <TD>{formatNumber(item.totalStock)}</TD>
                   <TD>{formatNumber(item.salesQuantity)}</TD>
                   <TD>{formatMoney(item.salesAmount)}</TD>

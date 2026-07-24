@@ -15,7 +15,7 @@ type CancelRestaurantItemInput = {
 const ACTIVE_ORDER_STATUSES = ["OPEN", "SENT", "PREPARING", "READY"];
 
 function roundMoney(value: number) {
-  return Math.round((value + Number.EPSILON) * 100) / 100;
+  return Math.round(value + Number.EPSILON);
 }
 
 function deriveTicketStatus(statuses: string[]) {

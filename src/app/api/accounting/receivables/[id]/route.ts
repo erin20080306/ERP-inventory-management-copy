@@ -64,6 +64,10 @@ export const PUT = apiHandler(async (req: NextRequest, { params }: { params: { i
   const currentUserId = await getCurrentUserId();
   const body = await req.json();
   const { amount, dueDate, status } = body;
+  const nextAmount = amount !== undefined ? Number(amount) : null;
+  if (nextAmount !== null && (!Number.isInteger(nextAmount) || nextAmount < 0)) {
+    throw new Error("應收金額必須為非負整數");
+  }
   
   const ar = await prisma.accountsReceivable.findUnique({ 
     where: { id: params.id },
@@ -86,7 +90,7 @@ export const PUT = apiHandler(async (req: NextRequest, { params }: { params: { i
     const updated = await tx.accountsReceivable.update({
       where: { id: params.id },
       data: {
-        amount: amount !== undefined ? Number(amount) : ar.amount,
+        amount: nextAmount ?? ar.amount,
         dueDate: dueDate !== undefined ? new Date(dueDate) : ar.dueDate,
         paidAmount: newPaidAmount,
         status: newStatus,

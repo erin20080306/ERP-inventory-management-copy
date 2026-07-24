@@ -7,7 +7,25 @@ export function cn(...inputs: ClassValue[]) {
 
 export function formatMoney(n: any, currency = "NT$") {
   const v = Number(n ?? 0);
-  return `${currency} ${v.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+  return `${currency} ${Math.round(v).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+}
+
+/**
+ * TWD 單據金額以元為單位；只有商品單價保留小數，讓數量乘算後再四捨五入到元。
+ */
+export function formatUnitPrice(n: any, currency = "NT$") {
+  const v = Number(n ?? 0);
+  return `${currency} ${v.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 4 })}`;
+}
+
+export function roundTwd(n: any) {
+  const v = Number(n ?? 0);
+  return Number.isFinite(v) ? Math.round(v) : 0;
+}
+
+export function isWholeTwdAmount(n: any) {
+  const v = Number(n ?? 0);
+  return Number.isFinite(v) && Number.isInteger(v);
 }
 
 export function formatNumber(n: any, fractionDigits = 0) {

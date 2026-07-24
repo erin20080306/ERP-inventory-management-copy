@@ -47,12 +47,17 @@ export const POST = apiHandler(async (req: NextRequest) => {
   const currentUserId = await getCurrentUserId();
   const body = await req.json();
   const { receivableId, amount, discount, discountNote, method, remark } = body;
+  const paymentAmount = Number(amount || 0);
+  const discountAmount = Number(discount || 0);
+  if (!Number.isInteger(paymentAmount) || paymentAmount < 0 || !Number.isInteger(discountAmount) || discountAmount < 0) {
+    throw new Error("收款與折讓金額必須為非負整數");
+  }
   const ar = await prisma.accountsReceivable.findUnique({
     where: { id: receivableId },
     include: { salesOrder: true },
   });
   if (!ar || ar.tenantId !== tenantId) throw new Error("找不到應收帳款");
-  const totalWriteOff = Number(amount || 0) + Number(discount || 0);
+  const totalWriteOff = paymentAmount + discountAmount;
   const balance = Number(ar.amount) - Number(ar.paidAmount);
   if (totalWriteOff > balance) throw new Error("沖帳金額不可大於未結款項");
 
@@ -62,23 +67,23 @@ export const POST = apiHandler(async (req: NextRequest) => {
 
   await prisma.$transaction(async (tx: any) => {
     // 建立收款紀錄
-    if (Number(amount) > 0) {
+    if (paymentAmount > 0) {
       const created = await tx.receivePayment.create({
         data: {
           tenantId, number, customerId: ar.customerId, receivableId: ar.id,
-          amount: Number(amount), method, remark, updatedBy: currentUserId,
+          amount: paymentAmount, method, remark, updatedBy: currentUserId,
         },
       });
       paymentId = created.id;
     }
     // 建立折讓單
-    if (Number(discount) > 0) {
+    if (discountAmount > 0) {
       const dnNumber = await nextNumber("DN", tenantId);
       const dn = await tx.discountNote.create({
         data: {
           tenantId, number: dnNumber, type: "SALES",
           customerId: ar.customerId, receivableId: ar.id,
-          amount: Number(discount), reason: discountNote || null,
+          amount: discountAmount, reason: discountNote || null,
           relNumber: ar.salesOrder?.number || null,
         },
       });

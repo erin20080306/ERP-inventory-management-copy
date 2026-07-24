@@ -4,8 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { AlertTriangle, Archive, ArchiveRestore, Banknote, Barcode, CheckCircle2, CircleDollarSign, CreditCard, Loader2, Minus, Percent, Plus, Printer, ReceiptText, RefreshCw, RotateCcw, Search, ShieldCheck, ShoppingCart, Store, UserRound, WalletCards, X } from "lucide-react";
 import { toast } from "sonner";
-import { formatTwd } from "@/lib/plans";
-import { hasPermission } from "@/lib/auth";
+import { formatMoney as formatTwd, formatUnitPrice } from "@/lib/utils";
+import { hasPermission } from "@/lib/permissions";
 import { choosePosRecoveryDraft, clearLocalPosDraft, readLocalPosDraft, writeLocalPosDraft } from "@/lib/pos-recovery";
 
 type Register = { id: string; code: string; name: string; warehouse: { id: string; code: string; name: string } };
@@ -320,28 +320,28 @@ export function PosWorkspace() {
     }).slice(0, 40);
   }, [products, query, selectedCategory]);
 
-  const beforeOfferTotal = useMemo(() => Math.round(cart.reduce((sum, item) => sum + Number(item.product.salePrice) * item.quantity - item.discount, 0) * 100) / 100, [cart]);
+  const beforeOfferTotal = useMemo(() => Math.round(cart.reduce((sum, item) => sum + Number(item.product.salePrice) * item.quantity - item.discount, 0)), [cart]);
   const activePromotion = useMemo(() => promotions
     .filter((offer) => Number(offer.minSpend) <= beforeOfferTotal)
-    .map((offer) => ({ offer, discount: Math.min(beforeOfferTotal, Math.round((offer.kind === "PERCENT" ? beforeOfferTotal * Number(offer.value) / 100 : Number(offer.value)) * 100) / 100) }))
+    .map((offer) => ({ offer, discount: Math.min(beforeOfferTotal, Math.round(offer.kind === "PERCENT" ? beforeOfferTotal * Number(offer.value) / 100 : Number(offer.value))) }))
     .sort((a, b) => b.discount - a.discount || Number(b.offer.priority ?? 0) - Number(a.offer.priority ?? 0))[0] ?? null, [beforeOfferTotal, promotions]);
   const promotionDiscount = activePromotion?.discount ?? 0;
-  const afterPromotion = Math.max(0, Math.round((beforeOfferTotal - promotionDiscount) * 100) / 100);
+  const afterPromotion = Math.max(0, Math.round(beforeOfferTotal - promotionDiscount));
   const couponDiscount = appliedCoupon && Number(appliedCoupon.minSpend) <= beforeOfferTotal
-    ? Math.min(afterPromotion, Number(appliedCoupon.maxDiscount ?? Number.POSITIVE_INFINITY), Math.round((appliedCoupon.kind === "PERCENT" ? afterPromotion * Number(appliedCoupon.value) / 100 : Number(appliedCoupon.value)) * 100) / 100)
+    ? Math.min(afterPromotion, Number(appliedCoupon.maxDiscount ?? Number.POSITIVE_INFINITY), Math.round(appliedCoupon.kind === "PERCENT" ? afterPromotion * Number(appliedCoupon.value) / 100 : Number(appliedCoupon.value)))
     : 0;
   const pointsDiscount = selectedCustomerId ? Math.min(Math.max(0, Math.floor(Number(redeemPoints || 0))), loyaltyPoints, Math.floor(Math.max(0, afterPromotion - couponDiscount))) : 0;
-  const total = Math.max(0, Math.round((afterPromotion - couponDiscount - pointsDiscount) * 100) / 100);
-  const totalPaid = useMemo(() => Math.round(paymentLines.reduce((sum, payment) => sum + Number(payment.amount || 0), 0) * 100) / 100, [paymentLines]);
+  const total = Math.max(0, Math.round(afterPromotion - couponDiscount - pointsDiscount));
+  const totalPaid = useMemo(() => Math.round(paymentLines.reduce((sum, payment) => sum + Number(payment.amount || 0), 0)), [paymentLines]);
   const hasCashPayment = paymentLines.some((payment) => payment.method === "CASH" && Number(payment.amount || 0) > 0);
-  const amountDue = Math.max(0, Math.round((total - totalPaid) * 100) / 100);
-  const changeDue = hasCashPayment ? Math.max(0, Math.round((totalPaid - total) * 100) / 100) : 0;
+  const amountDue = Math.max(0, Math.round(total - totalPaid));
+  const changeDue = hasCashPayment ? Math.max(0, Math.round(totalPaid - total)) : 0;
 
   useEffect(() => {
     customerDisplayChannelRef.current?.postMessage({
       version: 1,
       updatedAt: new Date().toISOString(),
-      items: cart.slice(-5).map((item) => ({ name: item.product.name, quantity: item.quantity, amount: Math.round((Number(item.product.salePrice) * item.quantity - item.discount) * 100) / 100 })),
+      items: cart.slice(-5).map((item) => ({ name: item.product.name, quantity: item.quantity, amount: Math.round(Number(item.product.salePrice) * item.quantity - item.discount) })),
       total,
       paid: totalPaid,
       change: changeDue,
@@ -353,9 +353,9 @@ export function PosWorkspace() {
     return Math.round((refundSale.items ?? []).reduce((sum: number, item: any) => {
       const quantity = Number(refundQty[item.id] ?? 0);
       return sum + Number(item.subtotal) * quantity / Number(item.quantity);
-    }, 0) * 100) / 100;
+    }, 0));
   }, [refundQty, refundSale]);
-  const manualDiscount = useMemo(() => Math.round(cart.reduce((sum, item) => sum + item.discount, 0) * 100) / 100, [cart]);
+  const manualDiscount = useMemo(() => Math.round(cart.reduce((sum, item) => sum + item.discount, 0)), [cart]);
   const discountCartSignature = useMemo(() => JSON.stringify(cart.map((item) => ({ productId: item.product.id, quantity: item.quantity, discount: item.discount })).sort((a, b) => a.productId.localeCompare(b.productId))), [cart]);
 
   async function applyCouponCode() {
@@ -541,7 +541,7 @@ export function PosWorkspace() {
         toast.error("折扣不可大於商品金額");
         return { ...item, discount: maximum };
       }
-      return { ...item, discount: Math.round(requested * 100) / 100 };
+      return { ...item, discount: Math.round(requested) };
     }));
   }
 
@@ -560,17 +560,18 @@ export function PosWorkspace() {
         return lines;
       }
       const paid = lines.reduce((sum, line) => sum + Number(line.amount || 0), 0);
-      const remaining = Math.max(0, Math.round((total - paid) * 100) / 100);
+      const remaining = Math.max(0, Math.round(total - paid));
       return [...lines, { method: "CARD", amount: remaining ? String(remaining) : "", reference: "" }];
     });
   }
 
   async function requestCashMovement() {
     if (!shift) return;
-    if (Number(cashMovementAmount) <= 0 || cashMovementReason.trim().length < 2) return toast.error("請輸入正確金額與至少 2 個字的原因");
+    const amount = Math.round(Number(cashMovementAmount));
+    if (!Number.isFinite(amount) || amount <= 0 || cashMovementReason.trim().length < 2) return toast.error("請輸入正確整數金額與至少 2 個字的原因");
     setOperationBusy(true);
     try {
-      const res = await fetch("/api/pos/cash-movements", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "REQUEST", shiftId: shift.id, type: cashMovementType, amount: Number(cashMovementAmount), reason: cashMovementReason }) });
+      const res = await fetch("/api/pos/cash-movements", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "REQUEST", shiftId: shift.id, type: cashMovementType, amount, reason: cashMovementReason }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "錢櫃異動申請失敗");
       toast.success(data.message || "已送出主管核准");
@@ -729,7 +730,7 @@ export function PosWorkspace() {
       const res = await fetch("/api/pos/shifts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "OPEN", registerId: selectedRegister, openingCash: Number(openingCash || 0) }),
+        body: JSON.stringify({ action: "OPEN", registerId: selectedRegister, openingCash: Math.round(Number(openingCash || 0)) }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "開班失敗");
@@ -769,7 +770,7 @@ export function PosWorkspace() {
       const res = await fetch("/api/pos/shifts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "CLOSE", shiftId: shift.id, closingCash: Number(closingCash) }),
+        body: JSON.stringify({ action: "CLOSE", shiftId: shift.id, closingCash: Math.round(Number(closingCash)) }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "結班失敗");
@@ -855,7 +856,7 @@ export function PosWorkspace() {
       return toast.error("手動折扣尚未取得店長核准，或核准後購物車已變更");
     }
     const payments = paymentLines
-      .map((payment) => ({ ...payment, amount: Number(payment.amount || 0), reference: payment.reference.trim() || null }))
+      .map((payment) => ({ ...payment, amount: Math.round(Number(payment.amount || 0)), reference: payment.reference.trim() || null }))
       .filter((payment) => Number.isFinite(payment.amount) && payment.amount > 0);
     if (!payments.length || totalPaid < total) return toast.error("付款金額不足");
     if (payments.some((payment) => payment.method === "CARD" && !payment.reference)) return toast.error("請先完成刷卡機交易，並輸入授權碼或卡號末四碼");
@@ -982,7 +983,7 @@ return <div className="grid min-h-[60vh] animate-pulse gap-4 xl:grid-cols-[minma
                 </select>
               </label>
               <label className="block text-sm font-medium">開班庫存現金（由零用金轉入）
-                <input value={openingCash} onChange={(event) => setOpeningCash(event.target.value)} inputMode="decimal" disabled={!canApproveCash} className="mt-1 w-full h-11 rounded-lg border bg-background px-3 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground" />
+                <input value={openingCash} onChange={(event) => setOpeningCash(event.target.value.replace(/[^\d]/g, ""))} inputMode="numeric" disabled={!canApproveCash} className="mt-1 w-full h-11 rounded-lg border bg-background px-3 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground" />
                 <span className="mt-2 block text-xs leading-5 text-muted-foreground">{canApproveCash ? "可輸入或修改；大於 0 時自動過帳：借記庫存現金、貸記零用金。開班後若需調整，請使用錢櫃投入／提出。" : "需要現金管理／核准權限才能輸入或修改；目前將以 0 元開班。"}</span>
               </label>
               <button onClick={openShift} disabled={busy} className="w-full h-12 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold disabled:opacity-50">{busy ? "開班中…" : "確認開班"}</button>
@@ -1080,7 +1081,7 @@ return <div className="grid min-h-[60vh] animate-pulse gap-4 xl:grid-cols-[minma
                 <div className="aspect-[4/3] overflow-hidden bg-gradient-to-br from-emerald-50 to-stone-100 dark:from-emerald-950 dark:to-slate-900">
                   {product.imageUrl ? <img src={product.imageUrl} alt={product.name} className="h-full w-full object-cover transition duration-300 group-hover:scale-105" /> : <div className="flex h-full items-center justify-center text-3xl font-black text-emerald-200">{product.name.slice(0,1)}</div>}
                 </div>
-                <div className="p-3"><div className="text-[10px] font-mono text-muted-foreground">{product.sku}</div><div className="mt-1 line-clamp-2 min-h-10 text-sm font-bold">{product.name}</div>{product.spec && <div className="mt-1 line-clamp-1 text-[11px] text-muted-foreground">{product.spec}</div>}<div className="mt-3 flex items-end justify-between gap-2"><span className="font-black text-emerald-700">{formatTwd(Number(product.salePrice))}</span><span className="text-[11px] text-muted-foreground">庫 {product.stockTotal}</span></div></div>
+                <div className="p-3"><div className="text-[10px] font-mono text-muted-foreground">{product.sku}</div><div className="mt-1 line-clamp-2 min-h-10 text-sm font-bold">{product.name}</div>{product.spec && <div className="mt-1 line-clamp-1 text-[11px] text-muted-foreground">{product.spec}</div>}<div className="mt-3 flex items-end justify-between gap-2"><span className="font-black text-emerald-700">{formatUnitPrice(Number(product.salePrice))}</span><span className="text-[11px] text-muted-foreground">庫 {product.stockTotal}</span></div></div>
               </button>
             ))}
             {filteredProducts.length === 0 && <div className="col-span-full py-16 text-center text-muted-foreground"><Search className="h-8 w-8 mx-auto mb-2 opacity-40" />找不到商品</div>}
@@ -1094,7 +1095,7 @@ return <div className="grid min-h-[60vh] animate-pulse gap-4 xl:grid-cols-[minma
             {cart.map((item) => (
               <div key={item.product.id} className="p-4 space-y-3">
                 <div className="flex justify-between gap-3"><div className="flex min-w-0 gap-3">{item.product.imageUrl ? <img src={item.product.imageUrl} alt={item.product.name} className="h-14 w-14 shrink-0 rounded-xl object-cover" /> : <div className="grid h-14 w-14 shrink-0 place-items-center rounded-xl bg-emerald-50 text-lg font-black text-emerald-300">{item.product.name.slice(0, 1)}</div>}<div className="min-w-0"><div className="truncate font-medium">{item.product.name}</div><div className="text-xs text-muted-foreground">{item.product.sku}</div></div></div><button onClick={() => setCart((items) => items.filter((cartItem) => cartItem.product.id !== item.product.id))} aria-label={`移除 ${item.product.name}`}><X className="h-4 w-4 text-muted-foreground" /></button></div>
-                <div className="flex items-center justify-between gap-3"><div className="inline-flex items-center rounded-lg border"><button onClick={() => changeQuantity(item.product.id, -1)} className="h-8 w-8 inline-flex items-center justify-center"><Minus className="h-3 w-3" /></button><span className="w-10 text-center text-sm font-semibold">{item.quantity}</span><button onClick={() => changeQuantity(item.product.id, 1)} className="h-8 w-8 inline-flex items-center justify-center"><Plus className="h-3 w-3" /></button></div><span className="font-semibold">{formatTwd(Number(item.product.salePrice) * item.quantity - item.discount)}</span></div>
+                <div className="flex items-center justify-between gap-3"><div className="inline-flex items-center rounded-lg border"><button onClick={() => changeQuantity(item.product.id, -1)} className="h-8 w-8 inline-flex items-center justify-center"><Minus className="h-3 w-3" /></button><span className="w-10 text-center text-sm font-semibold">{item.quantity}</span><button onClick={() => changeQuantity(item.product.id, 1)} className="h-8 w-8 inline-flex items-center justify-center"><Plus className="h-3 w-3" /></button></div><span className="font-semibold">{formatTwd(Math.round(Number(item.product.salePrice) * item.quantity - item.discount))}</span></div>
                 <label className="flex items-center justify-between gap-3 text-xs text-muted-foreground"><span className="inline-flex items-center gap-1"><Percent className="h-3 w-3" />本列折扣金額</span><input type="number" min="0" step="1" value={item.discount || ""} onChange={(event) => changeDiscount(item.product.id, event.target.value)} className="h-8 w-28 rounded-lg border bg-background px-2 text-right text-foreground" placeholder="0" /></label>
               </div>
             ))}
@@ -1148,7 +1149,7 @@ return <div className="grid min-h-[60vh] animate-pulse gap-4 xl:grid-cols-[minma
                     <select value={payment.method} onChange={(event) => updatePayment(index, { method: event.target.value as PaymentMethod })} className="h-10 rounded-lg border bg-background px-2 text-sm">
                       <option value="CASH">現金</option><option value="CARD">刷卡</option><option value="MOBILE">行動支付</option><option value="TRANSFER">轉帳</option>
                     </select>
-                    <input value={payment.amount} onChange={(event) => updatePayment(index, { amount: event.target.value })} inputMode="decimal" placeholder="收款金額" className="h-10 min-w-0 rounded-lg border bg-background px-3 text-right font-semibold" />
+                    <input value={payment.amount} onChange={(event) => updatePayment(index, { amount: event.target.value.replace(/[^\d]/g, "") })} inputMode="numeric" placeholder="整數收款金額" className="h-10 min-w-0 rounded-lg border bg-background px-3 text-right font-semibold" />
                     <button onClick={() => setPaymentLines((lines) => lines.filter((_, lineIndex) => lineIndex !== index))} disabled={paymentLines.length === 1} aria-label={`刪除第 ${index + 1} 筆付款`} className="h-10 w-9 rounded-lg border disabled:opacity-30"><X className="h-4 w-4 mx-auto" /></button>
                   </div>
                   {payment.method !== "CASH" && <><input value={payment.reference} onChange={(event) => updatePayment(index, { reference: event.target.value })} placeholder={payment.method === "CARD" ? "刷卡授權碼／卡號末四碼（必填）" : "交易序號（選填）"} className="h-9 w-full rounded-lg border bg-background px-3 text-xs" />{payment.method === "CARD" && <div className="text-[11px] text-indigo-700">先在刷卡機完成感應／插卡，確認成功後輸入授權碼或末四碼，再按確認結帳。</div>}</>}
@@ -1224,7 +1225,7 @@ return <div className="grid min-h-[60vh] animate-pulse gap-4 xl:grid-cols-[minma
             <div className="p-5 space-y-5">
               <div className="grid gap-3 rounded-xl border bg-muted/30 p-4 md:grid-cols-[180px_160px_1fr_auto]">
                 <select value={cashMovementType} onChange={(event) => setCashMovementType(event.target.value as any)} className="h-10 rounded-lg border bg-background px-3 text-sm"><option value="PAID_IN">投入現金</option><option value="PAID_OUT">提出現金</option><option value="SAFE_DROP">營業中抽離／入庫</option></select>
-                <input value={cashMovementAmount} onChange={(event) => setCashMovementAmount(event.target.value)} inputMode="decimal" placeholder="金額" className="h-10 rounded-lg border bg-background px-3 text-right" />
+                <input value={cashMovementAmount} onChange={(event) => setCashMovementAmount(event.target.value.replace(/[^\d]/g, ""))} inputMode="numeric" placeholder="整數金額" className="h-10 rounded-lg border bg-background px-3 text-right" />
                 <input value={cashMovementReason} onChange={(event) => setCashMovementReason(event.target.value)} placeholder="原因，例如：補充零錢、支付臨時運費" className="h-10 min-w-0 rounded-lg border bg-background px-3" />
                 <button onClick={requestCashMovement} disabled={operationBusy} className="h-10 px-4 rounded-lg bg-indigo-600 text-white font-semibold disabled:opacity-40">送出申請</button>
               </div>
@@ -1310,7 +1311,7 @@ return <div className="grid min-h-[60vh] animate-pulse gap-4 xl:grid-cols-[minma
               <div className="overflow-x-auto border rounded-xl"><table className="w-full text-sm"><thead className="bg-muted/50 text-xs text-muted-foreground"><tr><th className="p-2 text-left">付款方式</th><th className="p-2 text-right">收款</th><th className="p-2 text-right">退款</th><th className="p-2 text-right">淨額</th></tr></thead><tbody>{shiftPreview.payments.map((payment) => <tr key={payment.method} className="border-t"><td className="p-2">{payment.method}</td><td className="p-2 text-right">{formatTwd(payment.sales)}</td><td className="p-2 text-right text-rose-700">{formatTwd(payment.refunds)}</td><td className="p-2 text-right font-medium">{formatTwd(payment.net)}</td></tr>)}</tbody></table></div>
               {shiftPreview.cashMovements && <div className="grid grid-cols-3 gap-2 text-xs"><div className="rounded-lg bg-emerald-50 p-3"><div className="text-emerald-700">核准投入</div><div className="font-bold mt-1">{formatTwd(shiftPreview.cashMovements.paidIn)}</div></div><div className="rounded-lg bg-rose-50 p-3"><div className="text-rose-700">核准提出</div><div className="font-bold mt-1">{formatTwd(shiftPreview.cashMovements.paidOut)}</div></div><div className="rounded-lg bg-indigo-50 p-3"><div className="text-indigo-700">營業中抽離</div><div className="font-bold mt-1">{formatTwd(shiftPreview.cashMovements.safeDrop)}</div></div></div>}
               {Boolean((shiftPreview.pendingMovementCount ?? 0) + (shiftPreview.heldSaleCount ?? 0) + (shiftPreview.draftCount ?? 0)) && <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">結班前待處理：錢櫃申請 {shiftPreview.pendingMovementCount ?? 0} 筆、暫存交易 {shiftPreview.heldSaleCount ?? 0} 筆、復原草稿 {shiftPreview.draftCount ?? 0} 筆。</div>}
-              <label className="block text-sm font-medium">實點現金<input autoFocus value={closingCash} onChange={(event) => setClosingCash(event.target.value)} inputMode="decimal" placeholder="請輸入實際點收金額" className="mt-1 w-full h-12 rounded-xl border bg-background px-3 text-lg font-semibold" /></label>
+              <label className="block text-sm font-medium">實點現金<input autoFocus value={closingCash} onChange={(event) => setClosingCash(event.target.value.replace(/[^\d]/g, ""))} inputMode="numeric" placeholder="請輸入整數點收金額" className="mt-1 w-full h-12 rounded-xl border bg-background px-3 text-lg font-semibold" /></label>
               <div className="rounded-xl border p-4 flex items-center justify-between"><span className="text-sm text-muted-foreground">預計現金差額</span><span className={`text-xl font-black ${closingCash !== "" && Number(closingCash) === shiftPreview.expectedCash ? "text-emerald-700" : "text-rose-700"}`}>{closingCash === "" ? "—" : formatTwd(Number(closingCash) - shiftPreview.expectedCash)}</span></div>
               <div className="flex justify-end gap-2"><button onClick={() => setShiftPreview(null)} disabled={busy} className="h-11 px-5 rounded-xl border">繼續營業</button><button onClick={closeShift} disabled={busy || closingCash === ""} className="h-11 px-5 rounded-xl bg-indigo-600 text-white font-bold disabled:opacity-40">確認結班</button></div>
             </div>

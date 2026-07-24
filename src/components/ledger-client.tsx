@@ -468,7 +468,7 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
 }
 
 function PayDialog({ row, kind, onClose, onDone }: any) {
-  const balance = Number(row.amount) - Number(row.paidAmount);
+  const balance = Math.round(Number(row.amount) - Number(row.paidAmount));
   const [amount, setAmount] = useState(balance);
   const [discount, setDiscount] = useState(0);
   const [discountNote, setDiscountNote] = useState("");
@@ -481,7 +481,7 @@ function PayDialog({ row, kind, onClose, onDone }: any) {
   const [selectedNoteId, setSelectedNoteId] = useState("");
   const [selectedBankId, setSelectedBankId] = useState("");
   const endpoint = kind === "ar" ? "/api/accounting/receivables" : "/api/accounting/payables";
-  const totalWriteOff = Number(amount) + Number(discount);
+  const totalWriteOff = Math.round(Number(amount) + Number(discount));
 
   useEffect(() => {
     const noteEp = kind === "ar" ? "/api/accounting/notes-receivable" : "/api/accounting/notes-payable";
@@ -526,7 +526,7 @@ function PayDialog({ row, kind, onClose, onDone }: any) {
         <DialogHeader><DialogTitle>{kind === "ar" ? "沖應收帳款" : "沖應付帳款"}</DialogTitle></DialogHeader>
         <div className="space-y-3">
           <div className="text-sm">未結金額：<span className="font-bold text-red-600">{formatMoney(balance)}</span></div>
-          <div className="space-y-1"><Label>{kind === "ar" ? "收款金額" : "付款金額"}</Label><Input inputMode="decimal" className="[appearance:textfield]" value={amount || ""} onChange={(e) => setAmount(Number(e.target.value.replace(/[^0-9.]/g, "")))} placeholder="0" /></div>
+          <div className="space-y-1"><Label>{kind === "ar" ? "收款金額" : "付款金額"}</Label><Input inputMode="numeric" className="[appearance:textfield]" value={amount || ""} onChange={(e) => setAmount(Number(e.target.value.replace(/\D/g, "")))} placeholder="0" /></div>
           <div className="space-y-1">
             <Label>方式</Label>
             <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={method} onChange={(e) => { setMethod(e.target.value); setSelectedNoteId(""); setSelectedBankId(""); }}>
@@ -541,7 +541,7 @@ function PayDialog({ row, kind, onClose, onDone }: any) {
               <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={selectedNoteId} onChange={(e) => {
                 setSelectedNoteId(e.target.value);
                 const note = notes.find(n => n.id === e.target.value);
-                if (note) setAmount(Math.min(Number(note.amount), balance));
+                if (note) setAmount(Math.min(Math.round(Number(note.amount)), balance));
               }}>
                 <option value="">-- 請選擇票據 --</option>
                 {notes.map((n) => (
@@ -568,7 +568,7 @@ function PayDialog({ row, kind, onClose, onDone }: any) {
             </div>
           )}
           <hr className="border-dashed" />
-          <div className="space-y-1"><Label>折讓金額（差額部分）</Label><Input inputMode="decimal" className="[appearance:textfield]" value={discount || ""} onChange={(e) => setDiscount(Number(e.target.value.replace(/[^0-9.]/g, "")))} placeholder="0" /></div>
+          <div className="space-y-1"><Label>折讓金額（差額部分）</Label><Input inputMode="numeric" className="[appearance:textfield]" value={discount || ""} onChange={(e) => setDiscount(Number(e.target.value.replace(/\D/g, "")))} placeholder="0" /></div>
           <div className="space-y-1"><Label>折讓原因</Label><Input value={discountNote} onChange={(e) => setDiscountNote(e.target.value)} placeholder="例: 數量短少 / 品質折讓" /></div>
           <hr className="border-dashed" />
           <div className="space-y-1"><Label>備註</Label><Input value={remark} onChange={(e) => setRemark(e.target.value)} /></div>
@@ -666,9 +666,9 @@ function BatchPayDialog({ kind, onClose, onDone }: { kind: "ar" | "ap"; onClose:
   }, [partyId, allUnpaid, kind]);
 
   const selectedItems = items.filter((i) => selected.has(i.id));
-  const totalBalance = selectedItems.reduce((s, i) => s + Number(i.amount) - Number(i.paidAmount), 0);
+  const totalBalance = Math.round(selectedItems.reduce((s, i) => s + Number(i.amount) - Number(i.paidAmount), 0));
   const difference = totalBalance - totalPay;
-  const hasDiff = difference > 0.001;
+  const hasDiff = difference > 0;
 
   function toggleSelect(id: string) {
     const next = new Set(selected);
@@ -692,18 +692,18 @@ function BatchPayDialog({ kind, onClose, onDone }: { kind: "ar" | "ap"; onClose:
       let remainDiscount = discountAsWriteOff ? difference : 0;
       for (let idx = 0; idx < selectedItems.length; idx++) {
         const item = selectedItems[idx];
-        const itemBalance = Number(item.amount) - Number(item.paidAmount);
+        const itemBalance = Math.round(Number(item.amount) - Number(item.paidAmount));
         const isLast = idx === selectedItems.length - 1;
         // 按比例分配收款
         let itemPay: number;
         let itemDiscount: number;
         if (isLast) {
-          itemPay = Math.round(remainPay * 100) / 100;
-          itemDiscount = Math.round(remainDiscount * 100) / 100;
+          itemPay = Math.round(remainPay);
+          itemDiscount = Math.round(remainDiscount);
         } else {
           const ratio = totalBalance > 0 ? itemBalance / totalBalance : 0;
-          itemPay = Math.round(totalPay * ratio * 100) / 100;
-          itemDiscount = discountAsWriteOff ? Math.round(difference * ratio * 100) / 100 : 0;
+          itemPay = Math.round(totalPay * ratio);
+          itemDiscount = discountAsWriteOff ? Math.round(difference * ratio) : 0;
         }
         remainPay -= itemPay;
         remainDiscount -= itemDiscount;
@@ -776,7 +776,7 @@ function BatchPayDialog({ kind, onClose, onDone }: { kind: "ar" | "ap"; onClose:
               </div>
               <div className="space-y-1">
                 <Label>{payLabel}</Label>
-                <Input inputMode="decimal" className="[appearance:textfield] text-lg font-bold" value={totalPay || ""} onChange={(e) => setTotalPay(Number(e.target.value.replace(/[^0-9.]/g, "")))} placeholder="例: 30000" />
+                <Input inputMode="numeric" className="[appearance:textfield] text-lg font-bold" value={totalPay || ""} onChange={(e) => setTotalPay(Number(e.target.value.replace(/\D/g, "")))} placeholder="例: 30000" />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -944,7 +944,7 @@ function EditDialog({ row, kind, onClose, onDone }: any) {
       <DialogContent>
         <DialogHeader><DialogTitle>{kind === "ar" ? "編輯應收帳款" : "編輯應付帳款"}</DialogTitle></DialogHeader>
         <div className="space-y-3">
-          <div className="space-y-1"><Label>金額</Label><Input type="number" step="0.01" value={amount} onChange={(e) => setAmount(Number(e.target.value))} /></div>
+          <div className="space-y-1"><Label>金額</Label><Input type="number" step="1" value={amount} onChange={(e) => setAmount(Math.round(Number(e.target.value)))} /></div>
           <div className="space-y-1"><Label>到期日</Label><Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} /></div>
           <div className="space-y-1">
             <Label>狀態</Label>

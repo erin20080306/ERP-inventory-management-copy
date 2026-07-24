@@ -68,11 +68,11 @@ export async function getLedgerCashBalance(tenantId: string, client: any = prism
     },
     _sum: { debit: true, credit: true },
   });
-  return Math.round((
+  return Math.round(
     Number(account.openingBalance ?? 0)
     + Number(totals._sum.debit ?? 0)
     - Number(totals._sum.credit ?? 0)
-  ) * 100) / 100;
+  );
 }
 
 export async function attachPosShiftOperators<T extends { userId: string; closedById?: string | null }>(
@@ -98,7 +98,7 @@ export async function getPosShiftCashPosition(
   client: any = prisma,
 ) {
   if (!shift) return null;
-  const [cashSales, cashRefunds, movements] = await Promise.all([
+  const [cashSales, cashRefunds, cashWalletTopUps, movements] = await Promise.all([
     client.posPayment.aggregate({
       where: { method: "CASH", sale: { shiftId: shift.id, status: { not: "VOIDED" } } },
       _sum: { amount: true },
@@ -107,6 +107,12 @@ export async function getPosShiftCashPosition(
       where: { method: "CASH", refund: { shiftId: shift.id, status: "COMPLETED" } },
       _sum: { amount: true },
     }),
+    client.medicalWalletTransaction?.aggregate
+      ? client.medicalWalletTransaction.aggregate({
+          where: { shiftId: shift.id, type: "TOP_UP", paymentMethod: "CASH" },
+          _sum: { amount: true },
+        })
+      : Promise.resolve({ _sum: { amount: 0 } }),
     client.posCashMovement.groupBy({
       by: ["type"],
       where: { shiftId: shift.id, status: "APPROVED" },
@@ -123,17 +129,20 @@ export async function getPosShiftCashPosition(
   const openingCash = Number(shift.openingCash);
   const cashSalesAmount = Number(cashSales._sum.amount ?? 0);
   const cashRefundAmount = Number(cashRefunds._sum.amount ?? 0);
-  const expectedCash = Math.round((
+  const cashWalletTopUpAmount = Number(cashWalletTopUps._sum.amount ?? 0);
+  const expectedCash = Math.round(
     openingCash
     + cashSalesAmount
+    + cashWalletTopUpAmount
     - cashRefundAmount
     + movementTotals.paidIn
     - movementTotals.paidOut
     - movementTotals.safeDrop
-  ) * 100) / 100;
+  );
   return {
     openingCash,
     cashSales: cashSalesAmount,
+    cashWalletTopUps: cashWalletTopUpAmount,
     cashRefunds: cashRefundAmount,
     expectedCash,
     cashMovements: movementTotals,

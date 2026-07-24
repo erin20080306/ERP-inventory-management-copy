@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ApiError, apiHandler, requirePermission, requireTenantId, audit } from "@/lib/api";
 import { invalidateLicenseAccessCache, refreshLocalLicenseLease } from "@/lib/license";
 import { prisma } from "@/lib/prisma";
-import { assertStoreSlug, normalizeStoreSlug, storefrontUrl } from "@/lib/storefront-branding";
+import { assertStoreSlug, medicalSiteUrl, normalizeStoreSlug, storefrontUrl } from "@/lib/storefront-branding";
 
 function sanitizeCompanySetting(company: any) {
   return company
@@ -26,6 +26,7 @@ export const GET = apiHandler(async () => {
     company: sanitizeCompanySetting(company),
     businessMode: tenant?.businessMode,
     storefrontUrl: tenant?.businessMode === "ECOMMERCE" && storefrontKey ? storefrontUrl(storefrontKey) : null,
+    medicalSiteUrl: tenant?.businessMode === "POS_MEDICAL" && storefrontKey ? medicalSiteUrl(storefrontKey) : null,
   });
 });
 
@@ -62,12 +63,14 @@ export const PUT = apiHandler(async (req: NextRequest) => {
       throw new ApiError(response.status >= 500 ? 502 : response.status, result?.error || "中央公司資料同步失敗");
     }
   }
-  const ecommerce = tenant?.businessMode === "ECOMMERCE";
-  const storeName = ecommerce ? String(body.storeName || body.name || tenant?.name || "").trim() : null;
-  if (ecommerce && (!storeName || storeName.length > 80)) {
-    throw new ApiError(400, "商城名稱需為 1–80 個字");
+  const ecommerce = tenant.businessMode === "ECOMMERCE";
+  const medical = tenant.businessMode === "POS_MEDICAL";
+  const hasPublicWebsite = ecommerce || medical;
+  const storeName = hasPublicWebsite ? String(body.storeName || body.name || tenant.name || "").trim() : null;
+  if (hasPublicWebsite && (!storeName || storeName.length > 80)) {
+    throw new ApiError(400, `${medical ? "診所網站" : "商城"}名稱需為 1–80 個字`);
   }
-  const storeSlug = ecommerce
+  const storeSlug = hasPublicWebsite
     ? assertStoreSlug(body.storeSlug || existing?.storeSlug || tenant?.companyCode || tenantId)
     : null;
   const storeTransferBankName = ecommerce ? String(body.storeTransferBankName || "").trim() || null : undefined;
@@ -76,12 +79,12 @@ export const PUT = apiHandler(async (req: NextRequest) => {
   if ([storeTransferBankName, storeTransferAccountName, storeTransferAccountNumber].some((value) => value && value.length > 100)) {
     throw new ApiError(400, "商城匯款資料每欄不可超過 100 個字");
   }
-  if (ecommerce) {
+  if (hasPublicWebsite) {
     const conflict = await prisma.companySetting.findFirst({
       where: { storeSlug, tenantId: { not: tenantId } },
       select: { id: true },
     });
-    if (conflict) throw new ApiError(409, "此商城網址已被使用，請改用其他網址代碼");
+    if (conflict) throw new ApiError(409, "此網站網址已被使用，請改用其他網址代碼");
   }
   const data = {
     name: companyName,
@@ -91,9 +94,11 @@ export const PUT = apiHandler(async (req: NextRequest) => {
     email: body.email,
     logoUrl: body.logoUrl,
     currency: body.currency || "TWD",
-    ...(ecommerce ? {
+    ...(hasPublicWebsite ? {
       storeName,
       storeSlug,
+    } : {}),
+    ...(ecommerce ? {
       storeTransferBankName,
       storeTransferAccountName,
       storeTransferAccountNumber,
@@ -135,5 +140,6 @@ export const PUT = apiHandler(async (req: NextRequest) => {
     company: sanitizeCompanySetting(saved),
     businessMode: tenant?.businessMode,
     storefrontUrl: ecommerce && saved.storeSlug ? storefrontUrl(saved.storeSlug) : null,
+    medicalSiteUrl: medical && saved.storeSlug ? medicalSiteUrl(saved.storeSlug) : null,
   });
 });

@@ -3,7 +3,7 @@ import { requirePermission, requireTenantId } from "@/lib/api";
 import { notFound } from "next/navigation";
 import { AutoPrint } from "../../auto-print";
 import { CompanyHeader } from "../../CompanyHeader";
-import { formatDate, formatMoney } from "@/lib/utils";
+import { formatDate, formatMoney, formatUnitPrice } from "@/lib/utils";
 import { roundInvoiceAmount } from "@/lib/invoice-totals";
 
 export const dynamic = "force-dynamic";
@@ -49,7 +49,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
                 <td style={{ textAlign: "center" }}>{idx + 1}</td>
                 <td>{i.description}</td>
                 <td className="num">{Number(i.quantity)}</td>
-                <td className="num">{formatMoney(i.unitPrice).replace("NT$ ", "")}</td>
+                <td className="num">{formatUnitPrice(i.unitPrice).replace("NT$ ", "")}</td>
                 <td className="num">{(Number(i.taxRate) * 100).toFixed(0)}%</td>
                 <td className="num">{formatMoney(i.subtotal).replace("NT$ ", "")}</td>
               </tr>

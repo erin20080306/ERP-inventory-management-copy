@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowUpRight, Building2, Calculator, ClipboardList, HeartPulse, Package, PackageCheck, ScanBarcode, Shield, ShoppingCart, Store, UtensilsCrossed } from "lucide-react";
 import { getSession } from "@/lib/api";
-import { hasPermission } from "@/lib/auth";
+import { hasPermission } from "@/lib/permissions";
 import { getDashboardKpis } from "@/lib/dashboard";
 import { getProductEdition, normalizeBusinessMode } from "@/lib/product-editions";
 import { formatMoney, formatNumber } from "@/lib/utils";

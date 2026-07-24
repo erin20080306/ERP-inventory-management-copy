@@ -11,7 +11,7 @@ export type PosRefundItemInput = {
 const QTY_EPSILON = 0.00001;
 
 function roundMoney(value: number) {
-  return Math.round((value + Number.EPSILON) * 100) / 100;
+  return Math.round(value + Number.EPSILON);
 }
 
 function roundQuantity(value: number) {

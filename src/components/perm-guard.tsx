@@ -1,5 +1,5 @@
 import { getSession } from "@/lib/api";
-import { hasPermission } from "@/lib/auth";
+import { hasPermission } from "@/lib/permissions";
 import { ForbiddenPage } from "@/components/layout/page-shell";
 
 export async function requirePermissionOrForbidden(code: string) {

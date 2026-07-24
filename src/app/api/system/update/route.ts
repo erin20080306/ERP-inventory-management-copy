@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { ApiError, apiHandler, audit, requirePermission } from "@/lib/api";
+import { hasPermission } from "@/lib/permissions";
 import { createEncryptedDatabaseBackup } from "@/lib/encrypted-backup";
 import {
   currentHostVersion,
@@ -17,14 +18,24 @@ function localHost() {
 }
 
 export const GET = apiHandler(async () => {
-  await requirePermission("settings.manage");
-  if (!localHost()) return NextResponse.json({ localHost: false });
+  const session = await requirePermission("settings.view");
+  const canUpdate = hasPermission(session.user.permissions, "settings.manage");
+  if (!localHost()) {
+    return NextResponse.json({
+      localHost: false,
+      hostedManaged: true,
+      canUpdate: false,
+      currentVersion: currentHostVersion(),
+    });
+  }
   const currentVersion = currentHostVersion();
   const state = await readHostUpdateState();
   try {
     const latest = await fetchCurrentHostRelease();
     return NextResponse.json({
       localHost: true,
+      hostedManaged: false,
+      canUpdate,
       updaterReady: Boolean(process.env.HOST_UPDATE_URL && process.env.HOST_UPDATE_TOKEN),
       currentVersion,
       latestVersion: latest.version,
@@ -35,6 +46,8 @@ export const GET = apiHandler(async () => {
   } catch (error) {
     return NextResponse.json({
       localHost: true,
+      hostedManaged: false,
+      canUpdate,
       updaterReady: Boolean(process.env.HOST_UPDATE_URL && process.env.HOST_UPDATE_TOKEN),
       currentVersion,
       latestVersion: null,

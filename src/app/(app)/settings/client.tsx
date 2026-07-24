@@ -10,6 +10,7 @@ export function SettingsClient() {
   const [form, setForm] = useState<any>({ name: "", currency: "TWD", smtpSecure: true, smtpPort: 465 });
   const [businessMode, setBusinessMode] = useState("");
   const [storefrontUrl, setStorefrontUrl] = useState("");
+  const [medicalSiteUrl, setMedicalSiteUrl] = useState("");
   const [saving, setSaving] = useState(false);
   useEffect(() => {
     fetch("/api/settings").then((r) => r.json()).then((d) => {
@@ -23,6 +24,7 @@ export function SettingsClient() {
       });
       setBusinessMode(d.businessMode ?? "");
       setStorefrontUrl(d.storefrontUrl ?? "");
+      setMedicalSiteUrl(d.medicalSiteUrl ?? "");
     });
   }, []);
   async function save() {
@@ -33,9 +35,14 @@ export function SettingsClient() {
       if (!res.ok) throw new Error(result.error || "儲存失敗");
       if (result.company) setForm((current: any) => ({ ...current, ...result.company, smtpPassword: "" }));
       if (result.storefrontUrl) setStorefrontUrl(result.storefrontUrl);
+      if (result.medicalSiteUrl) setMedicalSiteUrl(result.medicalSiteUrl);
       toast.success("已儲存");
     } catch (e: any) { toast.error(e.message); } finally { setSaving(false); }
   }
+  const isMedicalWebsite = businessMode === "POS_MEDICAL";
+  const publicWebsiteUrl = isMedicalWebsite ? medicalSiteUrl : storefrontUrl;
+  const websiteLabel = isMedicalWebsite ? "診所官網" : "商城";
+
   return (
     <div className="space-y-6">
       <Card>
@@ -54,33 +61,36 @@ export function SettingsClient() {
           <div className="col-span-2"><Button onClick={save} disabled={saving}>{saving ? "儲存中..." : "儲存"}</Button></div>
         </CardContent>
       </Card>
-      {businessMode === "ECOMMERCE" && (
+      {(businessMode === "ECOMMERCE" || isMedicalWebsite) && (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Store className="h-5 w-5" />商城名稱與專屬網址</CardTitle>
-            <CardDescription>商城品牌名稱與 ERP 公司名稱分開設定；沒有自訂網域也會保有可直接分享給消費者的專屬商城網址。</CardDescription>
+            <CardTitle className="flex items-center gap-2"><Store className="h-5 w-5" />{isMedicalWebsite ? "診所官網名稱與專屬網址" : "商城名稱與專屬網址"}</CardTitle>
+            <CardDescription>{isMedicalWebsite ? "每個醫美租戶都有自己的診所官網，服務圖片、售價與線上預約會使用同一份租戶資料。" : "商城品牌名稱與 ERP 公司名稱分開設定；沒有自訂網域也會保有可直接分享給消費者的專屬商城網址。"}</CardDescription>
           </CardHeader>
           <CardContent className="max-w-3xl space-y-4">
             <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-1"><Label>商城名稱 *</Label><Input value={form.storeName ?? ""} onChange={(e) => setForm({ ...form, storeName: e.target.value })} placeholder={form.name || "我的品牌商城"} /></div>
+              <div className="space-y-1"><Label>{websiteLabel}名稱 *</Label><Input value={form.storeName ?? ""} onChange={(e) => setForm({ ...form, storeName: e.target.value })} placeholder={form.name || (isMedicalWebsite ? "我的醫美診所" : "我的品牌商城")} /></div>
               <div className="space-y-1">
                 <Label>自訂網址名稱（選填）</Label>
-                <Input value={form.storeSlug ?? ""} onChange={(e) => setForm({ ...form, storeSlug: e.target.value.toLowerCase() })} placeholder="例如：fat-duck" />
-                <p className="text-xs leading-5 text-muted-foreground">下方「目前商城網址」已可直接使用；只有想把網址最後一段改成品牌英文時才填，留空不影響商城使用。這不是公司代碼或自訂網域。</p>
+                <Input value={form.storeSlug ?? ""} onChange={(e) => setForm({ ...form, storeSlug: e.target.value.toLowerCase() })} placeholder={isMedicalWebsite ? "例如：beauty-clinic" : "例如：fat-duck"} />
+                <p className="text-xs leading-5 text-muted-foreground">{isMedicalWebsite
+                  ? "下方「目前診所官網網址」已可直接使用；只有想把網址最後一段改成品牌英文時才填，留空不影響診所官網使用。這不是公司代碼或自訂網域。"
+                  : "下方「目前商城網址」已可直接使用；只有想把網址最後一段改成品牌英文時才填，留空不影響商城使用。這不是公司代碼或自訂網域。"}
+                </p>
               </div>
             </div>
             <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-950">
-              <div className="flex items-center gap-2 text-sm font-semibold"><Globe2 className="h-4 w-4" />目前商城網址</div>
+              <div className="flex items-center gap-2 text-sm font-semibold"><Globe2 className="h-4 w-4" />目前{websiteLabel}網址</div>
               <div className="mt-2 flex flex-wrap items-center gap-2">
-                <a href={storefrontUrl || "#"} target="_blank" rel="noreferrer" className="min-w-0 break-all font-mono text-sm text-emerald-800 underline">{storefrontUrl || "儲存後產生專屬網址"}</a>
-                {storefrontUrl && <Button type="button" size="sm" variant="outline" onClick={async () => { await navigator.clipboard.writeText(storefrontUrl); toast.success("商城網址已複製"); }}><Copy className="h-4 w-4" />複製</Button>}
-                {storefrontUrl && <Button type="button" size="sm" variant="outline" asChild><a href={storefrontUrl} target="_blank" rel="noreferrer"><ExternalLink className="h-4 w-4" />開啟商城</a></Button>}
+                <a href={publicWebsiteUrl || "#"} target="_blank" rel="noreferrer" className="min-w-0 break-all font-mono text-sm text-emerald-800 underline">{publicWebsiteUrl || "儲存後產生專屬網址"}</a>
+                {publicWebsiteUrl && <Button type="button" size="sm" variant="outline" onClick={async () => { await navigator.clipboard.writeText(publicWebsiteUrl); toast.success(isMedicalWebsite ? "診所官網網址已複製" : "商城網址已複製"); }}><Copy className="h-4 w-4" />複製</Button>}
+                {publicWebsiteUrl && <Button type="button" size="sm" variant="outline" asChild><a href={publicWebsiteUrl} target="_blank" rel="noreferrer"><ExternalLink className="h-4 w-4" />開啟{websiteLabel}</a></Button>}
               </div>
             </div>
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">
+            {businessMode === "ECOMMERCE" && <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">
               如需使用自己的品牌網域，電商月租與年租方案另收一次設定費 NT$1,500；網域購買與續費由客戶自行支付。未設定自訂網域不影響上述專屬商城網址使用。
-            </div>
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            </div>}
+            {businessMode === "ECOMMERCE" && <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
               <div className="text-sm font-bold text-slate-900">商城銀行轉帳資訊</div>
               <p className="mt-1 text-xs leading-5 text-slate-600">填寫後，選擇銀行轉帳的顧客會在訂單成立頁看到匯款資訊。請只填寫專門對外收款的帳戶。</p>
               <div className="mt-4 grid gap-4 md:grid-cols-3">
@@ -88,11 +98,11 @@ export function SettingsClient() {
                 <div className="space-y-1"><Label>戶名</Label><Input value={form.storeTransferAccountName ?? ""} onChange={(e) => setForm({ ...form, storeTransferAccountName: e.target.value })} placeholder="公司或品牌戶名" /></div>
                 <div className="space-y-1"><Label>匯款帳號</Label><Input value={form.storeTransferAccountNumber ?? ""} onChange={(e) => setForm({ ...form, storeTransferAccountNumber: e.target.value })} placeholder="請輸入對外收款帳號" /></div>
               </div>
-            </div>
-            <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs leading-5 text-rose-900">
+            </div>}
+            {businessMode === "ECOMMERCE" && <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs leading-5 text-rose-900">
               信用卡與行動支付目前只提供結帳與 ERP 接單流程體驗，不會實際扣款；正式收款需由客戶提供金流商帳號及串接資料後開通。
-            </div>
-            <Button onClick={save} disabled={saving}>{saving ? "儲存中..." : "儲存商城設定"}</Button>
+            </div>}
+            <Button onClick={save} disabled={saving}>{saving ? "儲存中..." : `儲存${websiteLabel}設定`}</Button>
           </CardContent>
         </Card>
       )}
@@ -176,6 +186,8 @@ export function SettingsClient() {
 
 type UpdateModel = {
   localHost: boolean;
+  hostedManaged?: boolean;
+  canUpdate?: boolean;
   updaterReady?: boolean;
   currentVersion?: string;
   latestVersion?: string | null;
@@ -201,7 +213,6 @@ function UpdateCenterCard() {
       const response = await fetch("/api/system/update", { cache: "no-store" });
       const result = await response.json();
       if (!response.ok) {
-        if (response.status === 403) return setModel(null);
         throw new Error(result.error || "無法查詢更新");
       }
       setModel(result);
@@ -246,7 +257,33 @@ function UpdateCenterCard() {
     }
   }
 
-  if (!model?.localHost) return null;
+  if (checking && !model) {
+    return (
+      <Card id="system-update">
+        <CardContent className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />正在查詢系統版本…
+        </CardContent>
+      </Card>
+    );
+  }
+  if (!model) return null;
+  if (!model.localHost) {
+    return (
+      <Card id="system-update">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><RefreshCw className="h-5 w-5" />系統更新中心</CardTitle>
+          <CardDescription>所有租戶共用受控雲端版本，平台會完成備份、更新與健康檢查，不需要各租戶停機或重新安裝。</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="rounded-lg border bg-muted/20 p-4"><div className="text-xs text-muted-foreground">目前雲端版本</div><div className="mt-1 font-mono font-semibold">{displayVersion(model.currentVersion)}</div></div>
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-emerald-950"><div className="text-xs">更新方式</div><div className="mt-1 font-semibold">平台自動更新</div></div>
+          </div>
+          <Button variant="outline" onClick={() => void load()} disabled={checking}><RefreshCw className={`h-4 w-4 ${checking ? "animate-spin" : ""}`} />重新檢查版本</Button>
+        </CardContent>
+      </Card>
+    );
+  }
   const busyState = ["queued", "pulling", "restarting", "rolling_back"].includes(model.status?.state || "");
   const busy = updating || busyState;
 
@@ -278,11 +315,12 @@ function UpdateCenterCard() {
           {model.checkError && <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950/30 dark:text-amber-200">{model.checkError}</div>}
           {!model.updaterReady && <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950/30 dark:text-amber-200">需先執行新版 Host 安裝包一次以安裝背景更新服務；既有資料、帳號、密碼與授權都會保留。完成後往後直接在此更新。</div>}
           <div className="flex flex-wrap gap-2">
-            <Button onClick={() => void backupAndUpdate()} disabled={busy || checking || !model.updaterReady || Boolean(model.checkError)}>
+            <Button onClick={() => void backupAndUpdate()} disabled={busy || checking || !model.canUpdate || !model.updaterReady || Boolean(model.checkError)}>
               <ShieldCheck className="h-4 w-4" />{busy ? "更新中…" : model.updateAvailable ? "備份並更新" : "備份並檢查更新"}
             </Button>
             <Button variant="outline" onClick={() => void load()} disabled={busy || checking}><RefreshCw className={`h-4 w-4 ${checking ? "animate-spin" : ""}`} />重新檢查</Button>
           </div>
+          {!model.canUpdate && <p className="text-xs text-amber-700">目前帳號可查看版本；執行更新需由具有「系統設定管理」權限的管理者操作。</p>}
           <p className="text-xs text-muted-foreground">流程：加密完整備份 → 下載新版 → 重新啟動 → 健康檢查；若檢查失敗會自動恢復舊版。</p>
         </CardContent>
       </Card>

@@ -4,7 +4,7 @@ import { ApiError, apiHandler, audit, requirePosPermission, requireTenantId } fr
 import { prisma } from "@/lib/prisma";
 
 const MovementInput = z.discriminatedUnion("action", [
-  z.object({ action: z.literal("REQUEST"), shiftId: z.string().min(1), type: z.enum(["PAID_IN", "PAID_OUT", "SAFE_DROP"]), amount: z.coerce.number().positive().max(10_000_000), reason: z.string().trim().min(2).max(300) }),
+  z.object({ action: z.literal("REQUEST"), shiftId: z.string().min(1), type: z.enum(["PAID_IN", "PAID_OUT", "SAFE_DROP"]), amount: z.coerce.number().int().positive().max(10_000_000), reason: z.string().trim().min(2).max(300) }),
   z.object({ action: z.enum(["APPROVE", "REJECT"]), movementId: z.string().min(1) }),
 ]);
 

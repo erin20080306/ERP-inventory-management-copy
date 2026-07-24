@@ -170,3 +170,14 @@ export const DEFAULT_ROLES = {
     permissions: ALL_PERMISSIONS.filter((p) => p.action === "view").map((p) => p.code),
   },
 } as const;
+
+/**
+ * 純權限判斷，不依賴資料庫或伺服器模組，可安全用於 Client Component。
+ */
+export function hasPermission(perms: string[] | undefined, code: string) {
+  if (!perms || perms.length === 0) return false;
+  if (perms.includes("*")) return true;
+  if (perms.includes(code)) return true;
+  const [module] = code.split(".");
+  return perms.includes(`${module}.manage`);
+}

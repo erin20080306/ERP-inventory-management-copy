@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiHandler, requirePosPermission, requireTenantId } from "@/lib/api";
+import { hasPermission } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { attachPosShiftOperators, getLedgerCashBalance, getPosDailySummary, getPosShiftCashPosition } from "@/lib/pos-daily-summary";
 
@@ -12,7 +13,7 @@ export const GET = apiHandler(async (_req: NextRequest) => {
     orderBy: { openedAt: "desc" },
   });
   const openShiftWithOperatorsPromise = openShiftPromise.then((shift) => attachPosShiftOperators(shift));
-  const [registers, warehouses, openShift, today, shiftCash, ledgerCashBalance, recentSales] = await Promise.all([
+  const [registers, warehouses, openShift, today, shiftCash, ledgerCashBalance, recentSales, cashMovements] = await Promise.all([
     prisma.posRegister.findMany({
       where: { tenantId, isActive: true },
       select: { id: true, code: true, name: true, warehouse: { select: { id: true, code: true, name: true } } },
@@ -42,6 +43,13 @@ export const GET = apiHandler(async (_req: NextRequest) => {
         refunds: { where: { status: "COMPLETED" }, select: { total: true } },
       },
     }),
+    openShiftPromise.then((shift) => shift
+      ? prisma.posCashMovement.findMany({
+          where: { tenantId, shiftId: shift.id },
+          orderBy: { requestedAt: "desc" },
+          take: 100,
+        })
+      : []),
   ]);
 
 
@@ -52,6 +60,10 @@ export const GET = apiHandler(async (_req: NextRequest) => {
     today,
     shiftCash,
     ledgerCashBalance,
+    cashMovements,
+    capabilities: {
+      canApproveCash: hasPermission(session.user.permissions, "cash.approve"),
+    },
     recentSales: recentSales.map((sale) => ({
       ...sale,
       refundedTotal: sale.refunds.reduce((sum, refund) => sum + Number(refund.total), 0),

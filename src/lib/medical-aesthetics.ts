@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { normalizeStoreSlug } from "@/lib/storefront-branding";
 
 export const MEDICAL_DEMO_SERVICES = [
   { code: "MED-CONSULT", sku: "MED-SVC-001", name: "專業肌膚諮詢", category: "諮詢評估", durationMinutes: 40, price: 1200, imageUrl: "/medical-aesthetics/treatment-planning.png", bodyArea: "臉部", consentRequired: false },
@@ -25,7 +26,50 @@ const CONSUMABLE_RECIPES: Record<string, Array<{ sku: string; quantity: number }
 };
 
 export async function ensureMedicalAestheticsBaseline(tenantId: string) {
+  const [serviceCount, packageCount, consumableCount, register] = await Promise.all([
+    prisma.medicalService.count({ where: { tenantId } }),
+    prisma.medicalTreatmentPackage.count({ where: { tenantId } }),
+    prisma.product.count({ where: { tenantId, catalogMode: "POS_MEDICAL", trackInventory: true } }),
+    prisma.posRegister.findFirst({ where: { tenantId, code: "MED-01" }, select: { id: true, warehouseId: true } }),
+  ]);
+  if (
+    serviceCount >= MEDICAL_DEMO_SERVICES.length
+    && packageCount >= MEDICAL_DEMO_PACKAGES.length
+    && consumableCount >= MEDICAL_DEMO_CONSUMABLES.length
+    && register
+  ) {
+    return { warehouseId: register.warehouseId, services: serviceCount, initialized: false };
+  }
+
   return prisma.$transaction(async (tx) => {
+    const [tenant, websiteSettings] = await Promise.all([
+      tx.tenant.findUnique({ where: { id: tenantId }, select: { name: true } }),
+      tx.companySetting.findFirst({ where: { tenantId }, select: { id: true, name: true, storeSlug: true, storeName: true } }),
+    ]);
+    if (!tenant) throw new Error("找不到醫美租戶");
+    const defaultSiteSlug = normalizeStoreSlug(`medical-${tenantId}`);
+    if (websiteSettings) {
+      if (!websiteSettings.storeSlug || !websiteSettings.storeName) {
+        await tx.companySetting.update({
+          where: { id: websiteSettings.id },
+          data: {
+            storeSlug: websiteSettings.storeSlug || defaultSiteSlug,
+            storeName: websiteSettings.storeName || websiteSettings.name || tenant.name,
+          },
+        });
+      }
+    } else {
+      await tx.companySetting.create({
+        data: {
+          tenantId,
+          name: tenant.name,
+          storeName: tenant.name,
+          storeSlug: defaultSiteSlug,
+          currency: "TWD",
+        },
+      });
+    }
+
     const [serviceCategory, consumableCategory, packageCategory, sessionUnit, itemUnit, exemptTax] = await Promise.all([
       tx.productCategory.upsert({ where: { tenantId_code: { tenantId, code: "MED-SERVICE" } }, update: { name: "醫美服務" }, create: { tenantId, code: "MED-SERVICE", name: "醫美服務" } }),
       tx.productCategory.upsert({ where: { tenantId_code: { tenantId, code: "MED-CONSUMABLE" } }, update: { name: "醫美耗材" }, create: { tenantId, code: "MED-CONSUMABLE", name: "醫美耗材" } }),
@@ -92,6 +136,6 @@ export async function ensureMedicalAestheticsBaseline(tenantId: string) {
         create: { tenantId, productId: product.id, serviceId: service.id, code: definition.code, name: definition.name, sessions: definition.sessions, validDays: definition.validDays, imageUrl: definition.imageUrl },
       });
     }
-    return { warehouseId: warehouse.id, services: services.size };
+    return { warehouseId: warehouse.id, services: services.size, initialized: true };
   });
 }

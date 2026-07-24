@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { apiHandler, requirePermission, requireTenantId, audit, getCurrentUserId } from "@/lib/api";
+import { ApiError, apiHandler, requirePermission, requireTenantId, audit, getCurrentUserId } from "@/lib/api";
 import { lockAndAssertAccountingPeriodOpen } from "@/lib/accounting-controls";
 import { nextNumberInTransaction } from "@/lib/documents";
 import { prisma } from "@/lib/prisma";
@@ -70,6 +70,9 @@ export const POST = apiHandler(async (req: NextRequest) => {
   const body = await req.json();
   const { summary, entryDate, lines, attachment } = body as any;
   if (!lines?.length) throw new Error("請至少新增一筆分錄");
+  if (lines.some((line: any) => !Number.isInteger(Number(line.debit ?? 0)) || !Number.isInteger(Number(line.credit ?? 0)))) {
+    throw new ApiError(400, "傳票借貸金額必須為整數；只有商品單價可保留小數");
+  }
   const totalDebit = lines.reduce((s: number, l: any) => s + Number(l.debit ?? 0), 0);
   const totalCredit = lines.reduce((s: number, l: any) => s + Number(l.credit ?? 0), 0);
   if (Math.abs(totalDebit - totalCredit) > 0.001) throw new Error(`借貸不平衡 (借 ${totalDebit} / 貸 ${totalCredit})`);
