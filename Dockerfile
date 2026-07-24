@@ -4,7 +4,13 @@ WORKDIR /app
 RUN apk add --no-cache openssl libc6-compat postgresql-client
 COPY package.json package-lock.json ./
 COPY prisma ./prisma
-RUN npm ci
+RUN --mount=type=cache,target=/root/.npm \
+    for attempt in 1 2 3; do \
+      timeout 600 npm ci --prefer-offline --fetch-retries=1 --fetch-timeout=60000 && exit 0; \
+      rm -rf node_modules; \
+      echo "npm ci attempt ${attempt} failed; retrying with the preserved package cache." >&2; \
+    done; \
+    exit 1
 COPY . .
 ENV DATABASE_URL="postgresql://postgres:postgres@postgres:5432/erp?schema=public"
 ENV NEXTAUTH_SECRET="docker-build-only-secret-not-used-at-runtime"
