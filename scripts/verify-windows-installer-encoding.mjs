@@ -12,6 +12,10 @@ function assertStartsWithUtf8Bom(buffer, label) {
   assert.ok(!buffer.subarray(UTF8_BOM.length, UTF8_BOM.length * 2).equals(UTF8_BOM), `${label} must contain exactly one UTF-8 BOM`);
 }
 
+function normalizedPowerShellText(buffer) {
+  return buffer.subarray(UTF8_BOM.length).toString("utf8").replace(/\r\n?/g, "\n");
+}
+
 function readZipEntry(archive, targetName) {
   let offset = 0;
   while (offset + 30 <= archive.length && archive.readUInt32LE(offset) === 0x04034b50) {
@@ -58,7 +62,11 @@ assert.ok(embeddedWindows, "Embedded Windows Host installer is missing");
 const embeddedArchive = Buffer.from(embeddedWindows.base64, "base64");
 const embeddedInstaller = readZipEntry(embeddedArchive, "installer/Install-ErinERP.ps1");
 assertStartsWithUtf8Bom(embeddedInstaller, "Vercel embedded Windows Host installer");
-assert.ok(embeddedInstaller.equals(sourceInstaller), "Vercel embedded installer must preserve the source PowerShell bytes");
+assert.equal(
+  normalizedPowerShellText(embeddedInstaller),
+  normalizedPowerShellText(sourceInstaller),
+  "Vercel embedded installer must preserve the source PowerShell text apart from platform line endings",
+);
 
 const releaseBuilder = readFileSync("scripts/build-host-installers.mjs", "utf8");
 assert.match(
