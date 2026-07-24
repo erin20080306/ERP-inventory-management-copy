@@ -72,6 +72,11 @@ assert.match(v107Bootstrap, /process\.env\.USERPROFILE/);
 assert.match(v107Bootstrap, /process\.env\.LOCALAPPDATA/);
 assert.match(v107Bootstrap, /"junction"/);
 assert.match(windowsInstaller, /\$InstallDir = Join-Path \$env:USERPROFILE "ErinERP"/);
+assert.match(windowsInstaller, /docs\.docker\.com\/desktop\/setup\/install\/windows-install/);
+assert.match(windowsInstaller, /Start-Process -FilePath \$DockerDocsUrl/);
+assert.match(windowsInstaller, /function Start-DockerDesktop/);
+assert.match(windowsInstaller, /function Wait-ForDockerDesktop/);
+assert.match(windowsInstaller, /Read-Host "Docker Desktop 已安裝後，按 Enter 繼續"/);
 
 assert.match(bootstrap, /accept-encoding", "identity"/);
 assert.match(bootstrap, /removeAllListeners\("will-navigate"\)/);

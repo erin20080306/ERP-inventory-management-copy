@@ -4,18 +4,87 @@ $InstallDir = Join-Path $env:USERPROFILE "ErinERP"
 $DeviceDir = Join-Path $env:ProgramData "ErinERP"
 $BackupDir = Join-Path $env:USERPROFILE "ErinERP-Backups"
 $CentralUrl = "https://erp-inventory-management-copy.vercel.app"
+$DockerDocsUrl = "https://docs.docker.com/desktop/setup/install/windows-install/"
 $ImageTag = "latest"
 $ImageTagFile = Join-Path $PackageDir "image-tag.txt"
 if (Test-Path $ImageTagFile) { $ImageTag = (Get-Content $ImageTagFile -Raw).Trim() }
 
-Write-Host "艾琳 ERP 公司主機 Windows 安裝程式" -ForegroundColor Cyan
-if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
-  Write-Host "請先安裝並啟動 Docker Desktop：https://www.docker.com/products/docker-desktop/" -ForegroundColor Yellow
-  Read-Host "按 Enter 結束"
-  exit 1
+function Resolve-DockerCommand {
+  $Command = Get-Command docker.exe -ErrorAction SilentlyContinue
+  if ($Command) { return $Command.Path }
+
+  $Candidates = @(
+    (Join-Path $env:ProgramFiles "Docker\Docker\resources\bin\docker.exe"),
+    (Join-Path $env:LOCALAPPDATA "Docker\resources\bin\docker.exe")
+  )
+  foreach ($Candidate in $Candidates) {
+    if (Test-Path $Candidate) { return $Candidate }
+  }
+  return $null
 }
-docker info *> $null
-if ($LASTEXITCODE -ne 0) { throw "Docker Desktop 尚未啟動" }
+
+function Test-DockerReady([string]$DockerCommand) {
+  if (-not $DockerCommand) { return $false }
+  try {
+    & $DockerCommand info *> $null
+    return $LASTEXITCODE -eq 0
+  } catch {
+    return $false
+  }
+}
+
+function Start-DockerDesktop {
+  $Candidates = @(
+    (Join-Path $env:ProgramFiles "Docker\Docker\Docker Desktop.exe"),
+    (Join-Path $env:LOCALAPPDATA "Docker\Docker Desktop.exe")
+  )
+  foreach ($Candidate in $Candidates) {
+    if (Test-Path $Candidate) {
+      Start-Process -FilePath $Candidate
+      return $true
+    }
+  }
+  return $false
+}
+
+function Wait-ForDockerDesktop([string]$DockerCommand) {
+  Write-Host "等待 Docker Desktop 啟動…" -ForegroundColor Cyan
+  Write-Host "第一次啟動時，請在 Docker 視窗接受條款並完成 WSL 2／系統權限設定。"
+  for ($i = 1; $i -le 100; $i++) {
+    if (Test-DockerReady $DockerCommand) {
+      Write-Host "Docker Desktop 已就緒。" -ForegroundColor Green
+      return $true
+    }
+    Start-Sleep -Seconds 3
+  }
+  return $false
+}
+
+Write-Host "艾琳 ERP 公司主機 Windows 安裝程式" -ForegroundColor Cyan
+$DockerCommand = Resolve-DockerCommand
+if (-not $DockerCommand) {
+  Write-Host ""
+  Write-Host "【尚缺一個必要程式：Docker Desktop】" -ForegroundColor Yellow
+  Write-Host "即將開啟 Docker 官方 Windows 安裝頁。"
+  Start-Process -FilePath $DockerDocsUrl
+  Write-Host "安裝步驟：下載 Docker Desktop Installer.exe → 完成安裝 → 開啟 Docker Desktop → 接受條款。"
+  Write-Host "完成後不必重新下載 Host ZIP；回到這個視窗按 Enter，安裝程式會再次檢查。"
+  Read-Host "Docker Desktop 已安裝後，按 Enter 繼續"
+  $DockerCommand = Resolve-DockerCommand
+  if (-not $DockerCommand) {
+    throw "仍找不到 Docker Desktop。請確認已完成安裝，再重新執行本安裝程式"
+  }
+}
+
+if (-not (Test-DockerReady $DockerCommand)) {
+  Write-Host "已找到 Docker Desktop，正在自動開啟…" -ForegroundColor Cyan
+  if (-not (Start-DockerDesktop)) {
+    throw "無法自動開啟 Docker Desktop。請手動開啟後，再重新執行本安裝程式"
+  }
+  if (-not (Wait-ForDockerDesktop $DockerCommand)) {
+    throw "Docker Desktop 尚未完成啟動。請確認 Docker 視窗是否仍在等待接受條款、WSL 2 更新或重新啟動電腦"
+  }
+}
 
 $ActivationKey = Read-Host "輸入艾琳設計提供的啟用碼"
 if ($ActivationKey.Length -lt 24) { throw "啟用碼格式錯誤，請向艾琳設計確認" }
