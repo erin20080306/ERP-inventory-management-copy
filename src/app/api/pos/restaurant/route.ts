@@ -5,7 +5,7 @@ import { hasPermission } from "@/lib/auth";
 import { resolveDemoProductImage } from "@/lib/demo-product-media";
 import { nextNumberFastInTransaction } from "@/lib/number-sequence";
 import { prisma } from "@/lib/prisma";
-import { getPosDailySummary, getPosShiftCashPosition } from "@/lib/pos-daily-summary";
+import { attachPosShiftOperators, getLedgerCashBalance, getPosDailySummary, getPosShiftCashPosition } from "@/lib/pos-daily-summary";
 import { productCatalogScope } from "@/lib/product-editions";
 import { createRestaurantTable, deleteRestaurantTableSafely, setRestaurantTableActive, updateRestaurantTable } from "@/lib/restaurant-tables";
 
@@ -73,15 +73,22 @@ export const GET = apiHandler(async (req: NextRequest) => {
     include: { register: { select: { id: true, code: true, name: true, warehouseId: true } } },
     orderBy: { openedAt: "desc" },
   });
-  const [registers, openShift, today, shiftCash, areas, products, stockTotals, categories, kitchenTickets, tableSettings] = await Promise.all([
+  const openShiftWithOperatorsPromise = openShiftPromise.then((shift) => attachPosShiftOperators(shift));
+  const [registers, openShift, today, shiftCash, ledgerCashBalance, cashMovements, areas, products, stockTotals, categories, kitchenTickets, tableSettings] = await Promise.all([
     prisma.posRegister.findMany({
       where: { tenantId, isActive: true },
       select: { id: true, code: true, name: true, warehouseId: true, warehouse: { select: { name: true } } },
       orderBy: { code: "asc" },
     }),
-    openShiftPromise,
+    openShiftWithOperatorsPromise,
     kitchenOnly ? Promise.resolve(null) : getPosDailySummary(tenantId),
     kitchenOnly ? Promise.resolve(null) : openShiftPromise.then((shift) => getPosShiftCashPosition(shift)),
+    kitchenOnly ? Promise.resolve(0) : getLedgerCashBalance(tenantId),
+    kitchenOnly ? Promise.resolve([]) : openShiftPromise.then((shift) => shift ? prisma.posCashMovement.findMany({
+      where: { tenantId, shiftId: shift.id },
+      orderBy: { requestedAt: "desc" },
+      take: 100,
+    }) : []),
     kitchenOnly ? Promise.resolve([]) : prisma.restaurantArea.findMany({
       where: { tenantId, isActive: true },
       include: {
@@ -110,7 +117,13 @@ export const GET = apiHandler(async (req: NextRequest) => {
       orderBy: { name: "asc" },
     }),
     kitchenOnly ? prisma.restaurantKitchenTicket.findMany({
-      where: { tenantId, status: { in: ["NEW", "PREPARING", "READY"] } },
+      where: {
+        tenantId,
+        OR: [
+          { status: { in: ["NEW", "PREPARING", "READY"] } },
+          { status: "SERVED", servedAt: { gte: new Date(Date.now() - 30 * 60_000) } },
+        ],
+      },
       include: { order: { include: { table: true } }, items: { include: { orderItem: { include: { product: { select: { name: true, imageUrl: true } } } } } } },
       orderBy: { sentAt: "asc" },
       take: 100,
@@ -134,6 +147,8 @@ export const GET = apiHandler(async (req: NextRequest) => {
     openShift,
     today,
     shiftCash,
+    ledgerCashBalance,
+    cashMovements,
     areas,
     categories,
     products: products.map((product) => ({ ...product, imageUrl: resolveDemoProductImage(product.sku, product.imageUrl), salePrice: Number(product.salePrice), stockTotal: stockByProduct.get(product.id) ?? 0 })),
@@ -271,21 +286,34 @@ export const POST = apiHandler(async (req: NextRequest) => {
       const updated = await tx.restaurantOrderItem.update({ where: { id: item.id }, data: { status: body.status } });
       const ticketIds = item.ticketItems.map((row: any) => row.ticketId);
       for (const ticketId of ticketIds) {
-        const ticketItems = await tx.restaurantKitchenTicketItem.findMany({ where: { ticketId }, include: { orderItem: true } });
+        const [ticket, ticketItems] = await Promise.all([
+          tx.restaurantKitchenTicket.findUnique({ where: { id: ticketId }, select: { startedAt: true, readyAt: true, servedAt: true } }),
+          tx.restaurantKitchenTicketItem.findMany({ where: { ticketId }, include: { orderItem: true } }),
+        ]);
         const statuses = ticketItems.map((row: any) => row.orderItem.id === item.id ? body.status : row.orderItem.status);
         const ticketStatus = statuses.every((status: string) => status === "SERVED") ? "SERVED"
           : statuses.every((status: string) => ["READY", "SERVED"].includes(status)) ? "READY"
-            : statuses.some((status: string) => status === "PREPARING") ? "PREPARING" : "NEW";
-        await tx.restaurantKitchenTicket.update({ where: { id: ticketId }, data: { status: ticketStatus, startedAt: ticketStatus === "PREPARING" ? new Date() : undefined, readyAt: ticketStatus === "READY" ? new Date() : undefined, servedAt: ticketStatus === "SERVED" ? new Date() : undefined } });
+            : statuses.some((status: string) => ["PREPARING", "READY", "SERVED"].includes(status)) ? "PREPARING" : "NEW";
+        const changedAt = new Date();
+        await tx.restaurantKitchenTicket.update({
+          where: { id: ticketId },
+          data: {
+            status: ticketStatus,
+            startedAt: ticket?.startedAt ?? (ticketStatus !== "NEW" ? changedAt : undefined),
+            readyAt: ticket?.readyAt ?? (["READY", "SERVED"].includes(ticketStatus) ? changedAt : undefined),
+            servedAt: ticket?.servedAt ?? (ticketStatus === "SERVED" ? changedAt : undefined),
+          },
+        });
       }
       const siblings = await tx.restaurantOrderItem.findMany({ where: { orderId: item.orderId, status: { not: "CANCELLED" } }, select: { id: true, status: true } });
       const statuses = siblings.map((row: any) => row.id === item.id ? body.status : row.status);
       const orderStatus = statuses.every((status: string) => ["READY", "SERVED"].includes(status)) ? "READY"
-        : statuses.some((status: string) => status === "PREPARING") ? "PREPARING" : "SENT";
+        : statuses.some((status: string) => ["PREPARING", "READY", "SERVED"].includes(status)) ? "PREPARING" : "SENT";
       await tx.restaurantOrder.update({ where: { id: item.orderId }, data: { status: orderStatus } });
       return updated;
     });
-    return NextResponse.json({ ok: true, item: result });
+    auditAfterResponse({ userId: session.user.id, action: "restaurant_item_status", module: "restaurant", refId: result.id, detail: body.status });
+    return NextResponse.json({ ok: true, item: result, changedAt: new Date().toISOString() });
   }
 
   if (body.action === "MOVE_TABLE") {

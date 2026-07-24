@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createShiftOpeningCashJournal } from "../src/lib/pos-shift-accounting";
-import { getPosDailySummary, getPosShiftCashPosition } from "../src/lib/pos-daily-summary";
+import { attachPosShiftOperators, getLedgerCashBalance, getPosDailySummary, getPosShiftCashPosition } from "../src/lib/pos-daily-summary";
 
 function fakeJournalTx() {
   const journals: any[] = [];
@@ -124,26 +124,55 @@ const cash = await getPosShiftCashPosition({ id: "shift", openingCash: 3_000 }, 
 });
 assert.equal(cash?.expectedCash, 8_600);
 
+const ledgerCash = await getLedgerCashBalance("tenant", {
+  chartOfAccount: { findMany: async () => [{ id: "cash", code: "1101", name: "庫存現金", openingBalance: 500 }] },
+  journalEntryLine: { aggregate: async () => ({ _sum: { debit: 8_000, credit: 1_200 } }) },
+});
+assert.equal(ledgerCash, 7_300);
+
+const shiftWithOperators = await attachPosShiftOperators({ userId: "opener", closedById: "closer" }, {
+  user: { findMany: async () => [
+    { id: "opener", name: "開班店員", username: "open" },
+    { id: "closer", name: "結班店員", username: "close" },
+  ] },
+});
+assert.equal(shiftWithOperators?.openedBy.name, "開班店員");
+assert.equal(shiftWithOperators?.closedBy?.name, "結班店員");
+
 const shiftRoute = readFileSync("src/app/api/pos/shifts/route.ts", "utf8");
 assert.match(shiftRoute, /direction: "OPEN"/);
 assert.match(shiftRoute, /direction: "CLOSE"/);
 assert.match(shiftRoute, /零用金轉回傳票/);
+assert.match(shiftRoute, /closedById: session.user.id/);
+assert.match(shiftRoute, /cash\.approve/);
+
+const schema = readFileSync("prisma/schema.prisma", "utf8");
+assert.match(schema, /closedById\s+String\?/);
 
 const retail = readFileSync("src/app/(app)/pos/pos-workspace.tsx", "utf8");
 const restaurant = readFileSync("src/app/(app)/pos/restaurant/restaurant-workspace.tsx", "utf8");
 const dashboard = readFileSync("src/app/(app)/dashboard/page.tsx", "utf8");
 const workspace = readFileSync("src/app/(app)/workspace/page.tsx", "utf8");
 assert.match(retail, /今日淨售出件數/);
-assert.match(retail, /開店零用金（會計入帳）/);
+assert.match(retail, /開班庫存現金（由零用金轉入）/);
+assert.match(retail, /總帳庫存現金/);
+assert.match(retail, /開班人員/);
+assert.match(retail, /結班人員/);
 assert.match(restaurant, /今日淨售出份數/);
 assert.match(restaurant, /確認結班並轉回零用金/);
+assert.match(restaurant, /錢櫃投入／提出／抽離/);
+assert.match(restaurant, /總帳庫存現金/);
+assert.match(restaurant, /開班人員/);
+assert.match(restaurant, /結班人員/);
+assert.match(dashboard, />庫存現金</);
+assert.match(dashboard, /已過帳總帳餘額/);
 assert.match(dashboard, /今日官網營業額/);
 assert.match(dashboard, /今日官網訂單/);
 assert.match(dashboard, /今日售出件數/);
 assert.match(workspace, /今日官網營業額/);
 assert.match(workspace, /線上付款沒有實體錢櫃，不建立零用金傳票/);
 
-console.log("POS opening cash journals and daily channel statistics: PASS");
+console.log("POS shift operators, cash ledger, opening journals, and daily statistics: PASS");
 }
 
 void main();

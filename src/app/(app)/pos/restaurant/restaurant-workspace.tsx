@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   ChefHat,
   Clock3,
+  CircleDollarSign,
   CreditCard,
   Loader2,
   Minus,
@@ -19,6 +20,7 @@ import {
   RefreshCw,
   Search,
   Send,
+  ShieldCheck,
   Settings2,
   Store,
   Trash2,
@@ -75,16 +77,22 @@ type KitchenTicket = {
   number: string;
   status: string;
   sentAt: string;
+  startedAt: string | null;
+  readyAt: string | null;
+  servedAt: string | null;
   order: { table: { id: string; name: string } };
   items: Array<{ orderItem: OrderItem }>;
 };
 type InvoiceMode = "NONE" | "PAPER" | "MOBILE_CARRIER" | "CITIZEN_CERT" | "DONATION" | "BUSINESS";
-type ShiftSummary = { openingCash: number; expectedCash: number; difference: number | null; netSales: number; saleCount: number; refundCount: number };
+type ShiftSummary = { openingCash: number; expectedCash: number; difference: number | null; openedBy: { id: string; name: string; username: string }; closingBy: { id: string; name: string; username: string }; netSales: number; saleCount: number; refundCount: number };
+type CashMovement = { id: string; type: "PAID_IN" | "PAID_OUT" | "SAFE_DROP"; status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED"; amount: number | string; reason: string; requestedById: string; approvedById?: string | null; requestedAt: string };
 type Bootstrap = {
   registers: Array<{ id: string; code: string; name: string; warehouseId: string }>;
-  openShift: { id: string; openingCash: number; register: { name: string; warehouseId: string } } | null;
+  openShift: { id: string; userId: string; openingCash: number; openedAt: string; openedBy: { id: string; name: string; username: string }; register: { name: string; warehouseId: string } } | null;
   today: { sales: number; refunds: number; grossAmount: number; refundAmount: number; amount: number; soldQuantity: number; refundedQuantity: number; netQuantity: number } | null;
   shiftCash: { openingCash: number; cashSales: number; cashRefunds: number; expectedCash: number } | null;
+  ledgerCashBalance: number;
+  cashMovements: CashMovement[];
   areas: Area[];
   categories: Array<{ id: string; name: string }>;
   products: Product[];
@@ -99,11 +107,13 @@ const money = (amount: number) => new Intl.NumberFormat("zh-TW", {
   maximumFractionDigits: 0,
 }).format(amount);
 const ACTIVE = new Set(["OPEN", "SENT", "PREPARING", "READY"]);
+const CASH_MOVEMENT_LABELS = { PAID_IN: "投入現金", PAID_OUT: "提出現金", SAFE_DROP: "營業中抽離／入庫" } as const;
+const OPERATION_STATUS_LABELS: Record<string, string> = { PENDING: "待主管核准", APPROVED: "已核准", REJECTED: "已拒絕", CANCELLED: "已取消" };
 const RESTAURANT_BOOTSTRAP_CACHE_TTL_MS = 15_000;
 
 function readRestaurantBootstrapCache(): Bootstrap | null {
   try {
-    const raw = window.sessionStorage.getItem("erin-restaurant-front-bootstrap");
+    const raw = window.sessionStorage.getItem("erin-restaurant-front-bootstrap-v2");
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (!parsed.data || Date.now() - Number(parsed.savedAt || 0) > RESTAURANT_BOOTSTRAP_CACHE_TTL_MS) return null;
@@ -115,7 +125,7 @@ function readRestaurantBootstrapCache(): Bootstrap | null {
 
 function writeRestaurantBootstrapCache(data: Bootstrap) {
   try {
-    window.sessionStorage.setItem("erin-restaurant-front-bootstrap", JSON.stringify({ savedAt: Date.now(), data }));
+    window.sessionStorage.setItem("erin-restaurant-front-bootstrap-v2", JSON.stringify({ savedAt: Date.now(), data }));
   } catch {}
 }
 
@@ -134,6 +144,10 @@ export function RestaurantWorkspace({ kitchenOnly = false, canManageTables = fal
   const [openingCash, setOpeningCash] = useState("0");
   const [closingCash, setClosingCash] = useState("");
   const [closePreview, setClosePreview] = useState<ShiftSummary | null>(null);
+  const [cashPanelOpen, setCashPanelOpen] = useState(false);
+  const [cashMovementType, setCashMovementType] = useState<"PAID_IN" | "PAID_OUT" | "SAFE_DROP">("PAID_IN");
+  const [cashMovementAmount, setCashMovementAmount] = useState("");
+  const [cashMovementReason, setCashMovementReason] = useState("");
   const [categoryId, setCategoryId] = useState("ALL");
   const [query, setQuery] = useState("");
   const [lastSaleId, setLastSaleId] = useState("");
@@ -153,6 +167,7 @@ export function RestaurantWorkspace({ kitchenOnly = false, canManageTables = fal
   const [tableManagerOpen, setTableManagerOpen] = useState(false);
   const sessionPermissions = activeSession?.user?.permissions ?? [];
   const allowTableManagement = canManageTables || sessionPermissions.includes("*") || sessionPermissions.includes("restaurant.manage");
+  const canManageOpeningCash = sessionPermissions.includes("*") || sessionPermissions.includes("cash.approve");
 
   const load = useCallback(async () => {
     const cached = kitchenOnly ? null : readRestaurantBootstrapCache();
@@ -388,6 +403,48 @@ export function RestaurantWorkspace({ kitchenOnly = false, canManageTables = fal
     } catch {}
   }
 
+  async function requestCashMovement() {
+    if (!data?.openShift) return;
+    if (Number(cashMovementAmount) <= 0 || cashMovementReason.trim().length < 2) return toast.error("請輸入正確金額與至少 2 個字的原因");
+    setBusy(true);
+    try {
+      const response = await fetch("/api/pos/cash-movements", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "REQUEST", shiftId: data.openShift.id, type: cashMovementType, amount: Number(cashMovementAmount), reason: cashMovementReason }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "錢櫃異動申請失敗");
+      toast.success(result.message || "已送出主管核准");
+      setCashMovementAmount("");
+      setCashMovementReason("");
+      await load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "錢櫃異動申請失敗");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function decideCashMovement(movementId: string, decision: "APPROVE" | "REJECT") {
+    setBusy(true);
+    try {
+      const response = await fetch("/api/pos/cash-movements", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: decision, movementId }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "主管核准失敗");
+      toast.success(decision === "APPROVE" ? "錢櫃異動已核准" : "錢櫃異動已拒絕");
+      await load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "主管核准失敗");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function openShift() {
     setBusy(true);
     try {
@@ -547,6 +604,7 @@ return <div className="grid min-h-[60vh] animate-pulse gap-4 xl:grid-cols-[280px
             <h1 className="mt-3 text-2xl font-black">餐飲 POS 開班</h1>
             <p className="mt-2 text-sm text-muted-foreground">確認收銀台與開店零用金後，才可開桌與點餐。</p>
           </div>
+          <div className="flex items-center justify-between rounded-xl bg-muted/40 px-4 py-3 text-sm"><span className="text-muted-foreground">開班人員</span><strong>{activeSession?.user?.name || "目前登入帳號"}</strong></div>
           <label className="block text-sm font-medium">
             收銀台
             <select value={registerId} onChange={(event) => setRegisterId(event.target.value)} className="mt-1 h-11 w-full rounded-lg border bg-background px-3">
@@ -554,9 +612,9 @@ return <div className="grid min-h-[60vh] animate-pulse gap-4 xl:grid-cols-[280px
             </select>
           </label>
           <label className="block text-sm font-medium">
-            開店零用金（會計入帳）
-            <input value={openingCash} onChange={(event) => setOpeningCash(event.target.value)} inputMode="decimal" className="mt-1 h-11 w-full rounded-lg border bg-background px-3" />
-            <span className="mt-2 block text-xs leading-5 text-muted-foreground">大於 0 時自動過帳：借記庫存現金、貸記零用金；不列入營業額。結班時原額轉回零用金。</span>
+            開班庫存現金（由零用金轉入）
+            <input value={openingCash} onChange={(event) => setOpeningCash(event.target.value)} inputMode="decimal" disabled={!canManageOpeningCash} className="mt-1 h-11 w-full rounded-lg border bg-background px-3 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground" />
+            <span className="mt-2 block text-xs leading-5 text-muted-foreground">{canManageOpeningCash ? "可輸入或修改；大於 0 時自動過帳：借記庫存現金、貸記零用金。開班後若需調整，請使用錢櫃投入／提出。" : "需要現金管理／核准權限才能輸入或修改；目前將以 0 元開班。"}</span>
           </label>
           <button onClick={openShift} disabled={busy || !registerId} data-shortcut="save" className="h-12 w-full rounded-xl bg-orange-600 font-bold text-white disabled:opacity-50">
             {busy ? "處理中…" : "確認開班"}
@@ -573,30 +631,53 @@ return <div className="grid min-h-[60vh] animate-pulse gap-4 xl:grid-cols-[280px
       <header className="flex flex-col justify-between gap-4 rounded-2xl bg-slate-950 p-5 text-white shadow-xl lg:flex-row lg:items-center">
         <div>
           <div className="text-[11px] font-black uppercase tracking-[.22em] text-orange-400">RESTAURANT POS / FRONT</div><h1 className="mt-1 flex items-center gap-2 text-2xl font-black"><UtensilsCrossed className="h-5 w-5 text-orange-400" />桌位、點餐與廚房同步</h1>
-          <p className="mt-1 text-sm text-slate-300">{data.openShift.register.name}・顏色辨識桌況，一個畫面完成開桌、加點、送廚與結帳</p>
+          <p className="mt-1 text-sm text-slate-300">{data.openShift.register.name}・開班人員 {data.openShift.openedBy.name}・一個畫面完成開桌、加點、送廚與結帳</p>
         </div>
         <div className="flex flex-wrap gap-2">
           {allowTableManagement && <button onClick={() => setTableManagerOpen(true)} className="inline-flex h-10 items-center gap-2 rounded-lg border border-orange-200 bg-orange-50 px-3 text-sm font-bold text-orange-800 dark:border-orange-900 dark:bg-orange-950/30 dark:text-orange-200"><Settings2 className="h-4 w-4" />桌位設定</button>}
           <Link href="/pos/restaurant/kitchen" className="inline-flex h-10 items-center gap-2 rounded-lg bg-white px-4 text-sm font-bold text-slate-950"><ChefHat className="h-4 w-4" />廚房看板</Link>
+          <button onClick={() => setCashPanelOpen(true)} className="inline-flex h-10 items-center gap-2 rounded-lg border border-white/20 px-3 text-sm text-white"><CircleDollarSign className="h-4 w-4" />錢櫃異動{data.cashMovements.some((movement) => movement.status === "PENDING") ? `（${data.cashMovements.filter((movement) => movement.status === "PENDING").length} 待核）` : ""}</button>
           <button onClick={() => void previewCloseShift()} disabled={busy} className="inline-flex h-10 items-center gap-2 rounded-lg border border-white/20 px-3 text-sm text-white disabled:opacity-50"><ReceiptText className="h-4 w-4" />預覽結班</button>
           <button onClick={() => void load()} className="inline-flex h-10 items-center gap-2 rounded-lg border border-white/20 px-3 text-sm text-white"><RefreshCw className="h-4 w-4" />重新整理</button>
         </div>
       </header>
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
         <div className="rounded-xl border bg-card p-4"><div className="text-xs font-bold text-muted-foreground">今日淨營業額</div><div className="mt-2 text-xl font-black">{money(daily.amount)}</div><div className="mt-1 text-[11px] text-muted-foreground">退款 {money(daily.refundAmount)}</div></div>
         <div className="rounded-xl border bg-card p-4"><div className="text-xs font-bold text-muted-foreground">今日淨售出份數</div><div className="mt-2 text-xl font-black">{daily.netQuantity}</div><div className="mt-1 text-[11px] text-muted-foreground">售出 {daily.soldQuantity}／退回 {daily.refundedQuantity}</div></div>
         <div className="rounded-xl border bg-card p-4"><div className="text-xs font-bold text-muted-foreground">今日結帳筆數</div><div className="mt-2 text-xl font-black">{daily.sales}</div><div className="mt-1 text-[11px] text-muted-foreground">退款 {daily.refunds} 筆</div></div>
         <div className="rounded-xl border bg-card p-4"><div className="text-xs font-bold text-muted-foreground">開店零用金</div><div className="mt-2 text-xl font-black">{money(data.shiftCash?.openingCash ?? data.openShift.openingCash)}</div><div className="mt-1 text-[11px] text-emerald-700">已納入會計傳票</div></div>
         <div className="rounded-xl border bg-card p-4"><div className="text-xs font-bold text-muted-foreground">目前應有現金</div><div className="mt-2 text-xl font-black">{money(data.shiftCash?.expectedCash ?? data.openShift.openingCash)}</div><div className="mt-1 text-[11px] text-muted-foreground">含現金銷售與已核准異動</div></div>
+        <div className="rounded-xl border bg-card p-4"><div className="text-xs font-bold text-muted-foreground">總帳庫存現金</div><div className="mt-2 text-xl font-black">{money(data.ledgerCashBalance)}</div><div className="mt-1 text-[11px] text-muted-foreground">所有已過帳庫存現金餘額</div></div>
       </section>
 
       {allowTableManagement && <TableManager open={tableManagerOpen} onOpenChange={setTableManagerOpen} areas={data.tableSettings ?? []} busy={busy} onAction={action} />}
+
+      <Dialog open={cashPanelOpen} onOpenChange={(open) => { if (!busy) setCashPanelOpen(open); }}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader><DialogTitle className="flex items-center gap-2"><CircleDollarSign className="h-5 w-5" />錢櫃投入／提出／抽離</DialogTitle><DialogDescription>輸入金額與原因後送出申請；主管核准後才計入目前應有現金及結班差額。</DialogDescription></DialogHeader>
+          <div className="space-y-5">
+            <div className="grid gap-3 rounded-xl border bg-muted/30 p-4 md:grid-cols-[180px_160px_1fr_auto]">
+              <select value={cashMovementType} onChange={(event) => setCashMovementType(event.target.value as "PAID_IN" | "PAID_OUT" | "SAFE_DROP")} className="h-10 rounded-lg border bg-background px-3 text-sm"><option value="PAID_IN">投入現金</option><option value="PAID_OUT">提出現金</option><option value="SAFE_DROP">營業中抽離／入庫</option></select>
+              <input value={cashMovementAmount} onChange={(event) => setCashMovementAmount(event.target.value)} inputMode="decimal" placeholder="金額" className="h-10 rounded-lg border bg-background px-3 text-right" />
+              <input value={cashMovementReason} onChange={(event) => setCashMovementReason(event.target.value)} placeholder="原因，例如：補充零錢、支付臨時運費" className="h-10 min-w-0 rounded-lg border bg-background px-3" />
+              <button onClick={() => void requestCashMovement()} disabled={busy} className="h-10 rounded-lg bg-orange-600 px-4 font-semibold text-white disabled:opacity-40">送出申請</button>
+            </div>
+            <div className="max-h-[45vh] overflow-auto rounded-xl border">
+              <table className="w-full min-w-[760px] text-sm"><thead className="sticky top-0 bg-muted"><tr><th className="p-3 text-left">時間</th><th className="p-3 text-left">類型</th><th className="p-3 text-right">金額</th><th className="p-3 text-left">原因</th><th className="p-3 text-left">狀態</th><th className="p-3 text-right">主管操作</th></tr></thead><tbody>
+                {data.cashMovements.map((movement) => <tr key={movement.id} className="border-t"><td className="p-3">{new Date(movement.requestedAt).toLocaleString("zh-TW")}</td><td className="p-3">{CASH_MOVEMENT_LABELS[movement.type]}</td><td className="p-3 text-right font-semibold">{money(Number(movement.amount))}</td><td className="p-3">{movement.reason}</td><td className="p-3">{OPERATION_STATUS_LABELS[movement.status] || movement.status}</td><td className="p-3 text-right">{movement.status === "PENDING" && canManageOpeningCash ? <div className="inline-flex gap-2"><button onClick={() => void decideCashMovement(movement.id, "REJECT")} disabled={busy} className="h-8 rounded-lg border px-3">拒絕</button><button onClick={() => void decideCashMovement(movement.id, "APPROVE")} disabled={busy} className="inline-flex h-8 items-center gap-1 rounded-lg bg-emerald-600 px-3 text-white"><ShieldCheck className="h-4 w-4" />核准</button></div> : <span className="text-xs text-muted-foreground">{movement.status === "PENDING" ? "等待主管" : "—"}</span>}</td></tr>)}
+                {data.cashMovements.length === 0 && <tr><td colSpan={6} className="p-8 text-center text-muted-foreground">本班次尚無錢櫃異動</td></tr>}
+              </tbody></table>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={closePreview !== null} onOpenChange={(open) => { if (!open && !busy) setClosePreview(null); }}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>餐飲 POS 結班</DialogTitle><DialogDescription>確認本班銷售與錢櫃，結班後開店零用金會轉回零用金科目。</DialogDescription></DialogHeader>
           {closePreview && <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3 rounded-xl border p-4 text-sm"><div><div className="text-muted-foreground">開班人員</div><div className="mt-1 font-bold">{closePreview.openedBy.name}</div></div><div><div className="text-muted-foreground">結班人員</div><div className="mt-1 font-bold">{closePreview.closingBy.name}</div></div></div>
             <div className="grid grid-cols-2 gap-3 text-sm">
               <div className="rounded-xl bg-orange-50 p-3"><div className="text-orange-700">本班淨銷售</div><div className="mt-1 font-black text-orange-900">{money(closePreview.netSales)}</div></div>
               <div className="rounded-xl bg-emerald-50 p-3"><div className="text-emerald-700">應有現金</div><div className="mt-1 font-black text-emerald-900">{money(closePreview.expectedCash)}</div></div>
@@ -835,19 +916,83 @@ function KitchenBoard({ tickets, busy, refresh, update }: {
   refresh: () => Promise<void>;
   update: (itemId: string, status: "PREPARING" | "READY" | "SERVED") => Promise<any>;
 }) {
+  const [pendingItemId, setPendingItemId] = useState("");
+  const [optimisticStatuses, setOptimisticStatuses] = useState<Record<string, string>>({});
+  const [feedback, setFeedback] = useState<{ tone: "progress" | "success" | "error"; text: string } | null>(null);
+
+  useEffect(() => {
+    setOptimisticStatuses((current) => {
+      const next = { ...current };
+      for (const ticket of tickets) {
+        for (const { orderItem } of ticket.items) {
+          if (next[orderItem.id] === orderItem.status) delete next[orderItem.id];
+        }
+      }
+      return next;
+    });
+  }, [tickets]);
+
+  const statusLabel = (status: string) => status === "SENT" ? "等待製作" : status === "PREPARING" ? "製作中" : status === "READY" ? "完成待出" : status === "SERVED" ? "已出餐" : status;
+  const clock = (value: string | null | undefined) => value ? new Date(value).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "Asia/Taipei" }) : "—";
+  const duration = (from: string | null | undefined, to: string | null | undefined) => {
+    if (!from) return "—";
+    const seconds = Math.max(0, Math.round(((to ? new Date(to) : new Date()).getTime() - new Date(from).getTime()) / 1000));
+    const minutes = Math.floor(seconds / 60);
+    return minutes > 0 ? `${minutes} 分 ${seconds % 60} 秒` : `${seconds} 秒`;
+  };
+
+  async function changeStatus(ticket: KitchenTicket, orderItem: OrderItem, status: "PREPARING" | "READY" | "SERVED") {
+    const actionLabel = status === "PREPARING" ? "開始製作" : status === "READY" ? "完成待出" : "確認出餐";
+    setPendingItemId(orderItem.id);
+    setOptimisticStatuses((current) => ({ ...current, [orderItem.id]: status }));
+    setFeedback({ tone: "progress", text: `${ticket.order.table.name}・${orderItem.product.name}：${actionLabel}處理中…` });
+    const result = await update(orderItem.id, status);
+    if (result) {
+      setFeedback({ tone: "success", text: `✓ ${ticket.order.table.name}・${orderItem.product.name}：${statusLabel(status)}，時間 ${clock(result.changedAt ?? new Date().toISOString())}` });
+    } else {
+      setOptimisticStatuses((current) => {
+        const next = { ...current };
+        delete next[orderItem.id];
+        return next;
+      });
+      setFeedback({ tone: "error", text: `✕ ${ticket.order.table.name}・${orderItem.product.name}：狀態更新失敗，請再試一次` });
+    }
+    setPendingItemId("");
+  }
+
   return <div className="space-y-4">
     <header className="flex flex-col justify-between gap-3 rounded-2xl bg-slate-950 p-5 text-white md:flex-row md:items-center">
-      <div><h1 className="flex items-center gap-2 text-2xl font-black"><ChefHat className="h-6 w-6 text-orange-400" />廚房出餐看板</h1><p className="mt-1 text-xs text-slate-400">每 10 秒自動更新；狀態同步外場桌單</p></div>
+      <div><h1 className="flex items-center gap-2 text-2xl font-black"><ChefHat className="h-6 w-6 text-orange-400" />廚房出餐看板</h1><p className="mt-1 text-xs text-slate-400">每 10 秒自動更新；卡片內即時顯示製作、完成與出餐時間，已出餐保留 30 分鐘</p></div>
       <div className="flex gap-2"><Link href="/pos/restaurant" className="h-10 rounded-lg border border-white/20 px-4 py-2 text-sm">回點餐</Link><button onClick={() => void refresh()} className="inline-flex h-10 items-center gap-2 rounded-lg bg-white px-4 text-sm font-bold text-slate-950"><RefreshCw className="h-4 w-4" />更新</button></div>
     </header>
+
+    {feedback && <div role="status" aria-live="polite" className={`rounded-2xl border-2 p-4 text-base font-black shadow-sm ${feedback.tone === "success" ? "border-emerald-400 bg-emerald-50 text-emerald-900" : feedback.tone === "error" ? "border-rose-400 bg-rose-50 text-rose-900" : "animate-pulse border-orange-400 bg-orange-50 text-orange-900"}`}>{feedback.text}</div>}
+
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-      {tickets.map((ticket) => <article key={ticket.id} className={`rounded-2xl border-2 bg-card p-4 shadow-sm ${ticket.status === "READY" ? "border-emerald-400" : ticket.status === "PREPARING" ? "border-orange-400" : "border-slate-300"}`}>
-        <div className="flex justify-between gap-3"><div><div className="text-lg font-black">{ticket.order.table.name}</div><div className="text-xs text-muted-foreground">{ticket.number}</div></div><div className="flex items-start gap-2"><button onClick={() => window.open(`/print/kitchen/${ticket.id}`, "_blank", "noopener,noreferrer")} title="列印廚房單" className="rounded-lg border p-2"><Printer className="h-4 w-4" /></button><span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-bold text-slate-700">{ticket.status}</span></div></div>
-        <div className="mt-4 space-y-3">{ticket.items.map(({ orderItem }) => <div key={orderItem.id} className="rounded-xl border p-3">
-          <div className="flex justify-between gap-2"><div className="font-bold">{Number(orderItem.quantity)} × {orderItem.product.name}</div><span className="text-xs text-muted-foreground">{orderItem.status}</span></div>
-          {orderItem.note && <div className="mt-1 text-sm font-semibold text-rose-600">備註：{orderItem.note}</div>}
-          <div className="mt-3 flex gap-2">{orderItem.status === "SENT" && <button disabled={busy} onClick={() => void update(orderItem.id, "PREPARING")} className="flex-1 rounded-lg bg-orange-500 px-2 py-2 text-xs font-bold text-white">開始製作</button>}{["SENT", "PREPARING"].includes(orderItem.status) && <button disabled={busy} onClick={() => void update(orderItem.id, "READY")} className="flex-1 rounded-lg bg-emerald-600 px-2 py-2 text-xs font-bold text-white">完成待出</button>}{orderItem.status === "READY" && <button disabled={busy} onClick={() => void update(orderItem.id, "SERVED")} className="flex-1 rounded-lg bg-indigo-600 px-2 py-2 text-xs font-bold text-white">已出餐</button>}</div>
-        </div>)}</div>
+      {tickets.map((ticket) => <article key={ticket.id} className={`rounded-2xl border-2 p-4 shadow-md transition-all ${ticket.status === "SERVED" ? "border-indigo-400 bg-indigo-50/70" : ticket.status === "READY" ? "border-emerald-500 bg-emerald-50/60 ring-2 ring-emerald-200" : ticket.status === "PREPARING" ? "border-orange-500 bg-orange-50/60" : "border-slate-300 bg-card"}`}>
+        <div className="flex justify-between gap-3"><div><div className="text-xl font-black">{ticket.order.table.name}</div><div className="text-xs text-muted-foreground">{ticket.number}</div></div><div className="flex items-start gap-2"><button onClick={() => window.open(`/print/kitchen/${ticket.id}`, "_blank", "noopener,noreferrer")} title="列印廚房單" className="rounded-lg border bg-white p-2"><Printer className="h-4 w-4" /></button><span className={`rounded-full px-3 py-1 text-xs font-black ${ticket.status === "SERVED" ? "bg-indigo-600 text-white" : ticket.status === "READY" ? "bg-emerald-600 text-white" : ticket.status === "PREPARING" ? "bg-orange-500 text-white" : "bg-slate-200 text-slate-800"}`}>{statusLabel(ticket.status)}</span></div></div>
+        <div className="mt-3 grid grid-cols-2 gap-2 rounded-xl border bg-white/80 p-3 text-xs">
+          <div><span className="text-muted-foreground">送廚</span><strong className="ml-2">{clock(ticket.sentAt)}</strong></div>
+          <div><span className="text-muted-foreground">開始</span><strong className="ml-2">{clock(ticket.startedAt)}</strong></div>
+          <div><span className="text-muted-foreground">完成</span><strong className="ml-2">{clock(ticket.readyAt)}</strong></div>
+          <div><span className="text-muted-foreground">出餐</span><strong className="ml-2">{clock(ticket.servedAt)}</strong></div>
+          <div className="col-span-2 border-t pt-2"><span className="text-muted-foreground">目前總耗時</span><strong className="ml-2 text-sm">{duration(ticket.sentAt, ticket.servedAt)}</strong>{ticket.startedAt && ticket.readyAt && <span className="ml-3 text-muted-foreground">製作 {duration(ticket.startedAt, ticket.readyAt)}</span>}</div>
+        </div>
+        <div className="mt-4 space-y-3">{ticket.items.map(({ orderItem }) => {
+          const displayStatus = optimisticStatuses[orderItem.id] ?? orderItem.status;
+          const processing = pendingItemId === orderItem.id;
+          const itemTone = displayStatus === "SERVED" ? "border-indigo-400 bg-indigo-100/70" : displayStatus === "READY" ? "border-emerald-500 bg-emerald-100/80 ring-2 ring-emerald-200" : displayStatus === "PREPARING" ? "border-orange-500 bg-orange-100/80" : "border-slate-200 bg-white";
+          return <div key={orderItem.id} className={`rounded-xl border-2 p-3 transition-all ${itemTone} ${processing ? "animate-pulse" : ""}`}>
+            <div className="flex justify-between gap-2"><div className="text-base font-black">{Number(orderItem.quantity)} × {orderItem.product.name}</div><span className={`rounded-full px-2 py-1 text-xs font-black ${displayStatus === "SERVED" ? "bg-indigo-600 text-white" : displayStatus === "READY" ? "bg-emerald-600 text-white" : displayStatus === "PREPARING" ? "bg-orange-500 text-white" : "bg-slate-200 text-slate-800"}`}>{processing ? "更新中…" : statusLabel(displayStatus)}</span></div>
+            {orderItem.note && <div className="mt-2 rounded-lg bg-rose-100 p-2 text-sm font-black text-rose-700">備註：{orderItem.note}</div>}
+            <div className="mt-3 flex gap-2">
+              {orderItem.status === "SENT" && <button disabled={busy || processing} onClick={() => void changeStatus(ticket, orderItem, "PREPARING")} className="h-12 flex-1 rounded-xl bg-orange-500 px-3 text-sm font-black text-white shadow-lg shadow-orange-200 disabled:opacity-50">{processing ? "處理中…" : "▶ 開始製作"}</button>}
+              {["SENT", "PREPARING"].includes(orderItem.status) && <button disabled={busy || processing} onClick={() => void changeStatus(ticket, orderItem, "READY")} className="h-12 flex-1 rounded-xl bg-emerald-600 px-3 text-sm font-black text-white shadow-lg shadow-emerald-200 disabled:opacity-50">{processing ? "處理中…" : "✓ 完成待出"}</button>}
+              {orderItem.status === "READY" && <button disabled={busy || processing} onClick={() => void changeStatus(ticket, orderItem, "SERVED")} className="h-12 flex-1 rounded-xl bg-indigo-600 px-3 text-sm font-black text-white shadow-lg shadow-indigo-200 disabled:opacity-50">{processing ? "處理中…" : "↗ 確認已出餐"}</button>}
+              {orderItem.status === "SERVED" && <div className="flex h-12 flex-1 items-center justify-center rounded-xl border-2 border-indigo-400 bg-indigo-100 text-sm font-black text-indigo-900">✓ 已出餐完成</div>}
+            </div>
+          </div>;
+        })}</div>
       </article>)}
       {tickets.length === 0 && <div className="col-span-full rounded-2xl border border-dashed p-16 text-center text-muted-foreground"><ChefHat className="mx-auto h-12 w-12 opacity-30" /><div className="mt-3 font-bold">目前沒有待製作餐點</div></div>}
     </div>
