@@ -180,5 +180,10 @@ for (const secretName of ["MAC_CSC_LINK", "APPLE_APP_SPECIFIC_PASSWORD", "WIN_CS
   assert.match(workflow, new RegExp(secretName));
 }
 assert.match(workflow, /needs: \[host-installers, desktop-clients\]/);
+assert.match(workflow, /host_only:/);
+assert.match(workflow, /host-release:[\s\S]*needs: host-installers/);
+assert.match(workflow, /inputs\.host_only/);
+assert.match(workflow, /unzip -p dist\/desktop\/ErinERP-Host-Windows-/);
+assert.match(workflow, /unzip -p dist\/desktop\/ErinERP-Host-macOS-/);
 
 console.log("Desktop package, Windows Host path bridge, signature repair, updater recovery and security configuration: PASS");
