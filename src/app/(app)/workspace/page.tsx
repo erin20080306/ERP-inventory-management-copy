@@ -8,7 +8,7 @@ import { getProductEdition, normalizeBusinessMode } from "@/lib/product-editions
 import { formatMoney, formatNumber } from "@/lib/utils";
 import { prisma } from "@/lib/prisma";
 import { normalizeStoreSlug } from "@/lib/storefront-branding";
-import { medicalSiteUrl, storefrontUrl } from "@/lib/public-site-links";
+import { medicalSitePath, storefrontPath } from "@/lib/public-site-links";
 
 export const dynamic = "force-dynamic";
 
@@ -47,11 +47,13 @@ export default async function WorkspacePage() {
       : null,
   ]);
   const publicWebsiteKey = publicWebsiteSettings?.storeSlug || normalizeStoreSlug(storefrontCode);
-  const tenantStorefrontHref = storefrontUrl(publicWebsiteKey);
-  const tenantMedicalSiteHref = medicalSiteUrl(publicWebsiteKey);
+  // 管理者預覽必須留在目前 ERP 網域，NextAuth Cookie 才不會因跨 Vercel
+  // 網域而遺失；對外分享的完整網址仍由設定頁的 storefrontUrl 提供。
+  const tenantStorefrontHref = storefrontPath(publicWebsiteKey);
+  const tenantMedicalSiteHref = medicalSitePath(publicWebsiteKey);
   const cards = [
     ...((mode === "ECOMMERCE" || isPlatformAdmin)
-      ? [{ title: mode === "ECOMMERCE" ? "預覽我的品牌商城" : "電商租戶網站示範", description: "消費者前台與 ERP 共用商品、可售庫存、會員與網路訂單", href: mode === "ECOMMERCE" ? tenantStorefrontHref : storefrontUrl("atelier-noir"), icon: Store, tone: "rose" }]
+      ? [{ title: mode === "ECOMMERCE" ? "預覽我的品牌商城" : "預覽內部測試商城", description: "消費者前台與 ERP 共用商品、可售庫存、會員與網路訂單", href: tenantStorefrontHref, icon: Store, tone: "rose" }]
       : []),
     ...((mode === "ECOMMERCE" || isPlatformAdmin) && hasPermission(permissions, "dashboard.view")
       ? [{ title: "進入 ERP 營運後台", description: "網路訂單、商品、庫存、出貨、應收與會計整合管理", href: "/dashboard", icon: Building2, tone: "indigo" }]
@@ -63,7 +65,7 @@ export default async function WorkspacePage() {
       ? [{ title: "餐飲桌位與點餐", description: "圖片點餐、加點、送廚、出餐與桌位結帳", href: "/pos/restaurant", icon: UtensilsCrossed, tone: "orange" }]
       : []),
     ...((mode === "POS_MEDICAL" || isPlatformAdmin)
-      ? [{ title: mode === "POS_MEDICAL" ? "預覽我的醫美官網" : "醫美診所網站示範", description: "專業形象官網、圖片選服務與線上預約", href: mode === "POS_MEDICAL" ? tenantMedicalSiteHref : medicalSiteUrl("atelier-clinic"), icon: Store, tone: "rose" }]
+      ? [{ title: mode === "POS_MEDICAL" ? "預覽我的醫美官網" : "預覽內部醫美官網", description: "專業形象官網、圖片選服務與線上預約", href: tenantMedicalSiteHref, icon: Store, tone: "rose" }]
       : []),
     ...((mode === "POS_MEDICAL" || isPlatformAdmin) && (hasPermission(permissions, "medical.view") || hasPermission(permissions, "pos.view"))
       ? [{ title: "醫美 POS 與預約排程", description: "預約、套票、會員儲值、同意書、療程紀錄、醫療收據與耗材", href: "/medical", icon: HeartPulse, tone: "rose" }]

@@ -32,7 +32,7 @@ const tenantAdmin = {
 };
 
 assert.equal(isTenantHighestPrivilege(tenantAdmin), true);
-assert.equal(tenantStorefrontPath(tenantAdmin), "https://erp-inventory-management-copy.vercel.app/store/fat-duck");
+assert.equal(tenantStorefrontPath(tenantAdmin), "/store/fat-duck");
 assert.equal(canManageTenantStorefront(tenantAdmin, "fat-duck"), true);
 assert.equal(canManageTenantStorefront(tenantAdmin, "SHOP-TW-001"), true);
 assert.equal(canManageTenantStorefront(tenantAdmin, "shop-tw-001"), true);
@@ -45,7 +45,7 @@ const medicalAdmin = {
   storeSlug: "clinic-tw",
   businessMode: "POS_MEDICAL" as const,
 };
-assert.equal(tenantMedicalSitePath(medicalAdmin), "https://erp-inventory-management-copy.vercel.app/medical/clinic-tw");
+assert.equal(tenantMedicalSitePath(medicalAdmin), "/medical/clinic-tw");
 assert.equal(canManageTenantMedicalSite(medicalAdmin, "clinic-tw"), true);
 assert.equal(canManageTenantMedicalSite(medicalAdmin, "MEDICAL-TW-001"), true);
 assert.equal(canManageTenantMedicalSite(medicalAdmin, "medical-tw-001"), true);
@@ -75,7 +75,7 @@ assert.equal(tenantStorefrontPath({
   tenantId: "Tenant A/01",
   permissions: ["*"],
   businessMode: "ECOMMERCE",
-}), "https://erp-inventory-management-copy.vercel.app/store/Tenant%20A%2F01");
+}), "/store/Tenant%20A%2F01");
 
 assert.match(resolveDemoProductImage("F001", null) ?? "", /photo-1568901346375-23c9450c58cd/);
 assert.equal(resolveDemoProductImage("RTL-P001", null), "/demo-products/cotton-tote.webp");
@@ -188,6 +188,7 @@ assert.doesNotMatch(commerceDashboard, /商城已綁定公司代碼/);
 assert.doesNotMatch(commerceWorkspace, /商城與後台共用公司代碼/);
 assert.match(commerceStoreApi, /businessMode: "ECOMMERCE"/);
 assert.match(commerceStoreApi, /tenantId: tenant\.id/);
+assert.match(commerceStoreApi, /tenantId:\s*tenant\.id,[\s\S]*status:\s*"SUBMITTED"/);
 assert.match(commerceStoreApi, /companySettings: \{ some: \{ storeSlug/);
 assert.match(commerceStoreApi, /storeName/);
 assert.match(commerceStoreApi, /isActive:\s*true,\s*isPublished:\s*true/);
@@ -207,11 +208,15 @@ assert.doesNotMatch(commerceStorefront, /王小美，午安/);
 assert.doesNotMatch(commerceStorefront, /租戶資料隔離/);
 assert.doesNotMatch(commerceStorefront, /安全密碼保存/);
 assert.doesNotMatch(commerceStorefront, /訂單自動歸戶/);
-assert.match(commerceStorefront, /亮黃連帽休閒套裝/);
 assert.match(commerceStorefrontStyles, /\.shell \.memberAuthSubmit[^}]*color: #fff/);
 assert.match(commerceStorefront, /\{managerAccess && \(\s*<section className=\{styles\.integration\}>/);
 assert.match(commerceStorefront, /一般消費者不會看到/);
 assert.match(commerceStorefront, /切換 ERP/);
+assert.match(commerceStorefront, /商城目前暫停下單/);
+assert.match(commerceStorefront, /setAcceptingOrders\(false\)/);
+assert.match(commerceStorefront, /setProducts\(\[\]\)/);
+assert.doesNotMatch(commerceStorefront, /DEMO-/);
+assert.doesNotMatch(commerceStorefront, /展示訂單/);
 assert.match(commerceStorePage, /session\?\.user\?\.tenantId === identity\.id/);
 assert.match(commerceStorePage, /managerErpHref = session\?\.user\?\.isSuperAdmin \? "\/workspace" : "\/dashboard"/);
 assert.match(commerceWorkspace, /href=\{tenantStorefrontHref\}/);

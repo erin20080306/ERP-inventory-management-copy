@@ -11,10 +11,18 @@ export function publicStorefrontOrigin() {
   ).replace(/\/$/, "");
 }
 
+export function storefrontPath(slug: string) {
+  return `/store/${encodeURIComponent(slug)}`;
+}
+
+export function medicalSitePath(slug: string) {
+  return `/medical/${encodeURIComponent(slug)}`;
+}
+
 export function storefrontUrl(slug: string) {
-  return `${publicStorefrontOrigin()}/store/${encodeURIComponent(slug)}`;
+  return `${publicStorefrontOrigin()}${storefrontPath(slug)}`;
 }
 
 export function medicalSiteUrl(slug: string) {
-  return `${publicStorefrontOrigin()}/medical/${encodeURIComponent(slug)}`;
+  return `${publicStorefrontOrigin()}${medicalSitePath(slug)}`;
 }

@@ -23,6 +23,8 @@ type Product = {
   isActive: boolean;
   isPublished: boolean;
   stockTotal?: number;
+  reservedTotal?: number;
+  availableStock?: number;
   soldTotal?: number;
   categoryId?: string | null;
   unitId?: string | null;
@@ -422,17 +424,24 @@ export function ProductClient({ isCommerce = false }: { isCommerce?: boolean }) 
           { key: "safetyStock", title: "安全庫存", render: (r) => formatNumber(Number(r.safetyStock)), editable: { type: "number" }, csv: (r) => Number(r.safetyStock) },
           {
             key: "stockTotal",
-            title: "剩餘庫存",
+            title: "實體庫存",
             render: (r) => {
               const stock = Number(r.stockTotal ?? 0);
-              const safe = Number(r.safetyStock);
-              return (
-                <span className={stock < safe ? "text-red-600 font-medium" : "text-emerald-600"}>
-                  {formatNumber(stock)}
-                </span>
-              );
+              return <span>{formatNumber(stock)}</span>;
             },
           },
+          ...(isCommerce ? [{
+            key: "reservedTotal",
+            title: "商城保留",
+            render: (r: Product) => <span className={Number(r.reservedTotal ?? 0) > 0 ? "font-medium text-amber-600" : "text-muted-foreground"}>{formatNumber(Number(r.reservedTotal ?? 0))}</span>,
+          }, {
+            key: "availableStock",
+            title: "可售量",
+            render: (r: Product) => {
+              const available = Number(r.availableStock ?? r.stockTotal ?? 0);
+              return <span className={available < Number(r.safetyStock) ? "font-medium text-red-600" : "font-medium text-emerald-600"}>{formatNumber(available)}</span>;
+            },
+          }] : []),
           {
             key: "soldTotal",
             title: "已售出",
@@ -443,9 +452,11 @@ export function ProductClient({ isCommerce = false }: { isCommerce?: boolean }) 
             title: "庫存警示",
             render: (r) => {
               const stock = Number(r.stockTotal ?? 0);
+              const available = Number(r.availableStock ?? stock);
               const safe = Number(r.safetyStock);
-              if (stock <= 0) return <Badge variant="danger">缺貨</Badge>;
-              if (stock < safe) return <Badge variant="warning">低庫存</Badge>;
+              if (available <= 0) return <Badge variant="danger">缺貨</Badge>;
+              if (available < safe) return <Badge variant="warning">低庫存</Badge>;
+              if (Number(r.reservedTotal ?? 0) > 0) return <Badge variant="info">商城保留中</Badge>;
               return <Badge variant="success">正常</Badge>;
             },
           },

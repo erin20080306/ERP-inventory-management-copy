@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { resolveDemoProductImage } from "@/lib/demo-product-media";
 import { normalizeBusinessMode, productCatalogScope } from "@/lib/product-editions";
+import { reservedCommerceQuantityByProduct } from "@/lib/commerce-checkout";
 
 const ProductInput = z.object({
   sku: z.string().min(1),
@@ -87,21 +88,38 @@ export const GET = apiHandler(async (req: NextRequest) => {
     }),
     prisma.product.count({ where }),
   ]);
-  const soldRows = items.length
-    ? await prisma.salesOrderItem.groupBy({
-        by: ["productId"],
-        where: { productId: { in: items.map((p) => p.id) }, order: { tenantId } },
-        _sum: { quantity: true },
-      })
-    : [];
+  const [soldRows, pendingWebLines] = items.length
+    ? await Promise.all([
+        prisma.salesOrderItem.groupBy({
+          by: ["productId"],
+          where: { productId: { in: items.map((p) => p.id) }, order: { tenantId } },
+          _sum: { quantity: true },
+        }),
+        prisma.salesOrderItem.findMany({
+          where: {
+            productId: { in: items.map((product) => product.id) },
+            order: {
+              tenantId,
+              status: { in: ["SUBMITTED", "APPROVED", "PARTIALLY_SHIPPED"] },
+              remark: { startsWith: "[WEB]" },
+            },
+          },
+          select: { productId: true, quantity: true, shippedQty: true },
+        }),
+      ])
+    : [[], []];
   const soldByProduct = new Map(soldRows.map((row) => [row.productId, Number(row._sum.quantity ?? 0)]));
+  const reservedByProduct = reservedCommerceQuantityByProduct(pendingWebLines);
   return NextResponse.json({
     items: items.map((p: any) => {
       const stockTotal = p.stocks.reduce((s: number, x: any) => s + Number(x.quantity), 0);
+      const reservedTotal = reservedByProduct.get(p.id) ?? 0;
       return {
         ...p,
         imageUrl: resolveDemoProductImage(p.sku, p.imageUrl, p.name, p.category?.name, useRetailFallback),
         stockTotal,
+        reservedTotal,
+        availableStock: Math.max(0, stockTotal - reservedTotal),
         soldTotal: soldByProduct.get(p.id) ?? 0,
       };
     }),

@@ -21,7 +21,7 @@ import { normalizeBusinessMode } from "@/lib/product-editions";
 import { formatDateTime, formatMoney, formatNumber } from "@/lib/utils";
 import { prisma } from "@/lib/prisma";
 import { normalizeStoreSlug } from "@/lib/storefront-branding";
-import { storefrontUrl } from "@/lib/public-site-links";
+import { storefrontPath } from "@/lib/public-site-links";
 import { DashboardVisuals } from "./dashboard-visuals";
 
 export const dynamic = "force-dynamic";
@@ -104,7 +104,7 @@ export default async function DashboardPage() {
       ? prisma.companySetting.findFirst({ where: { tenantId }, select: { storeSlug: true } })
       : null,
   ]);
-  const storefrontHref = storefrontUrl(publicWebsiteSettings?.storeSlug || normalizeStoreSlug(companyCode));
+  const storefrontHref = storefrontPath(publicWebsiteSettings?.storeSlug || normalizeStoreSlug(companyCode));
 
   return (
     <div className="space-y-5">

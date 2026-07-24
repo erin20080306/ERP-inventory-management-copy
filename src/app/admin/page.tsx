@@ -6,10 +6,11 @@ import { signOut, useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import {
   Building2, CheckCircle2, ChevronLeft, ChevronRight, KeyRound, LayoutDashboard,
-  Loader2, LogOut, Mail, MonitorSmartphone, RefreshCw, Search, Shield, ShoppingBag, Store, Users, X, UtensilsCrossed, Download, PanelsTopLeft, HeartPulse,
+  Loader2, LogOut, Mail, MonitorSmartphone, Package, RefreshCw, Search, Shield, ShoppingBag, Store, Users, X, UtensilsCrossed, Download, PanelsTopLeft, HeartPulse,
 } from "lucide-react";
 import { PLAN_CATALOG, formatTwd, getPlanPrice, type BillingCycle, type PlanCode } from "@/lib/plans";
 import { getProductEdition, type BusinessMode } from "@/lib/product-editions";
+import { tenantStorefrontPath } from "@/lib/storefront-access";
 
 type TenantRow = {
   id: string;
@@ -114,6 +115,7 @@ export default function AdminPage() {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<TenantRow | null>(null);
+  const internalStorefrontHref = tenantStorefrontPath(session?.user);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -155,7 +157,8 @@ export default function AdminPage() {
           </div>
           <div className="flex flex-wrap gap-2">
             <Link href="/workspace" className="admin-button bg-indigo-600 hover:bg-indigo-500"><PanelsTopLeft className="h-4 w-4" />切換 ERP／電商工作區</Link>
-            <Link href="/store/atelier-noir" className="admin-button bg-rose-700 hover:bg-rose-600"><Store className="h-4 w-4" />電商網站</Link>
+            {internalStorefrontHref && <Link href={internalStorefrontHref} className="admin-button bg-rose-700 hover:bg-rose-600"><Store className="h-4 w-4" />內部測試商城</Link>}
+            <Link href="/admin/products" className="admin-button bg-sky-700 hover:bg-sky-600"><Package className="h-4 w-4" />全部租戶商品</Link>
             <Link href="/pos" className="admin-button bg-emerald-600 hover:bg-emerald-500"><ShoppingBag className="h-4 w-4" />零售 POS</Link>
             <Link href="/pos/restaurant" className="admin-button bg-orange-600 hover:bg-orange-500"><UtensilsCrossed className="h-4 w-4" />餐飲 POS</Link>
             <Link href="/medical" className="admin-button bg-fuchsia-700 hover:bg-fuchsia-600"><HeartPulse className="h-4 w-4" />醫美 POS</Link>

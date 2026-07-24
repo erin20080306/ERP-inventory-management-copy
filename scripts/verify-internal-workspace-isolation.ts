@@ -70,8 +70,8 @@ const internalAdmin = {
   businessMode: "POS_RESTAURANT",
   permissions: ["*"],
 };
-assert.equal(tenantStorefrontPath(internalAdmin), "https://erp-inventory-management-copy.vercel.app/store/ERIN-INTERNAL");
-assert.equal(tenantMedicalSitePath(internalAdmin), "https://erp-inventory-management-copy.vercel.app/medical/ERIN-INTERNAL");
+assert.equal(tenantStorefrontPath(internalAdmin), "/store/ERIN-INTERNAL");
+assert.equal(tenantMedicalSitePath(internalAdmin), "/medical/ERIN-INTERNAL");
 
 console.log("internal five-workspace POS isolation, public URLs, and medical fast bootstrap: PASS");
 }

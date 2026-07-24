@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { apiHandler, requirePermission, requireTenantId } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { productCatalogScope } from "@/lib/product-editions";
+import {
+  allocateCommerceReservationsToStocks,
+  reservedCommerceQuantityByProduct,
+} from "@/lib/commerce-checkout";
 
 export const GET = apiHandler(async (req: NextRequest) => {
   const session = await requirePermission("inventory.view");
@@ -48,5 +52,44 @@ export const GET = apiHandler(async (req: NextRequest) => {
     prisma.inventoryStock.count({ where }),
   ]);
   
-  return NextResponse.json({ items: stocks, total });
+  const productIds = [...new Set(stocks.map((stock) => stock.productId))];
+  const [allProductStocks, pendingWebLines] = productIds.length
+    ? await Promise.all([
+        prisma.inventoryStock.findMany({
+          where: { tenantId, productId: { in: productIds } },
+          select: {
+            id: true,
+            productId: true,
+            quantity: true,
+            warehouse: { select: { code: true, isActive: true } },
+          },
+        }),
+        prisma.salesOrderItem.findMany({
+          where: {
+            productId: { in: productIds },
+            order: {
+              tenantId,
+              status: { in: ["SUBMITTED", "APPROVED", "PARTIALLY_SHIPPED"] },
+              remark: { startsWith: "[WEB]" },
+            },
+          },
+          select: { productId: true, quantity: true, shippedQty: true },
+        }),
+      ])
+    : [[], []];
+  const reservedByProduct = reservedCommerceQuantityByProduct(pendingWebLines);
+  const reservedByStock = allocateCommerceReservationsToStocks(allProductStocks, reservedByProduct);
+
+  return NextResponse.json({
+    items: stocks.map((stock) => {
+      const quantity = Number(stock.quantity);
+      const reservedQuantity = reservedByStock.get(stock.id) ?? 0;
+      return {
+        ...stock,
+        reservedQuantity,
+        availableQuantity: Math.max(0, quantity - reservedQuantity),
+      };
+    }),
+    total,
+  });
 });

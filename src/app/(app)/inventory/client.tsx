@@ -22,7 +22,7 @@ export default function InventoryClient() {
   const [toDate, setToDate] = useState("");
   const customCols = useCustomColumns("inventory");
   const customFieldValues = useCustomFieldValues("inventory", stocks.map((stock) => stock.id));
-  const colDrag = useColumnDrag("inventory", ["warehouse", "sku", "product", "quantity", "safetyStock", "cost", "value", "stockStatus"]);
+  const colDrag = useColumnDrag("inventory", ["warehouse", "sku", "product", "quantity", "reserved", "available", "safetyStock", "cost", "value", "stockStatus"]);
 
   function buildParams() {
     const params = new URLSearchParams();
@@ -113,6 +113,8 @@ export default function InventoryClient() {
                   sku: s.product.sku,
                   name: s.product.name,
                   quantity: Number(s.quantity),
+                  reservedQuantity: Number(s.reservedQuantity ?? 0),
+                  availableQuantity: Number(s.availableQuantity ?? s.quantity),
                   safetyStock: Number(s.product.safetyStock),
                   costPrice: Number(s.product.costPrice),
                   value: Number(s.quantity) * Number(s.product.costPrice),
@@ -121,7 +123,9 @@ export default function InventoryClient() {
                   { key: "warehouse", title: "倉庫" },
                   { key: "sku", title: "SKU" },
                   { key: "name", title: "商品名稱" },
-                  { key: "quantity", title: "數量" },
+                  { key: "quantity", title: "實體庫存" },
+                  { key: "reservedQuantity", title: "商城保留" },
+                  { key: "availableQuantity", title: "可售量" },
                   { key: "safetyStock", title: "安全庫存" },
                   { key: "costPrice", title: "成本" },
                   { key: "value", title: "庫存價值" },
@@ -135,7 +139,9 @@ export default function InventoryClient() {
                     <TH {...colDrag.thProps("warehouse")} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }}>倉庫</TH>
                     <TH {...colDrag.thProps("sku")} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }}>SKU</TH>
                     <TH {...colDrag.thProps("product")} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }}>商品</TH>
-                    <TH {...colDrag.thProps("quantity")} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }}>數量</TH>
+                    <TH {...colDrag.thProps("quantity")} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }}>實體庫存</TH>
+                    <TH {...colDrag.thProps("reserved")} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }}>商城保留</TH>
+                    <TH {...colDrag.thProps("available")} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }}>可售量</TH>
                     <TH {...colDrag.thProps("safetyStock")} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }}>安全庫存</TH>
                     <TH {...colDrag.thProps("cost")} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }}>成本</TH>
                     <TH {...colDrag.thProps("value")} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }}>庫存價值</TH>
@@ -144,25 +150,29 @@ export default function InventoryClient() {
                   </TR>
                 </THead>
                 <TBody>
-                  {stocksLoading && stocks.length === 0 && <TableSkeletonRows columns={8 + customCols.columns.length} />}
+                  {stocksLoading && stocks.length === 0 && <TableSkeletonRows columns={10 + customCols.columns.length} />}
                   {!stocksLoading && stocks.length === 0 && (
                     <TR>
-                      <TD colSpan={8 + customCols.columns.length} className="text-center text-muted-foreground">尚無庫存</TD>
+                      <TD colSpan={10 + customCols.columns.length} className="text-center text-muted-foreground">尚無庫存</TD>
                     </TR>
                   )}
                   {stocks.map((s: any, rowIndex: number) => {
                     const qty = Number(s.quantity);
+                    const reserved = Number(s.reservedQuantity ?? 0);
+                    const available = Number(s.availableQuantity ?? qty);
                     const safe = Number(s.product.safetyStock);
                     return (
                       <TR key={s.id}>
                         <TD>{s.warehouse.name}</TD>
                         <TD className="font-mono text-xs">{s.product.sku}</TD>
                         <TD>{s.product.name}</TD>
-                        <TD className={qty < safe ? "text-red-600 font-medium" : ""}>{formatNumber(qty)}</TD>
+                        <TD>{formatNumber(qty)}</TD>
+                        <TD className={reserved > 0 ? "font-medium text-amber-600" : "text-muted-foreground"}>{formatNumber(reserved)}</TD>
+                        <TD className={available < safe ? "text-red-600 font-medium" : "font-medium text-emerald-600"}>{formatNumber(available)}</TD>
                         <TD>{formatNumber(safe)}</TD>
                         <TD>{formatUnitPrice(s.product.costPrice)}</TD>
                         <TD>{formatMoney(qty * Number(s.product.costPrice))}</TD>
-                        <TD>{qty < safe ? <Badge variant="warning">低庫存</Badge> : <Badge variant="success">正常</Badge>}</TD>
+                        <TD>{available < safe ? <Badge variant="warning">低庫存</Badge> : reserved > 0 ? <Badge variant="info">商城保留中</Badge> : <Badge variant="success">正常</Badge>}</TD>
                         {customCols.columns.map((cc, columnIndex) => { const v = customFieldValues.getValues(s.id); return <TD key={cc.id}><CustomFieldGridCell gridId="inventory-stocks" rowId={s.id} rowIndex={rowIndex} column={cc} columnIndex={columnIndex} rowIds={stocks.map((stock) => stock.id)} columns={customCols.columns} value={v[cc.id] ?? ""} saveValues={customFieldValues.saveValues} onManageColumns={() => customCols.setOpen(true)} /></TD>; })}
                       </TR>
                     );

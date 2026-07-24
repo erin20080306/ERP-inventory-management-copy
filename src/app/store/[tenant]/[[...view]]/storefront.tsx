@@ -123,75 +123,6 @@ type StoreMemberPayload = {
 type ViewName = "home" | "products" | "campaigns" | "cart" | "checkout" | "member" | "orders";
 type AddToCart = (product: Product, options?: { size?: string; color?: string; open?: boolean }) => void;
 
-const PRODUCTS: Product[] = [
-  {
-    id: "AN-SS26-101",
-    name: "雲感落肩襯衫",
-    category: "上身",
-    price: 1680,
-    compareAt: 1980,
-    colors: ["霧白", "礦灰"],
-    sizes: ["S", "M", "L"],
-    stock: 18,
-    badge: "本週新品",
-    image: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=900&q=82",
-  },
-  {
-    id: "AN-SS26-204",
-    name: "輪廓打褶寬褲",
-    category: "下身",
-    price: 2280,
-    colors: ["岩黑", "沙褐"],
-    sizes: ["S", "M", "L", "XL"],
-    stock: 7,
-    badge: "低庫存",
-    image: "https://images.unsplash.com/photo-1506629082955-511b1aa562c8?auto=format&fit=crop&w=900&q=82",
-  },
-  {
-    id: "AN-SS26-306",
-    name: "日常織紋針織衫",
-    category: "針織",
-    price: 1880,
-    colors: ["燕麥", "鼠尾草"],
-    sizes: ["F"],
-    stock: 24,
-    image: "https://images.unsplash.com/photo-1576566588028-4147f3842f27?auto=format&fit=crop&w=900&q=82",
-  },
-  {
-    id: "AN-SS26-408",
-    name: "方形皮革肩背包",
-    category: "配件",
-    price: 2680,
-    colors: ["可可", "夜黑"],
-    sizes: ["F"],
-    stock: 12,
-    badge: "人氣補貨",
-    image: "https://images.unsplash.com/photo-1559563458-527698bf5295?auto=format&fit=crop&w=900&q=82",
-  },
-  {
-    id: "AN-SS26-512",
-    name: "亮黃連帽休閒套裝",
-    category: "套裝",
-    price: 2980,
-    compareAt: 3380,
-    colors: ["砂岩", "墨綠"],
-    sizes: ["S", "M", "L"],
-    stock: 9,
-    badge: "官網限定",
-    image: "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=900&q=82",
-  },
-  {
-    id: "AN-SS26-614",
-    name: "極簡皮革休閒鞋",
-    category: "鞋履",
-    price: 3280,
-    colors: ["奶油白", "霧黑"],
-    sizes: ["36", "37", "38", "39", "40"],
-    stock: 15,
-    image: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=900&q=82",
-  },
-];
-
 const VALID_VIEWS = new Set<ViewName>(["home", "products", "campaigns", "cart", "checkout", "member", "orders"]);
 
 const money = (value: number) => new Intl.NumberFormat("zh-TW", {
@@ -224,11 +155,12 @@ export function FashionStorefront({ tenant, initialView, initialStoreName, manag
   const [cart, setCart] = useState<CartLine[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
   const [orders, setOrders] = useState<Order[]>([]);
-  const [products, setProducts] = useState<Product[]>(PRODUCTS);
+  const [products, setProducts] = useState<Product[]>([]);
   const [storeLive, setStoreLive] = useState(false);
-  const [acceptingOrders, setAcceptingOrders] = useState(true);
+  const [acceptingOrders, setAcceptingOrders] = useState(false);
   const [paymentOptions, setPaymentOptions] = useState<PaymentOptions>(DEFAULT_PAYMENT_OPTIONS);
-  const [syncMessage, setSyncMessage] = useState("展示商店・未連接正式 ERP");
+  const [syncMessage, setSyncMessage] = useState("商城資料連線中");
+  const [storeError, setStoreError] = useState("");
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
@@ -312,7 +244,7 @@ export function FashionStorefront({ tenant, initialView, initialStoreName, manag
     })
       .then(async (response) => {
         const result = await response.json();
-        if (!response.ok) throw new Error(result.error || "尚未連接正式 ERP");
+        if (!response.ok) throw new Error(result.error || "商城服務尚未完成連線");
         const liveProducts = (result.products ?? []).map((product: any): Product => ({
           id: product.id,
           sku: product.sku,
@@ -327,6 +259,7 @@ export function FashionStorefront({ tenant, initialView, initialStoreName, manag
         }));
         setProducts(liveProducts);
         setStoreLive(true);
+        setStoreError("");
         setAcceptingOrders(Boolean(result.acceptingOrders));
         setPaymentOptions(result.paymentOptions || DEFAULT_PAYMENT_OPTIONS);
         setTheme((current) => ({
@@ -334,15 +267,17 @@ export function FashionStorefront({ tenant, initialView, initialStoreName, manag
           brand: result.store?.name || result.tenant.name || current.brand,
           domain: result.store?.url || current.domain,
         }));
-        setSyncMessage(result.acceptingOrders ? `${result.tenant.name}・ERP 即時同步` : result.accessMessage || "商城目前暫停接單");
+        setSyncMessage(result.acceptingOrders ? `${result.tenant.name}・線上接單中` : result.accessMessage || "商城目前暫停接單");
       })
       .catch((error) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
-        setProducts(PRODUCTS);
+        setProducts([]);
         setStoreLive(false);
-        setAcceptingOrders(true);
+        setAcceptingOrders(false);
         setPaymentOptions(DEFAULT_PAYMENT_OPTIONS);
-        setSyncMessage("展示商店・不會寫入正式 ERP");
+        const message = error instanceof Error ? error.message : "商城服務暫時無法連線";
+        setStoreError(message);
+        setSyncMessage("商城暫停服務");
       });
     return () => controller.abort();
   }, [tenant]);
@@ -361,12 +296,18 @@ export function FashionStorefront({ tenant, initialView, initialStoreName, manag
         });
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || "無法同步接單狀態");
+        setStoreLive(true);
+        setStoreError("");
         setAcceptingOrders(Boolean(result.acceptingOrders));
         setSyncMessage(result.acceptingOrders
-          ? `${result.tenant.name}・ERP 即時同步`
+          ? `${result.tenant.name}・線上接單中`
           : result.accessMessage || "商城目前暫停接單");
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") return;
+        setStoreLive(false);
+        setAcceptingOrders(false);
+        setStoreError(error instanceof Error ? error.message : "商城服務暫時無法連線");
+        setSyncMessage("商城暫停服務");
       }
     };
     const refreshWhenVisible = () => {
@@ -422,14 +363,21 @@ export function FashionStorefront({ tenant, initialView, initialStoreName, manag
           <div><ShieldCheck size={18} /><span><strong>租戶管理者預覽</strong><small>消費者不會看到此控制列</small></span></div>
           <div className={styles.managerPreviewActions}>
             <Link href={managerBackHref}><ArrowLeft size={16} />{managerBackHref === "/admin" ? "回平台管理" : "回到電商後台"}</Link>
+            {!managerBackHref.startsWith("/admin") && <Link href="/fulfillment"><PackageCheck size={16} />接單與出貨</Link>}
             <Link href={managerErpHref}><BarChart3 size={16} />切換 ERP</Link>
           </div>
         </aside>
       )}
       <div className={styles.utilityBar}>
         <div><Zap size={14} /> 店取最快 2 小時 ・ 全館滿 NT$2,000 免運</div>
-        <div className={styles.tenantStatus}><span /> {storeLive ? "品牌商城" : "功能展示"} ・ {syncMessage}</div>
+        <div className={styles.tenantStatus}><span /> {storeLive ? "品牌商城" : "商城未連線"} ・ {syncMessage}</div>
       </div>
+      {storeError && (
+        <div className={styles.storeConnectionError} role="alert">
+          <ShieldCheck size={18} />
+          <span><strong>商城目前暫停下單</strong><small>{storeError}。請稍後重試或聯絡商家。</small></span>
+        </div>
+      )}
 
       <header className={styles.header}>
         <Link href={`/store/${tenant}`} className={styles.brand} aria-label={`${theme.brand} 首頁`}>
@@ -465,7 +413,7 @@ export function FashionStorefront({ tenant, initialView, initialStoreName, manag
       <footer className={styles.footer}>
         <div>
           <div className={styles.footerBrand}>{theme.brand}</div>
-          <p>讓品牌前台、門市 POS 與 ERP 後台使用同一份商品、庫存、會員與訂單資料。</p>
+          <p>從線上選購、門市取貨到訂單查詢，享受一致又安心的購物體驗。</p>
         </div>
         <div><strong>顧客服務</strong><Link href={`/store/${tenant}/orders`}>訂單查詢</Link><Link href={`/store/${tenant}/member`}>會員中心</Link><a href="mailto:service@example.com">聯絡客服</a></div>
         <div><strong>購物指南</strong><span>付款與配送說明</span><span>退換貨政策</span><span>隱私權政策</span></div>
@@ -514,7 +462,7 @@ function HomeView({ tenant, products, addToCart, managerAccess }: { tenant: stri
             <Link href={`/store/${tenant}/products`} className={styles.primaryButton}>探索新作 <ArrowRight size={17} /></Link>
             <Link href={`/store/${tenant}/campaigns`} className={styles.textButton}>本月企劃 <ChevronRight size={16} /></Link>
           </div>
-          <div className={styles.heroProof}><span>01</span><p>線上選購</p><span>02</span><p>門市取貨</p><span>03</span><p>ERP 即時保留</p></div>
+          <div className={styles.heroProof}><span>01</span><p>線上選購</p><span>02</span><p>門市取貨</p><span>03</span><p>即時確認庫存</p></div>
         </div>
         <div className={styles.heroVisual}>
           <img
@@ -599,7 +547,7 @@ function ProductsView({ products, addToCart }: { products: Product[]; addToCart:
 
   return (
     <section className={styles.catalogPage}>
-      <div className={styles.pageIntro}><span className={styles.eyebrow}>ONLINE COLLECTION</span><h1>所有商品</h1><p>網站可售數量直接讀取各租戶 ERP 庫存，避免超賣與重複維護。</p></div>
+      <div className={styles.pageIntro}><span className={styles.eyebrow}>ONLINE COLLECTION</span><h1>所有商品</h1><p>網站即時確認可售數量，讓您安心選購。</p></div>
       <div className={styles.catalogTools}>
         <div className={styles.categoryTabs}>{categories.map((item) => <button key={item} onClick={() => setCategory(item)} className={category === item ? styles.selectedTab : ""}>{item}</button>)}</div>
         <label className={styles.searchBox}><Search size={18} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜尋商品或貨號" /></label>
@@ -613,7 +561,7 @@ function ProductsView({ products, addToCart }: { products: Product[]; addToCart:
 function CampaignsView({ tenant, products, addToCart }: { tenant: string; products: Product[]; addToCart: AddToCart }) {
   return (
     <section className={styles.campaignPage}>
-      <div className={styles.pageIntro}><span className={styles.eyebrow}>STORIES & OFFERS</span><h1>最新活動</h1><p>品牌企劃與優惠券可由 ERP 後台設定期間、會員條件及適用商品。</p></div>
+      <div className={styles.pageIntro}><span className={styles.eyebrow}>STORIES & OFFERS</span><h1>最新活動</h1><p>探索本期品牌企劃、會員優惠與精選商品。</p></div>
       <div className={styles.campaignHero}>
         <img src="https://images.unsplash.com/photo-1485968579580-b6d095142e6e?auto=format&fit=crop&w=1500&q=84" alt="本月服飾企劃" />
         <div><span>07.23—08.16</span><h2>THE SOFT STRUCTURE</h2><p>任選兩件 9 折，會員再享 2% 點數回饋。</p><Link href={`/store/${tenant}/products`} className={styles.lightButton}>選購活動商品 <ArrowRight size={16} /></Link></div>
@@ -636,7 +584,7 @@ function CartView({ tenant, lines, subtotal, updateLine }: {
 }) {
   return (
     <section className={styles.checkoutPage}>
-      <div className={styles.pageIntro}><span className={styles.eyebrow}>YOUR SELECTION</span><h1>購物車</h1><p>結帳時會再次檢查 ERP 可售量；網路訂單先保留可售量，實際出貨才扣實體庫存並立應收。</p></div>
+      <div className={styles.pageIntro}><span className={styles.eyebrow}>YOUR SELECTION</span><h1>購物車</h1><p>結帳時會再次確認商品數量與售價。</p></div>
       {lines.length === 0 ? <EmptyCart tenant={tenant} /> : (
         <div className={styles.cartLayout}>
           <div className={styles.cartLines}>{lines.map((line) => <CartLineRow key={`${line.productId}-${line.size}-${line.color}`} line={line} updateLine={updateLine} />)}</div>
@@ -667,46 +615,10 @@ function CheckoutView({ tenant, lines, subtotal, saveOrder, storeLive, accepting
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!lines.length || submitting || !acceptingOrders) return;
+    if (!lines.length || submitting || !storeLive || !acceptingOrders) return;
     setSubmitting(true);
     setError("");
     const form = new FormData(event.currentTarget);
-
-    if (!storeLive) {
-      window.setTimeout(() => {
-        const order: Order = {
-          id: `DEMO-${String(Date.now()).slice(-8)}`,
-          createdAt: new Date().toISOString(),
-          status: "展示訂單・未送出",
-          total: subtotal + shipping,
-          items: lines.reduce((sum, line) => sum + line.quantity, 0),
-          recipient: String(form.get("name") || "試用會員"),
-          payment: payment === "TRANSFER"
-            ? {
-                method: payment,
-                status: "AWAITING_TRANSFER",
-                charged: false,
-                nextAction: paymentOptions.transfer.configured ? "請依畫面匯款資訊完成轉帳" : "商家尚未設定匯款帳戶",
-                bankTransfer: paymentOptions.transfer.configured ? {
-                  bankName: paymentOptions.transfer.bankName || "",
-                  accountName: paymentOptions.transfer.accountName || "",
-                  accountNumber: paymentOptions.transfer.accountNumber || "",
-                } : null,
-              }
-            : {
-                method: payment,
-                status: "GATEWAY_REQUIRED",
-                charged: false,
-                nextAction: "體驗流程不會扣款；正式收款需先串接租戶金流",
-                bankTransfer: null,
-              },
-        };
-        saveOrder(order);
-        setCompleted(order);
-        setSubmitting(false);
-      }, 500);
-      return;
-    }
 
     try {
       const response = await fetch(`/api/store/${encodeURIComponent(tenant)}`, {
@@ -742,14 +654,13 @@ function CheckoutView({ tenant, lines, subtotal, saveOrder, storeLive, accepting
   }
 
   if (completed) {
-    const isDemo = completed.status.startsWith("展示訂單");
     const transfer = completed.payment?.method === "TRANSFER";
     return (
       <section className={styles.successPage}>
         <div className={styles.successIcon}><Check /></div>
         <span className={styles.eyebrow}>ORDER CONFIRMED</span>
-        <h1>{isDemo ? "展示流程已完成" : "訂單已建立"}</h1>
-        <p>{isDemo ? `${completed.id} 只保留在此瀏覽器，不會寫入正式 ERP。` : `${completed.id} 已自動進入商家 ERP 並保留可售量；確認出貨後才扣實體庫存並建立應收與會計傳票。`}</p>
+        <h1>訂單已建立</h1>
+        <p>商家已收到訂單 {completed.id}，後續進度可隨時回到訂單查詢查看。</p>
         <div className={styles.successFacts}><span>訂單金額<strong>{money(completed.total)}</strong></span><span>處理狀態<strong>{completed.status}</strong></span><span>付款狀態<strong>{completed.payment?.charged ? "已付款" : "尚未付款"}</strong></span></div>
         {transfer ? (
           <div className={styles.paymentResult}>
@@ -767,15 +678,15 @@ function CheckoutView({ tenant, lines, subtotal, saveOrder, storeLive, accepting
   if (!lines.length) return <section className={styles.checkoutPage}><EmptyCart tenant={tenant} /></section>;
   return (
     <section className={styles.checkoutPage}>
-      <div className={styles.pageIntro}><span className={styles.eyebrow}>SECURE CHECKOUT</span><h1>安心結帳</h1><p>{storeLive ? "送出後會由伺服器重新計價、檢查庫存並自動建立 ERP 銷售單；金流完成狀態須由租戶設定的支付服務回傳。" : "目前是功能展示，不會產生真實扣款，也不會寫入正式 ERP。"}</p></div>
+      <div className={styles.pageIntro}><span className={styles.eyebrow}>SECURE CHECKOUT</span><h1>安心結帳</h1><p>{storeLive ? "送出後會再次確認售價、庫存與收件資料；付款狀態將依商家提供的支付方式更新。" : "商城目前未連線，暫時無法結帳。"}</p></div>
       {managerAccess && <div className={styles.demoCustomerNotice}><CircleUserRound /><span><strong>租戶體驗提示｜王小美</strong>下方王小美是預設體驗顧客，可示範「官網結帳 → ERP 客戶 → 網路訂單」。信用卡與行動支付在尚未串接金流前不會實際扣款。</span></div>}
       <form className={styles.checkoutLayout} onSubmit={submit}>
         <div className={styles.checkoutForms}>
           <fieldset><legend><span>1</span> 收件資料</legend><div className={styles.formGrid}><label>姓名<input name="name" required defaultValue={managerAccess ? "王小美" : ""} placeholder="請輸入收件人姓名" /></label><label>手機<input name="phone" required inputMode="tel" defaultValue={managerAccess ? "0912-345-678" : ""} placeholder="請輸入聯絡手機" /></label><label className={styles.fullField}>電子信箱<input name="email" required type="email" defaultValue={managerAccess ? "demo@example.com" : ""} placeholder="name@example.com" /></label></div></fieldset>
           <fieldset><legend><span>2</span> 配送方式</legend><div className={styles.choiceGrid}><Choice active={delivery === "HOME"} onClick={() => setDelivery("HOME")} icon={<Truck />} title="宅配到府" meta={subtotal >= 2000 ? "已達免運門檻" : "運費 NT$120"} /><Choice active={delivery === "PICKUP"} onClick={() => setDelivery("PICKUP")} icon={<Store />} title="門市取貨" meta="最快 2 小時 ・ 免費" /></div>{delivery === "HOME" && <label className={styles.addressField}>配送地址<input name="address" required placeholder="縣市、區域、路段、門牌" defaultValue={managerAccess ? "台北市信義區松高路 1 號" : ""} /></label>}</fieldset>
-          <fieldset><legend><span>3</span> 付款方式</legend><div className={styles.choiceGrid}><Choice active={payment === "CARD"} onClick={() => setPayment("CARD")} icon={<CreditCard />} title="信用卡" meta={paymentOptions.card.gatewayConnected ? "安全前往金流付款" : "可體驗流程・目前不會扣款"} /><Choice active={payment === "MOBILE"} onClick={() => setPayment("MOBILE")} icon={<WalletCards />} title="行動支付" meta={paymentOptions.mobile.gatewayConnected ? "安全前往金流付款" : "可體驗流程・目前不會扣款"} /><Choice active={payment === "TRANSFER"} onClick={() => setPayment("TRANSFER")} icon={<Clock3 />} title="銀行轉帳" meta={paymentOptions.transfer.configured ? "成立後顯示匯款帳戶" : "商家尚未設定收款帳戶"} /></div><div className={styles.paymentMethodNote}>{payment === "TRANSFER" ? (paymentOptions.transfer.configured ? "訂單成立後會顯示銀行、戶名、帳號與訂單編號；請於 24 小時內匯款。" : "仍可建立待付款訂單，但需聯絡商家取得匯款帳戶。") : "目前會完整建立 ERP 網路訂單，但不會向信用卡或行動支付扣款；正式收款需先完成租戶金流串接。"}</div></fieldset>
+          <fieldset><legend><span>3</span> 付款方式</legend><div className={styles.choiceGrid}><Choice active={payment === "CARD"} onClick={() => setPayment("CARD")} icon={<CreditCard />} title="信用卡" meta={paymentOptions.card.gatewayConnected ? "安全前往金流付款" : "目前不會扣款"} /><Choice active={payment === "MOBILE"} onClick={() => setPayment("MOBILE")} icon={<WalletCards />} title="行動支付" meta={paymentOptions.mobile.gatewayConnected ? "安全前往金流付款" : "目前不會扣款"} /><Choice active={payment === "TRANSFER"} onClick={() => setPayment("TRANSFER")} icon={<Clock3 />} title="銀行轉帳" meta={paymentOptions.transfer.configured ? "成立後顯示匯款帳戶" : "商家尚未設定收款帳戶"} /></div><div className={styles.paymentMethodNote}>{payment === "TRANSFER" ? (paymentOptions.transfer.configured ? "訂單成立後會顯示銀行、戶名、帳號與訂單編號；請於 24 小時內匯款。" : "仍可建立待付款訂單，但需聯絡商家取得匯款帳戶。") : "商家尚未啟用線上扣款；訂單成立後請依商家通知完成付款。"}</div></fieldset>
         </div>
-        <aside className={styles.checkoutSummary}><h2>訂單摘要</h2>{lines.map((line) => <div key={`${line.productId}-${line.size}`} className={styles.miniLine}><img src={line.product.image} alt="" /><span>{line.product.name}<small>{line.color} / {line.size} ・ {line.quantity} 件</small></span><strong>{money(line.product.price * line.quantity)}</strong></div>)}<SummaryRows subtotal={subtotal} shipping={shipping} />{error && <div className={styles.checkoutError}>{error}</div>}<button type="submit" disabled={submitting || !acceptingOrders} className={styles.payButton}>{submitting ? "建立訂單中…" : !acceptingOrders ? "商城目前暫停接單" : payment === "TRANSFER" ? `建立訂單並取得匯款資訊 ${money(subtotal + shipping)}` : `建立訂單（本次不扣款） ${money(subtotal + shipping)}`} <ShieldCheck size={17} /></button><p><ShieldCheck size={14} /> TLS 加密傳輸 ・ {storeLive ? "伺服器端重新驗價、租戶隔離與付款狀態紀錄" : "展示模式不會真實扣款"}</p></aside>
+        <aside className={styles.checkoutSummary}><h2>訂單摘要</h2>{lines.map((line) => <div key={`${line.productId}-${line.size}`} className={styles.miniLine}><img src={line.product.image} alt="" /><span>{line.product.name}<small>{line.color} / {line.size} ・ {line.quantity} 件</small></span><strong>{money(line.product.price * line.quantity)}</strong></div>)}<SummaryRows subtotal={subtotal} shipping={shipping} />{error && <div className={styles.checkoutError}>{error}</div>}<button type="submit" disabled={submitting || !storeLive || !acceptingOrders} className={styles.payButton}>{submitting ? "建立訂單中…" : !storeLive || !acceptingOrders ? "商城目前暫停接單" : payment === "TRANSFER" ? `建立訂單並取得匯款資訊 ${money(subtotal + shipping)}` : `建立訂單（本次不扣款） ${money(subtotal + shipping)}`} <ShieldCheck size={17} /></button><p><ShieldCheck size={14} /> TLS 加密傳輸 ・ {storeLive ? "伺服器端重新驗價、確認庫存與記錄付款狀態" : "商城連線異常，無法送出訂單"}</p></aside>
       </form>
     </section>
   );
@@ -999,7 +910,7 @@ function MemberView({ tenant }: { tenant: string }) {
           <div className={styles.memberAuthIntro}>
             <span className={styles.eyebrow}>STORE MEMBERSHIP</span>
             <h1>加入品牌會員，<br />累積每一次選擇。</h1>
-            <p>官網與門市共用同一份 ERP 客戶資料；註冊後可查看本人訂單、會員點數與優惠券。</p>
+            <p>註冊後可查看本人訂單、會員點數與優惠券。</p>
           </div>
           <div className={styles.memberAuthCard}>
             <div className={styles.memberAuthTabs}>
@@ -1029,7 +940,7 @@ function MemberView({ tenant }: { tenant: string }) {
     <section className={styles.memberPage}>
       <div className={styles.memberHero}><div className={styles.memberAvatar}>{member.name.slice(0, 1)}</div><div><span>WELCOME BACK</span><h1>{member.name}，您好</h1><p>{member.email} ・ 加入於 {new Date(member.joinedAt).toLocaleDateString("zh-TW")}</p></div><button onClick={logoutMember} disabled={submittingMember}><LogOut />安全登出</button></div>
       {memberNotice && <div className={styles.memberAuthNotice}>{memberNotice}</div>}
-      <div className={styles.memberStats}><article><span>可用點數</span><strong>{member.loyaltyPoints.toLocaleString("zh-TW")}</strong><small>點數由 ERP 與門市 POS 同步</small></article><article><span>會員等級</span><strong>{member.loyaltyTier}</strong><small>依商家會員規則計算</small></article><article><span>有效優惠券</span><strong>{profile.stats?.couponCount ?? 0}</strong><small>目前商城可用活動</small></article><article><span>累積訂單</span><strong>{profile.stats?.orderCount ?? 0}</strong><small>本人官網訂單即時查詢</small></article></div>
+      <div className={styles.memberStats}><article><span>可用點數</span><strong>{member.loyaltyPoints.toLocaleString("zh-TW")}</strong><small>依商家會員規則累積</small></article><article><span>會員等級</span><strong>{member.loyaltyTier}</strong><small>依商家會員規則計算</small></article><article><span>有效優惠券</span><strong>{profile.stats?.couponCount ?? 0}</strong><small>目前商城可用活動</small></article><article><span>累積訂單</span><strong>{profile.stats?.orderCount ?? 0}</strong><small>本人官網訂單即時查詢</small></article></div>
       {accountPanel && (
         <section className={`${styles.memberAccountPanel} ${accountPanel === "delete" ? styles.memberAccountDanger : ""}`}>
           <div className={styles.panelTitle}><div><span>ACCOUNT SETTINGS</span><h2>{accountPanel === "profile" ? "編輯會員資料" : accountPanel === "password" ? "變更登入密碼" : "刪除會員帳號"}</h2></div><button type="button" onClick={() => { setAccountPanel(null); setMemberError(""); }} aria-label="關閉"><X /></button></div>
@@ -1041,7 +952,7 @@ function MemberView({ tenant }: { tenant: string }) {
       )}
       <div className={styles.memberPanels}>
         <article><div className={styles.panelTitle}><h2>快速入口</h2></div><Link href={`/store/${tenant}/orders`}><PackageCheck />訂單查詢<span>查看出貨與取貨進度</span><ChevronRight /></Link><Link href={`/store/${tenant}/campaigns`}><TicketPercent />我的優惠券<span>{profile.stats?.couponCount ?? 0} 張活動可查看</span><ChevronRight /></Link><button type="button" onClick={() => { setAccountPanel("profile"); setMemberError(""); }}><CircleUserRound />編輯會員資料<span>姓名、Email 與手機</span><ChevronRight /></button><button type="button" onClick={() => { setAccountPanel("password"); setMemberError(""); }}><ShieldCheck />變更登入密碼<span>更新後所有裝置需重新登入</span><ChevronRight /></button><button type="button" onClick={() => { setAccountPanel("delete"); setMemberError(""); }}><Trash2 />刪除會員帳號<span>移除登入與個人資料</span><ChevronRight /></button></article>
-        <article><div className={styles.panelTitle}><h2>最近訂單</h2><span>ERP 即時資料</span></div>{recentOrders.length ? <div className={styles.memberOrderRows}>{recentOrders.slice(0, 4).map((order) => <div key={order.id}><span>{order.id}<small>{new Date(order.createdAt).toLocaleDateString("zh-TW")} ・ {order.items} 件</small></span><strong>{money(order.total)}<small>{memberStatusLabel(order.status)}{memberPaymentLabel(order) ? `・${memberPaymentLabel(order)}` : ""}</small></strong></div>)}</div> : <div className={styles.memberNoOrders}><PackageCheck /><p>目前還沒有訂單。完成第一次選購後，訂單會自動顯示在這裡。</p></div>}</article>
+        <article><div className={styles.panelTitle}><h2>最近訂單</h2><span>即時更新</span></div>{recentOrders.length ? <div className={styles.memberOrderRows}>{recentOrders.slice(0, 4).map((order) => <div key={order.id}><span>{order.id}<small>{new Date(order.createdAt).toLocaleDateString("zh-TW")} ・ {order.items} 件</small></span><strong>{money(order.total)}<small>{memberStatusLabel(order.status)}{memberPaymentLabel(order) ? `・${memberPaymentLabel(order)}` : ""}</small></strong></div>)}</div> : <div className={styles.memberNoOrders}><PackageCheck /><p>目前還沒有訂單。完成第一次選購後，訂單會自動顯示在這裡。</p></div>}</article>
       </div>
     </section>
   );
@@ -1049,14 +960,10 @@ function MemberView({ tenant }: { tenant: string }) {
 
 function OrdersView({ orders, managerAccess }: { orders: Order[]; managerAccess: boolean }) {
   const [query, setQuery] = useState("");
-  const demoOrders: Order[] = [
-    { id: "EC2607181042", createdAt: "2026-07-18T08:30:00.000Z", status: "配送中", total: 3960, items: 2, recipient: "王小美" },
-    { id: "EC2607010821", createdAt: "2026-07-01T04:12:00.000Z", status: "已完成", total: 2680, items: 1, recipient: "王小美" },
-  ];
-  const rows = [...orders, ...(managerAccess ? demoOrders : [])].filter((order) => !query || order.id.toLowerCase().includes(query.toLowerCase()));
+  const rows = orders.filter((order) => !query || order.id.toLowerCase().includes(query.toLowerCase()));
   return (
     <section className={styles.orderPage}>
-      <div className={styles.pageIntro}><span className={styles.eyebrow}>TRACK YOUR ORDER</span><h1>訂單查詢</h1><p>網路訂單、門市取貨與 POS 交易可在會員識別後集中查詢。{managerAccess ? " 王小美訂單為租戶操作體驗資料。" : ""}</p></div>
+      <div className={styles.pageIntro}><span className={styles.eyebrow}>TRACK YOUR ORDER</span><h1>訂單查詢</h1><p>網路訂單與門市取貨進度可在會員識別後集中查詢。{managerAccess ? " 管理者可回到接單與出貨工作區查看全部商城訂單。" : ""}</p></div>
       <label className={styles.orderSearch}><Search /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="輸入訂單編號，例如 EC2607181042" /></label>
       <div className={styles.orderList}>{rows.map((order) => <article key={order.id}><div className={styles.orderTop}><div><span>{order.id}</span><small>{new Date(order.createdAt).toLocaleString("zh-TW", { dateStyle: "medium", timeStyle: "short" })}</small></div><b className={["已完成", "已出貨"].includes(order.status) ? styles.doneStatus : ""}>{order.status}</b></div><div className={styles.orderBody}><div><PackageCheck /><span>{order.items} 件商品<strong>{order.recipient}</strong>{order.shipmentNumber && <small>出貨單 {order.shipmentNumber}{order.shippedAt ? `・${new Date(order.shippedAt).toLocaleDateString("zh-TW")}` : ""}</small>}</span></div><strong>{money(order.total)}</strong><button>查看明細 <ChevronRight /></button></div><OrderTimeline status={order.status} /></article>)}</div>
       {rows.length === 0 && <div className={styles.emptyState}><Search /><h2>找不到這筆訂單</h2><p>請確認訂單編號，或登入會員中心查看全部紀錄。</p></div>}

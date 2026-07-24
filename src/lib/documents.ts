@@ -64,6 +64,22 @@ function roundQuantity(value: number) {
   return Math.round((value + Number.EPSILON) * 10_000) / 10_000;
 }
 
+export function salesShipmentRevenueBreakdown(totals: {
+  subtotal: number;
+  discount: number;
+  taxAmount: number;
+  total: number;
+}) {
+  const merchandiseRevenue = roundMoney(totals.subtotal - totals.discount);
+  const shippingRevenue = roundMoney(
+    totals.total - merchandiseRevenue - totals.taxAmount,
+  );
+  if (shippingRevenue < 0) {
+    throw new Error("銷售出貨總額小於商品淨額與稅額，無法建立平衡傳票");
+  }
+  return { merchandiseRevenue, shippingRevenue };
+}
+
 function allocateOrderLine(item: any, quantity: number) {
   const orderedQuantity = Number(item.quantity);
   const ratio = quantity / orderedQuantity;
@@ -420,6 +436,7 @@ export async function shipSalesOrder(
     }
 
     const prepaidStorefront = Boolean(order.storefrontPayment && ["PAID", "PARTIALLY_REFUNDED", "REFUNDED"].includes(order.storefrontPayment.status));
+    const revenue = salesShipmentRevenueBreakdown(totals);
     await tx.accountsReceivable.create({
       data: {
         tenantId,
@@ -435,7 +452,8 @@ export async function shipSalesOrder(
       prepaidStorefront
         ? { code: "1103", debit: totals.total, memo: `電商已收款－${order.storefrontPayment?.providerReference || order.number}` }
         : { code: "1132", debit: totals.total, memo: `應收帳款－${shipment.number}` },
-      { code: "4101", credit: roundMoney(totals.subtotal - totals.discount), memo: `銷貨收入－${shipment.number}` },
+      { code: "4101", credit: revenue.merchandiseRevenue, memo: `銷貨收入－${shipment.number}` },
+      { code: "4205", credit: revenue.shippingRevenue, memo: `商城運費收入－${shipment.number}` },
       { code: "2111", credit: totals.taxAmount, memo: `銷項稅額－${shipment.number}` },
       { code: "5101", debit: cogs, memo: `銷貨成本－${shipment.number}` },
       { code: "1201", credit: cogs, memo: `存貨－${shipment.number}` },

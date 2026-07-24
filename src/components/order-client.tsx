@@ -126,11 +126,12 @@ export function OrderClient({
   const cachedData = useMemo(() => readSessionCache<any>(tableKey), [tableKey]);
   const { data, error, isLoading, isValidating } = useSWR(tableKey, fetcher, {
     fallbackData: cachedData,
-    revalidateOnFocus: false,
+    revalidateOnFocus: true,
     revalidateOnReconnect: true,
     keepPreviousData: true,
-    dedupingInterval: 15000,
-    focusThrottleInterval: 30000,
+    refreshInterval: fulfillmentMode ? 5_000 : 0,
+    dedupingInterval: fulfillmentMode ? 1_000 : 15_000,
+    focusThrottleInterval: fulfillmentMode ? 3_000 : 30_000,
     onSuccess: (nextData) => writeSessionCache(tableKey, nextData),
   });
 

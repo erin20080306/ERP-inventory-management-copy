@@ -1,5 +1,10 @@
 import assert from "node:assert/strict";
-import { planCommerceStockAllocations } from "../src/lib/commerce-checkout";
+import {
+  allocateCommerceReservationsToStocks,
+  planCommerceStockAllocations,
+  reservedCommerceQuantityByProduct,
+} from "../src/lib/commerce-checkout";
+import { salesShipmentRevenueBreakdown } from "../src/lib/documents";
 
 const result = planCommerceStockAllocations([
   {
@@ -46,5 +51,31 @@ const shortage = planCommerceStockAllocations([{
 assert.equal(shortage.shortages.length, 1);
 assert.equal(shortage.shortages[0].available, 2);
 assert.equal(shortage.shortages[0].requested, 5);
+
+const reservations = reservedCommerceQuantityByProduct([
+  { productId: "product-a", quantity: 5, shippedQty: 1 },
+  { productId: "product-a", quantity: 2, shippedQty: 0 },
+  { productId: "product-b", quantity: 3, shippedQty: 3 },
+]);
+assert.equal(reservations.get("product-a"), 6);
+assert.equal(reservations.get("product-b"), 0);
+
+const reservedByStock = allocateCommerceReservationsToStocks([
+  { id: "a-wh02", productId: "product-a", quantity: 5, warehouse: { code: "WH02", isActive: true } },
+  { id: "a-wh01", productId: "product-a", quantity: 4, warehouse: { code: "WH01", isActive: true } },
+  { id: "a-disabled", productId: "product-a", quantity: 99, warehouse: { code: "WH00", isActive: false } },
+], reservations);
+assert.equal(reservedByStock.get("a-wh01"), 4);
+assert.equal(reservedByStock.get("a-wh02"), 2);
+assert.equal(reservedByStock.get("a-disabled"), 0);
+
+assert.deepEqual(
+  salesShipmentRevenueBreakdown({ subtotal: 1_680, discount: 0, taxAmount: 0, total: 1_800 }),
+  { merchandiseRevenue: 1_680, shippingRevenue: 120 },
+);
+assert.deepEqual(
+  salesShipmentRevenueBreakdown({ subtotal: 2_280, discount: 0, taxAmount: 0, total: 2_280 }),
+  { merchandiseRevenue: 2_280, shippingRevenue: 0 },
+);
 
 console.log("Commerce checkout stock reservation planning verified.");

@@ -47,7 +47,7 @@ export async function generateMetadata({ params }: StorePageProps): Promise<Meta
   const brand = identity?.companySettings[0]?.storeName || identity?.name || (tenant === "moon-form" ? "MOON FORM" : "ATELIER NOIR");
   return {
     title: `${VIEW_TITLES[currentView] || "線上商店"}｜${brand}`,
-    description: `${brand} 服飾電商示範店，整合購物車、付款、會員、訂單與 ERP 即時庫存。`,
+    description: `${brand} 品牌商城，提供線上選購、付款、會員服務與訂單查詢。`,
   };
 }
 

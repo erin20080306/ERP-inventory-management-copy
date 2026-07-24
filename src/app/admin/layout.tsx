@@ -3,11 +3,15 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { KeyRound } from "lucide-react";
 import { getSession } from "@/lib/api";
+import { ensureInternalAdminTenant } from "@/lib/internal-admin-tenant";
 import { verifyLocalWorkstationRequest } from "@/lib/license";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
   if (!session?.user) redirect("/login");
+  if (session.user.isSuperAdmin) {
+    await ensureInternalAdminTenant(session.user.id);
+  }
   if (process.env.LOCAL_LICENSE_MODE === "true" && session.user.tenantId && !session.user.isSuperAdmin) {
     const requestHeaders = await headers();
     const workstation = await verifyLocalWorkstationRequest(session.user.tenantId, {

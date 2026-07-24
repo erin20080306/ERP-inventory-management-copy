@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { ApiError, apiHandler, getClientInfo } from "@/lib/api";
-import { planCommerceStockAllocations } from "@/lib/commerce-checkout";
+import {
+  allocateCommerceReservationsToStocks,
+  planCommerceStockAllocations,
+  reservedCommerceQuantityByProduct,
+} from "@/lib/commerce-checkout";
 import { resolveDemoProductImage } from "@/lib/demo-product-media";
 import { nextNumberInTransaction } from "@/lib/documents";
 import { computeLicenseAccess } from "@/lib/license";
@@ -99,15 +103,6 @@ async function getCommerceTenant(rawKey: string) {
   return { tenant, access };
 }
 
-function reservedByProduct(lines: Array<{ productId: string; quantity: unknown; shippedQty: unknown }>) {
-  const reserved = new Map<string, number>();
-  for (const line of lines) {
-    const open = Math.max(0, Number(line.quantity) - Number(line.shippedQty));
-    reserved.set(line.productId, (reserved.get(line.productId) ?? 0) + open);
-  }
-  return reserved;
-}
-
 export const GET = apiHandler(async (req: NextRequest, { params }: { params: { tenant: string } }) => {
   const { tenant, access } = await getCommerceTenant(params.tenant);
   const company = tenant.companySettings[0];
@@ -138,7 +133,10 @@ export const GET = apiHandler(async (req: NextRequest, { params }: { params: { t
         imageUrl: true,
         salePrice: true,
         category: { select: { name: true } },
-        stocks: { select: { quantity: true } },
+        stocks: {
+          where: { warehouse: { isActive: true } },
+          select: { quantity: true },
+        },
       },
     }),
     prisma.salesOrderItem.findMany({
@@ -152,7 +150,7 @@ export const GET = apiHandler(async (req: NextRequest, { params }: { params: { t
       select: { productId: true, quantity: true, shippedQty: true },
     }),
   ]);
-  const reserved = reservedByProduct(pendingLines);
+  const reserved = reservedCommerceQuantityByProduct(pendingLines);
   const storeKey = company?.storeSlug || normalizeStoreSlug(tenant.companyCode || tenant.id);
   return NextResponse.json({
     tenant: { name: tenant.name },
@@ -167,12 +165,12 @@ export const GET = apiHandler(async (req: NextRequest, { params }: { params: { t
       card: {
         enabled: true,
         gatewayConnected: false,
-        message: "可體驗信用卡結帳與 ERP 接單；正式扣款需由商家提供金流串接資料",
+        message: "目前可建立待付款訂單；正式扣款需由商家提供金流串接資料",
       },
       mobile: {
         enabled: true,
         gatewayConnected: false,
-        message: "可體驗行動支付結帳與 ERP 接單；正式扣款需由商家提供金流串接資料",
+        message: "目前可建立待付款訂單；正式扣款需由商家提供金流串接資料",
       },
       transfer: {
         enabled: true,
@@ -232,7 +230,7 @@ export const POST = apiHandler(async (req: NextRequest, { params }: { params: { 
         method: input.payment,
         status: paymentStatus,
         charged: false,
-        nextAction: "租戶尚未串接實際金流，本次只建立 ERP 訂單且不會扣款",
+        nextAction: "商家尚未串接實際金流，本次不會扣款",
         bankTransfer: null,
       };
   const checkoutCustomer = memberSession
@@ -250,7 +248,7 @@ export const POST = apiHandler(async (req: NextRequest, { params }: { params: { 
       return {
         id: duplicate.number,
         createdAt: duplicate.createdAt.toISOString(),
-        status: duplicate.status === "POSTED" ? "庫存與會計已過帳・待付款確認" : duplicate.status,
+        status: duplicate.status === "POSTED" ? "已出貨・待付款確認" : duplicate.status,
         total: Number(duplicate.total),
         items: input.items.reduce((sum, item) => sum + item.quantity, 0),
         recipient: checkoutCustomer.name,
@@ -292,15 +290,22 @@ export const POST = apiHandler(async (req: NextRequest, { params }: { params: { 
     if (products.length !== ids.length) throw new ApiError(400, "購物車包含已下架或不屬於此商店的商品");
 
     const productById = new Map(products.map((product) => [product.id, product]));
-    const reserved = reservedByProduct(pendingLines);
+    const reserved = reservedCommerceQuantityByProduct(pendingLines);
+    const reservedByStock = allocateCommerceReservationsToStocks(
+      products.flatMap((product) => product.stocks.map((stock) => ({
+        id: stock.id,
+        productId: product.id,
+        quantity: stock.quantity,
+        warehouse: stock.warehouse,
+      }))),
+      reserved,
+    );
     const requested = new Map<string, number>();
     for (const item of input.items) requested.set(item.productId, (requested.get(item.productId) ?? 0) + item.quantity);
     const stockPlan = planCommerceStockAllocations(products.map((product) => {
-      let reservedQuantity = reserved.get(product.id) ?? 0;
       const stocks = product.stocks.map((stock) => {
         const physical = Number(stock.quantity);
-        const protectedQuantity = stock.warehouse.isActive ? Math.min(physical, reservedQuantity) : 0;
-        reservedQuantity = Math.max(0, reservedQuantity - protectedQuantity);
+        const protectedQuantity = reservedByStock.get(stock.id) ?? 0;
         return {
           id: stock.id,
           warehouseId: stock.warehouseId,
@@ -409,7 +414,7 @@ export const POST = apiHandler(async (req: NextRequest, { params }: { params: { 
       id: order.number,
       trackingToken: input.requestId,
       createdAt: order.createdAt.toISOString(),
-      status: input.payment === "TRANSFER" ? "訂單已進 ERP・等待轉帳確認" : "訂單已進 ERP・等待金流串接",
+      status: input.payment === "TRANSFER" ? "訂單已成立・等待轉帳確認" : "訂單已成立・待商家確認付款",
       total: Number(order.total),
       items: input.items.reduce((sum, item) => sum + item.quantity, 0),
       recipient: checkoutCustomer.name,

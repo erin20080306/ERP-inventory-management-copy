@@ -3,6 +3,41 @@ import { seedTenantDefaultsBatched } from "./seed-tenant-batched";
 
 export const INTERNAL_ADMIN_COMPANY_CODE = "ERIN-INTERNAL";
 export const INTERNAL_ADMIN_TENANT_NAME = "艾琳設計內部管理帳套";
+const REQUIRED_INTERNAL_CATALOGS = ["ERP", "POS_RETAIL", "POS_RESTAURANT", "ECOMMERCE"] as const;
+const BASELINE_CHECK_TTL_MS = 5 * 60_000;
+const baselineReadyUntil = new Map<string, number>();
+const baselineRepairs = new Map<string, Promise<void>>();
+
+async function ensureInternalAdminBaseline(tenantId: string) {
+  if ((baselineReadyUntil.get(tenantId) ?? 0) > Date.now()) return;
+  const running = baselineRepairs.get(tenantId);
+  if (running) return await running;
+
+  const repair = (async () => {
+    const catalogs = await prisma.product.groupBy({
+      by: ["catalogMode"],
+      where: { tenantId, isArchived: false },
+      _count: { _all: true },
+    });
+    const populated = new Set(
+      catalogs
+        .filter((catalog) => catalog._count._all > 0 && catalog.catalogMode)
+        .map((catalog) => catalog.catalogMode),
+    );
+    const missingCatalog = REQUIRED_INTERNAL_CATALOGS.some((catalog) => !populated.has(catalog));
+    if (missingCatalog) {
+      // 可重入的基礎資料建立只補固定 SKU、倉庫與科目，不會覆寫客戶自行
+      // 建立的商品價格、庫存或歷史交易。這也修復早期已建立但初始化中斷的內部帳套。
+      await seedTenantDefaultsBatched(tenantId);
+    }
+    baselineReadyUntil.set(tenantId, Date.now() + BASELINE_CHECK_TTL_MS);
+  })().finally(() => {
+    baselineRepairs.delete(tenantId);
+  });
+
+  baselineRepairs.set(tenantId, repair);
+  return await repair;
+}
 
 /**
  * 平台超級管理員只在獨立內部帳套操作 ERP／POS 測試資料。
@@ -23,6 +58,7 @@ export async function ensureInternalAdminTenant(userId: string) {
     if (user.tenantId !== existing.id) {
       await prisma.user.update({ where: { id: userId }, data: { tenantId: existing.id } });
     }
+    await ensureInternalAdminBaseline(existing.id);
     return existing;
   }
 
@@ -54,6 +90,7 @@ export async function ensureInternalAdminTenant(userId: string) {
     where: { tenantId: tenant.id },
     data: { name: INTERNAL_ADMIN_TENANT_NAME },
   });
+  baselineReadyUntil.set(tenant.id, Date.now() + BASELINE_CHECK_TTL_MS);
 
   return tenant;
 }
