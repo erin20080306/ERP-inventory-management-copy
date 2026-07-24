@@ -2,6 +2,7 @@ import "./globals.css";
 import type { Metadata, Viewport } from "next";
 import { Providers } from "@/components/providers";
 import { SWRegister } from "@/components/sw-register";
+import { currentRuntimeVersion } from "@/lib/runtime-version";
 
 export const metadata: Metadata = {
   title: "專業 ERP 進銷存會計管理系統",
@@ -35,7 +36,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="zh-TW" suppressHydrationWarning>
       <body>
         <Providers>{children}</Providers>
-        <SWRegister />
+        <SWRegister initialVersion={currentRuntimeVersion()} />
       </body>
     </html>
   );

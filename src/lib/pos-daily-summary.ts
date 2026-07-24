@@ -8,25 +8,30 @@ export function taipeiDayRange(now = new Date()) {
   return { start, end: new Date(start.getTime() + 24 * 60 * 60 * 1000) };
 }
 
-export async function getPosDailySummary(tenantId: string, client: any = prisma) {
+export async function getPosDailySummary(
+  tenantId: string,
+  client: any = prisma,
+  scope: { registerMode?: "POS_RETAIL" | "POS_RESTAURANT" | "POS_MEDICAL" } = {},
+) {
   const { start, end } = taipeiDayRange();
+  const registerScope = scope.registerMode ? { register: { mode: scope.registerMode } } : {};
   const [sales, refunds, saleItems, refundItems] = await Promise.all([
     client.posSale.aggregate({
-      where: { tenantId, status: { not: "VOIDED" }, createdAt: { gte: start, lt: end } },
+      where: { tenantId, ...registerScope, status: { not: "VOIDED" }, createdAt: { gte: start, lt: end } },
       _sum: { total: true },
       _count: { _all: true },
     }),
     client.posRefund.aggregate({
-      where: { tenantId, status: "COMPLETED", createdAt: { gte: start, lt: end } },
+      where: { tenantId, ...registerScope, status: "COMPLETED", createdAt: { gte: start, lt: end } },
       _sum: { total: true },
       _count: { _all: true },
     }),
     client.posSaleItem.aggregate({
-      where: { sale: { tenantId, status: { not: "VOIDED" }, createdAt: { gte: start, lt: end } } },
+      where: { sale: { tenantId, ...registerScope, status: { not: "VOIDED" }, createdAt: { gte: start, lt: end } } },
       _sum: { quantity: true },
     }),
     client.posRefundItem.aggregate({
-      where: { refund: { tenantId, status: "COMPLETED", createdAt: { gte: start, lt: end } } },
+      where: { refund: { tenantId, ...registerScope, status: "COMPLETED", createdAt: { gte: start, lt: end } } },
       _sum: { quantity: true },
     }),
   ]);

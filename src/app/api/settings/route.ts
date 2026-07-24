@@ -19,14 +19,17 @@ export const GET = apiHandler(async () => {
   const tenantId = await requireTenantId();
   const [company, tenant] = await Promise.all([
     prisma.companySetting.findFirst({ where: { tenantId } }),
-    prisma.tenant.findUnique({ where: { id: tenantId }, select: { businessMode: true, companyCode: true } }),
+    prisma.tenant.findUnique({ where: { id: tenantId }, select: { businessMode: true, companyCode: true, isInternal: true } }),
   ]);
   const storefrontKey = company?.storeSlug || normalizeStoreSlug(tenant?.companyCode || tenantId);
+  const ecommerce = tenant?.isInternal || tenant?.businessMode === "ECOMMERCE";
+  const medical = tenant?.isInternal || tenant?.businessMode === "POS_MEDICAL";
   return NextResponse.json({
     company: sanitizeCompanySetting(company),
     businessMode: tenant?.businessMode,
-    storefrontUrl: tenant?.businessMode === "ECOMMERCE" && storefrontKey ? storefrontUrl(storefrontKey) : null,
-    medicalSiteUrl: tenant?.businessMode === "POS_MEDICAL" && storefrontKey ? medicalSiteUrl(storefrontKey) : null,
+    isInternal: Boolean(tenant?.isInternal),
+    storefrontUrl: ecommerce && storefrontKey ? storefrontUrl(storefrontKey) : null,
+    medicalSiteUrl: medical && storefrontKey ? medicalSiteUrl(storefrontKey) : null,
   });
 });
 
@@ -36,7 +39,7 @@ export const PUT = apiHandler(async (req: NextRequest) => {
   const body = await req.json();
   const [existing, tenant] = await Promise.all([
     prisma.companySetting.findFirst({ where: { tenantId } }),
-    prisma.tenant.findUnique({ where: { id: tenantId }, select: { businessMode: true, companyCode: true, name: true } }),
+    prisma.tenant.findUnique({ where: { id: tenantId }, select: { businessMode: true, companyCode: true, name: true, isInternal: true } }),
   ]);
   if (!tenant) throw new ApiError(404, "找不到公司資料");
   const companyName = String(body.name || "").trim();
@@ -63,8 +66,8 @@ export const PUT = apiHandler(async (req: NextRequest) => {
       throw new ApiError(response.status >= 500 ? 502 : response.status, result?.error || "中央公司資料同步失敗");
     }
   }
-  const ecommerce = tenant.businessMode === "ECOMMERCE";
-  const medical = tenant.businessMode === "POS_MEDICAL";
+  const ecommerce = tenant.isInternal || tenant.businessMode === "ECOMMERCE";
+  const medical = tenant.isInternal || tenant.businessMode === "POS_MEDICAL";
   const hasPublicWebsite = ecommerce || medical;
   const storeName = hasPublicWebsite ? String(body.storeName || body.name || tenant.name || "").trim() : null;
   if (hasPublicWebsite && (!storeName || storeName.length > 80)) {
@@ -139,6 +142,7 @@ export const PUT = apiHandler(async (req: NextRequest) => {
   return NextResponse.json({
     company: sanitizeCompanySetting(saved),
     businessMode: tenant?.businessMode,
+    isInternal: Boolean(tenant?.isInternal),
     storefrontUrl: ecommerce && saved.storeSlug ? storefrontUrl(saved.storeSlug) : null,
     medicalSiteUrl: medical && saved.storeSlug ? medicalSiteUrl(saved.storeSlug) : null,
   });

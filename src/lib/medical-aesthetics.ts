@@ -25,7 +25,13 @@ const CONSUMABLE_RECIPES: Record<string, Array<{ sku: string; quantity: number }
   "MED-RENEW": [{ sku: "MED-CON-002", quantity: 1 }, { sku: "MED-CON-003", quantity: 1 }],
 };
 
+const medicalBaselineReadyUntil = new Map<string, number>();
+const MEDICAL_BASELINE_READY_TTL_MS = 5 * 60_000;
+
 export async function ensureMedicalAestheticsBaseline(tenantId: string) {
+  if ((medicalBaselineReadyUntil.get(tenantId) ?? 0) > Date.now()) {
+    return { initialized: false, cached: true };
+  }
   const [serviceCount, packageCount, consumableCount, register] = await Promise.all([
     prisma.medicalService.count({ where: { tenantId } }),
     prisma.medicalTreatmentPackage.count({ where: { tenantId } }),
@@ -38,10 +44,11 @@ export async function ensureMedicalAestheticsBaseline(tenantId: string) {
     && consumableCount >= MEDICAL_DEMO_CONSUMABLES.length
     && register
   ) {
+    medicalBaselineReadyUntil.set(tenantId, Date.now() + MEDICAL_BASELINE_READY_TTL_MS);
     return { warehouseId: register.warehouseId, services: serviceCount, initialized: false };
   }
 
-  return prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     const [tenant, websiteSettings] = await Promise.all([
       tx.tenant.findUnique({ where: { id: tenantId }, select: { name: true } }),
       tx.companySetting.findFirst({ where: { tenantId }, select: { id: true, name: true, storeSlug: true, storeName: true } }),
@@ -80,7 +87,7 @@ export async function ensureMedicalAestheticsBaseline(tenantId: string) {
     ]);
 
     const warehouse = await tx.warehouse.upsert({ where: { tenantId_code: { tenantId, code: "MED-MAIN" } }, update: { name: "醫美主庫", isActive: true }, create: { tenantId, code: "MED-MAIN", name: "醫美主庫", isActive: true } });
-    await tx.posRegister.upsert({ where: { tenantId_code: { tenantId, code: "MED-01" } }, update: { name: "醫美櫃台", warehouseId: warehouse.id, isActive: true }, create: { tenantId, code: "MED-01", name: "醫美櫃台", warehouseId: warehouse.id, isActive: true } });
+    await tx.posRegister.upsert({ where: { tenantId_code: { tenantId, code: "MED-01" } }, update: { name: "醫美櫃台", mode: "POS_MEDICAL", warehouseId: warehouse.id, isActive: true }, create: { tenantId, code: "MED-01", name: "醫美櫃台", mode: "POS_MEDICAL", warehouseId: warehouse.id, isActive: true } });
 
     const consumableProducts = new Map<string, { id: string }>();
     for (const definition of MEDICAL_DEMO_CONSUMABLES) {
@@ -138,4 +145,6 @@ export async function ensureMedicalAestheticsBaseline(tenantId: string) {
     }
     return { warehouseId: warehouse.id, services: services.size, initialized: true };
   });
+  medicalBaselineReadyUntil.set(tenantId, Date.now() + MEDICAL_BASELINE_READY_TTL_MS);
+  return result;
 }

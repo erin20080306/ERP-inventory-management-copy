@@ -948,6 +948,12 @@ model SalesShipmentItem {
 }
 
 // ─────────────────────────── POS 門市 ───────────────────────────
+enum PosRegisterMode {
+  POS_RETAIL
+  POS_RESTAURANT
+  POS_MEDICAL
+}
+
 enum PosShiftStatus {
   OPEN
   CLOSED
@@ -1043,6 +1049,7 @@ model PosRegister {
   warehouseId      String
   code             String
   name             String
+  mode             PosRegisterMode   @default(POS_RETAIL)
   isActive         Boolean           @default(true)
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
@@ -1057,6 +1064,7 @@ model PosRegister {
 
   @@unique([tenantId, code])
   @@index([tenantId, isActive])
+  @@index([tenantId, mode, isActive])
   @@index([warehouseId])
 }
 

@@ -39,7 +39,7 @@ const DATA_PREFETCH_BY_HREF: Record<string, string[]> = {
   "/roles": ["/api/roles"],
   "/pos": ["/api/pos/bootstrap"],
   "/pos/restaurant": ["/api/pos/restaurant"],
-  "/medical": ["/api/medical/bootstrap", "/api/pos/bootstrap"],
+  "/medical": ["/api/medical/bootstrap"],
 };
 
 const warmedRoutes = new Set<string>();
@@ -186,18 +186,18 @@ const medicalBackendSections = posBackendSections.map((section) => ({
   items: section.items.filter((item) => item.title !== "發票管理"),
 }));
 
-const adminSections: NavSection[] = [
+const adminSections = (storefrontHref: string | null, medicalSiteHref: string | null): NavSection[] => [
   {
     label: "管理者工作區",
     items: [
       { title: "平台授權後台", href: "/admin", icon: Shield },
       { title: "工作區選擇", href: "/workspace", icon: PanelsTopLeft },
       { title: "一般企業 ERP", href: "/dashboard", icon: LayoutDashboard },
-      { title: "電商租戶網站", href: "/store/atelier-noir", icon: Store },
+      ...(storefrontHref ? [{ title: "我的店商城", href: storefrontHref, icon: Store }] : []),
       { title: "零售 POS", href: "/pos", icon: ShoppingBag },
       { title: "餐飲桌位與廚房", href: "/pos/restaurant", icon: UtensilsCrossed },
       { title: "醫美診所營運 POS", href: "/medical", icon: HeartPulse },
-      { title: "醫美診所網站", href: "/medical/atelier-clinic", icon: Store },
+      ...(medicalSiteHref ? [{ title: "我的醫美官網", href: medicalSiteHref, icon: Store }] : []),
       { title: "電子發票佇列", href: "/pos/e-invoices", icon: FileCheck2 },
       { title: "POS 硬體診斷", href: "/pos/hardware", icon: Cable },
       { title: "促銷與店長授權", href: "/pos/offers", icon: BadgeDollarSign },
@@ -246,7 +246,7 @@ export function SidebarNav({ onNavigate, collapsed = false }: { onNavigate?: () 
     ],
   };
   const sections = data?.user?.isSuperAdmin
-    ? adminSections
+    ? adminSections(storefrontHref, medicalSiteHref)
     : businessMode === "ECOMMERCE"
       ? [erpSections[0], ecommerceFront, ...posBackendSections]
       : businessMode === "POS_MEDICAL"

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { currentRuntimeVersion } from "@/lib/runtime-version";
 
 export const dynamic = "force-dynamic";
 
@@ -8,6 +9,7 @@ export async function GET() {
     {
       localLicenseMode,
       demoLoginEnabled: !localLicenseMode,
+      appVersion: currentRuntimeVersion(),
     },
     { headers: { "Cache-Control": "no-store" } },
   );

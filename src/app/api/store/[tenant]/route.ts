@@ -49,12 +49,13 @@ async function getCommerceTenant(rawKey: string) {
   if (!key || key.length > 100) throw new ApiError(404, "找不到商城");
   const tenant = await prisma.tenant.findFirst({
     where: {
-      isInternal: false,
-      businessMode: "ECOMMERCE",
-      OR: [
-        { id: key },
-        { companyCode: key.toUpperCase() },
-        { companySettings: { some: { storeSlug: normalizeStoreSlug(key) } } },
+      AND: [
+        { OR: [{ isInternal: true }, { isInternal: false, businessMode: "ECOMMERCE" }] },
+        { OR: [
+          { id: key },
+          { companyCode: key.toUpperCase() },
+          { companySettings: { some: { storeSlug: normalizeStoreSlug(key) } } },
+        ] },
       ],
     },
     select: {
@@ -70,6 +71,7 @@ async function getCommerceTenant(rawKey: string) {
       licenseExpiresAt: true,
       licenseKeyHash: true,
       licenseVersion: true,
+      isInternal: true,
       companySettings: {
         select: {
           storeName: true,
@@ -106,8 +108,17 @@ function reservedByProduct(lines: Array<{ productId: string; quantity: unknown; 
   return reserved;
 }
 
-export const GET = apiHandler(async (_req: NextRequest, { params }: { params: { tenant: string } }) => {
+export const GET = apiHandler(async (req: NextRequest, { params }: { params: { tenant: string } }) => {
   const { tenant, access } = await getCommerceTenant(params.tenant);
+  const company = tenant.companySettings[0];
+  const acceptingOrders = tenant.isInternal || access.allowed;
+  if (req.nextUrl.searchParams.get("status") === "1") {
+    return NextResponse.json({
+      tenant: { name: tenant.name },
+      acceptingOrders,
+      accessMessage: acceptingOrders ? null : access.reason,
+    }, { headers: { "Cache-Control": "no-store, max-age=0" } });
+  }
   const [products, pendingLines] = await Promise.all([
     prisma.product.findMany({
       where: {
@@ -142,7 +153,6 @@ export const GET = apiHandler(async (_req: NextRequest, { params }: { params: { 
     }),
   ]);
   const reserved = reservedByProduct(pendingLines);
-  const company = tenant.companySettings[0];
   const storeKey = company?.storeSlug || normalizeStoreSlug(tenant.companyCode || tenant.id);
   return NextResponse.json({
     tenant: { name: tenant.name },
@@ -151,8 +161,8 @@ export const GET = apiHandler(async (_req: NextRequest, { params }: { params: { 
       slug: storeKey,
       url: storefrontUrl(storeKey),
     },
-    acceptingOrders: access.allowed,
-    accessMessage: access.allowed ? null : access.reason,
+    acceptingOrders,
+    accessMessage: acceptingOrders ? null : access.reason,
     paymentOptions: {
       card: {
         enabled: true,
@@ -195,7 +205,7 @@ export const POST = apiHandler(async (req: NextRequest, { params }: { params: { 
   const input = CheckoutInput.parse(await req.json());
   if (input.delivery === "HOME" && !input.customer.address) throw new ApiError(400, "宅配訂單請填寫配送地址");
   const { tenant, access } = await getCommerceTenant(params.tenant);
-  if (!access.allowed) throw new ApiError(403, access.reason || "此商城目前暫停接單");
+  if (!tenant.isInternal && !access.allowed) throw new ApiError(403, access.reason || "此商城目前暫停接單");
   const memberSession = await readStorefrontMemberSession(req, tenant.id);
   const company = tenant.companySettings[0];
   const transferConfigured = Boolean(

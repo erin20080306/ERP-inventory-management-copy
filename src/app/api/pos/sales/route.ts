@@ -7,10 +7,18 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const tenantId = await requireTenantId(session);
   const query = (req.nextUrl.searchParams.get("q") ?? "").trim();
   const channel = req.nextUrl.searchParams.get("channel") ?? "all";
+  const registerMode = channel === "retail"
+    ? "POS_RETAIL"
+    : channel === "restaurant"
+      ? "POS_RESTAURANT"
+      : channel === "medical"
+        ? "POS_MEDICAL"
+        : null;
   const sales = await prisma.posSale.findMany({
     where: {
       tenantId,
       status: { not: "VOIDED" },
+      ...(registerMode ? { register: { mode: registerMode } } : {}),
       ...(channel === "restaurant" ? { restaurantOrder: { isNot: null } } : {}),
       ...(query ? {
         OR: [

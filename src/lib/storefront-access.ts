@@ -28,12 +28,22 @@ export function canAccessTenantErp(user: StorefrontAccessUser | null | undefined
 }
 
 export function tenantStorefrontPath(user: StorefrontAccessUser | null | undefined) {
+  if (user?.isSuperAdmin) {
+    if (normalizedTenantKey(user.companyCode) !== "ERIN-INTERNAL") return null;
+    const tenantKey = user.companyCode?.trim() || user.tenantId?.trim();
+    return tenantKey ? `/store/${encodeURIComponent(tenantKey)}` : null;
+  }
   if (!canAccessTenantErp(user) || normalizeBusinessMode(user?.businessMode) !== "ECOMMERCE") return null;
   const tenantKey = user?.companyCode?.trim() || user?.tenantId?.trim();
   return tenantKey ? `/store/${encodeURIComponent(tenantKey)}` : null;
 }
 
 export function tenantMedicalSitePath(user: StorefrontAccessUser | null | undefined) {
+  if (user?.isSuperAdmin) {
+    if (normalizedTenantKey(user.companyCode) !== "ERIN-INTERNAL") return null;
+    const tenantKey = user.companyCode?.trim() || user.tenantId?.trim();
+    return tenantKey ? `/medical/${encodeURIComponent(tenantKey)}` : null;
+  }
   if (!canAccessTenantErp(user) || normalizeBusinessMode(user?.businessMode) !== "POS_MEDICAL") return null;
   const tenantKey = user?.companyCode?.trim() || user?.tenantId?.trim();
   return tenantKey ? `/medical/${encodeURIComponent(tenantKey)}` : null;
@@ -42,7 +52,15 @@ export function tenantMedicalSitePath(user: StorefrontAccessUser | null | undefi
 export function canManageTenantStorefront(user: StorefrontAccessUser | null | undefined, requestedTenant: string) {
   const requested = normalizedTenantKey(requestedTenant);
   if (!requested || !user) return false;
-  if (user.isSuperAdmin) return ["ATELIER-NOIR", "MOON-FORM"].includes(requested);
+  if (user.isSuperAdmin) {
+    const internalKeys = normalizedTenantKey(user.companyCode) === "ERIN-INTERNAL"
+      ? [user.tenantId, user.companyCode]
+      : [];
+    return ["ATELIER-NOIR", "MOON-FORM", ...internalKeys]
+      .map(normalizedTenantKey)
+      .filter(Boolean)
+      .includes(requested);
+  }
   if (!tenantStorefrontPath(user)) return false;
   return [user.tenantId, user.companyCode].map(normalizedTenantKey).filter(Boolean).includes(requested);
 }
@@ -50,7 +68,15 @@ export function canManageTenantStorefront(user: StorefrontAccessUser | null | un
 export function canManageTenantMedicalSite(user: StorefrontAccessUser | null | undefined, requestedTenant: string) {
   const requested = normalizedTenantKey(requestedTenant);
   if (!requested || !user) return false;
-  if (user.isSuperAdmin) return requested === "ATELIER-CLINIC";
+  if (user.isSuperAdmin) {
+    const internalKeys = normalizedTenantKey(user.companyCode) === "ERIN-INTERNAL"
+      ? [user.tenantId, user.companyCode]
+      : [];
+    return ["ATELIER-CLINIC", ...internalKeys]
+      .map(normalizedTenantKey)
+      .filter(Boolean)
+      .includes(requested);
+  }
   if (!tenantMedicalSitePath(user)) return false;
   return [user.tenantId, user.companyCode].map(normalizedTenantKey).filter(Boolean).includes(requested);
 }

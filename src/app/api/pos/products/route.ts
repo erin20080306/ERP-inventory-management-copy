@@ -27,17 +27,30 @@ function serializeProduct(product: any, useRetailFallback: boolean) {
 export const GET = apiHandler(async (req: NextRequest) => {
   const session = await requirePosPermission("create", "sales.create");
   const tenantId = await requireTenantId(session);
-  const businessMode = normalizeBusinessMode(session.user.businessMode);
-  const useRetailFallback = businessMode === "POS_RETAIL";
-  const catalogScope = productCatalogScope(businessMode);
   const warehouseId = (req.nextUrl.searchParams.get("warehouseId") ?? "").trim();
+  const registerId = (req.nextUrl.searchParams.get("registerId") ?? "").trim();
   const scan = (req.nextUrl.searchParams.get("scan") ?? "").trim();
   const query = (req.nextUrl.searchParams.get("q") ?? "").trim();
   const ids = (req.nextUrl.searchParams.get("ids") ?? "").split(",").map((id) => id.trim()).filter(Boolean).slice(0, 200);
 
   if (!warehouseId) throw new ApiError(400, "缺少門市倉庫");
-  const warehouse = await prisma.warehouse.findFirst({ where: { id: warehouseId, tenantId, isActive: true }, select: { id: true } });
+  const [warehouse, register] = await Promise.all([
+    prisma.warehouse.findFirst({ where: { id: warehouseId, tenantId, isActive: true }, select: { id: true } }),
+    registerId
+      ? prisma.posRegister.findFirst({
+          where: { id: registerId, tenantId, warehouseId, isActive: true },
+          select: { id: true, mode: true },
+        })
+      : Promise.resolve(null),
+  ]);
   if (!warehouse) throw new ApiError(404, "找不到可用門市倉庫");
+  if (registerId && !register) throw new ApiError(404, "找不到此工作區的收銀台");
+  const businessMode = register?.mode ?? normalizeBusinessMode(session.user.businessMode);
+  if (!session.user.isSuperAdmin && businessMode !== normalizeBusinessMode(session.user.businessMode)) {
+    throw new ApiError(403, "不可跨 POS 工作區讀取商品");
+  }
+  const useRetailFallback = businessMode === "POS_RETAIL";
+  const catalogScope = productCatalogScope(businessMode);
 
   const select = {
     id: true,

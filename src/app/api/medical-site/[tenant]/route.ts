@@ -18,12 +18,13 @@ async function findMedicalTenant(rawKey: string) {
   const key = decodeURIComponent(rawKey).trim();
   return prisma.tenant.findFirst({
     where: {
-      isInternal: false,
-      businessMode: "POS_MEDICAL",
-      OR: [
-        { id: key },
-        { companyCode: key.toUpperCase() },
-        { companySettings: { some: { storeSlug: normalizeStoreSlug(key) } } },
+      AND: [
+        { OR: [{ isInternal: true }, { isInternal: false, businessMode: "POS_MEDICAL" }] },
+        { OR: [
+          { id: key },
+          { companyCode: key.toUpperCase() },
+          { companySettings: { some: { storeSlug: normalizeStoreSlug(key) } } },
+        ] },
       ],
     },
     select: {

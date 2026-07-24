@@ -101,6 +101,9 @@ export async function refundPosSale(options: {
       },
     });
     if (!sale) throw new ApiError(404, "找不到原 POS 交易");
+    if (sale.register.mode !== shift.register.mode) {
+      throw new ApiError(409, "原交易屬於其他 POS 工作區，請切換到正確工作區後退款");
+    }
     if (!["COMPLETED", "PARTIALLY_REFUNDED"].includes(sale.status)) {
       throw new ApiError(409, sale.status === "REFUNDED" ? "此交易已全數退款" : "此交易不可退款");
     }
