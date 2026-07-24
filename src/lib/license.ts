@@ -806,8 +806,14 @@ export async function refreshLocalLicenseLease(tenantId: string) {
     const remoteTenantId = String(lease.payload.tenantId || "");
     const tenantName = String(lease.payload.tenantName || "").trim();
     const businessMode = normalizeBusinessMode(String(lease.payload.businessMode || ""));
+    const companyCode = normalizeCompanyCode(String(lease.payload.companyCode || ""));
+    const storeSlug = String(lease.payload.storeSlug || companyCode.toLowerCase()).trim().toLowerCase();
+    const storeName = String(lease.payload.storeName || tenantName).trim();
     if (!remoteTenantId || Number.isNaN(issuedAt.getTime()) || Number.isNaN(expiresAt.getTime())) throw new Error("中央授權內容不完整");
     if (!tenantName || tenantName.length > 200) throw new Error("中央授權公司名稱無效");
+    if (!/^ERIN-[A-F0-9]{12}$/.test(companyCode)) throw new Error("中央授權公司代碼無效");
+    if (!/^[a-z0-9][a-z0-9-]{2,48}[a-z0-9]$/.test(storeSlug)) throw new Error("中央授權商城網址代碼無效");
+    if (!storeName || storeName.length > 80) throw new Error("中央授權商城名稱無效");
     const currentTenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { businessMode: true } });
     if (!currentTenant) throw new Error("找不到本機公司資料");
     await prisma.$transaction(async (tx) => {
@@ -816,8 +822,18 @@ export async function refreshLocalLicenseLease(tenantId: string) {
         update: { remoteTenantId, payload: lease.payload as Prisma.InputJsonValue, signature: lease.signature, algorithm: lease.algorithm, issuedAt, expiresAt, checkedAt: new Date(), lastObservedAt: new Date(), lastError: null },
         create: { tenantId, remoteTenantId, payload: lease.payload as Prisma.InputJsonValue, signature: lease.signature, algorithm: lease.algorithm, issuedAt, expiresAt, lastObservedAt: new Date() },
       });
-      await tx.tenant.update({ where: { id: tenantId }, data: { name: tenantName, businessMode } });
-      await tx.companySetting.updateMany({ where: { tenantId }, data: { name: tenantName } });
+      await tx.tenant.update({ where: { id: tenantId }, data: { name: tenantName, businessMode, companyCode } });
+      const company = await tx.companySetting.findFirst({ where: { tenantId }, select: { id: true } });
+      if (company) {
+        await tx.companySetting.update({
+          where: { id: company.id },
+          data: { name: tenantName, storeName, storeSlug },
+        });
+      } else {
+        await tx.companySetting.create({
+          data: { tenantId, name: tenantName, currency: "TWD", storeName, storeSlug },
+        });
+      }
       await syncPrimaryAccount(tx, tenantId, lease.payload);
     });
     if (normalizeBusinessMode(currentTenant.businessMode) !== businessMode) await seedTenantDefaults(tenantId);

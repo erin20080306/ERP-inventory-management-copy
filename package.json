@@ -27,6 +27,7 @@
     "test:commerce": "tsx scripts/verify-commerce-checkout.ts && tsx scripts/verify-commerce-refunds.ts",
     "test:dashboard-permissions": "tsx scripts/verify-dashboard-permissions.ts",
     "test:storefront": "tsx scripts/verify-storefront-access.ts",
+    "test:installed-storefront": "tsx scripts/verify-installed-storefront-sync.ts",
     "test:tenant-access": "tsx scripts/verify-tenant-owner-access.ts",
     "test:storefront-members": "node --import tsx scripts/verify-storefront-members.ts",
     "test:company-profile": "node scripts/verify-company-profile-change.mjs",

@@ -177,6 +177,25 @@ export const authOptions: NextAuthOptions = {
         token.businessMode = normalizeBusinessMode(internalTenant.businessMode);
         token.isInternalAdminTenant = true;
       }
+      if (
+        process.env.LOCAL_LICENSE_MODE === "true" &&
+        token.tenantId &&
+        !/^ERIN-[A-F0-9]{12}$/.test(String(token.companyCode || ""))
+      ) {
+        const localTenant = await prisma.tenant.findUnique({
+          where: { id: token.tenantId },
+          select: {
+            companyCode: true,
+            businessMode: true,
+            companySettings: { select: { storeSlug: true }, take: 1 },
+          },
+        });
+        if (localTenant?.companyCode) {
+          token.companyCode = localTenant.companyCode;
+          token.storeSlug = localTenant.companySettings[0]?.storeSlug ?? localTenant.companyCode.toLowerCase();
+          token.businessMode = normalizeBusinessMode(localTenant.businessMode);
+        }
+      }
       return token;
     },
     async session({ session, token }) {

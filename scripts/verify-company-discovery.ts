@@ -153,6 +153,9 @@ async function main() {
   assert.equal(verifyOfflineLease(serverLeaseBody.lease), true);
   assert.equal(serverLeaseBody.lease.payload.subscriptionExpiresAt, activation.expiresAt?.toISOString());
   assert.equal(serverLeaseBody.lease.payload.paymentType, "MONTHLY");
+  assert.equal(serverLeaseBody.lease.payload.companyCode, activation.companyCode);
+  assert.equal(serverLeaseBody.lease.payload.storeSlug, activation.companyCode.toLowerCase());
+  assert.equal(serverLeaseBody.lease.payload.storeName, tenant.name);
   assert.ok(
     new Date(serverLeaseBody.lease.payload.expiresAt).getTime() < new Date(serverLeaseBody.lease.payload.subscriptionExpiresAt).getTime(),
     "24 小時離線租約不得被誤當成中央訂閱到期日",
@@ -207,7 +210,10 @@ async function main() {
   const syncedCompany = await prisma.companySetting.findFirstOrThrow({ where: { tenantId: localTenant.id } });
   assert.equal(syncedLocal.name, tenant.name);
   assert.equal(syncedLocal.businessMode, "POS_RESTAURANT");
+  assert.equal(syncedLocal.companyCode, activation.companyCode);
   assert.equal(syncedCompany.name, tenant.name);
+  assert.equal(syncedCompany.storeSlug, activation.companyCode.toLowerCase());
+  assert.equal(syncedCompany.storeName, tenant.name);
   const syncedOwner = await prisma.user.findUniqueOrThrow({
     where: { email: owner.email },
     include: { userRoles: { include: { role: true } } },

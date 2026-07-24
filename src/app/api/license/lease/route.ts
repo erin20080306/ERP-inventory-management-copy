@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import {
   ONLINE_REFRESH_MINUTES, appendLicenseEvent, computeLicenseAccess, hashActivationKey,
-  clampOfflineLeaseExpiry, fingerprintDeviceId, hashDeviceId, normalizeLicenseAccountUsername,
+  clampOfflineLeaseExpiry, ensureTenantCompanyCode, fingerprintDeviceId, hashDeviceId, normalizeLicenseAccountUsername,
   signOfflineLease, workstationDeviceIdFromPublicKey,
 } from "@/lib/license";
 import { prisma } from "@/lib/prisma";
@@ -46,9 +46,10 @@ export async function POST(req: NextRequest) {
     const tenant = await prisma.tenant.findUnique({
       where: { licenseKeyHash: keyHash },
       select: {
-        id: true, name: true, businessMode: true, createdAt: true,
+        id: true, name: true, businessMode: true, companyCode: true, createdAt: true,
         licensePlan: true, licenseBilling: true, licenseStatus: true, licenseSeatLimit: true,
         licenseActivatedAt: true, licenseExpiresAt: true, licenseKeyHash: true, licenseVersion: true,
+        companySettings: { select: { storeSlug: true, storeName: true }, take: 1 },
       },
     });
     if (!tenant) return NextResponse.json({ error: "啟用碼無效" }, { status: 401 });
@@ -113,7 +114,7 @@ export async function POST(req: NextRequest) {
 
     const primaryAccountRecord = parsed.data.deviceRole === "SERVER"
       ? await prisma.user.findFirst({
-          where: { tenantId: tenant.id, isActive: true, userRoles: { some: { role: { name: "系統管理員" } } } },
+          where: { tenantId: tenant.id, isActive: true, isTenantOwner: true },
           orderBy: [{ createdAt: "asc" }, { id: "asc" }],
           select: { username: true, email: true, name: true, passwordHash: true },
         }) ?? await prisma.user.findFirst({
@@ -128,12 +129,19 @@ export async function POST(req: NextRequest) {
           username: normalizeLicenseAccountUsername(primaryAccountRecord.username, primaryAccountRecord.email),
         }
       : null;
+    const companyCode = tenant.companyCode || await ensureTenantCompanyCode(tenant.id);
+    const company = tenant.companySettings[0];
+    const storeSlug = company?.storeSlug?.trim().toLowerCase() || companyCode.toLowerCase();
+    const storeName = (company?.storeName?.trim() || tenant.name).slice(0, 80);
     const issuedAt = new Date();
     const expiresAt = clampOfflineLeaseExpiry(issuedAt, access.expiresAt);
     const lease = signOfflineLease({
       tenantId: tenant.id,
       tenantName: tenant.name,
       businessMode: normalizeBusinessMode(tenant.businessMode),
+      companyCode,
+      storeSlug,
+      storeName,
       deviceId: device.id,
       deviceRole: device.deviceRole,
       devicePublicKey: device.devicePublicKey,

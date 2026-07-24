@@ -276,7 +276,7 @@ assert.match(productCatalogMigration, /ECOMMERCE/);
 assert.match(productCatalogRepairMigration, /RTL-P002/);
 assert.match(productCatalogRepairMigration, /木質調香氛蠟燭/);
 assert.match(productCatalogRepairMigration, /POS_RETAIL/);
-assert.match(tenantBaseline, /tenant_baseline_v4_seeded/);
+assert.match(tenantBaseline, /tenant_baseline_v5_seeded/);
 assert.doesNotMatch(commerceStorefront, /SaaS 租戶/);
 assert.match(settingsClient, /商城名稱與專屬網址/);
 assert.match(settingsClient, /自訂網址名稱（選填）/);

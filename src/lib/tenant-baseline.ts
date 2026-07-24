@@ -1,10 +1,10 @@
 import { prisma } from "./prisma";
 import { seedTenantDefaultsBatched } from "./seed-tenant-batched";
 
-// v4 會讓既有租戶安全重跑一次可重入初始化，補足三種銷售模式各自的 12 項正確商品與圖片。
-export const BASELINE_STARTED_ACTION = "tenant_baseline_v4_started";
-export const BASELINE_MARKER_ACTION = "tenant_baseline_v4_seeded";
-export const BASELINE_FAILED_ACTION = "tenant_baseline_v4_failed";
+// v5 讓既有租戶安全重跑一次可重入初始化，修復曾被舊完成標記略過而缺少的商品與庫存。
+export const BASELINE_STARTED_ACTION = "tenant_baseline_v5_started";
+export const BASELINE_MARKER_ACTION = "tenant_baseline_v5_seeded";
+export const BASELINE_FAILED_ACTION = "tenant_baseline_v5_failed";
 
 const readyTenants = new Set<string>();
 
