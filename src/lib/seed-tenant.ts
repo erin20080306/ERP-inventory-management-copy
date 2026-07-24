@@ -1,6 +1,7 @@
 import { prisma } from "./prisma";
 import { STANDARD_ACCOUNTS } from "../../prisma/standard-accounts";
 import { seedOperationalBaseline } from "./seed-operational-baseline";
+import { ensureMedicalAestheticsBaseline } from "./medical-aesthetics";
 
 // 台灣商業會計法標準會計科目表
 export const LEGACY_CHART_OF_ACCOUNTS: { code: string; name: string; type: string; parent?: string }[] = [
@@ -242,4 +243,6 @@ export async function seedTenantDefaults(tenantId: string) {
       });
     }
   }, { timeout: 30000 });
+  const medicalTenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { businessMode: true } });
+  if (medicalTenant?.businessMode === "POS_MEDICAL") await ensureMedicalAestheticsBaseline(tenantId);
 }

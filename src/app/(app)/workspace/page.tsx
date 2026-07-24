@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowUpRight, Building2, Calculator, ClipboardList, Package, PackageCheck, ScanBarcode, Shield, ShoppingCart, Store, UtensilsCrossed } from "lucide-react";
+import { ArrowUpRight, Building2, Calculator, ClipboardList, HeartPulse, Package, PackageCheck, ScanBarcode, Shield, ShoppingCart, Store, UtensilsCrossed } from "lucide-react";
 import { getSession } from "@/lib/api";
 import { hasPermission } from "@/lib/auth";
 import { getDashboardKpis } from "@/lib/dashboard";
@@ -29,6 +29,7 @@ export default async function WorkspacePage() {
     if (mode === "ERP" && hasPermission(permissions, "dashboard.view")) redirect("/dashboard");
     if (mode === "POS_RETAIL" && hasPermission(permissions, "pos.view")) redirect("/pos");
     if (mode === "POS_RESTAURANT" && hasPermission(permissions, "restaurant.view")) redirect("/pos/restaurant");
+    if (mode === "POS_MEDICAL" && (hasPermission(permissions, "medical.view") || hasPermission(permissions, "pos.view"))) redirect("/medical");
   }
   const storefrontCode = session.user.companyCode || session.user.tenantId;
   const commerceStats = mode === "ECOMMERCE" && session.user.tenantId
@@ -46,6 +47,12 @@ export default async function WorkspacePage() {
       : []),
     ...((mode === "POS_RESTAURANT" || isPlatformAdmin) && hasPermission(permissions, "restaurant.view")
       ? [{ title: "餐飲桌位與點餐", description: "圖片點餐、加點、送廚、出餐與桌位結帳", href: "/pos/restaurant", icon: UtensilsCrossed, tone: "orange" }]
+      : []),
+    ...((mode === "POS_MEDICAL" || isPlatformAdmin)
+      ? [{ title: mode === "POS_MEDICAL" ? "預覽我的醫美官網" : "醫美診所網站示範", description: "專業形象官網、圖片選服務與線上預約", href: mode === "POS_MEDICAL" ? `/medical/${encodeURIComponent(storefrontCode)}` : "/medical/atelier-clinic", icon: Store, tone: "rose" }]
+      : []),
+    ...((mode === "POS_MEDICAL" || isPlatformAdmin) && (hasPermission(permissions, "medical.view") || hasPermission(permissions, "pos.view"))
+      ? [{ title: "醫美 POS 與預約排程", description: "預約、套票、會員儲值、同意書、療程紀錄、醫療收據與耗材", href: "/medical", icon: HeartPulse, tone: "rose" }]
       : []),
     ...(hasPermission(permissions, "inventory.view")
       ? [{ title: "進銷存後台", description: "商品、採購、銷售、庫存、調撥與退貨", href: "/inventory", icon: Package, tone: "indigo" }]
@@ -66,7 +73,7 @@ export default async function WorkspacePage() {
             <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs">
               <Building2 className="h-3.5 w-3.5" />{isPlatformAdmin ? "管理者免費內部帳套" : "已鎖定公司業態"}
             </div>
-            <h1 className="text-2xl font-black md:text-3xl">{isPlatformAdmin ? "ERP／電商／零售 POS／餐飲 POS 完整功能" : edition.label}</h1>
+            <h1 className="text-2xl font-black md:text-3xl">{isPlatformAdmin ? "ERP／電商／零售 POS／餐飲 POS／醫美 POS 完整功能" : edition.label}</h1>
             <p className="mt-2 text-sm text-slate-300">{isPlatformAdmin ? "艾琳設計內部驗收帳套，永久免費且不會混入付費客戶資料。" : edition.description}</p>
           </div>
           <div className="max-w-sm rounded-2xl border border-white/10 bg-white/5 p-4 text-xs leading-6 text-slate-300">

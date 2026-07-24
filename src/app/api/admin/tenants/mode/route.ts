@@ -10,7 +10,7 @@ import { prisma } from "@/lib/prisma";
 import { normalizeBusinessMode } from "@/lib/product-editions";
 import { seedTenantDefaults } from "@/lib/seed-tenant";
 
-const BusinessMode = z.enum(["ERP", "POS_RETAIL", "POS_RESTAURANT", "ECOMMERCE"]);
+const BusinessMode = z.enum(["ERP", "POS_RETAIL", "POS_RESTAURANT", "ECOMMERCE", "POS_MEDICAL"]);
 const Input = z.object({
   tenantId: z.string().min(1),
   businessMode: BusinessMode,
@@ -148,7 +148,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
 
   if (!updated.changed) return NextResponse.json({ ok: true, changed: false, preview });
   await seedTenantDefaults(body.tenantId);
-  const companyCode = body.businessMode === "ECOMMERCE"
+  const companyCode = body.businessMode === "ECOMMERCE" || body.businessMode === "POS_MEDICAL"
     ? await ensureTenantCompanyCode(body.tenantId)
     : preview.companyCode;
   await appendLicenseEvent({

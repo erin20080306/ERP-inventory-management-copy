@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import {
   canManageTenantStorefront,
+  canManageTenantMedicalSite,
   isTenantHighestPrivilege,
+  tenantMedicalSitePath,
   tenantStorefrontPath,
 } from "../src/lib/storefront-access";
 import { existsSync, readFileSync } from "node:fs";
@@ -34,6 +36,16 @@ assert.equal(canManageTenantStorefront(tenantAdmin, "SHOP-TW-001"), true);
 assert.equal(canManageTenantStorefront(tenantAdmin, "shop-tw-001"), true);
 assert.equal(canManageTenantStorefront(tenantAdmin, "tenant-123"), true);
 assert.equal(canManageTenantStorefront(tenantAdmin, "another-tenant"), false);
+
+const medicalAdmin = {
+  ...tenantAdmin,
+  companyCode: "MEDICAL-TW-001",
+  businessMode: "POS_MEDICAL" as const,
+};
+assert.equal(tenantMedicalSitePath(medicalAdmin), "/medical/MEDICAL-TW-001");
+assert.equal(canManageTenantMedicalSite(medicalAdmin, "MEDICAL-TW-001"), true);
+assert.equal(canManageTenantMedicalSite(medicalAdmin, "medical-tw-001"), true);
+assert.equal(canManageTenantMedicalSite(medicalAdmin, "another-tenant"), false);
 
 assert.equal(canManageTenantStorefront({
   ...tenantAdmin,
@@ -119,6 +131,20 @@ assert.deepEqual(productCatalogScope("ECOMMERCE"), {
   isArchived: false,
   catalogMode: "ECOMMERCE",
 });
+assert.deepEqual(productCatalogScope("POS_MEDICAL"), {
+  isArchived: false,
+  catalogMode: "POS_MEDICAL",
+});
+for (const image of [
+  "clinic-hero.png",
+  "skin-consultation.png",
+  "hydration-care.png",
+  "light-care.png",
+  "treatment-planning.png",
+  "clinic-consumables.png",
+]) {
+  assert.equal(existsSync(path.join(process.cwd(), "public", "medical-aesthetics", image)), true, `${image} must exist`);
+}
 assert.equal(Object.keys(ERP_DEMO_IMAGE_BY_SKU).length, 3);
 for (const [sku, imageUrl] of Object.entries(ERP_DEMO_IMAGE_BY_SKU)) {
   assert.equal(resolveDemoProductImage(sku, null), imageUrl);

@@ -6,7 +6,7 @@ import { signOut, useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import {
   Building2, CheckCircle2, ChevronLeft, ChevronRight, KeyRound, LayoutDashboard,
-  Loader2, LogOut, Mail, MonitorSmartphone, RefreshCw, Search, Shield, ShoppingBag, Store, Users, X, UtensilsCrossed, Download, PanelsTopLeft,
+  Loader2, LogOut, Mail, MonitorSmartphone, RefreshCw, Search, Shield, ShoppingBag, Store, Users, X, UtensilsCrossed, Download, PanelsTopLeft, HeartPulse,
 } from "lucide-react";
 import { PLAN_CATALOG, formatTwd, getPlanPrice, type BillingCycle, type PlanCode } from "@/lib/plans";
 import { getProductEdition, type BusinessMode } from "@/lib/product-editions";
@@ -66,7 +66,7 @@ type AdminData = {
     createdAt: string;
   }>;
   pagination: { page: number; pageSize: number; total: number; totalPages: number };
-  stats: { totalTenants: number; totalUsers: number; erpCount: number; posCount: number; ecommerceCount: number; activeCount: number; pendingInquiryCount: number };
+  stats: { totalTenants: number; totalUsers: number; erpCount: number; posCount: number; ecommerceCount: number; medicalCount: number; activeCount: number; pendingInquiryCount: number };
 };
 
 type ModeTransitionPreview = {
@@ -101,14 +101,14 @@ const emptyData: AdminData = {
   rows: [],
   inquiries: [],
   pagination: { page: 1, pageSize: 20, total: 0, totalPages: 1 },
-  stats: { totalTenants: 0, totalUsers: 0, erpCount: 0, posCount: 0, ecommerceCount: 0, activeCount: 0, pendingInquiryCount: 0 },
+  stats: { totalTenants: 0, totalUsers: 0, erpCount: 0, posCount: 0, ecommerceCount: 0, medicalCount: 0, activeCount: 0, pendingInquiryCount: 0 },
 };
 
 export default function AdminPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const [data, setData] = useState<AdminData>(emptyData);
-  const [mode, setMode] = useState<"ALL" | "ERP" | "POS" | "ECOMMERCE">("ALL");
+  const [mode, setMode] = useState<"ALL" | "ERP" | "POS" | "ECOMMERCE" | "MEDICAL">("ALL");
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -158,17 +158,19 @@ export default function AdminPage() {
             <Link href="/store/atelier-noir" className="admin-button bg-rose-700 hover:bg-rose-600"><Store className="h-4 w-4" />電商網站</Link>
             <Link href="/pos" className="admin-button bg-emerald-600 hover:bg-emerald-500"><ShoppingBag className="h-4 w-4" />零售 POS</Link>
             <Link href="/pos/restaurant" className="admin-button bg-orange-600 hover:bg-orange-500"><UtensilsCrossed className="h-4 w-4" />餐飲 POS</Link>
+            <Link href="/medical" className="admin-button bg-fuchsia-700 hover:bg-fuchsia-600"><HeartPulse className="h-4 w-4" />醫美 POS</Link>
             <Link href="/admin/downloads" className="admin-button border border-slate-700 bg-slate-900 hover:bg-slate-800"><Download className="h-4 w-4" />安裝包</Link>
             <button onClick={() => void load()} className="admin-button border border-slate-700 bg-slate-900 hover:bg-slate-800"><RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />更新</button>
             <button onClick={() => signOut({ callbackUrl: "/login" })} className="admin-button border border-slate-700 bg-slate-900 hover:bg-slate-800"><LogOut className="h-4 w-4" />登出</button>
           </div>
         </header>
 
-        <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-7">
+        <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-8">
           <Stat icon={Building2} label="公司總數" value={data.stats.totalTenants} color="text-indigo-300" />
           <Stat icon={LayoutDashboard} label="ERP 公司" value={data.stats.erpCount} color="text-sky-300" />
           <Stat icon={ShoppingBag} label="POS 門市" value={data.stats.posCount} color="text-emerald-300" />
           <Stat icon={Store} label="電商租戶" value={data.stats.ecommerceCount} color="text-rose-300" />
+          <Stat icon={HeartPulse} label="醫美租戶" value={data.stats.medicalCount} color="text-fuchsia-300" />
           <Stat icon={Users} label="使用者" value={data.stats.totalUsers} color="text-violet-300" />
           <Stat icon={CheckCircle2} label="有效授權" value={data.stats.activeCount} color="text-amber-300" />
           <Stat icon={Mail} label="待聯絡需求" value={data.stats.pendingInquiryCount} color="text-rose-300" />
@@ -179,9 +181,9 @@ export default function AdminPage() {
         <section className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900">
           <div className="flex flex-col gap-3 border-b border-slate-800 p-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex rounded-xl bg-slate-950 p-1">
-              {(["ALL", "ERP", "POS", "ECOMMERCE"] as const).map((item) => (
+              {(["ALL", "ERP", "POS", "ECOMMERCE", "MEDICAL"] as const).map((item) => (
                 <button key={item} onClick={() => { setMode(item); setPage(1); }} className={`rounded-lg px-4 py-2 text-sm ${mode === item ? "bg-slate-700 text-white" : "text-slate-400 hover:text-white"}`}>
-                  {item === "ALL" ? "全部" : item === "ERP" ? "一般企業 ERP" : item === "POS" ? "POS 門市" : "電商租戶"}
+                  {item === "ALL" ? "全部" : item === "ERP" ? "一般企業 ERP" : item === "POS" ? "POS 門市" : item === "MEDICAL" ? "醫美租戶" : "電商租戶"}
                 </button>
               ))}
             </div>
@@ -460,7 +462,7 @@ function LicenseDialog({ tenant, onClose, onSaved }: { tenant: TenantRow; onClos
               <div><div className="text-xs text-slate-500">授權到期日</div><div className="mt-1 text-sm font-semibold text-slate-200">{tenant.license.paymentType === "ONCE" ? "買斷，無租用到期日" : tenant.license.expiresAt ? new Date(tenant.license.expiresAt).toLocaleString("zh-TW") : "尚未設定"}</div></div>
             </div>
             <div className="mt-6 grid gap-5 md:grid-cols-2">
-              <label className="space-y-2 text-sm"><span className="text-slate-400">公司業態（只能擇一）</span><select value={mode} onChange={(event) => setMode(event.target.value as BusinessMode)} className="h-11 w-full rounded-xl border border-slate-700 bg-slate-950 px-3"><option value="ERP">一般企業進銷存會計</option><option value="ECOMMERCE">品牌電商網站＋ERP 營運後台</option><option value="POS_RETAIL">門市零售 POS＋進銷存＋會計</option><option value="POS_RESTAURANT">餐飲桌位／廚房＋進銷存＋會計</option></select></label>
+              <label className="space-y-2 text-sm"><span className="text-slate-400">公司業態（只能擇一）</span><select value={mode} onChange={(event) => setMode(event.target.value as BusinessMode)} className="h-11 w-full rounded-xl border border-slate-700 bg-slate-950 px-3"><option value="ERP">一般企業進銷存會計</option><option value="ECOMMERCE">品牌電商網站＋ERP 營運後台</option><option value="POS_RETAIL">門市零售 POS＋進銷存＋會計</option><option value="POS_RESTAURANT">餐飲桌位／廚房＋進銷存＋會計</option><option value="POS_MEDICAL">醫美診所營運管理 POS＋進銷存＋會計</option></select></label>
               <label className="space-y-2 text-sm"><span className="text-slate-400">授權方案</span><select value={planCode} onChange={(event) => setPlanCode(event.target.value as PlanCode)} className="h-11 w-full rounded-xl border border-slate-700 bg-slate-950 px-3">{PLAN_CATALOG.map((item) => <option key={item.code} value={item.code}>{item.name}（{item.seats} 台）</option>)}</select></label>
               <label className="space-y-2 text-sm"><span className="text-slate-400">付款週期</span><select value={billing} onChange={(event) => setBilling(event.target.value as BillingCycle)} className="h-11 w-full rounded-xl border border-slate-700 bg-slate-950 px-3"><option value="MONTHLY">月租</option><option value="ANNUAL">年租（收 10 個月）</option><option value="ONCE">一次買斷</option></select></label>
               <div className="rounded-xl bg-slate-950 p-4"><div className="text-xs text-slate-500">本次方案金額</div><div className="mt-1 text-xl font-bold text-emerald-300">{formatTwd(price)}</div><div className="mt-1 text-xs text-slate-500">上限 {plan.seats} 台電腦</div></div>
@@ -588,6 +590,14 @@ function ModeDemoPreview({ mode, companyCode }: { mode: BusinessMode; companyCod
       video: "/videos/restaurant-pos-demo.webm",
       poster: "/images/demos/restaurant-pos-demo.png",
       icon: UtensilsCrossed,
+    },
+    POS_MEDICAL: {
+      title: "醫美診所營運管理 POS 示範",
+      description: "圖片選服務、預約排程、會員儲值、套票核銷、同意書、療程紀錄與醫療收據。",
+      detail: <>醫美官網與 ERP 共用服務、顧客、預約與耗材資料；療程完成時自動扣耗材並將套票預收款轉列收入。</>,
+      video: "/videos/medical-pos-demo.webm",
+      poster: "/medical-aesthetics/clinic-hero.png",
+      icon: HeartPulse,
     },
   };
   const demo = demos[mode];

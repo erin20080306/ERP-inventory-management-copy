@@ -9,7 +9,7 @@ function roundMoney(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
-async function createCheckoutJournal(
+export async function createCheckoutJournal(
   tx: Prisma.TransactionClient,
   input: { tenantId: string; userId: string; journalNumber: string; saleNumber: string; lines: CheckoutJournalLine[] },
 ) {
@@ -56,7 +56,18 @@ export async function fulfillPosSale(saleId: string) {
       where: { id: saleId },
       include: {
         shift: { select: { userId: true, register: { select: { warehouseId: true } } } },
-        items: { include: { product: { select: { name: true, costPrice: true } } } },
+        items: {
+          include: {
+            product: {
+              select: {
+                name: true,
+                costPrice: true,
+                trackInventory: true,
+                medicalPackage: { select: { id: true } },
+              },
+            },
+          },
+        },
         payments: true,
       },
     });
@@ -81,7 +92,7 @@ export async function fulfillPosSale(saleId: string) {
         discount: Number(sale.discount),
         taxAmount,
         total,
-        isTaxable: true,
+        isTaxable: taxAmount > 0,
         shippedAt: sale.createdAt,
         remark: `POS ${sale.number}`,
         updatedBy,
@@ -132,8 +143,9 @@ export async function fulfillPosSale(saleId: string) {
       },
     });
 
-    await tx.inventoryTransaction.createMany({
-      data: sale.items.map((item) => ({
+    const inventoryItems = sale.items.filter((item) => item.product.trackInventory);
+    if (inventoryItems.length) await tx.inventoryTransaction.createMany({
+      data: inventoryItems.map((item) => ({
         tenantId: sale.tenantId,
         productId: item.productId,
         warehouseId: sale.shift.register.warehouseId,
@@ -146,7 +158,15 @@ export async function fulfillPosSale(saleId: string) {
       })),
     });
 
-    const cogs = roundMoney(sale.items.reduce((sum, item) => sum + Number(item.quantity) * Number(item.product.costPrice), 0));
+    const cogs = roundMoney(inventoryItems.reduce((sum, item) => sum + Number(item.quantity) * Number(item.product.costPrice), 0));
+    const deferredRevenue = roundMoney(sale.items
+      .filter((item) => item.product.medicalPackage)
+      .reduce((sum, item) => {
+        const taxRate = Number(item.taxRate);
+        const gross = Number(item.subtotal);
+        return sum + roundMoney(gross / (1 + taxRate));
+      }, 0));
+    const recognizedRevenue = roundMoney(subtotal - deferredRevenue);
     await createCheckoutJournal(tx, {
       tenantId: sale.tenantId,
       userId: sale.shift.userId,
@@ -154,11 +174,12 @@ export async function fulfillPosSale(saleId: string) {
       saleNumber: sale.number,
       lines: [
         ...sale.payments.filter((payment) => Number(payment.amount) > 0).map((payment) => ({
-          code: payment.method === "CASH" ? "1101" : "1103",
+          code: payment.method === "WALLET" ? "2121" : payment.method === "CASH" ? "1101" : "1103",
           debit: Number(payment.amount),
           memo: `${payment.method} 收款－${sale.number}`,
         })),
-        { code: "4101", credit: subtotal, memo: `銷貨收入－${sale.number}` },
+        { code: "4101", credit: recognizedRevenue, memo: `醫美／銷貨收入－${sale.number}` },
+        { code: "2121", credit: deferredRevenue, memo: `療程套票預收款－${sale.number}` },
         { code: "2111", credit: taxAmount, memo: `銷項稅額－${sale.number}` },
         { code: "5101", debit: cogs, memo: `銷貨成本－${sale.number}` },
         { code: "1201", credit: cogs, memo: `存貨－${sale.number}` },

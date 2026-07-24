@@ -22,6 +22,7 @@
     "test:pos-hardware": "tsx scripts/verify-pos-hardware-simulation.ts",
     "test:pos-offers": "tsx scripts/verify-pos-offers.ts",
     "test:pos-restaurant": "tsx scripts/verify-restaurant-pos.ts",
+    "test:pos-medical": "tsx scripts/verify-medical-pos.ts",
     "test:commerce": "tsx scripts/verify-commerce-checkout.ts && tsx scripts/verify-commerce-refunds.ts",
     "test:dashboard-permissions": "tsx scripts/verify-dashboard-permissions.ts",
     "test:storefront": "tsx scripts/verify-storefront-access.ts",
