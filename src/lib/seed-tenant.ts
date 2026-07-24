@@ -185,20 +185,38 @@ export async function seedTenantDefaults(tenantId: string) {
       where: { tenantId, code: "WH01" },
       select: { id: true },
     });
+    const tenant = await tx.tenant.findUnique({ where: { id: tenantId }, select: { name: true, businessMode: true, isInternal: true } });
     if (mainWarehouse) {
       await tx.posRegister.upsert({
         where: { tenantId_code: { tenantId, code: "POS01" } },
-        update: { warehouseId: mainWarehouse.id, isActive: true },
+        update: {
+          warehouseId: mainWarehouse.id,
+          mode: tenant?.isInternal || tenant?.businessMode !== "POS_RESTAURANT" ? "POS_RETAIL" : "POS_RESTAURANT",
+          isActive: true,
+        },
         create: {
           tenantId,
           warehouseId: mainWarehouse.id,
           code: "POS01",
           name: "第一收銀台",
+          mode: tenant?.isInternal || tenant?.businessMode !== "POS_RESTAURANT" ? "POS_RETAIL" : "POS_RESTAURANT",
         },
       });
+      if (tenant?.isInternal) {
+        await tx.posRegister.upsert({
+          where: { tenantId_code: { tenantId, code: "REST-01" } },
+          update: { warehouseId: mainWarehouse.id, name: "餐飲櫃台", mode: "POS_RESTAURANT", isActive: true },
+          create: {
+            tenantId,
+            warehouseId: mainWarehouse.id,
+            code: "REST-01",
+            name: "餐飲櫃台",
+            mode: "POS_RESTAURANT",
+          },
+        });
+      }
     }
 
-    const tenant = await tx.tenant.findUnique({ where: { id: tenantId }, select: { name: true, businessMode: true, isInternal: true } });
     if (tenant?.businessMode === "POS_RESTAURANT") {
       const area = await tx.restaurantArea.upsert({
         where: { tenantId_code: { tenantId, code: "DINING" } },

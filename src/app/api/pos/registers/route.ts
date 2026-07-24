@@ -8,6 +8,7 @@ const RegisterInput = z.object({
   warehouseId: z.string().min(1),
   code: z.string().trim().min(1).max(30),
   name: z.string().trim().min(1).max(100),
+  mode: z.enum(["POS_RETAIL", "POS_RESTAURANT", "POS_MEDICAL"]).default("POS_RETAIL"),
   isActive: z.boolean().default(true),
 });
 
@@ -37,11 +38,11 @@ export const POST = apiHandler(async (req: NextRequest) => {
   const register = body.id
     ? await prisma.posRegister.update({
         where: { id: body.id, tenantId },
-        data: { warehouseId: body.warehouseId, code: body.code, name: body.name, isActive: body.isActive },
+        data: { warehouseId: body.warehouseId, code: body.code, name: body.name, mode: body.mode, isActive: body.isActive },
         include: { warehouse: true },
       })
     : await prisma.posRegister.create({
-        data: { tenantId, warehouseId: body.warehouseId, code: body.code, name: body.name, isActive: body.isActive },
+        data: { tenantId, warehouseId: body.warehouseId, code: body.code, name: body.name, mode: body.mode, isActive: body.isActive },
         include: { warehouse: true },
       });
   await audit({ userId: session.user.id, action: body.id ? "update_register" : "create_register", module: "pos", refId: register.id, detail: register.code });

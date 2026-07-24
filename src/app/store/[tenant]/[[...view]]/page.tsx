@@ -23,12 +23,13 @@ async function storefrontIdentity(rawKey: string) {
   const key = decodeURIComponent(rawKey).trim();
   return prisma.tenant.findFirst({
     where: {
-      isInternal: false,
-      businessMode: "ECOMMERCE",
-      OR: [
-        { id: key },
-        { companyCode: key.toUpperCase() },
-        { companySettings: { some: { storeSlug: normalizeStoreSlug(key) } } },
+      AND: [
+        { OR: [{ isInternal: true }, { isInternal: false, businessMode: "ECOMMERCE" }] },
+        { OR: [
+          { id: key },
+          { companyCode: key.toUpperCase() },
+          { companySettings: { some: { storeSlug: normalizeStoreSlug(key) } } },
+        ] },
       ],
     },
     select: {

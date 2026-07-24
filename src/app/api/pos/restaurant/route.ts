@@ -74,19 +74,19 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const { start: todayStart, end: todayEnd } = taipeiDayRange();
   const canManageTables = hasPermission(session.user.permissions, "restaurant.manage");
   const openShiftPromise = prisma.posShift.findFirst({
-    where: { tenantId, userId: session.user.id, status: "OPEN" },
-    include: { register: { select: { id: true, code: true, name: true, warehouseId: true } } },
+    where: { tenantId, userId: session.user.id, status: "OPEN", register: { mode: "POS_RESTAURANT" } },
+    include: { register: { select: { id: true, code: true, name: true, mode: true, warehouseId: true } } },
     orderBy: { openedAt: "desc" },
   });
   const openShiftWithOperatorsPromise = openShiftPromise.then((shift) => attachPosShiftOperators(shift));
   const [registers, openShift, today, shiftCash, ledgerCashBalance, cashMovements, areas, products, stockTotals, categories, kitchenTickets, tableSettings] = await Promise.all([
     prisma.posRegister.findMany({
-      where: { tenantId, isActive: true },
-      select: { id: true, code: true, name: true, warehouseId: true, warehouse: { select: { name: true } } },
+      where: { tenantId, mode: "POS_RESTAURANT", isActive: true },
+      select: { id: true, code: true, name: true, mode: true, warehouseId: true, warehouse: { select: { name: true } } },
       orderBy: { code: "asc" },
     }),
     openShiftWithOperatorsPromise,
-    kitchenOnly ? Promise.resolve(null) : getPosDailySummary(tenantId),
+    kitchenOnly ? Promise.resolve(null) : getPosDailySummary(tenantId, prisma, { registerMode: "POS_RESTAURANT" }),
     kitchenOnly ? Promise.resolve(null) : openShiftPromise.then((shift) => getPosShiftCashPosition(shift)),
     kitchenOnly ? Promise.resolve(0) : getLedgerCashBalance(tenantId),
     kitchenOnly ? Promise.resolve([]) : openShiftPromise.then((shift) => shift ? prisma.posCashMovement.findMany({
@@ -220,7 +220,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
     const result = await restaurantTransaction(async (tx: any) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`restaurant-table:${tenantId}:${body.tableId}`}))`;
       const shift = await tx.posShift.findFirst({
-        where: { id: body.shiftId, tenantId, userId: session.user.id, status: "OPEN" },
+        where: { id: body.shiftId, tenantId, userId: session.user.id, status: "OPEN", register: { mode: "POS_RESTAURANT" } },
         select: { id: true, registerId: true },
       });
       if (!shift) throw new ApiError(409, "請先開班，或目前班次已結束");

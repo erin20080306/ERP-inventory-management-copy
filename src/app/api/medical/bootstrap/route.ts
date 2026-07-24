@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ApiError, apiHandler, requirePosPermission, requireTenantId } from "@/lib/api";
 import { ensureMedicalAestheticsBaseline } from "@/lib/medical-aesthetics";
+import { hasPermission } from "@/lib/permissions";
+import { loadPosBootstrap } from "@/lib/pos-bootstrap";
 import { prisma } from "@/lib/prisma";
 import { normalizeBusinessMode } from "@/lib/product-editions";
 
@@ -17,7 +19,7 @@ export const GET = apiHandler(async (_req: NextRequest) => {
   const dayEnd = new Date(dayStart);
   dayEnd.setDate(dayEnd.getDate() + 1);
 
-  const [services, packages, appointments, customers, purchases, receipts, settings] = await Promise.all([
+  const [services, packages, appointments, customers, purchases, receipts, settings, pos] = await Promise.all([
     prisma.medicalService.findMany({
       where: { tenantId, isActive: true },
       include: {
@@ -74,6 +76,15 @@ export const GET = apiHandler(async (_req: NextRequest) => {
       take: 20,
     }),
     prisma.companySetting.findFirst({ where: { tenantId }, select: { name: true, address: true, phone: true, taxId: true, storeSlug: true } }),
+    loadPosBootstrap({
+      tenantId,
+      userId: session.user.id,
+      mode: "POS_MEDICAL",
+      canApproveCash: hasPermission(session.user.permissions, "cash.approve"),
+      includeLedger: false,
+      includeRecentSales: false,
+      includeWarehouses: false,
+    }),
   ]);
 
   return NextResponse.json({
@@ -97,6 +108,7 @@ export const GET = apiHandler(async (_req: NextRequest) => {
     purchases: purchases.map((item) => ({ ...item, paidAmount: Number(item.paidAmount) })),
     receipts: receipts.map((item) => ({ ...item, total: Number(item.total) })),
     settings,
+    pos,
     serverTime: new Date().toISOString(),
   });
 });

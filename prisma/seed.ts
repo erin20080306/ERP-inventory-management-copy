@@ -110,8 +110,8 @@ async function main() {
   }
   await prisma.posRegister.upsert({
     where: { tenantId_code: { tenantId: T, code: "POS01" } },
-    update: { warehouseId: wh.id, isActive: true },
-    create: { tenantId: T, warehouseId: wh.id, code: "POS01", name: "第一收銀台" },
+    update: { warehouseId: wh.id, mode: requestedMode === "POS_RESTAURANT" ? "POS_RESTAURANT" : "POS_RETAIL", isActive: true },
+    create: { tenantId: T, warehouseId: wh.id, code: "POS01", name: "第一收銀台", mode: requestedMode === "POS_RESTAURANT" ? "POS_RESTAURANT" : "POS_RETAIL" },
   });
   if (requestedMode === "POS_RESTAURANT") {
     const area = await prisma.restaurantArea.upsert({

@@ -59,14 +59,32 @@ export async function seedTenantDefaultsBatched(tenantId: string) {
 
     await tx.posRegister.upsert({
       where: { tenantId_code: { tenantId, code: "POS01" } },
-      update: { warehouseId: mainWarehouse.id, isActive: true },
+      update: {
+        warehouseId: mainWarehouse.id,
+        mode: tenant.isInternal || tenant.businessMode !== "POS_RESTAURANT" ? "POS_RETAIL" : "POS_RESTAURANT",
+        isActive: true,
+      },
       create: {
         tenantId,
         warehouseId: mainWarehouse.id,
         code: "POS01",
         name: "第一收銀台",
+        mode: tenant.isInternal || tenant.businessMode !== "POS_RESTAURANT" ? "POS_RETAIL" : "POS_RESTAURANT",
       },
     });
+    if (tenant.isInternal) {
+      await tx.posRegister.upsert({
+        where: { tenantId_code: { tenantId, code: "REST-01" } },
+        update: { warehouseId: mainWarehouse.id, name: "餐飲櫃台", mode: "POS_RESTAURANT", isActive: true },
+        create: {
+          tenantId,
+          warehouseId: mainWarehouse.id,
+          code: "REST-01",
+          name: "餐飲櫃台",
+          mode: "POS_RESTAURANT",
+        },
+      });
+    }
 
     if (!companySetting) {
       await tx.companySetting.create({

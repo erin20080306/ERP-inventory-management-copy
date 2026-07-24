@@ -120,7 +120,7 @@ const RESTAURANT_BOOTSTRAP_CACHE_TTL_MS = 15_000;
 
 function readRestaurantBootstrapCache(): Bootstrap | null {
   try {
-    const raw = window.sessionStorage.getItem("erin-restaurant-front-bootstrap-v2");
+    const raw = window.sessionStorage.getItem("erin-restaurant-front-bootstrap-v3");
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (!parsed.data || Date.now() - Number(parsed.savedAt || 0) > RESTAURANT_BOOTSTRAP_CACHE_TTL_MS) return null;
@@ -132,7 +132,7 @@ function readRestaurantBootstrapCache(): Bootstrap | null {
 
 function writeRestaurantBootstrapCache(data: Bootstrap) {
   try {
-    window.sessionStorage.setItem("erin-restaurant-front-bootstrap-v2", JSON.stringify({ savedAt: Date.now(), data }));
+    window.sessionStorage.setItem("erin-restaurant-front-bootstrap-v3", JSON.stringify({ savedAt: Date.now(), data }));
   } catch {}
 }
 
@@ -684,7 +684,7 @@ return <div className="grid min-h-[60vh] animate-pulse gap-4 xl:grid-cols-[280px
         <div className="rounded-xl border bg-card p-4"><div className="text-xs font-bold text-muted-foreground">今日結帳筆數</div><div className="mt-2 text-xl font-black">{daily.sales}</div><div className="mt-1 text-[11px] text-muted-foreground">退款 {daily.refunds} 筆</div></div>
         <div className="rounded-xl border bg-card p-4"><div className="text-xs font-bold text-muted-foreground">開店零用金</div><div className="mt-2 text-xl font-black">{money(data.shiftCash?.openingCash ?? data.openShift.openingCash)}</div><div className="mt-1 text-[11px] text-emerald-700">已納入會計傳票</div></div>
         <div className="rounded-xl border bg-card p-4"><div className="text-xs font-bold text-muted-foreground">目前應有現金</div><div className="mt-2 text-xl font-black">{money(data.shiftCash?.expectedCash ?? data.openShift.openingCash)}</div><div className="mt-1 text-[11px] text-muted-foreground">含現金銷售與已核准異動</div></div>
-        <div className="rounded-xl border bg-card p-4"><div className="text-xs font-bold text-muted-foreground">總帳庫存現金</div><div className="mt-2 text-xl font-black">{money(data.ledgerCashBalance)}</div><div className="mt-1 text-[11px] text-muted-foreground">所有已過帳庫存現金餘額</div></div>
+        <div className="rounded-xl border bg-card p-4"><div className="text-xs font-bold text-muted-foreground">公司會計總帳</div><div className="mt-2 text-xl font-black">{money(data.ledgerCashBalance)}</div><div className="mt-1 text-[11px] text-muted-foreground">跨系統會計數字，不計入本餐飲錢櫃</div></div>
       </section>
 
       {allowTableManagement && <TableManager open={tableManagerOpen} onOpenChange={setTableManagerOpen} areas={data.tableSettings ?? []} busy={busy} onAction={action} />}

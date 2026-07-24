@@ -168,7 +168,7 @@ export function PosWorkspace() {
     const cached = readCachedPosProducts(warehouseId);
     if (cached) setProducts(cached);
 
-    const params = new URLSearchParams({ warehouseId });
+    const params = new URLSearchParams({ warehouseId, registerId: activeShift.register.id });
     const request = fetch(`/api/pos/products?${params}`, { cache: "no-store" })
       .then(async (res) => {
         const data = await res.json();
@@ -508,7 +508,7 @@ export function PosWorkspace() {
     const local = products.find((product) => product.barcode?.toLowerCase() === code.toLowerCase() || product.sku.toLowerCase() === code.toLowerCase());
     if (local) return addProduct(local);
     try {
-      const params = new URLSearchParams({ warehouseId: shift.register.warehouseId, scan: code });
+      const params = new URLSearchParams({ warehouseId: shift.register.warehouseId, registerId: shift.register.id, scan: code });
       const res = await fetch(`/api/pos/products?${params}`, { cache: "no-store" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "掃描失敗");
@@ -606,7 +606,7 @@ export function PosWorkspace() {
     const savedItems = Array.isArray(payload?.items) ? payload.items : [];
     const ids = savedItems.map((item: any) => item?.product?.id).filter(Boolean);
     if (!ids.length) return toast.error("暫存內容沒有商品");
-    const params = new URLSearchParams({ warehouseId: shift.register.warehouseId, ids: ids.join(",") });
+    const params = new URLSearchParams({ warehouseId: shift.register.warehouseId, registerId: shift.register.id, ids: ids.join(",") });
     const res = await fetch(`/api/pos/products?${params}`, { cache: "no-store" });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "商品現況載入失敗");
@@ -789,7 +789,7 @@ export function PosWorkspace() {
 
   async function searchSales() {
     try {
-      const res = await fetch(`/api/pos/sales?q=${encodeURIComponent(saleQuery.trim())}`, { cache: "no-store" });
+      const res = await fetch(`/api/pos/sales?channel=retail&q=${encodeURIComponent(saleQuery.trim())}`, { cache: "no-store" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "交易查詢失敗");
       setRecentSales(data.items ?? []);

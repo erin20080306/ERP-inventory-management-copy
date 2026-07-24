@@ -3,8 +3,10 @@ import { readFileSync } from "node:fs";
 const pos = readFileSync("src/app/(app)/pos/pos-workspace.tsx", "utf8");
 const restaurant = readFileSync("src/app/(app)/pos/restaurant/restaurant-workspace.tsx", "utf8");
 const medical = readFileSync("src/app/(app)/medical/medical-workspace.tsx", "utf8");
+const medicalBootstrap = readFileSync("src/app/api/medical/bootstrap/route.ts", "utf8");
 const posProducts = readFileSync("src/app/api/pos/products/route.ts", "utf8");
 const storefront = readFileSync("src/app/api/store/[tenant]/route.ts", "utf8");
+const storefrontClient = readFileSync("src/app/store/[tenant]/[[...view]]/storefront.tsx", "utf8");
 
 function check(name, condition) {
   if (!condition) throw new Error(`速度防護失敗：${name}`);
@@ -22,8 +24,11 @@ check(
     && medical.includes("medicalBootstrapCacheKey(tenantCacheKey)"),
 );
 check(
-  "醫美 POS 平行載入診所與班次資料",
-  medical.includes("const [nextMedical, nextPos] = await Promise.all(["),
+  "醫美 POS 合併載入診所與班次資料",
+  medical.includes('jsonFetch("/api/medical/bootstrap")')
+    && !medical.includes('jsonFetch("/api/pos/bootstrap")')
+    && medicalBootstrap.includes("loadPosBootstrap")
+    && medicalBootstrap.includes('mode: "POS_MEDICAL"'),
 );
 check("POS 初始商品可載入最多 500 筆供本機搜尋", posProducts.includes("take: query ? 80 : 500"));
 check(
@@ -31,6 +36,13 @@ check(
   storefront.includes("const [products, pendingLines] = await Promise.all([")
     && storefront.includes("planCommerceStockAllocations")
     && !storefront.includes("for (const allocation of stockPlan.allocations)"),
+);
+check(
+  "商城回到分頁後即時刷新接單狀態",
+  storefront.includes('searchParams.get("status") === "1"')
+    && storefrontClient.includes("?status=1")
+    && storefrontClient.includes('window.addEventListener("focus", refreshWhenVisible)')
+    && storefrontClient.includes('document.addEventListener("visibilitychange", refreshWhenVisible)'),
 );
 
 console.log("Runtime speed optimization safeguards: PASS");

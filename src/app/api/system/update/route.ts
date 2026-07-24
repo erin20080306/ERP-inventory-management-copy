@@ -9,6 +9,7 @@ import {
   triggerHostUpdater,
   writeHostUpdateState,
 } from "@/lib/host-update";
+import { currentRuntimeVersion } from "@/lib/runtime-version";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,7 +26,7 @@ export const GET = apiHandler(async () => {
       localHost: false,
       hostedManaged: true,
       canUpdate: false,
-      currentVersion: currentHostVersion(),
+      currentVersion: currentRuntimeVersion(),
     });
   }
   const currentVersion = currentHostVersion();

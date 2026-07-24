@@ -23,12 +23,13 @@ export async function resolveStorefrontTenant(rawKey: string) {
   if (!key || key.length > 100) throw new ApiError(404, "找不到商城");
   const tenant = await prisma.tenant.findFirst({
     where: {
-      isInternal: false,
-      businessMode: "ECOMMERCE",
-      OR: [
-        { id: key },
-        { companyCode: key.toUpperCase() },
-        { companySettings: { some: { storeSlug: normalizeStoreSlug(key) } } },
+      AND: [
+        { OR: [{ isInternal: true }, { isInternal: false, businessMode: "ECOMMERCE" }] },
+        { OR: [
+          { id: key },
+          { companyCode: key.toUpperCase() },
+          { companySettings: { some: { storeSlug: normalizeStoreSlug(key) } } },
+        ] },
       ],
     },
     select: {
@@ -43,6 +44,7 @@ export async function resolveStorefrontTenant(rawKey: string) {
       licenseExpiresAt: true,
       licenseKeyHash: true,
       licenseVersion: true,
+      isInternal: true,
     },
   });
   if (!tenant) throw new ApiError(404, "找不到已啟用的電商租戶");
@@ -57,7 +59,7 @@ export async function resolveStorefrontTenant(rawKey: string) {
     licenseKeyHash: tenant.licenseKeyHash,
     licenseVersion: tenant.licenseVersion,
   });
-  return { tenant, access };
+  return { tenant, access: tenant.isInternal ? { ...access, allowed: true, reason: null } : access };
 }
 
 export function allowStorefrontMemberAttempt(req: NextRequest, tenantId: string, action: "register" | "login") {

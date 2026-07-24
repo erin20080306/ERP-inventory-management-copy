@@ -139,7 +139,7 @@ const PAYMENT_LABELS: Record<string, string> = {
   WALLET: "會員儲值",
   MIXED: "混合付款",
 };
-const MEDICAL_BOOTSTRAP_CACHE_PREFIX = "erin-medical-pos-bootstrap-v2";
+const MEDICAL_BOOTSTRAP_CACHE_PREFIX = "erin-medical-pos-bootstrap-v3";
 const MEDICAL_BOOTSTRAP_CACHE_TTL_MS = 15_000;
 
 function medicalBootstrapCacheKey(tenantCacheKey: string) {
@@ -214,10 +214,9 @@ export function MedicalWorkspace({ publicSiteHref, tenantCacheKey }: { publicSit
   const load = useCallback(async () => {
     setBusy(true);
     try {
-      const [nextMedical, nextPos] = await Promise.all([
-        jsonFetch("/api/medical/bootstrap"),
-        jsonFetch("/api/pos/bootstrap"),
-      ]);
+      const nextMedical = await jsonFetch("/api/medical/bootstrap");
+      const nextPos = nextMedical.pos as PosData;
+      if (!nextPos) throw new Error("醫美收銀台資料載入失敗");
       hydrate(nextMedical, nextPos);
       writeMedicalBootstrapCache(tenantCacheKey, nextMedical, nextPos);
     } catch (error) {
@@ -509,7 +508,7 @@ export function MedicalWorkspace({ publicSiteHref, tenantCacheKey }: { publicSit
               </div>
             ))}
           </div>
-          <div className="mt-3 text-xs leading-5 text-stone-500">應有現金＝開班零用金＋現金療程／套票收款＋現金會員儲值－現金退款＋已核准投入－已核准提出－營業中抽離。帳上庫存現金目前為 {money(Number(pos.ledgerCashBalance ?? 0))}。</div>
+          <div className="mt-3 text-xs leading-5 text-stone-500">應有現金＝開班零用金＋現金療程／套票收款＋現金會員儲值－現金退款＋已核准投入－已核准提出－營業中抽離。此處只計算醫美櫃台，不會混入零售或餐飲 POS。</div>
         </section>
       )}
 

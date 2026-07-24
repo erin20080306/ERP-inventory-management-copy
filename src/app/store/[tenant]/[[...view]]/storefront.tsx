@@ -246,7 +246,10 @@ export function FashionStorefront({ tenant, initialView, initialStoreName, manag
 
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`/api/store/${encodeURIComponent(tenant)}`, { signal: controller.signal })
+    fetch(`/api/store/${encodeURIComponent(tenant)}`, {
+      signal: controller.signal,
+      cache: "no-store",
+    })
       .then(async (response) => {
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || "尚未連接正式 ERP");
@@ -283,6 +286,41 @@ export function FashionStorefront({ tenant, initialView, initialStoreName, manag
       });
     return () => controller.abort();
   }, [tenant]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    let lastCheckAt = 0;
+    const refreshOrderStatus = async () => {
+      const now = Date.now();
+      if (now - lastCheckAt < 5_000) return;
+      lastCheckAt = now;
+      try {
+        const response = await fetch(`/api/store/${encodeURIComponent(tenant)}?status=1`, {
+          signal: controller.signal,
+          cache: "no-store",
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || "無法同步接單狀態");
+        setAcceptingOrders(Boolean(result.acceptingOrders));
+        setSyncMessage(result.acceptingOrders
+          ? `${result.tenant.name}・ERP 即時同步`
+          : result.accessMessage || "商城目前暫停接單");
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+      }
+    };
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") void refreshOrderStatus();
+    };
+    void refreshOrderStatus();
+    window.addEventListener("focus", refreshWhenVisible);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      controller.abort();
+      window.removeEventListener("focus", refreshWhenVisible);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
+  }, [tenant, view]);
 
   const detailedCart = useMemo(() => cart.flatMap((line) => {
     const product = products.find((item) => item.id === line.productId);

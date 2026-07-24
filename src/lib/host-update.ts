@@ -2,6 +2,9 @@ import { readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { verifySignedEnvelopeWithPublicKey } from "./ed25519-signature";
 import { verifyOfflineLease, type SignedOfflineLease } from "./license";
+import { currentHostVersion } from "./runtime-version";
+
+export { currentHostVersion } from "./runtime-version";
 
 export type HostUpdateState = {
   state: "idle" | "queued" | "pulling" | "restarting" | "healthy" | "current" | "rolling_back" | "rolled_back" | "failed";
@@ -19,11 +22,6 @@ export type HostRelease = {
 
 const VERSION_PATTERN = /^(?:[a-f0-9]{7,64}|development)$/i;
 const IMAGE = "ghcr.io/erin20080306/erp-inventory-management-copy:latest";
-
-export function currentHostVersion() {
-  const value = String(process.env.ERIN_RELEASE_SHA || "development").trim();
-  return VERSION_PATTERN.test(value) ? value : "development";
-}
 
 export function shortHostVersion(value: string | null | undefined) {
   if (!value) return "—";

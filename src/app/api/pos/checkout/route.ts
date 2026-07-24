@@ -8,7 +8,7 @@ import { nextNumberFastInTransaction } from "@/lib/number-sequence";
 import { drainPendingPosSales, fulfillPosSale } from "@/lib/pos-fulfillment";
 import { discountApprovalFingerprint, money, resolveCheckoutOffers } from "@/lib/pos-offers";
 import { prisma } from "@/lib/prisma";
-import { normalizeBusinessMode, productCatalogScope } from "@/lib/product-editions";
+import { productCatalogScope } from "@/lib/product-editions";
 
 const CheckoutInput = z.object({
   requestId: z.string().trim().min(16).max(100),
@@ -116,11 +116,24 @@ export const POST = apiHandler(async (req: NextRequest) => {
   const tenantId = await requireTenantId(session);
   const currentUser = (session.user as any).name || (session.user as any).username || session.user.id;
   const body = CheckoutInput.parse(await req.json());
-  const isMedicalMode = normalizeBusinessMode(session.user.businessMode) === "POS_MEDICAL";
+  const [priorSale, shift] = await Promise.all([
+    prisma.posSale.findFirst({ where: { tenantId, clientRequestId: body.requestId }, include: { payments: true, electronicInvoice: true } }),
+    prisma.posShift.findFirst({
+      where: { id: body.shiftId, tenantId, userId: session.user.id, status: "OPEN" },
+      select: { id: true, registerId: true, register: { select: { warehouseId: true, mode: true } } },
+    }),
+  ]);
+  if (priorSale) return NextResponse.json({ ok: true, sale: priorSale, changeDue: Number(priorSale.changeDue), replayed: true });
+  if (!shift) throw new ApiError(409, "請先開班，或目前班次已結束");
+  const workspaceMode = shift.register.mode;
+  const isMedicalMode = workspaceMode === "POS_MEDICAL";
   if (isMedicalMode && body.invoice) throw new ApiError(400, "醫美模式不開立電子發票，請改用醫療收據");
   if (isMedicalMode && (!body.customerId || !body.medical)) throw new ApiError(400, "醫療收據需要選擇客戶並填寫就診人姓名");
   if (!isMedicalMode && (body.medical || body.payments.some((payment) => payment.method === "WALLET"))) {
     throw new ApiError(400, "醫療收據與會員儲值僅適用醫美模式");
+  }
+  if (body.restaurantOrderId && workspaceMode !== "POS_RESTAURANT") {
+    throw new ApiError(400, "餐飲桌單只能使用餐飲工作區的班次結帳");
   }
 
   const normalizedItems = normalizeItems(body.items);
@@ -133,15 +146,13 @@ export const POST = apiHandler(async (req: NextRequest) => {
       { OR: [{ endsAt: null }, { endsAt: { gte: now } }] },
     ],
   };
-  const [priorSale, shift, products, preloadedPromotions, walkInCustomerId] = await Promise.all([
-    prisma.posSale.findFirst({ where: { tenantId, clientRequestId: body.requestId }, include: { payments: true, electronicInvoice: true } }),
-    prisma.posShift.findFirst({ where: { id: body.shiftId, tenantId, userId: session.user.id, status: "OPEN" }, select: { id: true, registerId: true, register: { select: { warehouseId: true } } } }),
+  const [products, preloadedPromotions, walkInCustomerId] = await Promise.all([
     prisma.product.findMany({
       where: {
         tenantId,
         id: { in: productIds },
         isActive: true,
-        AND: [productCatalogScope(session.user.businessMode)],
+        AND: [productCatalogScope(workspaceMode)],
       },
       select: {
         id: true,
@@ -155,11 +166,11 @@ export const POST = apiHandler(async (req: NextRequest) => {
         medicalPackage: { select: { id: true, name: true, sessions: true, validDays: true } },
       },
     }),
-    prisma.posPromotion.findMany({ where: { tenantId, ...activePromotionWindow }, orderBy: [{ priority: "desc" }, { createdAt: "asc" }] }),
+    workspaceMode === "POS_RETAIL"
+      ? prisma.posPromotion.findMany({ where: { tenantId, ...activePromotionWindow }, orderBy: [{ priority: "desc" }, { createdAt: "asc" }] })
+      : Promise.resolve([]),
     body.customerId ? Promise.resolve(null) : getWalkInCustomerId(tenantId),
   ]);
-  if (priorSale) return NextResponse.json({ ok: true, sale: priorSale, changeDue: Number(priorSale.changeDue), replayed: true });
-  if (!shift) throw new ApiError(409, "請先開班，或目前班次已結束");
   if (products.length !== productIds.length) throw new ApiError(400, "購物車包含已停用或不存在的商品");
   const productMap = new Map(products.map((product) => [product.id, product]));
   const computedBeforeOffers = normalizedItems.map((item) => {
@@ -180,7 +191,10 @@ export const POST = apiHandler(async (req: NextRequest) => {
     if (replay) return { sale: replay, replayed: true, eInvoiceEventId: null, electronicInvoice: replay.electronicInvoice };
 
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`pos-shift:${tenantId}:${shift.id}`}))`;
-    const activeShift = await tx.posShift.findFirst({ where: { id: shift.id, tenantId, userId: session.user.id, status: "OPEN" }, select: { id: true, registerId: true, register: { select: { warehouseId: true } } } });
+    const activeShift = await tx.posShift.findFirst({
+      where: { id: shift.id, tenantId, userId: session.user.id, status: "OPEN", register: { mode: workspaceMode } },
+      select: { id: true, registerId: true, register: { select: { warehouseId: true, mode: true } } },
+    });
     if (!activeShift) throw new ApiError(409, "班次已結束，請重新開班後再結帳");
 
     let restaurantOrder: any = null;

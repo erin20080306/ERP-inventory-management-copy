@@ -1,73 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
-import { apiHandler, requirePosPermission, requireTenantId } from "@/lib/api";
+import { ApiError, apiHandler, requirePosPermission, requireTenantId } from "@/lib/api";
 import { hasPermission } from "@/lib/permissions";
-import { prisma } from "@/lib/prisma";
-import { attachPosShiftOperators, getLedgerCashBalance, getPosDailySummary, getPosShiftCashPosition } from "@/lib/pos-daily-summary";
+import { loadPosBootstrap, type PosWorkspaceMode } from "@/lib/pos-bootstrap";
+import { normalizeBusinessMode } from "@/lib/product-editions";
 
-export const GET = apiHandler(async (_req: NextRequest) => {
+const POS_WORKSPACE_MODES = new Set<PosWorkspaceMode>(["POS_RETAIL", "POS_RESTAURANT", "POS_MEDICAL"]);
+
+export const GET = apiHandler(async (req: NextRequest) => {
   const session = await requirePosPermission("view", "sales.view");
   const tenantId = await requireTenantId(session);
-  const openShiftPromise = prisma.posShift.findFirst({
-    where: { tenantId, userId: session.user.id, status: "OPEN" },
-    include: { register: { select: { id: true, code: true, name: true, warehouseId: true } } },
-    orderBy: { openedAt: "desc" },
-  });
-  const openShiftWithOperatorsPromise = openShiftPromise.then((shift) => attachPosShiftOperators(shift));
-  const [registers, warehouses, openShift, today, shiftCash, ledgerCashBalance, recentSales, cashMovements] = await Promise.all([
-    prisma.posRegister.findMany({
-      where: { tenantId, isActive: true },
-      select: { id: true, code: true, name: true, warehouse: { select: { id: true, code: true, name: true } } },
-      orderBy: { code: "asc" },
-    }),
-    prisma.warehouse.findMany({
-      where: { tenantId, isActive: true },
-      select: { id: true, code: true, name: true },
-      orderBy: { code: "asc" },
-    }),
-    openShiftWithOperatorsPromise,
-    getPosDailySummary(tenantId),
-    openShiftPromise.then((shift) => getPosShiftCashPosition(shift)),
-    getLedgerCashBalance(tenantId),
-    prisma.posSale.findMany({
-      where: { tenantId },
-      take: 10,
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        number: true,
-        total: true,
-        status: true,
-        createdAt: true,
-        register: { select: { name: true } },
-        customer: { select: { companyName: true } },
-        refunds: { where: { status: "COMPLETED" }, select: { total: true } },
-      },
-    }),
-    openShiftPromise.then((shift) => shift
-      ? prisma.posCashMovement.findMany({
-          where: { tenantId, shiftId: shift.id },
-          orderBy: { requestedAt: "desc" },
-          take: 100,
-        })
-      : []),
-  ]);
-
-
-  return NextResponse.json({
-    registers,
-    warehouses,
-    openShift,
-    today,
-    shiftCash,
-    ledgerCashBalance,
-    cashMovements,
-    capabilities: {
-      canApproveCash: hasPermission(session.user.permissions, "cash.approve"),
-    },
-    recentSales: recentSales.map((sale) => ({
-      ...sale,
-      refundedTotal: sale.refunds.reduce((sum, refund) => sum + Number(refund.total), 0),
-    })),
-    serverTime: new Date().toISOString(),
-  });
+  const requestedMode = (req.nextUrl.searchParams.get("mode") || "POS_RETAIL") as PosWorkspaceMode;
+  if (!POS_WORKSPACE_MODES.has(requestedMode)) throw new ApiError(400, "不支援的 POS 工作區");
+  if (!session.user.isSuperAdmin && normalizeBusinessMode(session.user.businessMode) !== requestedMode) {
+    throw new ApiError(403, "此公司未啟用指定的 POS 工作區");
+  }
+  return NextResponse.json(await loadPosBootstrap({
+    tenantId,
+    userId: session.user.id,
+    mode: requestedMode,
+    canApproveCash: hasPermission(session.user.permissions, "cash.approve"),
+  }));
 });

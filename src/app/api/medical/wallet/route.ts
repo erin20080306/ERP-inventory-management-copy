@@ -29,7 +29,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
   const result = await prisma.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`medical-wallet:${tenantId}:${body.customerId}`}))`;
     const shift = await tx.posShift.findFirst({
-      where: { id: body.shiftId, tenantId, userId: session.user.id, status: "OPEN" },
+      where: { id: body.shiftId, tenantId, userId: session.user.id, status: "OPEN", register: { mode: "POS_MEDICAL" } },
       select: { id: true },
     });
     if (!shift) throw new ApiError(409, "會員儲值收款前請由目前值班人員開班");

@@ -9,6 +9,7 @@ import { Download, Database, AlertTriangle, Loader2, Mail, MonitorCog, Plus, Sto
 export function SettingsClient() {
   const [form, setForm] = useState<any>({ name: "", currency: "TWD", smtpSecure: true, smtpPort: 465 });
   const [businessMode, setBusinessMode] = useState("");
+  const [isInternal, setIsInternal] = useState(false);
   const [storefrontUrl, setStorefrontUrl] = useState("");
   const [medicalSiteUrl, setMedicalSiteUrl] = useState("");
   const [saving, setSaving] = useState(false);
@@ -23,6 +24,7 @@ export function SettingsClient() {
         smtpPassword: "",
       });
       setBusinessMode(d.businessMode ?? "");
+      setIsInternal(Boolean(d.isInternal));
       setStorefrontUrl(d.storefrontUrl ?? "");
       setMedicalSiteUrl(d.medicalSiteUrl ?? "");
     });
@@ -39,9 +41,11 @@ export function SettingsClient() {
       toast.success("已儲存");
     } catch (e: any) { toast.error(e.message); } finally { setSaving(false); }
   }
-  const isMedicalWebsite = businessMode === "POS_MEDICAL";
+  const isMedicalWebsite = !isInternal && businessMode === "POS_MEDICAL";
+  const isEcommerceWebsite = isInternal || businessMode === "ECOMMERCE";
+  const showPublicWebsiteSettings = isInternal || isEcommerceWebsite || isMedicalWebsite;
   const publicWebsiteUrl = isMedicalWebsite ? medicalSiteUrl : storefrontUrl;
-  const websiteLabel = isMedicalWebsite ? "診所官網" : "商城";
+  const websiteLabel = isInternal ? "店商城" : isMedicalWebsite ? "診所官網" : "商城";
 
   return (
     <div className="space-y-6">
@@ -61,11 +65,11 @@ export function SettingsClient() {
           <div className="col-span-2"><Button onClick={save} disabled={saving}>{saving ? "儲存中..." : "儲存"}</Button></div>
         </CardContent>
       </Card>
-      {(businessMode === "ECOMMERCE" || isMedicalWebsite) && (
+      {showPublicWebsiteSettings && (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Store className="h-5 w-5" />{isMedicalWebsite ? "診所官網名稱與專屬網址" : "商城名稱與專屬網址"}</CardTitle>
-            <CardDescription>{isMedicalWebsite ? "每個醫美租戶都有自己的診所官網，服務圖片、售價與線上預約會使用同一份租戶資料。" : "商城品牌名稱與 ERP 公司名稱分開設定；沒有自訂網域也會保有可直接分享給消費者的專屬商城網址。"}</CardDescription>
+            <CardTitle className="flex items-center gap-2"><Store className="h-5 w-5" />{isInternal ? "管理內部帳對外測試網站" : isMedicalWebsite ? "診所官網名稱與專屬網址" : "商城名稱與專屬網址"}</CardTitle>
+            <CardDescription>{isInternal ? "管理內部帳同時擁有自己的店商城與醫美官網；兩個公開入口使用不同路徑，商品與醫美服務資料各自載入。" : isMedicalWebsite ? "每個醫美租戶都有自己的診所官網，服務圖片、售價與線上預約會使用同一份租戶資料。" : "商城品牌名稱與 ERP 公司名稱分開設定；沒有自訂網域也會保有可直接分享給消費者的專屬商城網址。"}</CardDescription>
           </CardHeader>
           <CardContent className="max-w-3xl space-y-4">
             <div className="grid gap-4 md:grid-cols-2">
@@ -87,10 +91,18 @@ export function SettingsClient() {
                 {publicWebsiteUrl && <Button type="button" size="sm" variant="outline" asChild><a href={publicWebsiteUrl} target="_blank" rel="noreferrer"><ExternalLink className="h-4 w-4" />開啟{websiteLabel}</a></Button>}
               </div>
             </div>
-            {businessMode === "ECOMMERCE" && <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">
+            {isInternal && <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-rose-950">
+              <div className="flex items-center gap-2 text-sm font-semibold"><Globe2 className="h-4 w-4" />目前醫美官網網址</div>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <a href={medicalSiteUrl || "#"} target="_blank" rel="noreferrer" className="min-w-0 break-all font-mono text-sm text-rose-800 underline">{medicalSiteUrl || "儲存後產生專屬網址"}</a>
+                {medicalSiteUrl && <Button type="button" size="sm" variant="outline" onClick={async () => { await navigator.clipboard.writeText(medicalSiteUrl); toast.success("醫美官網網址已複製"); }}><Copy className="h-4 w-4" />複製</Button>}
+                {medicalSiteUrl && <Button type="button" size="sm" variant="outline" asChild><a href={medicalSiteUrl} target="_blank" rel="noreferrer"><ExternalLink className="h-4 w-4" />開啟醫美官網</a></Button>}
+              </div>
+            </div>}
+            {isEcommerceWebsite && <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">
               如需使用自己的品牌網域，電商月租與年租方案另收一次設定費 NT$1,500；網域購買與續費由客戶自行支付。未設定自訂網域不影響上述專屬商城網址使用。
             </div>}
-            {businessMode === "ECOMMERCE" && <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            {isEcommerceWebsite && <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
               <div className="text-sm font-bold text-slate-900">商城銀行轉帳資訊</div>
               <p className="mt-1 text-xs leading-5 text-slate-600">填寫後，選擇銀行轉帳的顧客會在訂單成立頁看到匯款資訊。請只填寫專門對外收款的帳戶。</p>
               <div className="mt-4 grid gap-4 md:grid-cols-3">
@@ -99,7 +111,7 @@ export function SettingsClient() {
                 <div className="space-y-1"><Label>匯款帳號</Label><Input value={form.storeTransferAccountNumber ?? ""} onChange={(e) => setForm({ ...form, storeTransferAccountNumber: e.target.value })} placeholder="請輸入對外收款帳號" /></div>
               </div>
             </div>}
-            {businessMode === "ECOMMERCE" && <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs leading-5 text-rose-900">
+            {isEcommerceWebsite && <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs leading-5 text-rose-900">
               信用卡與行動支付目前只提供結帳與 ERP 接單流程體驗，不會實際扣款；正式收款需由客戶提供金流商帳號及串接資料後開通。
             </div>}
             <Button onClick={save} disabled={saving}>{saving ? "儲存中..." : `儲存${websiteLabel}設定`}</Button>
@@ -332,6 +344,7 @@ type RegisterRow = {
   id: string;
   code: string;
   name: string;
+  mode: "POS_RETAIL" | "POS_RESTAURANT" | "POS_MEDICAL";
   warehouseId: string;
   isActive: boolean;
   warehouse: { id: string; code: string; name: string };
@@ -341,7 +354,7 @@ type RegisterRow = {
 function PosRegisterCard() {
   const [registers, setRegisters] = useState<RegisterRow[]>([]);
   const [warehouses, setWarehouses] = useState<Array<{ id: string; code: string; name: string }>>([]);
-  const [form, setForm] = useState({ id: "", code: "", name: "", warehouseId: "", isActive: true });
+  const [form, setForm] = useState({ id: "", code: "", name: "", mode: "POS_RETAIL" as RegisterRow["mode"], warehouseId: "", isActive: true });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -364,7 +377,7 @@ function PosRegisterCard() {
   useEffect(() => { void load(); }, []);
 
   function resetForm() {
-    setForm({ id: "", code: "", name: "", warehouseId: warehouses[0]?.id || "", isActive: true });
+    setForm({ id: "", code: "", name: "", mode: "POS_RETAIL", warehouseId: warehouses[0]?.id || "", isActive: true });
   }
 
   async function saveRegister(next = form) {
@@ -388,23 +401,24 @@ function PosRegisterCard() {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2"><MonitorCog className="h-5 w-5" />POS 收銀台與門市倉庫</CardTitle>
-        <CardDescription>每台收銀台綁定一個出貨倉庫；開班、銷售、退貨及結班都依此追蹤。</CardDescription>
+        <CardDescription>每台收銀台綁定一個工作區與出貨倉庫；零售、餐飲、醫美的班次、現金、交易與退貨彼此隔離。</CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
-        <div className="grid gap-3 rounded-lg border bg-muted/20 p-4 md:grid-cols-4">
+        <div className="grid gap-3 rounded-lg border bg-muted/20 p-4 md:grid-cols-5">
           <div className="space-y-1"><Label>收銀台代碼</Label><Input placeholder="POS01" value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value.toUpperCase() })} /></div>
           <div className="space-y-1"><Label>顯示名稱</Label><Input placeholder="第一收銀台" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></div>
+          <div className="space-y-1"><Label>所屬工作區</Label><select value={form.mode} onChange={(event) => setForm({ ...form, mode: event.target.value as RegisterRow["mode"] })} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"><option value="POS_RETAIL">零售 POS</option><option value="POS_RESTAURANT">餐飲 POS</option><option value="POS_MEDICAL">醫美 POS</option></select></div>
           <div className="space-y-1"><Label>門市／出貨倉庫</Label><select value={form.warehouseId} onChange={(event) => setForm({ ...form, warehouseId: event.target.value })} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">{warehouses.map((warehouse) => <option key={warehouse.id} value={warehouse.id}>{warehouse.code} · {warehouse.name}</option>)}</select></div>
           <div className="flex items-end gap-2"><Button onClick={() => void saveRegister()} disabled={saving || warehouses.length === 0}><Plus className="h-4 w-4" />{form.id ? "儲存修改" : "新增收銀台"}</Button>{form.id && <Button variant="outline" onClick={resetForm}>取消</Button>}</div>
         </div>
         {warehouses.length === 0 && <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">請先在「倉庫／門市」建立至少一個有效倉庫。</div>}
         <div className="overflow-x-auto rounded-lg border">
           <table className="w-full min-w-[720px] text-sm">
-            <thead className="bg-muted/50"><tr><th className="p-3 text-left">代碼</th><th className="p-3 text-left">收銀台</th><th className="p-3 text-left">出貨倉庫</th><th className="p-3 text-right">班次／交易</th><th className="p-3 text-left">狀態</th><th className="p-3 text-right">操作</th></tr></thead>
+            <thead className="bg-muted/50"><tr><th className="p-3 text-left">代碼</th><th className="p-3 text-left">收銀台</th><th className="p-3 text-left">工作區</th><th className="p-3 text-left">出貨倉庫</th><th className="p-3 text-right">班次／交易</th><th className="p-3 text-left">狀態</th><th className="p-3 text-right">操作</th></tr></thead>
             <tbody>
-              {registers.map((register) => <tr key={register.id} className="border-t"><td className="p-3 font-mono">{register.code}</td><td className="p-3"><span className="inline-flex items-center gap-2"><Store className="h-4 w-4 text-muted-foreground" />{register.name}</span></td><td className="p-3">{register.warehouse.code} · {register.warehouse.name}</td><td className="p-3 text-right">{register._count.shifts}／{register._count.sales}</td><td className="p-3">{register.isActive ? "啟用" : "停用"}</td><td className="p-3 text-right space-x-2"><Button size="sm" variant="outline" onClick={() => setForm({ id: register.id, code: register.code, name: register.name, warehouseId: register.warehouseId, isActive: register.isActive })}>編輯</Button><Button size="sm" variant="outline" disabled={saving} onClick={() => void saveRegister({ id: register.id, code: register.code, name: register.name, warehouseId: register.warehouseId, isActive: !register.isActive })}>{register.isActive ? "停用" : "啟用"}</Button></td></tr>)}
-              {!loading && registers.length === 0 && <tr><td colSpan={6} className="p-8 text-center text-muted-foreground">尚未建立收銀台</td></tr>}
-              {loading && <tr><td colSpan={6} className="p-8 text-center text-muted-foreground">載入中…</td></tr>}
+              {registers.map((register) => <tr key={register.id} className="border-t"><td className="p-3 font-mono">{register.code}</td><td className="p-3"><span className="inline-flex items-center gap-2"><Store className="h-4 w-4 text-muted-foreground" />{register.name}</span></td><td className="p-3">{register.mode === "POS_RETAIL" ? "零售" : register.mode === "POS_RESTAURANT" ? "餐飲" : "醫美"}</td><td className="p-3">{register.warehouse.code} · {register.warehouse.name}</td><td className="p-3 text-right">{register._count.shifts}／{register._count.sales}</td><td className="p-3">{register.isActive ? "啟用" : "停用"}</td><td className="p-3 text-right space-x-2"><Button size="sm" variant="outline" onClick={() => setForm({ id: register.id, code: register.code, name: register.name, mode: register.mode, warehouseId: register.warehouseId, isActive: register.isActive })}>編輯</Button><Button size="sm" variant="outline" disabled={saving} onClick={() => void saveRegister({ id: register.id, code: register.code, name: register.name, mode: register.mode, warehouseId: register.warehouseId, isActive: !register.isActive })}>{register.isActive ? "停用" : "啟用"}</Button></td></tr>)}
+              {!loading && registers.length === 0 && <tr><td colSpan={7} className="p-8 text-center text-muted-foreground">尚未建立收銀台</td></tr>}
+              {loading && <tr><td colSpan={7} className="p-8 text-center text-muted-foreground">載入中…</td></tr>}
             </tbody>
           </table>
         </div>

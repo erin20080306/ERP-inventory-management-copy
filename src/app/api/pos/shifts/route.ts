@@ -21,14 +21,15 @@ export const POST = apiHandler(async (req: NextRequest) => {
       throw new ApiError(403, "需要現金管理／核准權限才能輸入開班庫存現金");
     }
     const result = await prisma.$transaction(async (tx: any) => {
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`pos-user-shift:${tenantId}:${session.user.id}`}))`;
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`pos-register:${tenantId}:${body.registerId}`}))`;
       const register = await tx.posRegister.findFirst({ where: { id: body.registerId, tenantId, isActive: true } });
       if (!register) throw new ApiError(404, "找不到可用收銀台");
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`pos-user-workspace-shift:${tenantId}:${session.user.id}:${register.mode}`}))`;
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`pos-register:${tenantId}:${body.registerId}`}))`;
       const existingForUser = await tx.posShift.findFirst({
-        where: { tenantId, userId: session.user.id, status: "OPEN" },
+        where: { tenantId, userId: session.user.id, status: "OPEN", register: { mode: register.mode } },
+        include: { register: true },
       });
-      if (existingForUser) return { shift: existingForUser, register, journal: null, reused: true };
+      if (existingForUser) return { shift: existingForUser, register: existingForUser.register, journal: null, reused: true };
       const occupied = await tx.posShift.findFirst({ where: { registerId: register.id, status: "OPEN" } });
       if (occupied) throw new ApiError(409, "此收銀台已有未結班班次");
       const shift = await tx.posShift.create({
