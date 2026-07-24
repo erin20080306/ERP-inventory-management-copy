@@ -79,9 +79,12 @@ type KitchenTicket = {
   items: Array<{ orderItem: OrderItem }>;
 };
 type InvoiceMode = "NONE" | "PAPER" | "MOBILE_CARRIER" | "CITIZEN_CERT" | "DONATION" | "BUSINESS";
+type ShiftSummary = { openingCash: number; expectedCash: number; difference: number | null; netSales: number; saleCount: number; refundCount: number };
 type Bootstrap = {
   registers: Array<{ id: string; code: string; name: string; warehouseId: string }>;
-  openShift: { id: string; register: { name: string; warehouseId: string } } | null;
+  openShift: { id: string; openingCash: number; register: { name: string; warehouseId: string } } | null;
+  today: { sales: number; refunds: number; grossAmount: number; refundAmount: number; amount: number; soldQuantity: number; refundedQuantity: number; netQuantity: number } | null;
+  shiftCash: { openingCash: number; cashSales: number; cashRefunds: number; expectedCash: number } | null;
   areas: Area[];
   categories: Array<{ id: string; name: string }>;
   products: Product[];
@@ -129,6 +132,8 @@ export function RestaurantWorkspace({ kitchenOnly = false, canManageTables = fal
   const [guests, setGuests] = useState(2);
   const [registerId, setRegisterId] = useState("");
   const [openingCash, setOpeningCash] = useState("0");
+  const [closingCash, setClosingCash] = useState("");
+  const [closePreview, setClosePreview] = useState<ShiftSummary | null>(null);
   const [categoryId, setCategoryId] = useState("ALL");
   const [query, setQuery] = useState("");
   const [lastSaleId, setLastSaleId] = useState("");
@@ -190,6 +195,7 @@ export function RestaurantWorkspace({ kitchenOnly = false, canManageTables = fal
     const needle = query.trim().toLowerCase();
     return categoryMatches && (!needle || `${product.sku} ${product.name}`.toLowerCase().includes(needle));
   }), [categoryId, data, query]);
+  const daily = data?.today ?? { sales: 0, refunds: 0, grossAmount: 0, refundAmount: 0, amount: 0, soldQuantity: 0, refundedQuantity: 0, netQuantity: 0 };
   const orderTotal = (selectedOrder?.items ?? [])
     .filter((item) => item.status !== "CANCELLED")
     .reduce((sum, item) => sum + Number(item.quantity) * Number(item.unitPrice), 0);
@@ -392,10 +398,52 @@ export function RestaurantWorkspace({ kitchenOnly = false, canManageTables = fal
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "開班失敗");
-      toast.success("餐飲門市已開班");
+      toast.success(result.journal ? `餐飲門市已開班，零用金傳票 ${result.journal.number} 已過帳` : "餐飲門市已開班");
       await load();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "開班失敗");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function previewCloseShift() {
+    if (!data?.openShift) return;
+    setBusy(true);
+    try {
+      const response = await fetch("/api/pos/shifts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "PREVIEW", shiftId: data.openShift.id }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "結班預覽失敗");
+      setClosePreview(result.summary);
+      setClosingCash("");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "結班預覽失敗");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function closeShift() {
+    if (!data?.openShift || closingCash === "") return;
+    setBusy(true);
+    try {
+      const response = await fetch("/api/pos/shifts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "CLOSE", shiftId: data.openShift.id, closingCash: Number(closingCash) }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "結班失敗");
+      toast.success(`餐飲門市結班完成，現金差額 ${money(Number(result.summary.difference))}${result.journal ? `；零用金傳票 ${result.journal.number} 已過帳` : ""}`);
+      setClosePreview(null);
+      setClosingCash("");
+      await load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "結班失敗");
     } finally {
       setBusy(false);
     }
@@ -497,7 +545,7 @@ return <div className="grid min-h-[60vh] animate-pulse gap-4 xl:grid-cols-[280px
           <div className="text-center">
             <Store className="mx-auto h-12 w-12 text-orange-500" />
             <h1 className="mt-3 text-2xl font-black">餐飲 POS 開班</h1>
-            <p className="mt-2 text-sm text-muted-foreground">確認收銀台與備用金後，才可開桌與點餐。</p>
+            <p className="mt-2 text-sm text-muted-foreground">確認收銀台與開店零用金後，才可開桌與點餐。</p>
           </div>
           <label className="block text-sm font-medium">
             收銀台
@@ -506,8 +554,9 @@ return <div className="grid min-h-[60vh] animate-pulse gap-4 xl:grid-cols-[280px
             </select>
           </label>
           <label className="block text-sm font-medium">
-            備用金
-            <input value={openingCash} onChange={(event) => setOpeningCash(event.target.value)} inputMode="numeric" className="mt-1 h-11 w-full rounded-lg border bg-background px-3" />
+            開店零用金（會計入帳）
+            <input value={openingCash} onChange={(event) => setOpeningCash(event.target.value)} inputMode="decimal" className="mt-1 h-11 w-full rounded-lg border bg-background px-3" />
+            <span className="mt-2 block text-xs leading-5 text-muted-foreground">大於 0 時自動過帳：借記庫存現金、貸記零用金；不列入營業額。結班時原額轉回零用金。</span>
           </label>
           <button onClick={openShift} disabled={busy || !registerId} data-shortcut="save" className="h-12 w-full rounded-xl bg-orange-600 font-bold text-white disabled:opacity-50">
             {busy ? "處理中…" : "確認開班"}
@@ -529,11 +578,35 @@ return <div className="grid min-h-[60vh] animate-pulse gap-4 xl:grid-cols-[280px
         <div className="flex flex-wrap gap-2">
           {allowTableManagement && <button onClick={() => setTableManagerOpen(true)} className="inline-flex h-10 items-center gap-2 rounded-lg border border-orange-200 bg-orange-50 px-3 text-sm font-bold text-orange-800 dark:border-orange-900 dark:bg-orange-950/30 dark:text-orange-200"><Settings2 className="h-4 w-4" />桌位設定</button>}
           <Link href="/pos/restaurant/kitchen" className="inline-flex h-10 items-center gap-2 rounded-lg bg-white px-4 text-sm font-bold text-slate-950"><ChefHat className="h-4 w-4" />廚房看板</Link>
+          <button onClick={() => void previewCloseShift()} disabled={busy} className="inline-flex h-10 items-center gap-2 rounded-lg border border-white/20 px-3 text-sm text-white disabled:opacity-50"><ReceiptText className="h-4 w-4" />預覽結班</button>
           <button onClick={() => void load()} className="inline-flex h-10 items-center gap-2 rounded-lg border border-white/20 px-3 text-sm text-white"><RefreshCw className="h-4 w-4" />重新整理</button>
         </div>
       </header>
 
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <div className="rounded-xl border bg-card p-4"><div className="text-xs font-bold text-muted-foreground">今日淨營業額</div><div className="mt-2 text-xl font-black">{money(daily.amount)}</div><div className="mt-1 text-[11px] text-muted-foreground">退款 {money(daily.refundAmount)}</div></div>
+        <div className="rounded-xl border bg-card p-4"><div className="text-xs font-bold text-muted-foreground">今日淨售出份數</div><div className="mt-2 text-xl font-black">{daily.netQuantity}</div><div className="mt-1 text-[11px] text-muted-foreground">售出 {daily.soldQuantity}／退回 {daily.refundedQuantity}</div></div>
+        <div className="rounded-xl border bg-card p-4"><div className="text-xs font-bold text-muted-foreground">今日結帳筆數</div><div className="mt-2 text-xl font-black">{daily.sales}</div><div className="mt-1 text-[11px] text-muted-foreground">退款 {daily.refunds} 筆</div></div>
+        <div className="rounded-xl border bg-card p-4"><div className="text-xs font-bold text-muted-foreground">開店零用金</div><div className="mt-2 text-xl font-black">{money(data.shiftCash?.openingCash ?? data.openShift.openingCash)}</div><div className="mt-1 text-[11px] text-emerald-700">已納入會計傳票</div></div>
+        <div className="rounded-xl border bg-card p-4"><div className="text-xs font-bold text-muted-foreground">目前應有現金</div><div className="mt-2 text-xl font-black">{money(data.shiftCash?.expectedCash ?? data.openShift.openingCash)}</div><div className="mt-1 text-[11px] text-muted-foreground">含現金銷售與已核准異動</div></div>
+      </section>
+
       {allowTableManagement && <TableManager open={tableManagerOpen} onOpenChange={setTableManagerOpen} areas={data.tableSettings ?? []} busy={busy} onAction={action} />}
+
+      <Dialog open={closePreview !== null} onOpenChange={(open) => { if (!open && !busy) setClosePreview(null); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>餐飲 POS 結班</DialogTitle><DialogDescription>確認本班銷售與錢櫃，結班後開店零用金會轉回零用金科目。</DialogDescription></DialogHeader>
+          {closePreview && <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div className="rounded-xl bg-orange-50 p-3"><div className="text-orange-700">本班淨銷售</div><div className="mt-1 font-black text-orange-900">{money(closePreview.netSales)}</div></div>
+              <div className="rounded-xl bg-emerald-50 p-3"><div className="text-emerald-700">應有現金</div><div className="mt-1 font-black text-emerald-900">{money(closePreview.expectedCash)}</div></div>
+            </div>
+            <label className="block text-sm font-bold">實點現金<input autoFocus value={closingCash} onChange={(event) => setClosingCash(event.target.value)} inputMode="decimal" className="mt-2 h-12 w-full rounded-xl border bg-background px-3 text-right text-xl font-black" /></label>
+            <div className="flex items-center justify-between rounded-xl border p-4"><span className="text-sm text-muted-foreground">預計現金差額</span><strong className={closingCash !== "" && Number(closingCash) === closePreview.expectedCash ? "text-emerald-700" : "text-rose-700"}>{closingCash === "" ? "—" : money(Number(closingCash) - closePreview.expectedCash)}</strong></div>
+            <button disabled={busy || closingCash === ""} onClick={() => void closeShift()} className="h-12 w-full rounded-xl bg-orange-600 font-bold text-white disabled:opacity-40">確認結班並轉回零用金</button>
+          </div>}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={paymentDialog !== null} onOpenChange={(open) => { if (!open && !busy) setPaymentDialog(null); }}>
         <DialogContent className="max-w-md">

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { ApiError, apiHandler, audit, requirePosPermission, requireTenantId } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
+import { createShiftOpeningCashJournal } from "@/lib/pos-shift-accounting";
 
 const ShiftAction = z.discriminatedUnion("action", [
   z.object({ action: z.literal("OPEN"), registerId: z.string().min(1), openingCash: z.coerce.number().min(0).max(10_000_000) }),
@@ -23,16 +24,31 @@ export const POST = apiHandler(async (req: NextRequest) => {
       const existingForUser = await tx.posShift.findFirst({
         where: { tenantId, userId: session.user.id, status: "OPEN" },
       });
-      if (existingForUser) return { shift: existingForUser, register, reused: true };
+      if (existingForUser) return { shift: existingForUser, register, journal: null, reused: true };
       const occupied = await tx.posShift.findFirst({ where: { registerId: register.id, status: "OPEN" } });
       if (occupied) throw new ApiError(409, "此收銀台已有未結班班次");
       const shift = await tx.posShift.create({
         data: { tenantId, registerId: register.id, userId: session.user.id, openingCash: body.openingCash },
       });
-      return { shift, register, reused: false };
+      const journal = await createShiftOpeningCashJournal(tx, {
+        tenantId,
+        userId: session.user.id,
+        shiftId: shift.id,
+        registerCode: register.code,
+        openingCash: body.openingCash,
+        direction: "OPEN",
+        entryDate: shift.openedAt,
+      });
+      return { shift, register, journal, reused: false };
     }, { isolationLevel: "ReadCommitted", maxWait: 10_000, timeout: 30_000 });
-    if (!result.reused) await audit({ userId: session.user.id, action: "open_shift", module: "pos", refId: result.shift.id, detail: result.register.code });
-    return NextResponse.json({ ok: true, shift: result.shift, reused: result.reused });
+    if (!result.reused) await audit({
+      userId: session.user.id,
+      action: "open_shift",
+      module: "pos",
+      refId: result.shift.id,
+      detail: `${result.register.code}；開店零用金 ${Number(result.shift.openingCash)}${result.journal ? `；傳票 ${result.journal.number}` : ""}`,
+    });
+    return NextResponse.json({ ok: true, shift: result.shift, journal: result.journal ?? null, reused: result.reused });
   }
 
   const isClosing = body.action === "CLOSE";
@@ -41,6 +57,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`pos-shift:${tenantId}:${body.shiftId}`}))`;
     const shift = await tx.posShift.findFirst({
       where: { id: body.shiftId, tenantId, userId: session.user.id, status: "OPEN" },
+      include: { register: { select: { code: true } } },
     });
     if (!shift) throw new ApiError(404, "找不到你的未結班班次");
 
@@ -101,6 +118,16 @@ export const POST = apiHandler(async (req: NextRequest) => {
     }
     const expectedCash = Math.round((Number(shift.openingCash) + cash.net + movementTotals.paidIn - movementTotals.paidOut - movementTotals.safeDrop) * 100) / 100;
     const difference = closingCash === null ? null : Math.round((closingCash - expectedCash) * 100) / 100;
+    const journal = isClosing
+      ? await createShiftOpeningCashJournal(tx, {
+          tenantId,
+          userId: session.user.id,
+          shiftId: shift.id,
+          registerCode: shift.register.code,
+          openingCash: Number(shift.openingCash),
+          direction: "CLOSE",
+        })
+      : null;
     const closed = isClosing
       ? await tx.posShift.update({
           where: { id: shift.id },
@@ -115,6 +142,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
       : shift;
     return {
       closed,
+      journal,
       summary: {
         openingCash: Number(shift.openingCash),
         expectedCash,
@@ -140,7 +168,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
     action: "close_shift",
     module: "pos",
     refId: result.closed.id,
-    detail: `應有 ${result.summary.expectedCash}；實點 ${closingCash}；差額 ${result.summary.difference}`,
+    detail: `應有 ${result.summary.expectedCash}；實點 ${closingCash}；差額 ${result.summary.difference}${result.journal ? `；零用金轉回傳票 ${result.journal.number}` : ""}`,
   });
-  return NextResponse.json({ ok: true, shift: result.closed, summary: result.summary });
+  return NextResponse.json({ ok: true, shift: result.closed, summary: result.summary, journal: result.journal });
 });

@@ -1,12 +1,17 @@
 import { prisma } from "@/lib/prisma";
 
-export async function getDashboardKpis(tenantId: string) {
-  const today = new Date();
-  const startToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  const startMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+export async function getDashboardKpis(tenantId: string, options: { webOnly?: boolean } = {}) {
+  const now = new Date();
+  const taipei = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+  const startToday = new Date(Date.UTC(taipei.getUTCFullYear(), taipei.getUTCMonth(), taipei.getUTCDate()) - 8 * 60 * 60 * 1000);
+  const endToday = new Date(startToday.getTime() + 24 * 60 * 60 * 1000);
+  const startMonth = new Date(Date.UTC(taipei.getUTCFullYear(), taipei.getUTCMonth(), 1) - 8 * 60 * 60 * 1000);
+  const channelWhere = options.webOnly ? { remark: { startsWith: "[WEB]" } } : {};
 
   const [
     todaySales,
+    todayOrders,
+    todayItems,
     monthSales,
     monthPurchase,
     arOpen,
@@ -18,11 +23,18 @@ export async function getDashboardKpis(tenantId: string) {
   ] = await Promise.all([
     prisma.salesOrder.aggregate({
       _sum: { total: true },
-      where: { tenantId, orderDate: { gte: startToday }, status: { not: "VOIDED" } },
+      where: { tenantId, ...channelWhere, orderDate: { gte: startToday, lt: endToday }, status: { not: "VOIDED" } },
+    }),
+    prisma.salesOrder.count({
+      where: { tenantId, ...channelWhere, orderDate: { gte: startToday, lt: endToday }, status: { not: "VOIDED" } },
+    }),
+    prisma.salesOrderItem.aggregate({
+      _sum: { quantity: true },
+      where: { order: { tenantId, ...channelWhere, orderDate: { gte: startToday, lt: endToday }, status: { not: "VOIDED" } } },
     }),
     prisma.salesOrder.aggregate({
       _sum: { total: true },
-      where: { tenantId, orderDate: { gte: startMonth }, status: { not: "VOIDED" } },
+      where: { tenantId, ...channelWhere, orderDate: { gte: startMonth }, status: { not: "VOIDED" } },
     }),
     prisma.purchaseOrder.aggregate({
       _sum: { total: true },
@@ -42,12 +54,14 @@ export async function getDashboardKpis(tenantId: string) {
          AND COALESCE((SELECT SUM(s.quantity) FROM "InventoryStock" s WHERE s."productId" = p.id), 0) < p."safetyStock"`,
       tenantId
     ) as Promise<{ count: any }[]>,
-    prisma.salesOrder.count({ where: { tenantId, status: { in: ["DRAFT", "SUBMITTED"] } } }),
+    prisma.salesOrder.count({ where: { tenantId, ...channelWhere, status: { in: ["DRAFT", "SUBMITTED"] } } }),
     prisma.purchaseOrder.count({ where: { tenantId, status: { in: ["SUBMITTED", "APPROVED"] } } }),
   ]);
 
   return {
     todaySales: Number(todaySales._sum.total ?? 0),
+    todayOrders,
+    todayQuantity: Number(todayItems._sum.quantity ?? 0),
     monthSales: Number(monthSales._sum.total ?? 0),
     monthPurchase: Number(monthPurchase._sum.total ?? 0),
     arTotal: Number(arOpen._sum.amount ?? 0) - Number(arOpen._sum.paidAmount ?? 0),
