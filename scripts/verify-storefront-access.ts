@@ -25,13 +25,15 @@ import { productCatalogScope } from "../src/lib/product-editions";
 const tenantAdmin = {
   tenantId: "tenant-123",
   companyCode: "SHOP-TW-001",
+  storeSlug: "fat-duck",
   permissions: ["*"],
   businessMode: "ECOMMERCE" as const,
   isSuperAdmin: false,
 };
 
 assert.equal(isTenantHighestPrivilege(tenantAdmin), true);
-assert.equal(tenantStorefrontPath(tenantAdmin), "/store/SHOP-TW-001");
+assert.equal(tenantStorefrontPath(tenantAdmin), "https://erp-inventory-management-copy.vercel.app/store/fat-duck");
+assert.equal(canManageTenantStorefront(tenantAdmin, "fat-duck"), true);
 assert.equal(canManageTenantStorefront(tenantAdmin, "SHOP-TW-001"), true);
 assert.equal(canManageTenantStorefront(tenantAdmin, "shop-tw-001"), true);
 assert.equal(canManageTenantStorefront(tenantAdmin, "tenant-123"), true);
@@ -40,9 +42,11 @@ assert.equal(canManageTenantStorefront(tenantAdmin, "another-tenant"), false);
 const medicalAdmin = {
   ...tenantAdmin,
   companyCode: "MEDICAL-TW-001",
+  storeSlug: "clinic-tw",
   businessMode: "POS_MEDICAL" as const,
 };
-assert.equal(tenantMedicalSitePath(medicalAdmin), "/medical/MEDICAL-TW-001");
+assert.equal(tenantMedicalSitePath(medicalAdmin), "https://erp-inventory-management-copy.vercel.app/medical/clinic-tw");
+assert.equal(canManageTenantMedicalSite(medicalAdmin, "clinic-tw"), true);
 assert.equal(canManageTenantMedicalSite(medicalAdmin, "MEDICAL-TW-001"), true);
 assert.equal(canManageTenantMedicalSite(medicalAdmin, "medical-tw-001"), true);
 assert.equal(canManageTenantMedicalSite(medicalAdmin, "another-tenant"), false);
@@ -71,7 +75,7 @@ assert.equal(tenantStorefrontPath({
   tenantId: "Tenant A/01",
   permissions: ["*"],
   businessMode: "ECOMMERCE",
-}), "/store/Tenant%20A%2F01");
+}), "https://erp-inventory-management-copy.vercel.app/store/Tenant%20A%2F01");
 
 assert.match(resolveDemoProductImage("F001", null) ?? "", /photo-1568901346375-23c9450c58cd/);
 assert.equal(resolveDemoProductImage("RTL-P001", null), "/demo-products/cotton-tote.webp");
@@ -154,6 +158,7 @@ for (const [sku, imageUrl] of Object.entries(ERP_DEMO_IMAGE_BY_SKU)) {
 const commerceDashboard = readFileSync("src/app/(app)/dashboard/page.tsx", "utf8");
 const commerceWorkspace = readFileSync("src/app/(app)/workspace/page.tsx", "utf8");
 const commerceStoreApi = readFileSync("src/app/api/store/[tenant]/route.ts", "utf8");
+const commerceStorePage = readFileSync("src/app/store/[tenant]/[[...view]]/page.tsx", "utf8");
 const commerceStorefront = readFileSync("src/app/store/[tenant]/[[...view]]/storefront.tsx", "utf8");
 const commerceStorefrontStyles = readFileSync("src/app/store/[tenant]/[[...view]]/storefront.module.css", "utf8");
 const memberRegisterApi = readFileSync("src/app/api/store/[tenant]/member/register/route.ts", "utf8");
@@ -199,6 +204,11 @@ assert.match(commerceStorefront, /亮黃連帽休閒套裝/);
 assert.match(commerceStorefrontStyles, /\.shell \.memberAuthSubmit[^}]*color: #fff/);
 assert.match(commerceStorefront, /\{managerAccess && \(\s*<section className=\{styles\.integration\}>/);
 assert.match(commerceStorefront, /一般消費者不會看到/);
+assert.match(commerceStorefront, /切換 ERP/);
+assert.match(commerceStorePage, /session\?\.user\?\.tenantId === identity\.id/);
+assert.match(commerceStorePage, /managerErpHref = session\?\.user\?\.isSuperAdmin \? "\/workspace" : "\/dashboard"/);
+assert.match(commerceWorkspace, /href=\{tenantStorefrontHref\}/);
+assert.match(commerceDashboard, /href=\{storefrontHref\}/);
 assert.match(memberRegisterApi, /bcrypt\.hash\(input\.password, 12\)/);
 assert.match(memberRegisterApi, /tenantId_email/);
 assert.match(memberLoginApi, /bcrypt\.compare/);

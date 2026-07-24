@@ -1,8 +1,10 @@
 import { normalizeBusinessMode, type BusinessMode } from "./product-editions";
+import { medicalSiteUrl, storefrontUrl } from "./public-site-links";
 
 export type StorefrontAccessUser = {
   tenantId?: string | null;
   companyCode?: string | null;
+  storeSlug?: string | null;
   permissions?: string[] | null;
   businessMode?: BusinessMode | string | null;
   isSuperAdmin?: boolean | null;
@@ -30,23 +32,23 @@ export function canAccessTenantErp(user: StorefrontAccessUser | null | undefined
 export function tenantStorefrontPath(user: StorefrontAccessUser | null | undefined) {
   if (user?.isSuperAdmin) {
     if (normalizedTenantKey(user.companyCode) !== "ERIN-INTERNAL") return null;
-    const tenantKey = user.companyCode?.trim() || user.tenantId?.trim();
-    return tenantKey ? `/store/${encodeURIComponent(tenantKey)}` : null;
+    const tenantKey = user.storeSlug?.trim() || user.companyCode?.trim() || user.tenantId?.trim();
+    return tenantKey ? storefrontUrl(tenantKey) : null;
   }
   if (!canAccessTenantErp(user) || normalizeBusinessMode(user?.businessMode) !== "ECOMMERCE") return null;
-  const tenantKey = user?.companyCode?.trim() || user?.tenantId?.trim();
-  return tenantKey ? `/store/${encodeURIComponent(tenantKey)}` : null;
+  const tenantKey = user?.storeSlug?.trim() || user?.companyCode?.trim() || user?.tenantId?.trim();
+  return tenantKey ? storefrontUrl(tenantKey) : null;
 }
 
 export function tenantMedicalSitePath(user: StorefrontAccessUser | null | undefined) {
   if (user?.isSuperAdmin) {
     if (normalizedTenantKey(user.companyCode) !== "ERIN-INTERNAL") return null;
-    const tenantKey = user.companyCode?.trim() || user.tenantId?.trim();
-    return tenantKey ? `/medical/${encodeURIComponent(tenantKey)}` : null;
+    const tenantKey = user.storeSlug?.trim() || user.companyCode?.trim() || user.tenantId?.trim();
+    return tenantKey ? medicalSiteUrl(tenantKey) : null;
   }
   if (!canAccessTenantErp(user) || normalizeBusinessMode(user?.businessMode) !== "POS_MEDICAL") return null;
-  const tenantKey = user?.companyCode?.trim() || user?.tenantId?.trim();
-  return tenantKey ? `/medical/${encodeURIComponent(tenantKey)}` : null;
+  const tenantKey = user?.storeSlug?.trim() || user?.companyCode?.trim() || user?.tenantId?.trim();
+  return tenantKey ? medicalSiteUrl(tenantKey) : null;
 }
 
 export function canManageTenantStorefront(user: StorefrontAccessUser | null | undefined, requestedTenant: string) {
@@ -54,7 +56,7 @@ export function canManageTenantStorefront(user: StorefrontAccessUser | null | un
   if (!requested || !user) return false;
   if (user.isSuperAdmin) {
     const internalKeys = normalizedTenantKey(user.companyCode) === "ERIN-INTERNAL"
-      ? [user.tenantId, user.companyCode]
+      ? [user.tenantId, user.companyCode, user.storeSlug]
       : [];
     return ["ATELIER-NOIR", "MOON-FORM", ...internalKeys]
       .map(normalizedTenantKey)
@@ -62,7 +64,7 @@ export function canManageTenantStorefront(user: StorefrontAccessUser | null | un
       .includes(requested);
   }
   if (!tenantStorefrontPath(user)) return false;
-  return [user.tenantId, user.companyCode].map(normalizedTenantKey).filter(Boolean).includes(requested);
+  return [user.tenantId, user.companyCode, user.storeSlug].map(normalizedTenantKey).filter(Boolean).includes(requested);
 }
 
 export function canManageTenantMedicalSite(user: StorefrontAccessUser | null | undefined, requestedTenant: string) {
@@ -70,7 +72,7 @@ export function canManageTenantMedicalSite(user: StorefrontAccessUser | null | u
   if (!requested || !user) return false;
   if (user.isSuperAdmin) {
     const internalKeys = normalizedTenantKey(user.companyCode) === "ERIN-INTERNAL"
-      ? [user.tenantId, user.companyCode]
+      ? [user.tenantId, user.companyCode, user.storeSlug]
       : [];
     return ["ATELIER-CLINIC", ...internalKeys]
       .map(normalizedTenantKey)
@@ -78,5 +80,5 @@ export function canManageTenantMedicalSite(user: StorefrontAccessUser | null | u
       .includes(requested);
   }
   if (!tenantMedicalSitePath(user)) return false;
-  return [user.tenantId, user.companyCode].map(normalizedTenantKey).filter(Boolean).includes(requested);
+  return [user.tenantId, user.companyCode, user.storeSlug].map(normalizedTenantKey).filter(Boolean).includes(requested);
 }

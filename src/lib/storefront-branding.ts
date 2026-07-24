@@ -1,7 +1,8 @@
 import { ApiError } from "./api";
 
-const DEFAULT_STOREFRONT_ORIGIN = "https://erp-inventory-management-copy.vercel.app";
 const RESERVED_STORE_SLUGS = new Set(["atelier-noir", "moon-form", "atelier-clinic"]);
+
+export { medicalSiteUrl, publicStorefrontOrigin, storefrontUrl } from "./public-site-links";
 
 export function normalizeStoreSlug(value: unknown) {
   return String(value ?? "")
@@ -20,20 +21,4 @@ export function assertStoreSlug(value: unknown) {
   }
   if (RESERVED_STORE_SLUGS.has(slug)) throw new ApiError(409, "此網站網址代碼為展示網站保留，請改用其他名稱");
   return slug;
-}
-
-export function publicStorefrontOrigin() {
-  return String(
-    process.env.PUBLIC_STOREFRONT_ORIGIN
-      || process.env.NEXT_PUBLIC_STOREFRONT_ORIGIN
-      || DEFAULT_STOREFRONT_ORIGIN,
-  ).replace(/\/$/, "");
-}
-
-export function storefrontUrl(slug: string) {
-  return `${publicStorefrontOrigin()}/store/${encodeURIComponent(slug)}`;
-}
-
-export function medicalSiteUrl(slug: string) {
-  return `${publicStorefrontOrigin()}/medical/${encodeURIComponent(slug)}`;
 }

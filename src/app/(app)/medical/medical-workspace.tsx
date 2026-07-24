@@ -24,6 +24,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { medicalSiteUrl } from "@/lib/public-site-links";
 
 type Service = {
   id: string;
@@ -239,7 +240,7 @@ export function MedicalWorkspace({ publicSiteHref, tenantCacheKey }: { publicSit
   const selectedProduct = products.find((item) => item.id === selectedProductId);
   const selectedCustomer = medical?.customers.find((item) => item.id === customerId);
   const resolvedPublicSiteHref = medical?.settings?.storeSlug
-    ? `/medical/${encodeURIComponent(medical.settings.storeSlug)}`
+    ? medicalSiteUrl(medical.settings.storeSlug)
     : publicSiteHref;
 
   async function openShift() {

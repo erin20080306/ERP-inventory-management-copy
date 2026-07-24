@@ -11,6 +11,7 @@ declare module "next-auth" {
       id: string;
       tenantId: string;
       companyCode?: string;
+      storeSlug?: string;
       username: string;
       name: string;
       email: string;
@@ -27,6 +28,7 @@ declare module "next-auth/jwt" {
     uid: string;
     tenantId: string;
     companyCode?: string;
+    storeSlug?: string;
     username: string;
     roles: string[];
     permissions: string[];
@@ -60,7 +62,13 @@ export const authOptions: NextAuthOptions = {
             ],
           },
           include: {
-            tenant: { select: { businessMode: true, companyCode: true } },
+            tenant: {
+              select: {
+                businessMode: true,
+                companyCode: true,
+                companySettings: { select: { storeSlug: true }, take: 1 },
+              },
+            },
             userRoles: {
               include: { role: { include: { permissions: { include: { permission: true } } } } },
             },
@@ -97,12 +105,17 @@ export const authOptions: NextAuthOptions = {
 
         let tenantId = user.tenantId ?? "";
         let companyCode = (user as any).tenant?.companyCode ?? tenantId;
+        let storeSlug = (user as any).tenant?.companySettings?.[0]?.storeSlug ?? undefined;
         let businessMode = normalizeBusinessMode((user as any).tenant?.businessMode);
         let isInternalAdminTenant = false;
         if ((user as any).isSuperAdmin) {
           const internalTenant = await ensureInternalAdminTenant(user.id);
           tenantId = internalTenant.id;
           companyCode = internalTenant.companyCode ?? internalTenant.id;
+          storeSlug = (await prisma.companySetting.findFirst({
+            where: { tenantId: internalTenant.id },
+            select: { storeSlug: true },
+          }))?.storeSlug ?? undefined;
           businessMode = normalizeBusinessMode(internalTenant.businessMode);
           isInternalAdminTenant = true;
         }
@@ -117,6 +130,7 @@ export const authOptions: NextAuthOptions = {
           id: user.id,
           tenantId,
           companyCode,
+          storeSlug,
           name: user.name,
           email: user.email,
           username: user.username,
@@ -136,6 +150,7 @@ export const authOptions: NextAuthOptions = {
         token.uid = u.id;
         token.tenantId = u.tenantId;
         token.companyCode = u.companyCode;
+        token.storeSlug = u.storeSlug;
         token.username = u.username;
         token.roles = u.roles;
         token.permissions = u.permissions;
@@ -147,6 +162,10 @@ export const authOptions: NextAuthOptions = {
         const internalTenant = await ensureInternalAdminTenant(token.uid);
         token.tenantId = internalTenant.id;
         token.companyCode = internalTenant.companyCode ?? internalTenant.id;
+        token.storeSlug = (await prisma.companySetting.findFirst({
+          where: { tenantId: internalTenant.id },
+          select: { storeSlug: true },
+        }))?.storeSlug ?? undefined;
         token.businessMode = normalizeBusinessMode(internalTenant.businessMode);
         token.isInternalAdminTenant = true;
       }
@@ -157,6 +176,7 @@ export const authOptions: NextAuthOptions = {
         id: token.uid,
         tenantId: token.tenantId,
         companyCode: token.companyCode,
+        storeSlug: token.storeSlug,
         username: token.username,
         name: session.user?.name ?? "",
         email: session.user?.email ?? "",
