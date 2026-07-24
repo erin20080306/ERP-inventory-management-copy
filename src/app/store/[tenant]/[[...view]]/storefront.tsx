@@ -63,11 +63,14 @@ type CartLine = {
 
 type Order = {
   id: string;
+  trackingToken?: string;
   createdAt: string;
   status: string;
   total: number;
   items: number;
   recipient: string;
+  shipmentNumber?: string | null;
+  shippedAt?: string | null;
   payment?: {
     method: "CARD" | "MOBILE" | "TRANSFER";
     status: string;
@@ -243,6 +246,63 @@ export function FashionStorefront({ tenant, initialView, initialStoreName, manag
     if (!hydrated) return;
     window.localStorage.setItem(`fashion-cart:${tenant}`, JSON.stringify(cart));
   }, [cart, hydrated, tenant]);
+
+  const trackingTokens = useMemo(
+    () => orders.map((order) => order.trackingToken).filter((token): token is string => Boolean(token)).sort().join(","),
+    [orders],
+  );
+
+  useEffect(() => {
+    if (!hydrated || !trackingTokens) return;
+    const controller = new AbortController();
+    let lastCheckAt = 0;
+    const refreshTracking = async () => {
+      const now = Date.now();
+      if (now - lastCheckAt < 5_000) return;
+      lastCheckAt = now;
+      try {
+        const response = await fetch(`/api/store/${encodeURIComponent(tenant)}/orders`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tokens: trackingTokens.split(",") }),
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || "無法同步訂單出貨狀態");
+        const updates = new Map((result.orders ?? []).map((order: Order) => [order.trackingToken, order]));
+        setOrders((current) => {
+          let changed = false;
+          const next = current.map((order) => {
+            const update = order.trackingToken ? updates.get(order.trackingToken) : null;
+            if (!update) return order;
+            const merged = { ...order, ...update, recipient: order.recipient };
+            if (
+              merged.status !== order.status
+              || merged.shipmentNumber !== order.shipmentNumber
+              || merged.shippedAt !== order.shippedAt
+            ) changed = true;
+            return merged;
+          });
+          if (changed) window.localStorage.setItem(`fashion-orders:${tenant}`, JSON.stringify(next));
+          return changed ? next : current;
+        });
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+      }
+    };
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") void refreshTracking();
+    };
+    void refreshTracking();
+    window.addEventListener("focus", refreshWhenVisible);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      controller.abort();
+      window.removeEventListener("focus", refreshWhenVisible);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
+  }, [hydrated, tenant, trackingTokens, view]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -729,9 +789,9 @@ function memberStatusLabel(status: string) {
   const labels: Record<string, string> = {
     DRAFT: "草稿",
     SUBMITTED: "訂單成立",
-    APPROVED: "已確認",
+    APPROVED: "理貨中",
     PARTIALLY_SHIPPED: "部分出貨",
-    POSTED: "待出貨",
+    POSTED: "已出貨",
     VOIDED: "已取消",
     REJECTED: "已拒絕",
   };
@@ -998,15 +1058,17 @@ function OrdersView({ orders, managerAccess }: { orders: Order[]; managerAccess:
     <section className={styles.orderPage}>
       <div className={styles.pageIntro}><span className={styles.eyebrow}>TRACK YOUR ORDER</span><h1>訂單查詢</h1><p>網路訂單、門市取貨與 POS 交易可在會員識別後集中查詢。{managerAccess ? " 王小美訂單為租戶操作體驗資料。" : ""}</p></div>
       <label className={styles.orderSearch}><Search /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="輸入訂單編號，例如 EC2607181042" /></label>
-      <div className={styles.orderList}>{rows.map((order) => <article key={order.id}><div className={styles.orderTop}><div><span>{order.id}</span><small>{new Date(order.createdAt).toLocaleString("zh-TW", { dateStyle: "medium", timeStyle: "short" })}</small></div><b className={order.status === "已完成" ? styles.doneStatus : ""}>{order.status}</b></div><div className={styles.orderBody}><div><PackageCheck /><span>{order.items} 件商品<strong>{order.recipient}</strong></span></div><strong>{money(order.total)}</strong><button>查看明細 <ChevronRight /></button></div><OrderTimeline status={order.status} /></article>)}</div>
+      <div className={styles.orderList}>{rows.map((order) => <article key={order.id}><div className={styles.orderTop}><div><span>{order.id}</span><small>{new Date(order.createdAt).toLocaleString("zh-TW", { dateStyle: "medium", timeStyle: "short" })}</small></div><b className={["已完成", "已出貨"].includes(order.status) ? styles.doneStatus : ""}>{order.status}</b></div><div className={styles.orderBody}><div><PackageCheck /><span>{order.items} 件商品<strong>{order.recipient}</strong>{order.shipmentNumber && <small>出貨單 {order.shipmentNumber}{order.shippedAt ? `・${new Date(order.shippedAt).toLocaleDateString("zh-TW")}` : ""}</small>}</span></div><strong>{money(order.total)}</strong><button>查看明細 <ChevronRight /></button></div><OrderTimeline status={order.status} /></article>)}</div>
       {rows.length === 0 && <div className={styles.emptyState}><Search /><h2>找不到這筆訂單</h2><p>請確認訂單編號，或登入會員中心查看全部紀錄。</p></div>}
     </section>
   );
 }
 
 function OrderTimeline({ status }: { status: string }) {
-  const completed = status === "已完成";
-  return <div className={styles.timeline}><span className={styles.timelineDone}>訂單成立</span><i /><span className={styles.timelineDone}>付款完成</span><i /><span className={styles.timelineDone}>理貨出貨</span><i /><span className={completed ? styles.timelineDone : ""}>{completed ? "已送達" : "配送中"}</span></div>;
+  const accepted = ["理貨中", "部分出貨", "已出貨", "配送中", "已完成"].includes(status);
+  const partiallyShipped = ["部分出貨", "已出貨", "配送中", "已完成"].includes(status);
+  const shipped = ["已出貨", "配送中", "已完成"].includes(status);
+  return <div className={styles.timeline}><span className={styles.timelineDone}>訂單成立</span><i /><span className={accepted ? styles.timelineDone : ""}>接單理貨</span><i /><span className={partiallyShipped ? styles.timelineDone : ""}>{status === "部分出貨" ? "部分出貨" : "理貨出貨"}</span><i /><span className={shipped ? styles.timelineDone : ""}>{status === "已完成" ? "已送達" : "已出貨"}</span></div>;
 }
 
 function CartDrawer({ open, close, tenant, lines, subtotal, updateLine }: {

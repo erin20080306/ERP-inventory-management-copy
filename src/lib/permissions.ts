@@ -155,6 +155,7 @@ export const DEFAULT_ROLES = {
     name: "倉管人員",
     permissions: ALL_PERMISSIONS.filter((p) =>
       ["dashboard", "products", "inventory", "warehouses", "returns"].includes(p.module)
+      || (p.module === "sales" && ["view", "post"].includes(p.action))
     ).map((p) => p.code),
   },
   HR: {

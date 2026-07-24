@@ -407,6 +407,7 @@ export const POST = apiHandler(async (req: NextRequest, { params }: { params: { 
 
     return {
       id: order.number,
+      trackingToken: input.requestId,
       createdAt: order.createdAt.toISOString(),
       status: input.payment === "TRANSFER" ? "訂單已進 ERP・等待轉帳確認" : "訂單已進 ERP・等待金流串接",
       total: Number(order.total),

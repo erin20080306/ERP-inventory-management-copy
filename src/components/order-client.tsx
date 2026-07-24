@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState, useCallback, useMemo } from "react";
+import { useSession } from "next-auth/react";
 import useSWR, { mutate } from "swr";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Textarea } from "@/components/ui/input";
@@ -13,6 +14,7 @@ import { formatDate, formatMoney, formatUnitPrice } from "@/lib/utils";
 import { downloadCSV, toCSV } from "@/lib/csv";
 import { useCustomColumns, useCustomFieldValues, CustomColumnDialog, CustomColumnButton, CustomFieldGridCell } from "@/components/custom-columns";
 import { readSessionCache, TableHint, useColumnDrag, useDebouncedValue, writeSessionCache } from "@/components/table-helpers";
+import { hasPermission } from "@/lib/permissions";
 
 function PDFOrderBtn({ kind }: { kind: string }) {
   const [busy, setBusy] = useState(false);
@@ -38,6 +40,7 @@ type OrderRow = {
   orderDate: string;
   supplier?: { companyName: string };
   customer?: { companyName: string };
+  storefrontPayment?: { method: string; status: string } | null;
   updatedBy?: string | null;
   items?: Array<{
     product?: { name: string };
@@ -63,8 +66,27 @@ function TableSkeletonRows({ columns, rows = 6 }: { columns: number; rows?: numb
   );
 }
 
-export function OrderClient({ kind, serverExcelExport }: { kind: Kind; serverExcelExport?: string }) {
+export function OrderClient({
+  kind,
+  serverExcelExport,
+  channel,
+  statuses,
+  fulfillmentMode = false,
+}: {
+  kind: Kind;
+  serverExcelExport?: string;
+  channel?: "WEB";
+  statuses?: string[];
+  fulfillmentMode?: boolean;
+}) {
+  const { data: session } = useSession();
   const endpoint = kind === "purchase" ? "/api/purchases" : "/api/sales";
+  const permissionModule = kind === "purchase" ? "purchases" : "sales";
+  const permissions = session?.user?.permissions ?? [];
+  const canApprove = hasPermission(permissions, `${permissionModule}.approve`);
+  const canReject = hasPermission(permissions, `${permissionModule}.reject`);
+  const canPost = hasPermission(permissions, `${permissionModule}.post`);
+  const canVoid = hasPermission(permissions, `${permissionModule}.void`);
   const partyLabel = kind === "purchase" ? "供應商" : "客戶";
   const [page, setPage] = useState(1);
   const [q, setQ] = useState("");
@@ -88,13 +110,17 @@ export function OrderClient({ kind, serverExcelExport }: { kind: Kind; serverExc
     return res.json();
   }, []);
 
+  const statusFilter = statuses?.join(",") ?? "";
+
   // 構建 SWR key
   const swrKey = useCallback(() => {
     const params = new URLSearchParams({ q: debouncedQ, page: String(page), pageSize: String(pageSize) });
     if (fromDate) params.set("from", fromDate);
     if (toDate) params.set("to", toDate);
+    if (channel) params.set("channel", channel);
+    if (statusFilter) params.set("status", statusFilter);
     return `${endpoint}?${params.toString()}`;
-  }, [endpoint, debouncedQ, page, fromDate, toDate]);
+  }, [endpoint, debouncedQ, page, fromDate, toDate, channel, statusFilter]);
 
   const tableKey = swrKey();
   const cachedData = useMemo(() => readSessionCache<any>(tableKey), [tableKey]);
@@ -110,9 +136,10 @@ export function OrderClient({ kind, serverExcelExport }: { kind: Kind; serverExc
 
   const rows = data?.items ?? [];
   const total = data?.total ?? 0;
+  const summary = data?.summary ?? {};
   const customFieldModule = kind === "purchase" ? "purchases" : "sales";
   const customFieldValues = useCustomFieldValues(customFieldModule, rows.map((row: OrderRow) => row.id));
-  const tableColumnCount = 11 + customCols.columns.length;
+  const tableColumnCount = 11 + customCols.columns.length + (fulfillmentMode ? 1 : 0);
   const showInitialLoading = isLoading && !data;
   const showRefreshing = isValidating && !!data && !isLoading;
 
@@ -235,13 +262,29 @@ export function OrderClient({ kind, serverExcelExport }: { kind: Kind; serverExc
 
   return (
     <div className="space-y-4">
+      {fulfillmentMode && (
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {[
+            { label: "待接單核准", value: summary.SUBMITTED ?? 0, hint: "確認訂單內容與付款", tone: "border-amber-200 bg-amber-50 text-amber-950" },
+            { label: "待揀貨出貨", value: summary.APPROVED ?? 0, hint: "選擇倉庫與出貨數量", tone: "border-indigo-200 bg-indigo-50 text-indigo-950" },
+            { label: "部分出貨", value: summary.PARTIALLY_SHIPPED ?? 0, hint: "尚有未交商品", tone: "border-orange-200 bg-orange-50 text-orange-950" },
+            { label: "已完成出貨", value: summary.POSTED ?? 0, hint: "庫存與帳務已同步", tone: "border-emerald-200 bg-emerald-50 text-emerald-950" },
+          ].map((item) => (
+            <div key={item.label} className={`rounded-xl border p-4 ${item.tone}`}>
+              <div className="text-xs font-bold">{item.label}</div>
+              <div className="mt-2 text-2xl font-black">{item.value}</div>
+              <div className="mt-1 text-[11px] opacity-75">{item.hint}</div>
+            </div>
+          ))}
+        </div>
+      )}
       {/* 手機版：新增按鈕置頂 */}
-      <div className="md:hidden">
+      {!fulfillmentMode && <div className="md:hidden">
         <Button className="w-full h-12 text-base font-semibold" onClick={() => setOpenNew(true)}>
           <Plus className="h-5 w-5 mr-1" />
           新增{kind === "purchase" ? "採購單" : "銷售單"}
         </Button>
-      </div>
+      </div>}
       <div className="flex items-center gap-2 flex-wrap">
         <div className="relative flex-1 min-w-[180px]">
           <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
@@ -249,7 +292,7 @@ export function OrderClient({ kind, serverExcelExport }: { kind: Kind; serverExc
         </div>
         <Input type="date" value={fromDate} onChange={(e) => { setPage(1); setFromDate(e.target.value); }} className="w-36" />
         <Input type="date" value={toDate} onChange={(e) => { setPage(1); setToDate(e.target.value); }} className="w-36" />
-        <div className="hidden md:flex items-center gap-2">
+        {!fulfillmentMode && <div className="hidden md:flex items-center gap-2">
           <Button
             variant="outline"
             onClick={async () => {
@@ -354,9 +397,9 @@ export function OrderClient({ kind, serverExcelExport }: { kind: Kind; serverExc
             <Plus className="h-4 w-4" />
             新增{kind === "purchase" ? "採購單" : "銷售單"}
           </Button>
-        </div>
+        </div>}
         {/* 手機版匯出按鈕 */}
-        <div className="md:hidden flex items-center gap-2 flex-wrap">
+        {!fulfillmentMode && <div className="md:hidden flex items-center gap-2 flex-wrap">
           <Button variant="outline" size="sm" onClick={async () => {
             const res = await fetch(`${endpoint}?q=${encodeURIComponent(q)}&pageSize=10000`);
             const d = await res.json();
@@ -392,7 +435,7 @@ export function OrderClient({ kind, serverExcelExport }: { kind: Kind; serverExc
             <Printer className="h-4 w-4 mr-1" /> 列印
           </Button>
           <CustomColumnButton onClick={() => customCols.setOpen(true)} />
-        </div>
+        </div>}
       </div>
 
       <TableHint />
@@ -407,6 +450,7 @@ export function OrderClient({ kind, serverExcelExport }: { kind: Kind; serverExc
             <TH {...colDrag.thProps("quantity")}>數量</TH>
             <TH {...colDrag.thProps("amount")}>金額</TH>
             <TH {...colDrag.thProps("taxAmount")}>稅金</TH>
+            {fulfillmentMode && <TH>付款</TH>}
             <TH {...colDrag.thProps("status")}>狀態</TH>
             <TH {...colDrag.thProps("updatedBy")}>操作人員</TH>
             {customCols.columns.map((cc) => <TH key={cc.id} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title="按右鍵管理自訂欄位">{cc.label}</TH>)}
@@ -425,7 +469,10 @@ export function OrderClient({ kind, serverExcelExport }: { kind: Kind; serverExc
           {!showInitialLoading && !error && rows.length === 0 && (
             <TR>
               <TD colSpan={tableColumnCount}>
-                <EmptyState />
+                <EmptyState
+                  title={fulfillmentMode ? "目前沒有待處理的商城訂單" : "目前沒有資料"}
+                  description={fulfillmentMode ? "新的消費者訂單會出現在這裡；已完成出貨的訂單可到「全部銷售單」查看。" : undefined}
+                />
               </TD>
             </TR>
           )}
@@ -487,6 +534,21 @@ export function OrderClient({ kind, serverExcelExport }: { kind: Kind; serverExc
                     )
                   )}
                 </TD>
+                {fulfillmentMode && (
+                  <TD className="text-xs">
+                    {r.storefrontPayment
+                      ? `${r.storefrontPayment.method}・${
+                          r.storefrontPayment.status === "PAID"
+                            ? "已付款"
+                            : r.storefrontPayment.status === "AWAITING_TRANSFER"
+                              ? "待匯款"
+                              : r.storefrontPayment.status === "PENDING"
+                                ? "待確認"
+                                : r.storefrontPayment.status
+                        }`
+                      : "—"}
+                  </TD>
+                )}
                 <TD>
                   <StatusBadge status={r.status} />
                 </TD>
@@ -496,16 +558,16 @@ export function OrderClient({ kind, serverExcelExport }: { kind: Kind; serverExc
                   {(r.status === "DRAFT" || r.status === "REJECTED") && <Button size="sm" variant="outline" onClick={() => onAct(r.id, "submit")}>送出</Button>}
                   {r.status === "SUBMITTED" && (
                     <>
-                      <Button size="sm" variant="outline" onClick={() => onAct(r.id, "approve")}>審核</Button>
-                      <Button size="sm" variant="destructive" onClick={() => onAct(r.id, "reject")}>駁回</Button>
+                      {canApprove && <Button size="sm" variant="outline" onClick={() => onAct(r.id, "approve")}>{fulfillmentMode ? "接單核准" : "審核"}</Button>}
+                      {canReject && <Button size="sm" variant="destructive" onClick={() => onAct(r.id, "reject")}>駁回</Button>}
                     </>
                   )}
                   {(
                     r.status === "APPROVED" ||
                     (kind === "purchase" && r.status === "PARTIALLY_RECEIVED") ||
                     (kind === "sales" && r.status === "PARTIALLY_SHIPPED")
-                  ) && <Button size="sm" onClick={() => setOpenView(r.id)}>{kind === "purchase" ? "進貨" : "出貨"}</Button>}
-                  {!['VOIDED', 'POSTED', 'PARTIALLY_RECEIVED', 'PARTIALLY_SHIPPED'].includes(r.status) && <Button size="sm" variant="destructive" onClick={() => onAct(r.id, "cancel")}>作廢</Button>}
+                  ) && canPost && <Button size="sm" onClick={() => setOpenView(r.id)}>{kind === "purchase" ? "進貨" : fulfillmentMode ? "揀貨／出貨" : "出貨"}</Button>}
+                  {canVoid && !['VOIDED', 'POSTED', 'PARTIALLY_RECEIVED', 'PARTIALLY_SHIPPED'].includes(r.status) && <Button size="sm" variant="destructive" onClick={() => onAct(r.id, "cancel")}>作廢</Button>}
                   <Button variant="ghost" size="icon" onClick={() => setOpenView(r.id)} title="查看">
                     <Eye className="h-4 w-4" />
                   </Button>
@@ -552,7 +614,16 @@ export function OrderClient({ kind, serverExcelExport }: { kind: Kind; serverExc
         }}
       />
       {openView && (
-        <ViewOrderDialog kind={kind} id={openView} onClose={() => setOpenView(null)} onChanged={() => mutate(swrKey())} />
+        <ViewOrderDialog
+          kind={kind}
+          id={openView}
+          canApprove={canApprove}
+          canReject={canReject}
+          canPost={canPost}
+          canVoid={canVoid}
+          onClose={() => setOpenView(null)}
+          onChanged={() => mutate(swrKey())}
+        />
       )}
       {openEdit && (
         <EditOrderDialog kind={kind} id={openEdit} onClose={() => setOpenEdit(null)} onSaved={(_updated) => { setOpenEdit(null); mutate(swrKey()); }} />
@@ -882,7 +953,7 @@ function CreateOrderDialog({ kind, open, onClose, onCreated }: { kind: Kind; ope
   );
 }
 
-function ViewOrderDialog({ kind, id, onClose, onChanged }: any) {
+function ViewOrderDialog({ kind, id, canApprove, canReject, canPost, canVoid, onClose, onChanged }: any) {
   const [data, setData] = useState<any>(null);
   const [warehouseId, setWarehouseId] = useState("");
   const [warehouses, setWarehouses] = useState<any[]>([]);
@@ -1000,7 +1071,7 @@ function ViewOrderDialog({ kind, id, onClose, onChanged }: any) {
   const party = kind === "purchase" ? data.supplier : data.customer;
   const progressField = kind === "purchase" ? "receivedQty" : "shippedQty";
   const partialStatus = kind === "purchase" ? "PARTIALLY_RECEIVED" : "PARTIALLY_SHIPPED";
-  const canReceiveShip = data.status === "APPROVED" || data.status === partialStatus;
+  const canReceiveShip = canPost && (data.status === "APPROVED" || data.status === partialStatus);
   const fulfillmentDocs = kind === "purchase" ? (data.receipts ?? []) : (data.shipments ?? []);
   const storefrontPayment = kind === "sales" ? data.storefrontPayment : null;
   const refundablePayment = storefrontPayment && ["PAID", "PARTIALLY_REFUNDED"].includes(storefrontPayment.status);
@@ -1192,8 +1263,8 @@ function ViewOrderDialog({ kind, id, onClose, onChanged }: any) {
           {(data.status === "DRAFT" || data.status === "REJECTED") && <Button variant="outline" onClick={() => act("submit")}>送出</Button>}
           {data.status === "SUBMITTED" && (
             <>
-              <Button variant="outline" onClick={() => act("approve")}>審核</Button>
-              <Button variant="destructive" onClick={() => act("reject")}>駁回</Button>
+              {canApprove && <Button variant="outline" onClick={() => act("approve")}>審核</Button>}
+              {canReject && <Button variant="destructive" onClick={() => act("reject")}>駁回</Button>}
             </>
           )}
           {canStorefrontRefund && !refundOpen && (
@@ -1205,7 +1276,7 @@ function ViewOrderDialog({ kind, id, onClose, onChanged }: any) {
               {kind === "purchase" ? "確認本次進貨" : "確認本次出貨"}
             </Button>
           )}
-          {!['VOIDED', 'POSTED', 'PARTIALLY_RECEIVED', 'PARTIALLY_SHIPPED'].includes(data.status) && (
+          {canVoid && !['VOIDED', 'POSTED', 'PARTIALLY_RECEIVED', 'PARTIALLY_SHIPPED'].includes(data.status) && (
             <Button variant="destructive" onClick={() => act("cancel")}>作廢</Button>
           )}
           {(data.status === "DRAFT" || data.status === "REJECTED") && (

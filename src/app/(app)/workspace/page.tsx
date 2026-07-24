@@ -6,6 +6,9 @@ import { hasPermission } from "@/lib/permissions";
 import { getDashboardKpis } from "@/lib/dashboard";
 import { getProductEdition, normalizeBusinessMode } from "@/lib/product-editions";
 import { formatMoney, formatNumber } from "@/lib/utils";
+import { prisma } from "@/lib/prisma";
+import { normalizeStoreSlug } from "@/lib/storefront-branding";
+import { medicalSiteUrl, storefrontUrl } from "@/lib/public-site-links";
 
 export const dynamic = "force-dynamic";
 
@@ -32,12 +35,23 @@ export default async function WorkspacePage() {
     if (mode === "POS_MEDICAL" && (hasPermission(permissions, "medical.view") || hasPermission(permissions, "pos.view"))) redirect("/medical");
   }
   const storefrontCode = session.user.companyCode || session.user.tenantId;
-  const commerceStats = mode === "ECOMMERCE" && session.user.tenantId
-    ? await getDashboardKpis(session.user.tenantId, { webOnly: true })
-    : null;
+  const [commerceStats, publicWebsiteSettings] = await Promise.all([
+    mode === "ECOMMERCE" && session.user.tenantId
+      ? getDashboardKpis(session.user.tenantId, { webOnly: true })
+      : null,
+    ["ECOMMERCE", "POS_MEDICAL"].includes(mode) && session.user.tenantId
+      ? prisma.companySetting.findFirst({
+          where: { tenantId: session.user.tenantId },
+          select: { storeSlug: true },
+        })
+      : null,
+  ]);
+  const publicWebsiteKey = publicWebsiteSettings?.storeSlug || normalizeStoreSlug(storefrontCode);
+  const tenantStorefrontHref = storefrontUrl(publicWebsiteKey);
+  const tenantMedicalSiteHref = medicalSiteUrl(publicWebsiteKey);
   const cards = [
     ...((mode === "ECOMMERCE" || isPlatformAdmin)
-      ? [{ title: mode === "ECOMMERCE" ? "預覽我的品牌商城" : "電商租戶網站示範", description: "消費者前台與 ERP 共用商品、可售庫存、會員與網路訂單", href: mode === "ECOMMERCE" ? `/store/${encodeURIComponent(storefrontCode)}` : "/store/atelier-noir", icon: Store, tone: "rose" }]
+      ? [{ title: mode === "ECOMMERCE" ? "預覽我的品牌商城" : "電商租戶網站示範", description: "消費者前台與 ERP 共用商品、可售庫存、會員與網路訂單", href: mode === "ECOMMERCE" ? tenantStorefrontHref : storefrontUrl("atelier-noir"), icon: Store, tone: "rose" }]
       : []),
     ...((mode === "ECOMMERCE" || isPlatformAdmin) && hasPermission(permissions, "dashboard.view")
       ? [{ title: "進入 ERP 營運後台", description: "網路訂單、商品、庫存、出貨、應收與會計整合管理", href: "/dashboard", icon: Building2, tone: "indigo" }]
@@ -49,7 +63,7 @@ export default async function WorkspacePage() {
       ? [{ title: "餐飲桌位與點餐", description: "圖片點餐、加點、送廚、出餐與桌位結帳", href: "/pos/restaurant", icon: UtensilsCrossed, tone: "orange" }]
       : []),
     ...((mode === "POS_MEDICAL" || isPlatformAdmin)
-      ? [{ title: mode === "POS_MEDICAL" ? "預覽我的醫美官網" : "醫美診所網站示範", description: "專業形象官網、圖片選服務與線上預約", href: mode === "POS_MEDICAL" ? `/medical/${encodeURIComponent(storefrontCode)}` : "/medical/atelier-clinic", icon: Store, tone: "rose" }]
+      ? [{ title: mode === "POS_MEDICAL" ? "預覽我的醫美官網" : "醫美診所網站示範", description: "專業形象官網、圖片選服務與線上預約", href: mode === "POS_MEDICAL" ? tenantMedicalSiteHref : medicalSiteUrl("atelier-clinic"), icon: Store, tone: "rose" }]
       : []),
     ...((mode === "POS_MEDICAL" || isPlatformAdmin) && (hasPermission(permissions, "medical.view") || hasPermission(permissions, "pos.view"))
       ? [{ title: "醫美 POS 與預約排程", description: "預約、套票、會員儲值、同意書、療程紀錄、醫療收據與耗材", href: "/medical", icon: HeartPulse, tone: "rose" }]
@@ -90,8 +104,8 @@ export default async function WorkspacePage() {
               <h2 className="mt-2 text-xl font-black text-slate-900">從消費者結帳，到 ERP 接單與出貨</h2>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Link href={`/store/${encodeURIComponent(storefrontCode)}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-3 text-sm font-bold text-white hover:bg-slate-800">進入商店官網 <ArrowUpRight className="h-4 w-4" /></Link>
-              <Link href="/sales" className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-white px-4 py-3 text-sm font-bold text-rose-700 hover:bg-rose-50">查看 ERP 網路訂單 <ClipboardList className="h-4 w-4" /></Link>
+              <Link href={tenantStorefrontHref} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-3 text-sm font-bold text-white hover:bg-slate-800">進入商店官網 <ArrowUpRight className="h-4 w-4" /></Link>
+              <Link href="/fulfillment" className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-white px-4 py-3 text-sm font-bold text-rose-700 hover:bg-rose-50">ERP 接單與出貨 <ClipboardList className="h-4 w-4" /></Link>
             </div>
           </div>
           {commerceStats && <div className="grid gap-px border-b border-rose-100 bg-rose-100 sm:grid-cols-2 xl:grid-cols-4">

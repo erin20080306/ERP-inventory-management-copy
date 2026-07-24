@@ -12,10 +12,22 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const pageSize = Math.min(Number(sp.get("pageSize") ?? 20), 200);
   const fromDate = sp.get("from") ?? "";
   const toDate = sp.get("to") ?? "";
-  
-  const where: any = q
-    ? { tenantId, OR: [{ number: { contains: q, mode: "insensitive" } }, { customer: { companyName: { contains: q, mode: "insensitive" } } }] }
-    : { tenantId };
+  const channel = sp.get("channel") ?? "";
+  const allowedStatuses = new Set(["DRAFT", "SUBMITTED", "APPROVED", "PARTIALLY_SHIPPED", "POSTED", "VOIDED", "REJECTED"]);
+  const statuses = (sp.get("status") ?? "")
+    .split(",")
+    .map((status) => status.trim().toUpperCase())
+    .filter((status) => allowedStatuses.has(status));
+
+  const where: any = { tenantId };
+  if (q) {
+    where.OR = [
+      { number: { contains: q, mode: "insensitive" } },
+      { customer: { companyName: { contains: q, mode: "insensitive" } } },
+    ];
+  }
+  if (channel === "WEB") where.remark = { startsWith: "[WEB]" };
+  if (statuses.length) where.status = { in: statuses };
   
   if (fromDate || toDate) {
     where.createdAt = {};
@@ -27,7 +39,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
     }
   }
   
-  const [items, total] = await Promise.all([
+  const [items, total, channelSummary] = await Promise.all([
     prisma.salesOrder.findMany({
       where,
       select: {
@@ -37,7 +49,9 @@ export const GET = apiHandler(async (req: NextRequest) => {
         total: true,
         taxAmount: true,
         orderDate: true,
+        remark: true,
         customer: { select: { companyName: true } },
+        storefrontPayment: { select: { method: true, status: true } },
         items: {
           select: {
             quantity: true,
@@ -62,8 +76,19 @@ export const GET = apiHandler(async (req: NextRequest) => {
       take: pageSize,
     }),
     prisma.salesOrder.count({ where }),
+    channel === "WEB"
+      ? prisma.salesOrder.groupBy({
+          by: ["status"],
+          where: { tenantId, remark: { startsWith: "[WEB]" } },
+          _count: { _all: true },
+        })
+      : [],
   ]);
-  return NextResponse.json({ items, total });
+  return NextResponse.json({
+    items,
+    total,
+    summary: Object.fromEntries(channelSummary.map((row) => [row.status, row._count._all])),
+  });
 });
 
 export const POST = apiHandler(async (req: NextRequest) => {

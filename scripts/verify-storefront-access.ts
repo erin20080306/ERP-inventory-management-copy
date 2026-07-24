@@ -25,13 +25,15 @@ import { productCatalogScope } from "../src/lib/product-editions";
 const tenantAdmin = {
   tenantId: "tenant-123",
   companyCode: "SHOP-TW-001",
+  storeSlug: "fat-duck",
   permissions: ["*"],
   businessMode: "ECOMMERCE" as const,
   isSuperAdmin: false,
 };
 
 assert.equal(isTenantHighestPrivilege(tenantAdmin), true);
-assert.equal(tenantStorefrontPath(tenantAdmin), "/store/SHOP-TW-001");
+assert.equal(tenantStorefrontPath(tenantAdmin), "https://erp-inventory-management-copy.vercel.app/store/fat-duck");
+assert.equal(canManageTenantStorefront(tenantAdmin, "fat-duck"), true);
 assert.equal(canManageTenantStorefront(tenantAdmin, "SHOP-TW-001"), true);
 assert.equal(canManageTenantStorefront(tenantAdmin, "shop-tw-001"), true);
 assert.equal(canManageTenantStorefront(tenantAdmin, "tenant-123"), true);
@@ -40,9 +42,11 @@ assert.equal(canManageTenantStorefront(tenantAdmin, "another-tenant"), false);
 const medicalAdmin = {
   ...tenantAdmin,
   companyCode: "MEDICAL-TW-001",
+  storeSlug: "clinic-tw",
   businessMode: "POS_MEDICAL" as const,
 };
-assert.equal(tenantMedicalSitePath(medicalAdmin), "/medical/MEDICAL-TW-001");
+assert.equal(tenantMedicalSitePath(medicalAdmin), "https://erp-inventory-management-copy.vercel.app/medical/clinic-tw");
+assert.equal(canManageTenantMedicalSite(medicalAdmin, "clinic-tw"), true);
 assert.equal(canManageTenantMedicalSite(medicalAdmin, "MEDICAL-TW-001"), true);
 assert.equal(canManageTenantMedicalSite(medicalAdmin, "medical-tw-001"), true);
 assert.equal(canManageTenantMedicalSite(medicalAdmin, "another-tenant"), false);
@@ -71,7 +75,7 @@ assert.equal(tenantStorefrontPath({
   tenantId: "Tenant A/01",
   permissions: ["*"],
   businessMode: "ECOMMERCE",
-}), "/store/Tenant%20A%2F01");
+}), "https://erp-inventory-management-copy.vercel.app/store/Tenant%20A%2F01");
 
 assert.match(resolveDemoProductImage("F001", null) ?? "", /photo-1568901346375-23c9450c58cd/);
 assert.equal(resolveDemoProductImage("RTL-P001", null), "/demo-products/cotton-tote.webp");
@@ -153,8 +157,15 @@ for (const [sku, imageUrl] of Object.entries(ERP_DEMO_IMAGE_BY_SKU)) {
 
 const commerceDashboard = readFileSync("src/app/(app)/dashboard/page.tsx", "utf8");
 const commerceWorkspace = readFileSync("src/app/(app)/workspace/page.tsx", "utf8");
+const commerceFulfillment = readFileSync("src/app/(app)/fulfillment/page.tsx", "utf8");
 const commerceStoreApi = readFileSync("src/app/api/store/[tenant]/route.ts", "utf8");
+const storefrontTrackingApi = readFileSync("src/app/api/store/[tenant]/orders/route.ts", "utf8");
+const salesApi = readFileSync("src/app/api/sales/route.ts", "utf8");
+const commerceStorePage = readFileSync("src/app/store/[tenant]/[[...view]]/page.tsx", "utf8");
 const commerceStorefront = readFileSync("src/app/store/[tenant]/[[...view]]/storefront.tsx", "utf8");
+const orderClient = readFileSync("src/components/order-client.tsx", "utf8");
+const sidebarNav = readFileSync("src/components/layout/sidebar-nav.tsx", "utf8");
+const permissionsSource = readFileSync("src/lib/permissions.ts", "utf8");
 const commerceStorefrontStyles = readFileSync("src/app/store/[tenant]/[[...view]]/storefront.module.css", "utf8");
 const memberRegisterApi = readFileSync("src/app/api/store/[tenant]/member/register/route.ts", "utf8");
 const memberLoginApi = readFileSync("src/app/api/store/[tenant]/member/login/route.ts", "utf8");
@@ -170,6 +181,7 @@ const posProductApi = readFileSync("src/app/api/pos/products/route.ts", "utf8");
 const restaurantApi = readFileSync("src/app/api/pos/restaurant/route.ts", "utf8");
 const productCatalogMigration = readFileSync("prisma/migrations/20260724030000_product_catalog_modes/migration.sql", "utf8");
 const productCatalogRepairMigration = readFileSync("prisma/migrations/20260724040000_repair_mode_product_catalogs/migration.sql", "utf8");
+const fulfillmentRoleMigration = readFileSync("prisma/migrations/20260724150000_ecommerce_fulfillment_role/migration.sql", "utf8");
 const tenantBaseline = readFileSync("src/lib/tenant-baseline.ts", "utf8");
 const loginPage = readFileSync("src/app/login/page.tsx", "utf8");
 assert.doesNotMatch(commerceDashboard, /商城已綁定公司代碼/);
@@ -199,6 +211,31 @@ assert.match(commerceStorefront, /亮黃連帽休閒套裝/);
 assert.match(commerceStorefrontStyles, /\.shell \.memberAuthSubmit[^}]*color: #fff/);
 assert.match(commerceStorefront, /\{managerAccess && \(\s*<section className=\{styles\.integration\}>/);
 assert.match(commerceStorefront, /一般消費者不會看到/);
+assert.match(commerceStorefront, /切換 ERP/);
+assert.match(commerceStorePage, /session\?\.user\?\.tenantId === identity\.id/);
+assert.match(commerceStorePage, /managerErpHref = session\?\.user\?\.isSuperAdmin \? "\/workspace" : "\/dashboard"/);
+assert.match(commerceWorkspace, /href=\{tenantStorefrontHref\}/);
+assert.match(commerceDashboard, /href=\{storefrontHref\}/);
+assert.match(commerceFulfillment, /title="電商接單與出貨"/);
+assert.match(commerceFulfillment, /channel="WEB"/);
+assert.match(commerceFulfillment, /"SUBMITTED", "APPROVED", "PARTIALLY_SHIPPED"/);
+assert.match(salesApi, /channel === "WEB"/);
+assert.match(salesApi, /remark: \{ startsWith: "\[WEB\]" \}/);
+assert.match(orderClient, /接單核准/);
+assert.match(orderClient, /揀貨／出貨/);
+assert.match(orderClient, /已完成出貨/);
+assert.match(orderClient, /確認本次出貨/);
+assert.match(commerceStoreApi, /trackingToken: input\.requestId/);
+assert.match(storefrontTrackingApi, /z\.string\(\)\.uuid\(\)/);
+assert.match(storefrontTrackingApi, /PUBLIC_ORDER_STATUS/);
+assert.match(storefrontTrackingApi, /shipments:/);
+assert.doesNotMatch(storefrontTrackingApi, /customer:/);
+assert.match(commerceStorefront, /無法同步訂單出貨狀態/);
+assert.match(commerceStorefront, /出貨單 \{order\.shipmentNumber\}/);
+assert.match(sidebarNav, /title: "接單與出貨", href: "\/fulfillment"/);
+assert.match(permissionsSource, /p\.module === "sales" && \["view", "post"\]\.includes\(p\.action\)/);
+assert.match(fulfillmentRoleMigration, /'sales\.view', 'sales\.post'/);
+assert.doesNotMatch(fulfillmentRoleMigration, /sales\.approve/);
 assert.match(memberRegisterApi, /bcrypt\.hash\(input\.password, 12\)/);
 assert.match(memberRegisterApi, /tenantId_email/);
 assert.match(memberLoginApi, /bcrypt\.compare/);

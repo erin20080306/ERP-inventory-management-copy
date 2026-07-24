@@ -40,6 +40,7 @@ const DATA_PREFETCH_BY_HREF: Record<string, string[]> = {
   "/pos": ["/api/pos/bootstrap"],
   "/pos/restaurant": ["/api/pos/restaurant"],
   "/medical": ["/api/medical/bootstrap"],
+  "/fulfillment": ["/api/sales?q=&page=1&pageSize=20&channel=WEB&status=SUBMITTED%2CAPPROVED%2CPARTIALLY_SHIPPED"],
 };
 
 const warmedRoutes = new Set<string>();
@@ -240,7 +241,8 @@ export function SidebarNav({ onNavigate, collapsed = false }: { onNavigate?: () 
     label: "電商營運",
     items: [
       ...(storefrontHref ? [{ title: "進入商店官網", href: storefrontHref, icon: Store }] : []),
-      { title: "網路訂單", href: "/sales", icon: ShoppingBag, perm: "sales.view" },
+      { title: "接單與出貨", href: "/fulfillment", icon: Truck, perm: "sales.view" },
+      { title: "全部網路訂單", href: "/sales", icon: ShoppingBag, perm: "sales.view" },
       { title: "會員／客戶", href: "/customers", icon: Users, perm: "customers.view" },
       { title: "商品與網站庫存", href: "/products", icon: Package, perm: "products.view" },
     ],

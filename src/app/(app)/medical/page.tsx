@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/api";
 import { normalizeBusinessMode } from "@/lib/product-editions";
+import { medicalSiteUrl } from "@/lib/public-site-links";
 import { MedicalWorkspace } from "./medical-workspace";
 
 export const dynamic = "force-dynamic";
@@ -10,5 +11,5 @@ export default async function MedicalPage() {
   if (!session?.user) redirect("/login");
   if (!session.user.isSuperAdmin && normalizeBusinessMode(session.user.businessMode) !== "POS_MEDICAL") redirect("/workspace");
   const tenantKey = session.user.companyCode || session.user.tenantId || "atelier-clinic";
-  return <MedicalWorkspace publicSiteHref={`/medical/${encodeURIComponent(tenantKey)}`} tenantCacheKey={session.user.tenantId || tenantKey} />;
+  return <MedicalWorkspace publicSiteHref={medicalSiteUrl(tenantKey)} tenantCacheKey={session.user.tenantId || tenantKey} />;
 }
