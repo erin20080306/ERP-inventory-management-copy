@@ -55,6 +55,7 @@ jobs:
       - run: npm run test:commerce
       - run: npm run test:storefront
       - run: npm run test:installed-storefront
+      - run: npm run test:storefront-host-sync
       - run: npm run test:storefront-members
       - run: npm run test:company-profile
       - run: npm run test:speed

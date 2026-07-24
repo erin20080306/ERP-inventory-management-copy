@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { apiHandler, requirePermission, requireTenantId, audit, nextNumber, getCurrentUserId } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { calcTotals } from "@/lib/documents";
+import { syncCentralStorefrontOrders } from "@/lib/storefront-order-sync";
 
 export const GET = apiHandler(async (req: NextRequest) => {
   const session = await requirePermission("sales.view");
@@ -13,6 +14,14 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const fromDate = sp.get("from") ?? "";
   const toDate = sp.get("to") ?? "";
   const channel = sp.get("channel") ?? "";
+  if (channel === "WEB" && process.env.LOCAL_LICENSE_MODE === "true") {
+    try {
+      await syncCentralStorefrontOrders(tenantId);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "未知錯誤";
+      throw new Error(`無法同步中央商城訂單：${message}`);
+    }
+  }
   const allowedStatuses = new Set(["DRAFT", "SUBMITTED", "APPROVED", "PARTIALLY_SHIPPED", "POSTED", "VOIDED", "REJECTED"]);
   const statuses = (sp.get("status") ?? "")
     .split(",")

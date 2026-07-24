@@ -28,6 +28,7 @@
     "test:dashboard-permissions": "tsx scripts/verify-dashboard-permissions.ts",
     "test:storefront": "tsx scripts/verify-storefront-access.ts",
     "test:installed-storefront": "tsx scripts/verify-installed-storefront-sync.ts",
+    "test:storefront-host-sync": "tsx scripts/verify-storefront-host-order-sync.ts",
     "test:tenant-access": "tsx scripts/verify-tenant-owner-access.ts",
     "test:storefront-members": "node --import tsx scripts/verify-storefront-members.ts",
     "test:company-profile": "node scripts/verify-company-profile-change.mjs",
