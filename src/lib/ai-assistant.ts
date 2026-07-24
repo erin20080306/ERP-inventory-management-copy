@@ -1,5 +1,6 @@
 import ExcelJS from "exceljs";
 import { prisma } from "@/lib/prisma";
+import { buildPosOperationsReport, isPosAssistantQuestion } from "@/lib/ai-assistant-pos";
 
 const STATUS_LABELS: Record<string, string> = {
   DRAFT: "草稿",
@@ -45,7 +46,8 @@ export type ReportResult = {
     | "employee-payroll"
     | "purchase-summary"
     | "return-summary"
-    | "product-detail";
+    | "product-detail"
+    | "pos-operations";
   title: string;
   description: string;
   criteria?: Record<string, string | number | undefined>;
@@ -270,6 +272,7 @@ function table(title: string, columns: string[], rows: Array<Record<string, Tabl
 
 export function getAssistantPermissionCode(question: string) {
   const text = String(question ?? "");
+  if (isPosAssistantQuestion(text)) return "pos.view";
   if (/傳票|分錄|切帳|切科目|科目.*正確|會計科目/i.test(text)) return "journals.view";
   if (/財報|財務報表|帳務|資產負債|損益|試算表|會計異常/i.test(text)) return "reports.view";
   if (/應收|催收|逾期|收款|未收/i.test(text)) return "receivables.view";
@@ -291,6 +294,12 @@ function emptyHelp(): HelpResult {
     title: "可以查詢 ERP 營運資料",
     message: "請輸入想看的主題、客戶/商品關鍵字與期間。客戶名稱不用全名，像「高雄貿易銷售」也可以。",
     examples: [
+      "今日 POS 營業額與付款方式",
+      "目前誰開班與應有現金",
+      "今日熱賣商品與退款最多商品",
+      "客戶消費排行與平均客單價",
+      "餐飲未結帳桌位與待出餐",
+      "廚房平均製作與出餐時間",
       "高雄貿易銷售",
       "庫存低於安全量提醒",
       "客戶應收帳款催收清單",
@@ -1893,6 +1902,8 @@ async function buildProductDetail(tenantId: string, question: string): Promise<R
 export async function runAssistantQuery(tenantId: string, question: string): Promise<AssistantResult> {
   const text = String(question ?? "").trim();
   if (!text) throw new Error("請輸入想查詢的問題。");
+
+  if (isPosAssistantQuestion(text)) return buildPosOperationsReport(tenantId, text);
 
   // 自然語言處理：賺錢/虧錢/好壞
   if (/賺錢|賺了|利潤|獲利/i.test(text)) {

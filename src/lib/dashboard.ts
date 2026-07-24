@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { getLedgerCashBalance } from "@/lib/pos-daily-summary";
 
 export async function getDashboardKpis(tenantId: string, options: { webOnly?: boolean } = {}) {
   const now = new Date();
@@ -17,6 +18,7 @@ export async function getDashboardKpis(tenantId: string, options: { webOnly?: bo
     arOpen,
     apOpen,
     inventoryValue,
+    inventoryCash,
     lowStockCount,
     unshipped,
     unpaidPO,
@@ -46,6 +48,7 @@ export async function getDashboardKpis(tenantId: string, options: { webOnly?: bo
       `SELECT COALESCE(SUM(s.quantity * p."costPrice"),0) as total FROM "InventoryStock" s JOIN "Product" p ON p.id = s."productId" WHERE s."tenantId" = $1`,
       tenantId
     ) as Promise<{ total: any }[]>,
+    getLedgerCashBalance(tenantId),
     (prisma.$queryRawUnsafe as any)(
       `SELECT COUNT(*) as count
        FROM "Product" p
@@ -67,6 +70,7 @@ export async function getDashboardKpis(tenantId: string, options: { webOnly?: bo
     arTotal: Number(arOpen._sum.amount ?? 0) - Number(arOpen._sum.paidAmount ?? 0),
     apTotal: Number(apOpen._sum.amount ?? 0) - Number(apOpen._sum.paidAmount ?? 0),
     inventoryValue: Number(inventoryValue[0]?.total ?? 0),
+    inventoryCash,
     lowStockCount: Number(lowStockCount[0]?.count ?? 0),
     unshipped,
     unpaidPO,

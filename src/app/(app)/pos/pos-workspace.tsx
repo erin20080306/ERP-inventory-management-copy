@@ -10,7 +10,7 @@ import { choosePosRecoveryDraft, clearLocalPosDraft, readLocalPosDraft, writeLoc
 
 type Register = { id: string; code: string; name: string; warehouse: { id: string; code: string; name: string } };
 type Warehouse = { id: string; code: string; name: string };
-type Shift = { id: string; register: { id: string; code: string; name: string; warehouseId: string }; openingCash: number; openedAt: string };
+type Shift = { id: string; userId: string; register: { id: string; code: string; name: string; warehouseId: string }; openingCash: number; openedAt: string; openedBy: { id: string; name: string; username: string } };
 type Product = { id: string; sku: string; barcode?: string | null; name: string; spec?: string | null; salePrice: number | string; stockTotal: number; imageUrl?: string | null; categoryName: string };
 type CartItem = { product: Product; quantity: number; discount: number };
 type Customer = { id: string; code: string; companyName: string; phone?: string | null; taxId?: string | null };
@@ -36,6 +36,8 @@ type ShiftSummary = {
   expectedCash: number;
   closingCash: number | null;
   difference: number | null;
+  openedBy: { id: string; name: string; username: string };
+  closingBy: { id: string; name: string; username: string };
   grossSales: number;
   refunds: number;
   netSales: number;
@@ -82,6 +84,7 @@ export function PosWorkspace() {
   const [shift, setShift] = useState<Shift | null>(null);
   const [today, setToday] = useState({ sales: 0, refunds: 0, grossAmount: 0, refundAmount: 0, amount: 0, soldQuantity: 0, refundedQuantity: 0, netQuantity: 0 });
   const [shiftCash, setShiftCash] = useState<{ openingCash: number; cashSales: number; cashRefunds: number; expectedCash: number } | null>(null);
+  const [ledgerCashBalance, setLedgerCashBalance] = useState(0);
   const [recentSales, setRecentSales] = useState<RecentSale[]>([]);
   const [saleQuery, setSaleQuery] = useState("");
   const [products, setProducts] = useState<Product[]>([]);
@@ -148,6 +151,7 @@ export function PosWorkspace() {
     setShift(data.openShift ?? null);
     setToday(data.today ?? { sales: 0, refunds: 0, grossAmount: 0, refundAmount: 0, amount: 0, soldQuantity: 0, refundedQuantity: 0, netQuantity: 0 });
     setShiftCash(data.shiftCash ?? null);
+    setLedgerCashBalance(Number(data.ledgerCashBalance ?? 0));
     setRecentSales(data.recentSales ?? []);
     setSelectedRegister((value) => value || data.registers?.[0]?.id || "");
     return data.openShift as Shift | null;
@@ -961,10 +965,13 @@ return <div className="grid min-h-[60vh] animate-pulse gap-4 xl:grid-cols-[minma
               <div><div className="text-muted-foreground">退款</div><div className="font-semibold text-rose-700">{formatTwd(lastCloseSummary.refunds)}</div></div>
               <div><div className="text-muted-foreground">應有現金</div><div className="font-semibold">{formatTwd(lastCloseSummary.expectedCash)}</div></div>
               <div><div className="text-muted-foreground">現金差額</div><div className={`font-bold ${Number(lastCloseSummary.difference) === 0 ? "text-emerald-700" : "text-rose-700"}`}>{formatTwd(Number(lastCloseSummary.difference))}</div></div>
+              <div><div className="text-muted-foreground">開班人員</div><div className="font-semibold">{lastCloseSummary.openedBy.name}</div></div>
+              <div><div className="text-muted-foreground">結班人員</div><div className="font-semibold">{lastCloseSummary.closingBy.name}</div></div>
             </div>
           </div>
         )}
         <div className="rounded-2xl border bg-card p-6 shadow-sm space-y-4">
+          <div className="flex items-center justify-between rounded-xl bg-muted/40 px-4 py-3 text-sm"><span className="text-muted-foreground">開班人員</span><strong>{activeSession?.user?.name || "目前登入帳號"}</strong></div>
           {registers.length === 0 ? (
             <div className="rounded-xl bg-amber-50 text-amber-800 p-4 text-sm">尚未建立收銀台。請先到系統設定建立倉庫與 POS 收銀台。</div>
           ) : (
@@ -974,9 +981,9 @@ return <div className="grid min-h-[60vh] animate-pulse gap-4 xl:grid-cols-[minma
                   {registers.map((register) => <option key={register.id} value={register.id}>{register.name} · {register.warehouse.name}</option>)}
                 </select>
               </label>
-              <label className="block text-sm font-medium">開店零用金（會計入帳）
-                <input value={openingCash} onChange={(event) => setOpeningCash(event.target.value)} inputMode="decimal" className="mt-1 w-full h-11 rounded-lg border bg-background px-3" />
-                <span className="mt-2 block text-xs leading-5 text-muted-foreground">大於 0 時自動過帳：借記庫存現金、貸記零用金；不列入營業額。結班時原額轉回零用金。</span>
+              <label className="block text-sm font-medium">開班庫存現金（由零用金轉入）
+                <input value={openingCash} onChange={(event) => setOpeningCash(event.target.value)} inputMode="decimal" disabled={!canApproveCash} className="mt-1 w-full h-11 rounded-lg border bg-background px-3 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground" />
+                <span className="mt-2 block text-xs leading-5 text-muted-foreground">{canApproveCash ? "可輸入或修改；大於 0 時自動過帳：借記庫存現金、貸記零用金。開班後若需調整，請使用錢櫃投入／提出。" : "需要現金管理／核准權限才能輸入或修改；目前將以 0 元開班。"}</span>
               </label>
               <button onClick={openShift} disabled={busy} className="w-full h-12 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold disabled:opacity-50">{busy ? "開班中…" : "確認開班"}</button>
             </>
@@ -991,7 +998,7 @@ return <div className="grid min-h-[60vh] animate-pulse gap-4 xl:grid-cols-[minma
       <header className="flex flex-col justify-between gap-4 rounded-2xl bg-slate-950 p-5 text-white shadow-xl xl:flex-row xl:items-center">
         <div>
           <div className="text-[11px] font-black uppercase tracking-[.22em] text-emerald-400">RETAIL POS / REGISTER 01</div><div className="mt-1 flex items-center gap-2"><Store className="h-6 w-6 text-emerald-400" /><h1 className="text-2xl font-black">快速收銀</h1></div>
-          <p className="mt-1 text-sm text-slate-300">{shift.register.name} · 今日 {today.sales} 筆 · 淨額 {formatTwd(today.amount)}{today.refundAmount > 0 ? `（退款 ${formatTwd(today.refundAmount)}）` : ""} · 草稿保護：{draftProtection === "SERVER" ? "伺服器已同步" : draftProtection === "LOCAL" ? "本機已保存、待同步" : draftProtection === "CONFLICT" ? "等待選擇版本" : "待命"}</p>
+          <p className="mt-1 text-sm text-slate-300">{shift.register.name} · 開班人員 {shift.openedBy.name} · 今日 {today.sales} 筆 · 淨額 {formatTwd(today.amount)}{today.refundAmount > 0 ? `（退款 ${formatTwd(today.refundAmount)}）` : ""} · 草稿保護：{draftProtection === "SERVER" ? "伺服器已同步" : draftProtection === "LOCAL" ? "本機已保存、待同步" : draftProtection === "CONFLICT" ? "等待選擇版本" : "待命"}</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <button onClick={() => setCashPanelOpen(true)} className="h-10 px-4 rounded-lg border hover:bg-muted text-sm inline-flex items-center gap-2"><CircleDollarSign className="h-4 w-4" />錢櫃異動{cashMovements.some((movement) => movement.status === "PENDING") ? `（${cashMovements.filter((movement) => movement.status === "PENDING").length} 待核）` : ""}</button>
@@ -1001,12 +1008,13 @@ return <div className="grid min-h-[60vh] animate-pulse gap-4 xl:grid-cols-[minma
         </div>
       </header>
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
         <div className="rounded-xl border bg-card p-4"><div className="text-xs font-bold text-muted-foreground">今日淨營業額</div><div className="mt-2 text-xl font-black">{formatTwd(today.amount)}</div><div className="mt-1 text-[11px] text-muted-foreground">退款 {formatTwd(today.refundAmount)}</div></div>
         <div className="rounded-xl border bg-card p-4"><div className="text-xs font-bold text-muted-foreground">今日淨售出件數</div><div className="mt-2 text-xl font-black">{today.netQuantity}</div><div className="mt-1 text-[11px] text-muted-foreground">售出 {today.soldQuantity}／退回 {today.refundedQuantity}</div></div>
         <div className="rounded-xl border bg-card p-4"><div className="text-xs font-bold text-muted-foreground">今日交易筆數</div><div className="mt-2 text-xl font-black">{today.sales}</div><div className="mt-1 text-[11px] text-muted-foreground">退款 {today.refunds} 筆</div></div>
         <div className="rounded-xl border bg-card p-4"><div className="text-xs font-bold text-muted-foreground">開店零用金</div><div className="mt-2 text-xl font-black">{formatTwd(shiftCash?.openingCash ?? shift.openingCash)}</div><div className="mt-1 text-[11px] text-emerald-700">已納入會計傳票</div></div>
         <div className="rounded-xl border bg-card p-4"><div className="text-xs font-bold text-muted-foreground">目前應有現金</div><div className="mt-2 text-xl font-black">{formatTwd(shiftCash?.expectedCash ?? shift.openingCash)}</div><div className="mt-1 text-[11px] text-muted-foreground">含現金銷售與已核准錢櫃異動</div></div>
+        <div className="rounded-xl border bg-card p-4"><div className="text-xs font-bold text-muted-foreground">總帳庫存現金</div><div className="mt-2 text-xl font-black">{formatTwd(ledgerCashBalance)}</div><div className="mt-1 text-[11px] text-muted-foreground">所有已過帳庫存現金餘額</div></div>
       </section>
 
       {recoveryDraft && (
@@ -1292,6 +1300,7 @@ return <div className="grid min-h-[60vh] animate-pulse gap-4 xl:grid-cols-[minma
           <div className="w-full max-w-xl max-h-[92vh] overflow-y-auto rounded-2xl bg-background shadow-2xl">
             <div className="p-5 border-b flex items-center justify-between"><div className="text-lg font-bold">結班預覽</div><button onClick={() => setShiftPreview(null)} disabled={busy} aria-label="關閉結班預覽"><X className="h-5 w-5" /></button></div>
             <div className="p-5 space-y-5">
+              <div className="grid grid-cols-2 gap-3 rounded-xl border p-4 text-sm"><div><div className="text-muted-foreground">開班人員</div><div className="mt-1 font-bold">{shiftPreview.openedBy.name}</div></div><div><div className="text-muted-foreground">結班人員</div><div className="mt-1 font-bold">{shiftPreview.closingBy.name}</div></div></div>
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div className="rounded-xl bg-muted/40 p-3"><div className="text-muted-foreground">銷售總額／筆數</div><div className="font-bold mt-1">{formatTwd(shiftPreview.grossSales)}／{shiftPreview.saleCount}</div></div>
                 <div className="rounded-xl bg-muted/40 p-3"><div className="text-muted-foreground">退款總額／筆數</div><div className="font-bold text-rose-700 mt-1">{formatTwd(shiftPreview.refunds)}／{shiftPreview.refundCount}</div></div>

@@ -4,7 +4,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 const root = process.cwd();
-const version = "v1.1.2-manual-macos-safety";
+const version = "v1.1.3";
 const generatedAt = new Date().toISOString();
 const outputPath = path.join(root, "src", "generated", "embedded-host-installers.ts");
 const updaterImage = "erin-erp-host-updater:2";

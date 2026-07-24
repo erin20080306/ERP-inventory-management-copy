@@ -1041,6 +1041,7 @@ model PosShift {
   tenantId         String
   registerId       String
   userId           String
+  closedById       String?
   status           PosShiftStatus    @default(OPEN)
   openingCash      Decimal           @default(0) @db.Decimal(18, 2)
   expectedCash     Decimal?          @db.Decimal(18, 2)
@@ -1060,6 +1061,7 @@ model PosShift {
   @@index([tenantId, status])
   @@index([registerId, status])
   @@index([userId, status])
+  @@index([closedById])
   @@index([openedAt])
 }
 

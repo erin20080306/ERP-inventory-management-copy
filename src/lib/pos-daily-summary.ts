@@ -45,6 +45,54 @@ export async function getPosDailySummary(tenantId: string, client: any = prisma)
     netQuantity: soldQuantity - refundedQuantity,
   };
 }
+
+export async function getLedgerCashBalance(tenantId: string, client: any = prisma) {
+  const accounts = await client.chartOfAccount.findMany({
+    where: {
+      tenantId,
+      isActive: true,
+      OR: [
+        { name: "庫存現金" },
+        { code: "1101" },
+      ],
+    },
+    select: { id: true, code: true, name: true, openingBalance: true },
+  });
+  const account = accounts.find((item: any) => item.name === "庫存現金")
+    ?? accounts.find((item: any) => item.code === "1101");
+  if (!account) return 0;
+  const totals = await client.journalEntryLine.aggregate({
+    where: {
+      accountId: account.id,
+      entry: { tenantId, status: "POSTED" },
+    },
+    _sum: { debit: true, credit: true },
+  });
+  return Math.round((
+    Number(account.openingBalance ?? 0)
+    + Number(totals._sum.debit ?? 0)
+    - Number(totals._sum.credit ?? 0)
+  ) * 100) / 100;
+}
+
+export async function attachPosShiftOperators<T extends { userId: string; closedById?: string | null }>(
+  shift: T | null,
+  client: any = prisma,
+) {
+  if (!shift) return null;
+  const operatorIds = [...new Set([shift.userId, shift.closedById].filter(Boolean))] as string[];
+  const operators = await client.user.findMany({
+    where: { id: { in: operatorIds } },
+    select: { id: true, name: true, username: true },
+  });
+  const byId = new Map<string, { id: string; name: string; username: string }>(operators.map((operator: any) => [operator.id, operator]));
+  return {
+    ...shift,
+    openedBy: byId.get(shift.userId) ?? { id: shift.userId, name: "未知人員", username: "" },
+    closedBy: shift.closedById ? byId.get(shift.closedById) ?? { id: shift.closedById, name: "未知人員", username: "" } : null,
+  };
+}
+
 export async function getPosShiftCashPosition(
   shift: { id: string; openingCash: unknown } | null,
   client: any = prisma,

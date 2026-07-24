@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { ApiError, apiHandler, audit, requirePosPermission, requireTenantId } from "@/lib/api";
+import { hasPermission } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createShiftOpeningCashJournal } from "@/lib/pos-shift-accounting";
 
@@ -16,6 +17,9 @@ export const POST = apiHandler(async (req: NextRequest) => {
   const body = ShiftAction.parse(await req.json());
 
   if (body.action === "OPEN") {
+    if (body.openingCash > 0 && !hasPermission(session.user.permissions, "cash.approve")) {
+      throw new ApiError(403, "需要現金管理／核准權限才能輸入開班庫存現金");
+    }
     const result = await prisma.$transaction(async (tx: any) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`pos-user-shift:${tenantId}:${session.user.id}`}))`;
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`pos-register:${tenantId}:${body.registerId}`}))`;
@@ -118,6 +122,14 @@ export const POST = apiHandler(async (req: NextRequest) => {
     }
     const expectedCash = Math.round((Number(shift.openingCash) + cash.net + movementTotals.paidIn - movementTotals.paidOut - movementTotals.safeDrop) * 100) / 100;
     const difference = closingCash === null ? null : Math.round((closingCash - expectedCash) * 100) / 100;
+    const operators = await tx.user.findMany({
+      where: { id: { in: [...new Set([shift.userId, session.user.id])] } },
+      select: { id: true, name: true, username: true },
+    });
+    const openedBy = operators.find((operator: any) => operator.id === shift.userId)
+      ?? { id: shift.userId, name: "未知人員", username: "" };
+    const closingBy = operators.find((operator: any) => operator.id === session.user.id)
+      ?? { id: session.user.id, name: session.user.name ?? "目前登入人員", username: "" };
     const journal = isClosing
       ? await createShiftOpeningCashJournal(tx, {
           tenantId,
@@ -136,6 +148,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
             expectedCash,
             closingCash,
             difference,
+            closedById: session.user.id,
             closedAt: new Date(),
           },
         })
@@ -148,6 +161,8 @@ export const POST = apiHandler(async (req: NextRequest) => {
         expectedCash,
         closingCash,
         difference,
+        openedBy,
+        closingBy,
         grossSales: Number(salesTotal._sum.total ?? 0),
         refunds: Number(refundsTotal._sum.total ?? 0),
         netSales: Number(salesTotal._sum.total ?? 0) - Number(refundsTotal._sum.total ?? 0),
@@ -168,7 +183,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
     action: "close_shift",
     module: "pos",
     refId: result.closed.id,
-    detail: `應有 ${result.summary.expectedCash}；實點 ${closingCash}；差額 ${result.summary.difference}${result.journal ? `；零用金轉回傳票 ${result.journal.number}` : ""}`,
+    detail: `開班人員 ${result.summary.openedBy.name}；結班人員 ${result.summary.closingBy.name}；應有 ${result.summary.expectedCash}；實點 ${closingCash}；差額 ${result.summary.difference}${result.journal ? `；零用金轉回傳票 ${result.journal.number}` : ""}`,
   });
   return NextResponse.json({ ok: true, shift: result.closed, summary: result.summary, journal: result.journal });
 });

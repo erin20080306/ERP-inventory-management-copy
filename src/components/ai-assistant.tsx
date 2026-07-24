@@ -206,7 +206,7 @@ export function AIAssistant({ initialOpen = false }: AIAssistantProps) {
 
           {!result && (
             <div className="grid gap-2 rounded-lg border border-dashed p-4 text-sm text-muted-foreground sm:grid-cols-2 lg:grid-cols-4">
-              {["庫存低於安全量提醒", "客戶應收帳款催收清單", "產品毛利銷售排行", "本月營運摘要寄給老闆"].map((example) => (
+              {["今日 POS 營業額", "目前誰開班", "總帳庫存現金", "餐飲未結帳桌位", "廚房出餐時間", "今日熱賣商品", "客戶消費排行", "待核准錢櫃異動"].map((example) => (
                 <button key={example} className="rounded-md border bg-background px-3 py-2 text-left hover:bg-muted/40" onClick={() => ask(example)}>
                   {example}
                 </button>

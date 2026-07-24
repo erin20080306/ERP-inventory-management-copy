@@ -18,7 +18,7 @@
     "db:deploy": "prisma migrate deploy",
     "db:rehearse": "node scripts/verify-database-recovery.mjs",
     "test:fulfillment": "tsx scripts/verify-partial-fulfillment.ts",
-    "test:pos": "tsx scripts/verify-pos-refunds.ts && tsx scripts/verify-pos-daily-accounting.ts",
+    "test:pos": "tsx scripts/verify-pos-refunds.ts && tsx scripts/verify-pos-daily-accounting.ts && tsx scripts/verify-ai-pos-assistant.ts",
     "test:pos-hardware": "tsx scripts/verify-pos-hardware-simulation.ts",
     "test:pos-offers": "tsx scripts/verify-pos-offers.ts",
     "test:pos-restaurant": "tsx scripts/verify-restaurant-pos.ts",

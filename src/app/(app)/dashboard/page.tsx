@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import {
   AlertTriangle,
   ArrowUpRight,
+  Banknote,
   Coins,
   Globe2,
   Package,
@@ -83,8 +84,9 @@ export default async function DashboardPage() {
         </>}
       </section>
 
-      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
         <article className="rounded-xl border bg-card p-4"><div className="flex items-center gap-2 text-xs font-bold text-muted-foreground"><Package className="h-4 w-4 text-indigo-500" />庫存總成本</div><div className="mt-2 text-lg font-black">{formatMoney(s.inventoryValue)}</div></article>
+        <article className="rounded-xl border bg-card p-4"><div className="flex items-center gap-2 text-xs font-bold text-muted-foreground"><Banknote className="h-4 w-4 text-emerald-600" />庫存現金</div><div className="mt-2 text-lg font-black">{formatMoney(s.inventoryCash)}</div><div className="mt-1 text-[11px] text-muted-foreground">已過帳總帳餘額</div></article>
         <article className="rounded-xl border bg-card p-4"><div className="flex items-center gap-2 text-xs font-bold text-muted-foreground"><Coins className="h-4 w-4 text-emerald-500" />應收帳款</div><div className="mt-2 text-lg font-black">{formatMoney(s.arTotal)}</div></article>
         <article className="rounded-xl border bg-card p-4"><div className="flex items-center gap-2 text-xs font-bold text-muted-foreground"><Wallet className="h-4 w-4 text-rose-500" />應付帳款</div><div className="mt-2 text-lg font-black">{formatMoney(s.apTotal)}</div></article>
         <article className="rounded-xl border bg-card p-4"><div className="flex items-center gap-2 text-xs font-bold text-muted-foreground"><ShoppingCart className="h-4 w-4 text-amber-500" />本月採購額</div><div className="mt-2 text-lg font-black">{formatMoney(s.monthPurchase)}</div></article>
