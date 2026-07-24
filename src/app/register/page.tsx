@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { toast } from "sonner";
 import { signIn } from "next-auth/react";
-import { Loader2, UserPlus, Building2, ShoppingBag, Store, UtensilsCrossed, PlayCircle, X } from "lucide-react";
+import { Loader2, UserPlus, Building2, ShoppingBag, Store, UtensilsCrossed, PlayCircle, X, HeartPulse } from "lucide-react";
 import Link from "next/link";
 import type { BusinessMode } from "@/lib/product-editions";
 
@@ -17,6 +17,7 @@ const MODE_DEMOS: Record<BusinessMode, { label: string; video: string; poster: s
   ECOMMERCE: { label: "電商商城＋ERP", video: "/videos/ecommerce-erp-demo.webm", poster: "/images/demos/ecommerce-erp-demo.png" },
   POS_RETAIL: { label: "一般零售 POS", video: "/videos/retail-pos-demo.webm", poster: "/images/demos/retail-pos-demo.png" },
   POS_RESTAURANT: { label: "餐飲 POS", video: "/videos/restaurant-pos-demo.webm", poster: "/images/demos/restaurant-pos-demo.png" },
+  POS_MEDICAL: { label: "醫美診所營運管理 POS", video: "/videos/medical-pos-demo.webm", poster: "/medical-aesthetics/clinic-hero.png" },
 };
 
 export default function RegisterPage() {
@@ -39,6 +40,7 @@ export default function RegisterPage() {
     if (mode === "POS" || mode === "POS_RETAIL") setBusinessMode("POS_RETAIL");
     if (mode === "POS_RESTAURANT") setBusinessMode("POS_RESTAURANT");
     if (mode === "ECOMMERCE") setBusinessMode("ECOMMERCE");
+    if (mode === "POS_MEDICAL" || mode === "MEDICAL") setBusinessMode("POS_MEDICAL");
   }, []);
 
   async function onSubmit(e: React.FormEvent) {
@@ -120,11 +122,12 @@ export default function RegisterPage() {
           <form onSubmit={onSubmit} className="min-w-0 space-y-4">
             <fieldset className="min-w-0 space-y-2">
               <legend className="text-slate-300 text-xs mb-2">選擇使用模式（可左右滑動）</legend>
-              <div className="grid max-w-full snap-x snap-mandatory grid-flow-col auto-cols-[minmax(168px,1fr)] gap-2 overflow-x-auto pb-2 [scrollbar-width:thin] lg:grid-flow-row lg:grid-cols-4 lg:auto-cols-auto lg:overflow-visible">
+              <div className="grid max-w-full snap-x snap-mandatory grid-flow-col auto-cols-[minmax(168px,1fr)] gap-2 overflow-x-auto pb-2 [scrollbar-width:thin] lg:grid-flow-row lg:grid-cols-5 lg:auto-cols-auto lg:overflow-visible">
                 <button type="button" onClick={() => setBusinessMode("ERP")} className={`h-16 min-w-0 snap-start rounded-xl border flex items-center justify-center gap-2 text-sm transition ${businessMode === "ERP" ? "border-indigo-400 bg-indigo-500/20 text-white" : "border-white/10 bg-white/5 text-slate-400 hover:bg-white/10"}`}><Building2 className="h-4 w-4" />一般企業 ERP</button>
                 <button type="button" onClick={() => setBusinessMode("ECOMMERCE")} className={`h-16 min-w-0 snap-start rounded-xl border flex items-center justify-center gap-2 text-sm transition ${businessMode === "ECOMMERCE" ? "border-rose-400 bg-rose-500/20 text-white" : "border-white/10 bg-white/5 text-slate-400 hover:bg-white/10"}`}><ShoppingBag className="h-4 w-4" />電商商城＋ERP</button>
                 <button type="button" onClick={() => setBusinessMode("POS_RETAIL")} className={`h-16 min-w-0 snap-start rounded-xl border flex items-center justify-center gap-2 text-sm transition ${businessMode === "POS_RETAIL" ? "border-emerald-400 bg-emerald-500/20 text-white" : "border-white/10 bg-white/5 text-slate-400 hover:bg-white/10"}`}><Store className="h-4 w-4" />一般零售 POS</button>
                 <button type="button" onClick={() => setBusinessMode("POS_RESTAURANT")} className={`h-16 min-w-0 snap-start rounded-xl border flex items-center justify-center gap-2 text-sm transition ${businessMode === "POS_RESTAURANT" ? "border-orange-400 bg-orange-500/20 text-white" : "border-white/10 bg-white/5 text-slate-400 hover:bg-white/10"}`}><UtensilsCrossed className="h-4 w-4" />餐飲 POS</button>
+                <button type="button" onClick={() => setBusinessMode("POS_MEDICAL")} className={`min-h-16 min-w-0 snap-start rounded-xl border px-3 py-2 text-left text-sm transition ${businessMode === "POS_MEDICAL" ? "border-fuchsia-300 bg-fuchsia-500/20 text-white" : "border-white/10 bg-white/5 text-slate-400 hover:bg-white/10"}`}><span className="flex items-center gap-2 font-semibold"><HeartPulse className="h-4 w-4 shrink-0" />醫美診所營運管理 POS</span><span className="mt-1 block text-[10px] leading-4 opacity-75">整合預約排程、療程套票、會員儲值、同意書、術前術後紀錄、耗材庫存</span></button>
               </div>
               <button type="button" onClick={() => setShowDemoVideo(true)} className="flex w-full items-center justify-between rounded-xl border border-sky-300/20 bg-sky-300/5 px-4 py-3 text-left text-sm text-sky-100 transition hover:bg-sky-300/10">
                 <span><b className="block">{currentDemo.label} 示範影片</b><small className="mt-1 block text-sky-200/70">先觀看操作流程，再完成租戶註冊</small></span><PlayCircle className="h-6 w-6 shrink-0" />
@@ -137,7 +140,7 @@ export default function RegisterPage() {
               <Input
                 id="companyName"
                 className="h-11 bg-white/5 border-white/10 text-white placeholder:text-slate-500 focus-visible:ring-indigo-400/40"
-                placeholder={businessMode === "POS_RESTAURANT" ? "例如：艾琳小館" : businessMode === "POS_RETAIL" ? "例如：艾琳生活選物店" : businessMode === "ECOMMERCE" ? "例如：艾琳服飾品牌" : "例如：艾琳設計有限公司"}
+                placeholder={businessMode === "POS_MEDICAL" ? "例如：艾琳醫美診所" : businessMode === "POS_RESTAURANT" ? "例如：艾琳小館" : businessMode === "POS_RETAIL" ? "例如：艾琳生活選物店" : businessMode === "ECOMMERCE" ? "例如：艾琳服飾品牌" : "例如：艾琳設計有限公司"}
                 value={companyName}
                 onChange={(e) => setCompanyName(e.target.value)}
                 required

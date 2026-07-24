@@ -97,6 +97,10 @@ export const PAYMENT_GATEWAY_SETUP_FEE = {
   ONCE: 0,
 } satisfies Record<BillingCycle, number>;
 
+export function isWebsiteMode(value: string | null | undefined) {
+  return value === "ECOMMERCE" || value === "POS_MEDICAL";
+}
+
 export function isEcommerceMode(value: string | null | undefined) {
   return value === "ECOMMERCE";
 }
@@ -112,7 +116,7 @@ export function getPlan(code: string | null | undefined) {
 }
 
 export function getPlanPrice(plan: ErpPlan, cycle: BillingCycle, businessMode?: string | null) {
-  if (isEcommerceMode(businessMode)) {
+  if (isWebsiteMode(businessMode)) {
     if (cycle === "MONTHLY") return ECOMMERCE_PRICING.monthlyByPlan[plan.code];
     if (cycle === "ANNUAL") return ECOMMERCE_PRICING.annualByPlan[plan.code];
     return ECOMMERCE_PRICING.lifetimeByPlan[plan.code];
@@ -123,7 +127,7 @@ export function getPlanPrice(plan: ErpPlan, cycle: BillingCycle, businessMode?: 
 }
 
 export function getWebsiteDesignFee(cycle: BillingCycle, businessMode?: string | null) {
-  return isEcommerceMode(businessMode) ? ECOMMERCE_PRICING.websiteDesignFee[cycle] : 0;
+  return isWebsiteMode(businessMode) ? ECOMMERCE_PRICING.websiteDesignFee[cycle] : 0;
 }
 
 export function getPaymentGatewaySetupFee(cycle: BillingCycle) {
@@ -131,7 +135,7 @@ export function getPaymentGatewaySetupFee(cycle: BillingCycle) {
 }
 
 export function getCustomDomainSetupFee(cycle: BillingCycle, businessMode?: string | null) {
-  return isEcommerceMode(businessMode) ? ECOMMERCE_PRICING.customDomainSetupFee[cycle] : 0;
+  return isWebsiteMode(businessMode) ? ECOMMERCE_PRICING.customDomainSetupFee[cycle] : 0;
 }
 
 export function formatTwd(amount: number) {

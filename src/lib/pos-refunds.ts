@@ -84,7 +84,7 @@ export async function refundPosSale(options: {
         register: true,
         items: {
           include: {
-            product: true,
+            product: { include: { medicalPackage: true } },
             refundItems: {
               where: { refund: { status: "COMPLETED" } },
               select: { quantity: true, subtotal: true, discount: true },
@@ -96,11 +96,16 @@ export async function refundPosSale(options: {
           where: { status: "COMPLETED" },
           include: { payments: true },
         },
+        medicalReceipt: true,
+        medicalPackagePurchase: true,
       },
     });
     if (!sale) throw new ApiError(404, "找不到原 POS 交易");
     if (!["COMPLETED", "PARTIALLY_REFUNDED"].includes(sale.status)) {
       throw new ApiError(409, sale.status === "REFUNDED" ? "此交易已全數退款" : "此交易不可退款");
+    }
+    if (sale.medicalPackagePurchase && sale.medicalPackagePurchase.remainingSessions < sale.medicalPackagePurchase.totalSessions) {
+      throw new ApiError(409, "療程套票已有核銷紀錄，請由有權限人員先處理療程更正，不可直接退款");
     }
     const returnWarehouseId = options.returnWarehouseId || sale.register.warehouseId;
     const returnWarehouse = await tx.warehouse.findFirst({
@@ -152,6 +157,10 @@ export async function refundPosSale(options: {
     }), { subtotal: 0, discount: 0, taxAmount: 0, total: 0, cogs: 0, writeOffCost: 0 });
     const priorRefundPayments = sale.refunds.flatMap((refund: any) => refund.payments);
     const refundPayments = allocateRefundPayments(sale.payments, priorRefundPayments, totals.total);
+    const deferredRefund = roundMoney(selected
+      .filter((item) => item.item.product.medicalPackage)
+      .reduce((sum, item) => sum + item.net, 0));
+    const recognizedRefund = roundMoney(totals.subtotal - deferredRefund);
     const selectedMap = new Map(selected.map((item) => [item.item.id, item.quantity]));
     const fullyRefunded = sale.items.every((item: any) => (
       Number(item.returnedQty) + Number(selectedMap.get(item.id) ?? 0) >= Number(item.quantity) - QTY_EPSILON
@@ -203,7 +212,7 @@ export async function refundPosSale(options: {
     });
 
     for (const selectedItem of selected) {
-      if (selectedItem.disposition === "SELLABLE") {
+      if (selectedItem.item.product.trackInventory && selectedItem.disposition === "SELLABLE") {
         await tx.inventoryStock.upsert({
           where: {
             productId_warehouseId: {
@@ -243,6 +252,19 @@ export async function refundPosSale(options: {
       where: { id: sale.id },
       data: { status: fullyRefunded ? "REFUNDED" : "PARTIALLY_REFUNDED" },
     });
+    if (sale.medicalReceipt) {
+      await tx.medicalReceipt.update({
+        where: { id: sale.medicalReceipt.id },
+        data: {
+          status: fullyRefunded ? "VOIDED" : "PARTIALLY_REFUNDED",
+          voidReason: reason,
+          voidedAt: fullyRefunded ? new Date() : null,
+        },
+      });
+    }
+    if (fullyRefunded && sale.medicalPackagePurchase) {
+      await tx.medicalPackagePurchase.update({ where: { id: sale.medicalPackagePurchase.id }, data: { status: "CANCELLED" } });
+    }
     const loyaltyNet = loyaltyPointsRestored - loyaltyPointsReversed;
     if (sale.customerId && loyaltyNet !== 0) {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`pos-loyalty:${tenantId}:${sale.customerId}`}))`;
@@ -258,12 +280,35 @@ export async function refundPosSale(options: {
       });
     }
     const paymentJournalLines = refundPayments.map((payment) => ({
-      code: payment.method === "CASH" ? "1101" : "1103",
+      code: payment.method === "WALLET" ? "2121" : payment.method === "CASH" ? "1101" : "1103",
       credit: payment.amount,
       memo: `${payment.method} 退款－${refund.number}`,
     }));
+    const walletRefund = refundPayments.find((payment) => payment.method === "WALLET");
+    if (walletRefund && sale.customerId) {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`medical-wallet:${tenantId}:${sale.customerId}`}))`;
+      const wallet = await tx.medicalWallet.findFirst({ where: { tenantId, customerId: sale.customerId } });
+      if (!wallet) throw new ApiError(409, "找不到原會員儲值帳戶");
+      const balanceAfter = roundMoney(Number(wallet.balance) + walletRefund.amount);
+      await tx.medicalWallet.update({ where: { id: wallet.id }, data: { balance: balanceAfter } });
+      await tx.medicalWalletTransaction.create({
+        data: {
+          tenantId,
+          walletId: wallet.id,
+          number: await nextNumberInTransaction(tx, "MW", tenantId),
+          type: "REFUND",
+          amount: walletRefund.amount,
+          balanceAfter,
+          paymentMethod: "WALLET",
+          reference: refund.number,
+          note: reason,
+          createdById: userId,
+        },
+      });
+    }
     await createPostedJournal(tx, tenantId, `POS 退款 ${refund.number}（原交易 ${sale.number}）`, userId, [
-      { code: "4102", debit: totals.subtotal, memo: `銷貨退回－${refund.number}` },
+      { code: "4102", debit: recognizedRefund, memo: `銷貨／醫美服務退回－${refund.number}` },
+      { code: "2121", debit: deferredRefund, memo: `療程套票預收款退回－${refund.number}` },
       { code: "2111", debit: totals.taxAmount, memo: `銷項稅額轉回－${refund.number}` },
       ...paymentJournalLines,
       ...(totals.cogs > 0 ? [

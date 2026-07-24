@@ -38,8 +38,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "密碼前後不可包含空白" }, { status: 400 });
     }
 
-    const normalizedMode = businessMode === "POS_RESTAURANT"
-      ? "POS_RESTAURANT"
+    const normalizedMode = businessMode === "POS_MEDICAL" || businessMode === "MEDICAL"
+      ? "POS_MEDICAL"
+      : businessMode === "POS_RESTAURANT"
+        ? "POS_RESTAURANT"
       : businessMode === "POS_RETAIL" || businessMode === "POS"
         ? "POS_RETAIL"
         : businessMode === "ECOMMERCE"
@@ -123,7 +125,7 @@ export async function POST(req: NextRequest) {
       await tx.userRole.create({ data: { userId: user.id, roleId: adminRole.id } });
       return { tenant, user };
     });
-    const companyCode = normalizedMode === "ECOMMERCE"
+    const companyCode = normalizedMode === "ECOMMERCE" || normalizedMode === "POS_MEDICAL"
       ? await ensureTenantCompanyCode(result.tenant.id)
       : null;
 
@@ -134,7 +136,11 @@ export async function POST(req: NextRequest) {
         email: result.user.email,
         initializationRequired: true,
         companyCode,
-        storefrontPath: companyCode ? `/store/${companyCode}` : null,
+        storefrontPath: companyCode
+          ? normalizedMode === "POS_MEDICAL"
+            ? `/medical/${companyCode}`
+            : `/store/${companyCode}`
+          : null,
       },
       { status: 201 },
     );

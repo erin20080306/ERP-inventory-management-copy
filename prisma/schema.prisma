@@ -97,6 +97,15 @@ model Tenant {
   restaurantTables         RestaurantTable[]
   restaurantOrders         RestaurantOrder[]
   restaurantKitchenTickets RestaurantKitchenTicket[]
+  medicalServices           MedicalService[]
+  medicalAppointments       MedicalAppointment[]
+  medicalTreatmentPackages  MedicalTreatmentPackage[]
+  medicalPackagePurchases   MedicalPackagePurchase[]
+  medicalWallets            MedicalWallet[]
+  medicalWalletTransactions MedicalWalletTransaction[]
+  medicalConsents           MedicalConsent[]
+  medicalTreatmentRecords   MedicalTreatmentRecord[]
+  medicalReceipts           MedicalReceipt[]
   loyaltyTransactions      CustomerLoyaltyTransaction[]
   purchaseReceipts         PurchaseReceipt[]
   salesShipments           SalesShipment[]
@@ -369,7 +378,8 @@ model Product {
   unitId      String?
   costPrice   Decimal  @default(0) @db.Decimal(18, 4)
   salePrice   Decimal  @default(0) @db.Decimal(18, 4)
-  safetyStock Decimal  @default(0) @db.Decimal(18, 4)
+  safetyStock   Decimal  @default(0) @db.Decimal(18, 4)
+  trackInventory Boolean  @default(true)
   taxRateId   String?
   isActive    Boolean  @default(true)
   isPublished Boolean  @default(true)
@@ -393,6 +403,9 @@ model Product {
   posSaleItems         PosSaleItem[]
   posRefundItems       PosRefundItem[]
   restaurantOrderItems RestaurantOrderItem[]
+  medicalService       MedicalService?
+  medicalPackage       MedicalTreatmentPackage?
+  medicalConsumables   MedicalServiceConsumable[]
   purchaseReceiptItems PurchaseReceiptItem[]
   salesShipmentItems   SalesShipmentItem[]
 
@@ -438,7 +451,13 @@ model Customer {
   loyaltyTier         String                       @default("STANDARD")
   loyaltyTransactions CustomerLoyaltyTransaction[]
   couponRedemptions   PosCouponRedemption[]
-  storefrontMember    StorefrontMember?
+  storefrontMember       StorefrontMember?
+  medicalAppointments     MedicalAppointment[]
+  medicalPackagePurchases MedicalPackagePurchase[]
+  medicalWallet           MedicalWallet?
+  medicalConsents         MedicalConsent[]
+  medicalTreatmentRecords MedicalTreatmentRecord[]
+  medicalReceipts         MedicalReceipt[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -1323,7 +1342,10 @@ model PosSale {
   couponRedemption      PosCouponRedemption?
   managerApproval       PosManagerApproval?
   loyaltyTransactions   CustomerLoyaltyTransaction[]
-  restaurantOrder       RestaurantOrder?
+  restaurantOrder        RestaurantOrder?
+  medicalAppointment     MedicalAppointment?
+  medicalPackagePurchase MedicalPackagePurchase?
+  medicalReceipt         MedicalReceipt?
 
   @@unique([tenantId, number])
   @@unique([tenantId, clientRequestId])
@@ -2803,4 +2825,250 @@ model FixedAssetDepreciation {
   @@index([tenantId, depreciationDate])
   @@index([tenantId, status])
   @@index([fixedAssetId])
+}
+
+// ─────────────────────────── 醫美診所營運管理 POS ───────────────────────────
+model MedicalService {
+  id                String                     @id @default(cuid())
+  tenantId          String
+  productId         String                     @unique
+  code              String
+  category          String
+  durationMinutes   Int                        @default(60)
+  bodyArea          String?
+  equipmentName     String?
+  consentRequired   Boolean                    @default(true)
+  imageUrl          String?
+  isActive          Boolean                    @default(true)
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
+  tenant            Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  product           Product                    @relation(fields: [productId], references: [id], onDelete: Restrict)
+  consumables       MedicalServiceConsumable[]
+  appointments      MedicalAppointment[]
+  treatmentPackages MedicalTreatmentPackage[]
+  consents          MedicalConsent[]
+  treatmentRecords  MedicalTreatmentRecord[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, isActive, category])
+}
+
+model MedicalServiceConsumable {
+  id        String         @id @default(cuid())
+  serviceId String
+  productId String
+  quantity  Decimal        @db.Decimal(18, 4)
+  unit      String?
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  service   MedicalService @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  product   Product        @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@unique([serviceId, productId])
+  @@index([productId])
+}
+
+model MedicalAppointment {
+  id               String                  @id @default(cuid())
+  tenantId         String
+  customerId       String
+  serviceId        String
+  posSaleId        String?                 @unique
+  number           String
+  startAt          DateTime
+  endAt            DateTime
+  status           String                  @default("BOOKED")
+  practitionerName String
+  room             String?
+  notes            String?
+  consentStatus    String                  @default("PENDING")
+  createdById      String
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+  tenant           Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer         Customer                @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  service          MedicalService          @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  posSale          PosSale?                @relation(fields: [posSaleId], references: [id], onDelete: SetNull)
+  consents         MedicalConsent[]
+  treatmentRecord  MedicalTreatmentRecord?
+  receipts         MedicalReceipt[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, startAt, status])
+  @@index([customerId, startAt])
+  @@index([serviceId, startAt])
+}
+
+model MedicalTreatmentPackage {
+  id        String                   @id @default(cuid())
+  tenantId  String
+  productId String                   @unique
+  serviceId String
+  code      String
+  name      String
+  sessions  Int
+  validDays Int                      @default(365)
+  imageUrl  String?
+  isActive  Boolean                  @default(true)
+  createdAt DateTime                 @default(now())
+  updatedAt DateTime                 @updatedAt
+  tenant    Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  product   Product                  @relation(fields: [productId], references: [id], onDelete: Restrict)
+  service   MedicalService           @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  purchases MedicalPackagePurchase[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, isActive])
+  @@index([serviceId])
+}
+
+model MedicalPackagePurchase {
+  id                String                   @id @default(cuid())
+  tenantId          String
+  customerId        String
+  packageId         String
+  posSaleId         String?                  @unique
+  number            String
+  totalSessions     Int
+  remainingSessions Int
+  paidAmount        Decimal                  @db.Decimal(18, 2)
+  validUntil        DateTime
+  status            String                   @default("ACTIVE")
+  purchasedAt       DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+  tenant            Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer          Customer                 @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  package           MedicalTreatmentPackage  @relation(fields: [packageId], references: [id], onDelete: Restrict)
+  posSale           PosSale?                 @relation(fields: [posSaleId], references: [id], onDelete: SetNull)
+  treatmentRecords  MedicalTreatmentRecord[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, status, validUntil])
+  @@index([customerId, status])
+}
+
+model MedicalWallet {
+  id           String                     @id @default(cuid())
+  tenantId     String
+  customerId   String                     @unique
+  balance      Decimal                    @default(0) @db.Decimal(18, 2)
+  updatedAt    DateTime                   @updatedAt
+  createdAt    DateTime                   @default(now())
+  tenant       Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer     Customer                   @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  transactions MedicalWalletTransaction[]
+
+  @@index([tenantId, updatedAt])
+}
+
+model MedicalWalletTransaction {
+  id            String          @id @default(cuid())
+  tenantId      String
+  walletId      String
+  number        String
+  type          String
+  amount        Decimal         @db.Decimal(18, 2)
+  balanceAfter  Decimal         @db.Decimal(18, 2)
+  paymentMethod String?
+  reference     String?
+  note          String?
+  createdById   String
+  createdAt     DateTime        @default(now())
+  tenant        Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  wallet        MedicalWallet   @relation(fields: [walletId], references: [id], onDelete: Restrict)
+  receipt       MedicalReceipt?
+
+  @@unique([tenantId, number])
+  @@index([walletId, createdAt])
+  @@index([tenantId, type, createdAt])
+}
+
+model MedicalConsent {
+  id              String              @id @default(cuid())
+  tenantId        String
+  customerId      String
+  serviceId       String
+  appointmentId   String?
+  title           String
+  documentVersion String
+  status          String              @default("PENDING")
+  signedName      String?
+  responses       Json?
+  acceptedAt      DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  tenant          Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer        Customer            @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  service         MedicalService      @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  appointment     MedicalAppointment? @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, status, createdAt])
+  @@index([customerId, createdAt])
+  @@index([appointmentId])
+}
+
+model MedicalTreatmentRecord {
+  id                        String                  @id @default(cuid())
+  tenantId                  String
+  appointmentId             String                  @unique
+  customerId                String
+  serviceId                 String
+  packagePurchaseId         String?
+  practitionerName          String
+  treatmentNotes            String?
+  beforePhotoUrl            String?
+  afterPhotoUrl             String?
+  deferredRevenueRecognized Decimal                 @default(0) @db.Decimal(18, 2)
+  completedAt               DateTime                @default(now())
+  createdAt                 DateTime                @default(now())
+  updatedAt                 DateTime                @updatedAt
+  tenant                    Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  appointment               MedicalAppointment      @relation(fields: [appointmentId], references: [id], onDelete: Restrict)
+  customer                  Customer                @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  service                   MedicalService          @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  packagePurchase           MedicalPackagePurchase? @relation(fields: [packagePurchaseId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, completedAt])
+  @@index([customerId, completedAt])
+  @@index([serviceId, completedAt])
+}
+
+model MedicalReceipt {
+  id                  String                    @id @default(cuid())
+  tenantId            String
+  posSaleId           String?                   @unique
+  walletTransactionId String?                   @unique
+  appointmentId       String?
+  customerId          String
+  number              String
+  patientName         String
+  patientIdentity     String?
+  birthDate           DateTime?
+  gender              String?
+  medicalRecordNo     String?
+  practitionerName    String?
+  department          String                    @default("醫學美容")
+  visitDate           DateTime                  @default(now())
+  medicalItems        Json
+  nonMedicalItems     Json?
+  medicalAmount       Decimal                   @default(0) @db.Decimal(18, 2)
+  nonMedicalAmount    Decimal                   @default(0) @db.Decimal(18, 2)
+  total               Decimal                   @db.Decimal(18, 2)
+  status              String                    @default("ISSUED")
+  voidReason          String?
+  issuedByName        String
+  issuedAt            DateTime                  @default(now())
+  voidedAt            DateTime?
+  createdAt           DateTime                  @default(now())
+  updatedAt           DateTime                  @updatedAt
+  tenant              Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  posSale             PosSale?                  @relation(fields: [posSaleId], references: [id], onDelete: SetNull)
+  walletTransaction   MedicalWalletTransaction? @relation(fields: [walletTransactionId], references: [id], onDelete: SetNull)
+  appointment         MedicalAppointment?       @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  customer            Customer                  @relation(fields: [customerId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, number])
+  @@index([tenantId, issuedAt, status])
+  @@index([customerId, issuedAt])
 }

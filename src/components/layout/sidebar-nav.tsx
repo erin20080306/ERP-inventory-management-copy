@@ -11,10 +11,10 @@ import {
   RotateCcw, BookOpen, BookMarked, Coins, Wallet, FileSpreadsheet, BarChart3,
   UserCog, Shield, Settings, History, Building2, ScrollText, Landmark,
   Briefcase, BadgeDollarSign, Building,
-  ShoppingBag, Store, ScanBarcode, Cable, FileCheck2, UtensilsCrossed, ChefHat, PanelsTopLeft, ChevronDown,
+  ShoppingBag, Store, ScanBarcode, Cable, FileCheck2, UtensilsCrossed, ChefHat, PanelsTopLeft, ChevronDown, HeartPulse,
 } from "lucide-react";
 import { normalizeBusinessMode } from "@/lib/product-editions";
-import { tenantStorefrontPath } from "@/lib/storefront-access";
+import { tenantMedicalSitePath, tenantStorefrontPath } from "@/lib/storefront-access";
 
 type NavItem = { title: string; href: string; icon: any; perm?: string };
 type NavSection = { label: string; items: NavItem[] };
@@ -39,6 +39,7 @@ const DATA_PREFETCH_BY_HREF: Record<string, string[]> = {
   "/roles": ["/api/roles"],
   "/pos": ["/api/pos/bootstrap"],
   "/pos/restaurant": ["/api/pos/restaurant"],
+  "/medical": ["/api/medical/bootstrap", "/api/pos/bootstrap"],
 };
 
 const warmedRoutes = new Set<string>();
@@ -136,6 +137,14 @@ const restaurantPosFront: NavSection = {
   ],
 };
 
+const medicalPosFront = (medicalSiteHref: string | null): NavSection => ({
+  label: "醫美 POS 前台",
+  items: [
+    ...(medicalSiteHref ? [{ title: "進入診所官網", href: medicalSiteHref, icon: Store }] : []),
+    { title: "醫美櫃台與收據", href: "/medical", icon: HeartPulse, perm: "medical.view" },
+  ],
+});
+
 const posBackendSections: NavSection[] = [
   {
     label: "進銷存後台",
@@ -172,6 +181,11 @@ const posBackendSections: NavSection[] = [
   },
 ];
 
+const medicalBackendSections = posBackendSections.map((section) => ({
+  ...section,
+  items: section.items.filter((item) => item.title !== "發票管理"),
+}));
+
 const adminSections: NavSection[] = [
   {
     label: "管理者工作區",
@@ -182,6 +196,8 @@ const adminSections: NavSection[] = [
       { title: "電商租戶網站", href: "/store/atelier-noir", icon: Store },
       { title: "零售 POS", href: "/pos", icon: ShoppingBag },
       { title: "餐飲桌位與廚房", href: "/pos/restaurant", icon: UtensilsCrossed },
+      { title: "醫美診所營運 POS", href: "/medical", icon: HeartPulse },
+      { title: "醫美診所網站", href: "/medical/atelier-clinic", icon: Store },
       { title: "電子發票佇列", href: "/pos/e-invoices", icon: FileCheck2 },
       { title: "POS 硬體診斷", href: "/pos/hardware", icon: Cable },
       { title: "促銷與店長授權", href: "/pos/offers", icon: BadgeDollarSign },
@@ -193,9 +209,10 @@ const adminSections: NavSection[] = [
 export function SidebarBrand({ collapsed = false }: { collapsed?: boolean }) {
   const { data } = useSession();
   const mode = normalizeBusinessMode(data?.user?.businessMode);
-  const isPos = ["POS_RETAIL", "POS_RESTAURANT"].includes(mode) && !data?.user?.isSuperAdmin;
+  const isPos = ["POS_RETAIL", "POS_RESTAURANT", "POS_MEDICAL"].includes(mode) && !data?.user?.isSuperAdmin;
   const isRestaurant = mode === "POS_RESTAURANT" && !data?.user?.isSuperAdmin;
   const isCommerce = mode === "ECOMMERCE" && !data?.user?.isSuperAdmin;
+  const isMedical = mode === "POS_MEDICAL" && !data?.user?.isSuperAdmin;
   return (
     <div className={cn("flex h-16 shrink-0 items-center border-b border-white/10", collapsed ? "justify-center px-2" : "gap-2 px-5")}>
       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-gradient-to-br from-indigo-500 to-emerald-500 text-white">
@@ -203,8 +220,8 @@ export function SidebarBrand({ collapsed = false }: { collapsed?: boolean }) {
       </div>
       {!collapsed && (
         <div>
-          <div className="font-semibold text-sm">{isCommerce ? "電商 ERP" : isRestaurant ? "餐飲 POS" : isPos ? "零售 POS" : "艾琳 ERP 系統"}</div>
-          <div className="text-[10px] text-white/50">{isCommerce ? "Commerce Edition" : isRestaurant ? "Restaurant Edition" : isPos ? "Retail Edition" : "Enterprise Edition"}</div>
+          <div className="font-semibold text-sm">{isCommerce ? "電商 ERP" : isMedical ? "醫美 POS" : isRestaurant ? "餐飲 POS" : isPos ? "零售 POS" : "艾琳 ERP 系統"}</div>
+          <div className="text-[10px] text-white/50">{isCommerce ? "Commerce Edition" : isMedical ? "Medical Aesthetics Edition" : isRestaurant ? "Restaurant Edition" : isPos ? "Retail Edition" : "Enterprise Edition"}</div>
         </div>
       )}
     </div>
@@ -218,6 +235,7 @@ export function SidebarNav({ onNavigate, collapsed = false }: { onNavigate?: () 
   const permKey = perms.join("|");
   const businessMode = normalizeBusinessMode(data?.user?.businessMode);
   const storefrontHref = tenantStorefrontPath(data?.user);
+  const medicalSiteHref = tenantMedicalSitePath(data?.user);
   const ecommerceFront: NavSection = {
     label: "電商營運",
     items: [
@@ -231,6 +249,8 @@ export function SidebarNav({ onNavigate, collapsed = false }: { onNavigate?: () 
     ? adminSections
     : businessMode === "ECOMMERCE"
       ? [erpSections[0], ecommerceFront, ...posBackendSections]
+      : businessMode === "POS_MEDICAL"
+        ? [erpSections[0], medicalPosFront(medicalSiteHref), ...medicalBackendSections]
       : businessMode === "POS_RESTAURANT"
         ? [erpSections[0], restaurantPosFront, ...posBackendSections]
         : businessMode === "POS_RETAIL"

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, Building2, Calculator, Check, Download, MonitorSmartphone, ScanLine, ShieldCheck, ShoppingBag, ShoppingCart, Store, UtensilsCrossed, Workflow } from "lucide-react";
+import { ArrowRight, Building2, Calculator, Check, Download, HeartPulse, MonitorSmartphone, ScanLine, ShieldCheck, ShoppingBag, ShoppingCart, Store, UtensilsCrossed, Workflow } from "lucide-react";
 
 const solutions = [
   {
@@ -38,6 +38,16 @@ const solutions = [
     icon: UtensilsCrossed,
     accent: "from-orange-500 to-rose-500",
     points: ["開桌 → 圖片點餐 → 送廚 → 製作／出餐", "桌位狀態、加點、備註與廚房看板", "結帳 → 庫存扣帳 → 營收與傳票"],
+  },
+  {
+    mode: "POS_MEDICAL",
+    eyebrow: "醫美診所",
+    title: "醫美診所營運管理 POS",
+    description: "整合預約排程、療程套票、會員儲值、同意書、術前術後紀錄、耗材庫存",
+    icon: HeartPulse,
+    accent: "from-fuchsia-500 to-rose-400",
+    points: ["專業形象官網 → 圖片選服務 → 預約排程", "醫療收據、套票核銷、儲值與就診紀錄", "療程完成 → 耗材扣庫 → 預收款轉收入"],
+    secondaryLinks: [{ href: "/medical/atelier-clinic", label: "醫美官網試用" }, { href: "/login", label: "診所 ERP 登入" }],
   },
 ] as const;
 
@@ -105,7 +115,7 @@ export default function SolutionsPage() {
             <ScanLine className="h-3.5 w-3.5" />POS、ERP 與品牌商城一次試用
           </div>
           <h1 className="text-3xl md:text-5xl font-black tracking-tight">你要管理哪一種營運現場？</h1>
-          <p className="text-slate-400 mt-4 leading-7">四種業態共用商品、庫存、帳務與 AI；操作順序、首頁與快捷鍵會依企業辦公、電商品牌、零售收銀或餐飲桌位情境調整。每家公司同一時間使用一種業態；日後轉型可由管理者先預覽影響，再保留全部資料安全轉換。</p>
+          <p className="text-slate-400 mt-4 leading-7">五種業態共用商品、庫存、帳務與 AI；操作順序、首頁與快捷鍵會依企業辦公、電商品牌、零售收銀、餐飲桌位或醫美診所情境調整。每家公司同一時間使用一種業態；日後轉型可由管理者先預覽影響，再保留全部資料安全轉換。</p>
         </section>
 
         <section className="relative mb-8 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.055] p-5 shadow-2xl backdrop-blur-xl md:p-7">
@@ -163,10 +173,10 @@ export default function SolutionsPage() {
         </section>
 
         <div className="mb-3 flex items-center justify-between gap-4 text-xs text-slate-400">
-          <span>四種業態皆使用相同租戶註冊與授權流程</span>
+          <span>五種業態皆使用相同租戶註冊與授權流程</span>
           <span className="shrink-0 text-sky-200">左右滑動查看 →</span>
         </div>
-        <section className="flex snap-x snap-mandatory gap-5 overflow-x-auto pb-4 [scrollbar-width:thin]" aria-label="四種營運業態">
+        <section className="flex snap-x snap-mandatory gap-5 overflow-x-auto pb-4 [scrollbar-width:thin]" aria-label="五種營運業態">
           {solutions.map((solution) => {
             const Icon = solution.icon;
             return (

@@ -11,7 +11,7 @@ const Inquiry = z.object({
   email: z.string().trim().email().max(160),
   company: z.string().trim().min(2).max(120),
   lineId: z.string().trim().max(80).optional().default(""),
-  businessMode: z.enum(["ERP", "ECOMMERCE", "POS_RETAIL", "POS_RESTAURANT"]),
+  businessMode: z.enum(["ERP", "ECOMMERCE", "POS_RETAIL", "POS_RESTAURANT", "POS_MEDICAL"]),
   plan: z.enum(["TEAM_2", "TEAM_3", "TEAM_5", "SMALL_8"]),
   billing: z.enum(["MONTHLY", "ANNUAL", "ONCE"]),
   notes: z.string().trim().max(2_000).optional().default(""),

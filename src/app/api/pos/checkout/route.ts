@@ -8,7 +8,7 @@ import { nextNumberFastInTransaction } from "@/lib/number-sequence";
 import { drainPendingPosSales, fulfillPosSale } from "@/lib/pos-fulfillment";
 import { discountApprovalFingerprint, money, resolveCheckoutOffers } from "@/lib/pos-offers";
 import { prisma } from "@/lib/prisma";
-import { productCatalogScope } from "@/lib/product-editions";
+import { normalizeBusinessMode, productCatalogScope } from "@/lib/product-editions";
 
 const CheckoutInput = z.object({
   requestId: z.string().trim().min(16).max(100),
@@ -26,7 +26,7 @@ const CheckoutInput = z.object({
     discount: z.coerce.number().min(0).default(0),
   })).min(1).max(200),
   payments: z.array(z.object({
-    method: z.enum(["CASH", "CARD", "TRANSFER", "MOBILE"]),
+    method: z.enum(["CASH", "CARD", "TRANSFER", "MOBILE", "WALLET"]),
     amount: z.coerce.number().positive().max(100_000_000),
     reference: z.string().max(100).optional().nullable(),
   })).min(1).max(4),
@@ -36,6 +36,15 @@ const CheckoutInput = z.object({
     carrierType: z.string().trim().max(20).optional().nullable(),
     carrierId: z.string().trim().max(64).optional().nullable(),
     donationCode: z.string().trim().max(7).optional().nullable(),
+  }).optional().nullable(),
+  medical: z.object({
+    patientName: z.string().trim().min(1).max(100),
+    patientIdentity: z.string().trim().max(30).optional().nullable(),
+    birthDate: z.string().date().optional().nullable(),
+    gender: z.string().trim().max(20).optional().nullable(),
+    medicalRecordNo: z.string().trim().max(50).optional().nullable(),
+    practitionerName: z.string().trim().max(100).optional().nullable(),
+    appointmentId: z.string().min(1).optional().nullable(),
   }).optional().nullable(),
 });
 
@@ -107,6 +116,12 @@ export const POST = apiHandler(async (req: NextRequest) => {
   const tenantId = await requireTenantId(session);
   const currentUser = (session.user as any).name || (session.user as any).username || session.user.id;
   const body = CheckoutInput.parse(await req.json());
+  const isMedicalMode = normalizeBusinessMode(session.user.businessMode) === "POS_MEDICAL";
+  if (isMedicalMode && body.invoice) throw new ApiError(400, "醫美模式不開立電子發票，請改用醫療收據");
+  if (isMedicalMode && (!body.customerId || !body.medical)) throw new ApiError(400, "醫療收據需要選擇客戶並填寫就診人姓名");
+  if (!isMedicalMode && (body.medical || body.payments.some((payment) => payment.method === "WALLET"))) {
+    throw new ApiError(400, "醫療收據與會員儲值僅適用醫美模式");
+  }
 
   const normalizedItems = normalizeItems(body.items);
   const productIds = normalizedItems.map((item) => item.productId);
@@ -128,7 +143,17 @@ export const POST = apiHandler(async (req: NextRequest) => {
         isActive: true,
         AND: [productCatalogScope(session.user.businessMode)],
       },
-      select: { id: true, sku: true, name: true, salePrice: true, costPrice: true, taxRate: { select: { rate: true } } },
+      select: {
+        id: true,
+        sku: true,
+        name: true,
+        salePrice: true,
+        costPrice: true,
+        trackInventory: true,
+        taxRate: { select: { rate: true } },
+        medicalService: { select: { id: true } },
+        medicalPackage: { select: { id: true, name: true, sessions: true, validDays: true } },
+      },
     }),
     prisma.posPromotion.findMany({ where: { tenantId, ...activePromotionWindow }, orderBy: [{ priority: "desc" }, { createdAt: "asc" }] }),
     body.customerId ? Promise.resolve(null) : getWalkInCustomerId(tenantId),
@@ -222,7 +247,41 @@ export const POST = apiHandler(async (req: NextRequest) => {
       return { ...payment, amount: money(payment.amount - returned) };
     });
 
-    await decrementCheckoutStocks(tx, { tenantId, warehouseId: activeShift.register.warehouseId, items: computed.map((item) => ({ productId: item.productId, quantity: item.quantity, product: { name: item.product.name } })) });
+    const inventoryItems = computed
+      .filter((item) => item.product.trackInventory)
+      .map((item) => ({ productId: item.productId, quantity: item.quantity, product: { name: item.product.name } }));
+    if (inventoryItems.length) {
+      await decrementCheckoutStocks(tx, { tenantId, warehouseId: activeShift.register.warehouseId, items: inventoryItems });
+    }
+
+    let walletTransaction: { id: string } | null = null;
+    const walletPayment = drawerPayments.find((payment) => payment.method === "WALLET" && payment.amount > 0);
+    if (walletPayment) {
+      if (!body.customerId) throw new ApiError(400, "使用會員儲值金需先選擇客戶");
+      if (drawerPayments.filter((payment) => payment.method === "WALLET").length > 1) throw new ApiError(400, "會員儲值付款不可重複");
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`medical-wallet:${tenantId}:${customer.id}`}))`;
+      const wallet = await tx.medicalWallet.findFirst({ where: { tenantId, customerId: customer.id } });
+      if (!wallet || Number(wallet.balance) < walletPayment.amount) throw new ApiError(409, "會員儲值餘額不足");
+      const balanceAfter = money(Number(wallet.balance) - walletPayment.amount);
+      const walletNumber = await nextNumberFastInTransaction(tx, "MW", tenantId);
+      await tx.medicalWallet.update({ where: { id: wallet.id }, data: { balance: balanceAfter } });
+      walletTransaction = await tx.medicalWalletTransaction.create({
+        data: {
+          tenantId,
+          walletId: wallet.id,
+          number: walletNumber,
+          type: "PAYMENT",
+          amount: -walletPayment.amount,
+          balanceAfter,
+          paymentMethod: "WALLET",
+          reference: posNumber,
+          note: "醫美 POS 會員儲值支付",
+          createdById: session.user.id,
+        },
+        select: { id: true },
+      });
+    }
+
     const sale = await tx.posSale.create({
       data: {
         tenantId, clientRequestId: body.requestId, shiftId: activeShift.id, registerId: activeShift.registerId, customerId: customer.id, exchangeRefundId: body.exchangeRefundId || null, promotionId: offers.promotion?.id || null, number: posNumber, receiptNo: posNumber, subtotal, discount, promotionDiscount: offers.promotionDiscount, couponDiscount: offers.couponDiscount, pointsDiscount: offers.pointsDiscount, loyaltyPointsRedeemed: offers.pointsRedeemed, loyaltyPointsEarned: pointsEarned, taxAmount, total, paidAmount: total, changeDue,
@@ -231,6 +290,85 @@ export const POST = apiHandler(async (req: NextRequest) => {
       },
       include: body.invoice ? { items: { include: { product: true } }, payments: true } : { payments: true },
     });
+
+    if (isMedicalMode && body.medical) {
+      const packageLines = computed.filter((item) => item.product.medicalPackage);
+      if (packageLines.length > 1 || packageLines.some((item) => item.quantity !== 1)) {
+        throw new ApiError(400, "每筆交易最多購買一項療程套票，數量需為 1");
+      }
+      if (packageLines.length) {
+        const packageLine = packageLines[0];
+        const packageDefinition = packageLine.product.medicalPackage!;
+        const validUntil = new Date();
+        validUntil.setDate(validUntil.getDate() + packageDefinition.validDays);
+        await tx.medicalPackagePurchase.create({
+          data: {
+            tenantId,
+            customerId: customer.id,
+            packageId: packageDefinition.id,
+            posSaleId: sale.id,
+            number: await nextNumberFastInTransaction(tx, "MP", tenantId),
+            totalSessions: packageDefinition.sessions,
+            remainingSessions: packageDefinition.sessions,
+            paidAmount: packageLine.gross,
+            validUntil,
+          },
+        });
+      }
+
+      let appointment: { id: string; serviceId: string } | null = null;
+      if (body.medical.appointmentId) {
+        appointment = await tx.medicalAppointment.findFirst({
+          where: { id: body.medical.appointmentId, tenantId, customerId: customer.id, status: { notIn: ["CANCELLED", "COMPLETED"] } },
+          select: { id: true, serviceId: true },
+        });
+        if (!appointment) throw new ApiError(400, "找不到可結帳的預約");
+        await tx.medicalAppointment.update({ where: { id: appointment.id }, data: { posSaleId: sale.id, status: "PAID" } });
+      }
+
+      const medicalItems = computed
+        .filter((item) => item.product.medicalService || item.product.medicalPackage)
+        .map((item) => ({
+          name: item.product.name,
+          quantity: item.quantity,
+          unitPrice: Number(item.product.salePrice),
+          amount: item.gross,
+          kind: item.product.medicalPackage ? "PACKAGE_PREPAYMENT" : "SELF_PAY_MEDICAL",
+        }));
+      const nonMedicalItems = computed
+        .filter((item) => !item.product.medicalService && !item.product.medicalPackage)
+        .map((item) => ({
+          name: item.product.name,
+          quantity: item.quantity,
+          unitPrice: Number(item.product.salePrice),
+          amount: item.gross,
+          kind: "NON_MEDICAL",
+        }));
+      const medicalAmount = money(medicalItems.reduce((sum, item) => sum + item.amount, 0));
+      const nonMedicalAmount = money(nonMedicalItems.reduce((sum, item) => sum + item.amount, 0));
+      await tx.medicalReceipt.create({
+        data: {
+          tenantId,
+          posSaleId: sale.id,
+          walletTransactionId: walletTransaction?.id ?? null,
+          appointmentId: appointment?.id ?? null,
+          customerId: customer.id,
+          number: await nextNumberFastInTransaction(tx, "MR", tenantId),
+          patientName: body.medical.patientName,
+          patientIdentity: body.medical.patientIdentity || null,
+          birthDate: body.medical.birthDate ? new Date(`${body.medical.birthDate}T00:00:00`) : null,
+          gender: body.medical.gender || null,
+          medicalRecordNo: body.medical.medicalRecordNo || null,
+          practitionerName: body.medical.practitionerName || null,
+          medicalItems,
+          nonMedicalItems: nonMedicalItems.length ? nonMedicalItems : undefined,
+          medicalAmount,
+          nonMedicalAmount,
+          total,
+          issuedByName: currentUser,
+        },
+      });
+    }
 
     if (restaurantOrder) {
       await tx.$executeRaw`

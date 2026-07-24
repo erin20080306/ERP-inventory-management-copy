@@ -1,11 +1,11 @@
-export const BUSINESS_MODES = ["ERP", "POS_RETAIL", "POS_RESTAURANT", "ECOMMERCE"] as const;
+export const BUSINESS_MODES = ["ERP", "POS_RETAIL", "POS_RESTAURANT", "ECOMMERCE", "POS_MEDICAL"] as const;
 
 export type BusinessMode = (typeof BUSINESS_MODES)[number];
 export type StoredBusinessMode = BusinessMode | "POS";
 
 export type ProductEdition = {
   mode: BusinessMode;
-  group: "ERP" | "POS" | "ECOMMERCE";
+  group: "ERP" | "POS" | "ECOMMERCE" | "MEDICAL";
   label: string;
   shortLabel: string;
   description: string;
@@ -45,22 +45,35 @@ export const PRODUCT_EDITIONS: Record<BusinessMode, ProductEdition> = {
     description: "品牌官網、網路訂單、會員、庫存、出貨、採購與會計共用同一租戶資料",
     homePath: "/workspace",
   },
+  POS_MEDICAL: {
+    mode: "POS_MEDICAL",
+    group: "MEDICAL",
+    label: "醫美診所營運管理 POS",
+    shortLabel: "醫美 POS",
+    description: "預約、療程、會員、耗材、醫療收據、進銷存與會計整合",
+    homePath: "/workspace",
+  },
 };
 
 /** 舊資料庫的 POS 一律安全視為零售業，避免既有客戶登入失效。 */
 export function normalizeBusinessMode(value: string | null | undefined): BusinessMode {
   if (value === "ECOMMERCE") return "ECOMMERCE";
+  if (value === "POS_MEDICAL") return "POS_MEDICAL";
   if (value === "POS_RESTAURANT") return "POS_RESTAURANT";
   if (value === "POS_RETAIL" || value === "POS") return "POS_RETAIL";
   return "ERP";
 }
 
 export function isPosMode(value: string | null | undefined) {
-  return ["POS_RETAIL", "POS_RESTAURANT"].includes(normalizeBusinessMode(value));
+  return ["POS_RETAIL", "POS_RESTAURANT", "POS_MEDICAL"].includes(normalizeBusinessMode(value));
 }
 
 export function isRestaurantMode(value: string | null | undefined) {
   return normalizeBusinessMode(value) === "POS_RESTAURANT";
+}
+
+export function isMedicalMode(value: string | null | undefined) {
+  return normalizeBusinessMode(value) === "POS_MEDICAL";
 }
 
 export function getProductEdition(value: string | null | undefined) {
@@ -79,10 +92,12 @@ export function productCatalogScope(value: string | null | undefined) {
   };
 }
 
-export function businessModeDbValues(mode: "ERP" | "POS" | "ECOMMERCE") {
+export function businessModeDbValues(mode: "ERP" | "POS" | "ECOMMERCE" | "MEDICAL") {
   return mode === "ERP"
     ? ["ERP"]
     : mode === "ECOMMERCE"
       ? ["ECOMMERCE"]
-      : ["POS", "POS_RETAIL", "POS_RESTAURANT"];
+      : mode === "MEDICAL"
+        ? ["POS_MEDICAL"]
+        : ["POS", "POS_RETAIL", "POS_RESTAURANT"];
 }

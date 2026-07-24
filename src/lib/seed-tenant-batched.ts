@@ -1,6 +1,7 @@
 import { prisma } from "./prisma";
 import { STANDARD_ACCOUNTS } from "../../prisma/standard-accounts";
 import { seedOperationalBaseline } from "./seed-operational-baseline";
+import { ensureMedicalAestheticsBaseline } from "./medical-aesthetics";
 
 /**
  * 由登入後的獨立初始化 API 建立公司基礎資料。
@@ -105,4 +106,6 @@ export async function seedTenantDefaultsBatched(tenantId: string) {
       mainWarehouseId: mainWarehouse.id,
     });
   }, { timeout: 30_000 });
+  const medicalTenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { businessMode: true } });
+  if (medicalTenant?.businessMode === "POS_MEDICAL") await ensureMedicalAestheticsBaseline(tenantId);
 }

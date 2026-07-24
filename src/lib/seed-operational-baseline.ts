@@ -1,6 +1,6 @@
 import { resolveDemoProductImage } from "./demo-product-media";
 
-type BusinessMode = "ERP" | "POS_RETAIL" | "POS_RESTAURANT" | "ECOMMERCE";
+type BusinessMode = "ERP" | "POS_RETAIL" | "POS_RESTAURANT" | "ECOMMERCE" | "POS_MEDICAL";
 
 type BaselineProduct = {
   categoryCode: string;
@@ -71,6 +71,7 @@ export const RESTAURANT_PRODUCTS: BaselineProduct[] = [
 function normalizedMode(value: string | null | undefined): BusinessMode {
   if (value === "ECOMMERCE") return "ECOMMERCE";
   if (value === "POS_RESTAURANT") return "POS_RESTAURANT";
+  if (value === "POS_MEDICAL" || value === "MEDICAL") return "POS_MEDICAL";
   if (value === "POS_RETAIL" || value === "POS") return "POS_RETAIL";
   return "ERP";
 }
@@ -92,6 +93,7 @@ export async function seedOperationalBaseline(tx: any, input: {
   const includeRetail = input.isInternal || mode === "POS_RETAIL";
   const includeRestaurant = input.isInternal || mode === "POS_RESTAURANT";
   const includeCommerce = input.isInternal || mode === "ECOMMERCE";
+  const includeMedical = !input.isInternal && mode === "POS_MEDICAL";
 
   const tax = await tx.taxRate.findUnique({
     where: { tenantId_code: { tenantId: input.tenantId, code: "VAT5" } },
@@ -100,13 +102,13 @@ export async function seedOperationalBaseline(tx: any, input: {
   const unit = await tx.productUnit.upsert({
     where: { tenantId_code: { tenantId: input.tenantId, code: "PCS" } },
     update: {},
-    create: { tenantId: input.tenantId, code: "PCS", name: includeRestaurant && !includeErp && !includeRetail && !includeCommerce ? "份" : "個" },
+    create: { tenantId: input.tenantId, code: "PCS", name: includeRestaurant && !includeErp && !includeRetail && !includeCommerce && !includeMedical ? "份" : includeMedical ? "項" : "個" },
   });
 
   await tx.warehouse.upsert({
     where: { tenantId_code: { tenantId: input.tenantId, code: "WH02" } },
     update: {},
-    create: { tenantId: input.tenantId, code: "WH02", name: includeCommerce ? "電商備貨倉" : includeRetail || includeRestaurant ? "門市備用倉" : "備用倉庫" },
+    create: { tenantId: input.tenantId, code: "WH02", name: includeCommerce ? "電商備貨倉" : includeMedical ? "醫美耗材備用倉" : includeRetail || includeRestaurant ? "門市備用倉" : "備用倉庫" },
   });
   const customer = await tx.customer.upsert({
     where: { tenantId_code: { tenantId: input.tenantId, code: "C001" } },
@@ -114,13 +116,13 @@ export async function seedOperationalBaseline(tx: any, input: {
     create: {
       tenantId: input.tenantId,
       code: "C001",
-      companyName: includeCommerce ? "示範網路會員－王小姐" : includeRetail || includeRestaurant ? "示範會員－王小姐" : "範例客戶有限公司",
+      companyName: includeMedical ? "示範就診人－王小姐" : includeCommerce ? "示範網路會員－王小姐" : includeRetail || includeRestaurant ? "示範會員－王小姐" : "範例客戶有限公司",
       contactName: "王小姐",
       phone: "0912-345-678",
       email: "demo-customer@example.com",
       paymentTerms: "月結 30 天",
-      loyaltyPoints: includeRetail || includeRestaurant || includeCommerce ? 120 : 0,
-      loyaltyTier: includeRetail || includeRestaurant || includeCommerce ? "GOLD" : "STANDARD",
+      loyaltyPoints: includeRetail || includeRestaurant || includeCommerce || includeMedical ? 120 : 0,
+      loyaltyTier: includeRetail || includeRestaurant || includeCommerce || includeMedical ? "GOLD" : "STANDARD",
       remark: "系統基礎資料，可自行修改或刪除",
     },
   });
