@@ -48,6 +48,12 @@ function readZipEntry(archive, targetName) {
 
 const sourceInstaller = readFileSync(installerPath);
 assertStartsWithUtf8Bom(sourceInstaller, "Windows Host source installer");
+const sourceInstallerText = normalizedPowerShellText(sourceInstaller);
+assert.match(sourceInstallerText, /docs\.docker\.com\/desktop\/setup\/install\/windows-install/);
+assert.match(sourceInstallerText, /Start-Process -FilePath \$DockerDocsUrl/);
+assert.match(sourceInstallerText, /function Start-DockerDesktop/);
+assert.match(sourceInstallerText, /function Wait-ForDockerDesktop/);
+assert.match(sourceInstallerText, /Read-Host "Docker Desktop 已安裝後，按 Enter 繼續"/);
 
 const generatedModule = readFileSync("src/generated/embedded-host-installers.ts", "utf8");
 const generatedPrefix = "export const EMBEDDED_HOST_RELEASE = ";
