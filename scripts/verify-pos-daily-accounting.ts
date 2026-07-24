@@ -20,7 +20,7 @@ function fakeJournalTx() {
         upsert: async () => ({ prefix: "JE", format: "{roc}{mm}{dd}{seq:0000}", nextNo: 2 }),
       },
       journalEntry: {
-        findFirst: async () => ({ id: "opening-journal" }),
+        findFirst: async (): Promise<{ id: string } | null> => ({ id: "opening-journal" }),
         create: async ({ data, select }: any) => {
           journals.push(data);
           assert.deepEqual(select, { id: true, number: true });
