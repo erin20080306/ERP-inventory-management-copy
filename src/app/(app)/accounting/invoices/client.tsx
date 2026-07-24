@@ -456,7 +456,7 @@ function NewInvoiceDialog({ open, onClose, onCreated, row, onSaved }: any) {
                 <tr key={idx} className="border-t">
                   <td className="p-2"><Input value={i.description} onChange={(e) => update(idx, { description: e.target.value })} /></td>
                   <td className="p-2"><Input type="number" value={i.quantity} onChange={(e) => update(idx, { quantity: Number(e.target.value) })} /></td>
-                  <td className="p-2"><Input type="number" step="0.01" value={i.unitPrice} onChange={(e) => update(idx, { unitPrice: Number(e.target.value) })} /></td>
+                  <td className="p-2"><Input type="number" step="0.0001" value={i.unitPrice} onChange={(e) => update(idx, { unitPrice: Number(e.target.value) })} /></td>
                   <td className="p-2"><Input type="number" step="0.01" value={i.taxRate} onChange={(e) => update(idx, { taxRate: Number(e.target.value) })} /></td>
                   <td className="p-2 text-right">{formatMoney(Number(i.quantity) * Number(i.unitPrice))}</td>
                   <td className="p-2"><Button variant="ghost" size="icon" onClick={() => remove(idx)}><Trash2 className="h-4 w-4 text-red-600" /></Button></td>

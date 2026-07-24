@@ -6,7 +6,7 @@ import { Input, Label } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { formatMoney, formatNumber } from "@/lib/utils";
+import { formatMoney, formatNumber, formatUnitPrice } from "@/lib/utils";
 import { code128BSvg } from "@/lib/code128";
 import { Barcode, Printer } from "lucide-react";
 
@@ -200,11 +200,11 @@ function ProductDialog({ open, onClose, row, onSaved, isCommerce = false }: any)
           </div>
           <div className="space-y-1">
             <Label>成本價</Label>
-            <Input type="number" step="1" value={form.costPrice ?? 0} onChange={(e) => setForm({ ...form, costPrice: e.target.value })} />
+            <Input type="number" step="0.0001" value={form.costPrice ?? 0} onChange={(e) => setForm({ ...form, costPrice: e.target.value })} />
           </div>
           <div className="space-y-1">
             <Label>售價</Label>
-            <Input type="number" step="1" value={form.salePrice ?? 0} onChange={(e) => setForm({ ...form, salePrice: e.target.value })} />
+            <Input type="number" step="0.0001" value={form.salePrice ?? 0} onChange={(e) => setForm({ ...form, salePrice: e.target.value })} />
           </div>
           <div className="space-y-1">
             <Label>安全庫存</Label>
@@ -314,7 +314,7 @@ export function ProductClient({ isCommerce = false }: { isCommerce?: boolean }) 
     const size = LABEL_SIZES[labelSize];
     const name = escapeHtml(barcodeProduct.name);
     const spec = escapeHtml(barcodeProduct.spec || "");
-    const price = escapeHtml(formatMoney(barcodeProduct.salePrice));
+    const price = escapeHtml(formatUnitPrice(barcodeProduct.salePrice));
     const code = escapeHtml(barcodeValue);
     const labels = Array.from({ length: quantity }, () => `
       <section class="label">
@@ -417,8 +417,8 @@ export function ProductClient({ isCommerce = false }: { isCommerce?: boolean }) 
               </div>
             ),
           },
-          { key: "costPrice", title: "成本", render: (r) => formatMoney(r.costPrice), editable: { type: "number" }, csv: (r) => Number(r.costPrice) },
-          { key: "salePrice", title: "售價", render: (r) => formatMoney(r.salePrice), editable: { type: "number" }, csv: (r) => Number(r.salePrice) },
+          { key: "costPrice", title: "成本", render: (r) => formatUnitPrice(r.costPrice), editable: { type: "number" }, csv: (r) => Number(r.costPrice) },
+          { key: "salePrice", title: "售價", render: (r) => formatUnitPrice(r.salePrice), editable: { type: "number" }, csv: (r) => Number(r.salePrice) },
           { key: "safetyStock", title: "安全庫存", render: (r) => formatNumber(Number(r.safetyStock)), editable: { type: "number" }, csv: (r) => Number(r.safetyStock) },
           {
             key: "stockTotal",
@@ -507,7 +507,7 @@ export function ProductClient({ isCommerce = false }: { isCommerce?: boolean }) 
                 <div className="my-2"><BarcodePreview value={barcodePreviewValue} /></div>
                 <div className="flex items-end justify-between gap-3">
                   <span className="truncate font-mono text-xs">{barcodePreviewValue}</span>
-                  <strong>{formatMoney(barcodeProduct.salePrice)}</strong>
+                  <strong>{formatUnitPrice(barcodeProduct.salePrice)}</strong>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">

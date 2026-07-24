@@ -6,8 +6,9 @@ import { createCheckoutJournal } from "@/lib/pos-fulfillment";
 import { prisma } from "@/lib/prisma";
 
 const TopUpInput = z.object({
+  shiftId: z.string().min(1),
   customerId: z.string().min(1),
-  amount: z.coerce.number().positive().max(10_000_000),
+  amount: z.coerce.number().int().positive().max(10_000_000),
   paymentMethod: z.enum(["CASH", "CARD", "TRANSFER", "MOBILE"]),
   patientName: z.string().trim().min(1).max(100),
   reference: z.string().trim().max(100).optional().nullable(),
@@ -15,7 +16,7 @@ const TopUpInput = z.object({
 });
 
 function roundMoney(value: number) {
-  return Math.round((value + Number.EPSILON) * 100) / 100;
+  return Math.round(value + Number.EPSILON);
 }
 
 export const POST = apiHandler(async (req: NextRequest) => {
@@ -27,6 +28,11 @@ export const POST = apiHandler(async (req: NextRequest) => {
 
   const result = await prisma.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`medical-wallet:${tenantId}:${body.customerId}`}))`;
+    const shift = await tx.posShift.findFirst({
+      where: { id: body.shiftId, tenantId, userId: session.user.id, status: "OPEN" },
+      select: { id: true },
+    });
+    if (!shift) throw new ApiError(409, "會員儲值收款前請由目前值班人員開班");
     const customer = await tx.customer.findFirst({
       where: { id: body.customerId, tenantId, isActive: true },
       select: { id: true, companyName: true },
@@ -44,6 +50,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
       data: {
         tenantId,
         walletId: wallet.id,
+        shiftId: shift.id,
         number: numbers.MW,
         type: "TOP_UP",
         amount,

@@ -1,7 +1,7 @@
 import { PosWorkspace } from "./pos-workspace";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/api";
-import { hasPermission } from "@/lib/auth";
+import { hasPermission } from "@/lib/permissions";
 import { normalizeBusinessMode } from "@/lib/product-editions";
 
 export const dynamic = "force-dynamic";

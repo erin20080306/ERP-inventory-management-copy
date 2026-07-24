@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { mutate } from "swr";
 import { cn } from "@/lib/utils";
-import { hasPermission } from "@/lib/auth";
+import { hasPermission } from "@/lib/permissions";
 import {
   LayoutDashboard, Package, Users, Truck, ShoppingCart, FileText, Receipt, Warehouse,
   RotateCcw, BookOpen, BookMarked, Coins, Wallet, FileSpreadsheet, BarChart3,

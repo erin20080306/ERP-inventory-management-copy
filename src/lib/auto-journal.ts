@@ -87,14 +87,14 @@ async function line(tenantId: string, code: string, debit: number, credit: numbe
     accountId: acc.id,
     accountCode: acc.code,
     accountName: acc.name,
-    debit: +debit.toFixed(2),
-    credit: +credit.toFixed(2),
+    debit: Math.round(debit),
+    credit: Math.round(credit),
     memo,
   };
 }
 
 function money(value: unknown) {
-  return Number(Number(value ?? 0).toFixed(2));
+  return Math.round(Number(value ?? 0));
 }
 
 function taxableBreakdown(total: number, subtotalHint: number, isTaxable = true) {
@@ -745,7 +745,7 @@ export async function buildClosingDraft(
         0,
       );
     }
-    const yearNetIncome = +(existingCurrentIncome + netIncome).toFixed(2);
+    const yearNetIncome = Math.round(existingCurrentIncome + netIncome);
     closingNetIncome = yearNetIncome;
     if (yearNetIncome > 0) {
       // 有淨利：借 本期損益 / 貸 累積盈虧

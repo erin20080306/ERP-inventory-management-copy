@@ -38,7 +38,7 @@ const AppointmentInput = z.discriminatedUnion("action", [
 ]);
 
 function roundMoney(value: number) {
-  return Math.round((value + Number.EPSILON) * 100) / 100;
+  return Math.round(value + Number.EPSILON);
 }
 
 export const GET = apiHandler(async (req: NextRequest) => {

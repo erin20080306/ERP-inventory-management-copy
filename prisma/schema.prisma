@@ -1081,6 +1081,7 @@ model PosShift {
   heldSales        PosHeldSale[]
   cartDrafts       PosCartDraft[]
   restaurantOrders RestaurantOrder[]
+  medicalWalletTransactions MedicalWalletTransaction[]
 
   @@index([tenantId, status])
   @@index([registerId, status])
@@ -2966,6 +2967,7 @@ model MedicalWalletTransaction {
   id            String          @id @default(cuid())
   tenantId      String
   walletId      String
+  shiftId       String?
   number        String
   type          String
   amount        Decimal         @db.Decimal(18, 2)
@@ -2977,10 +2979,12 @@ model MedicalWalletTransaction {
   createdAt     DateTime        @default(now())
   tenant        Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   wallet        MedicalWallet   @relation(fields: [walletId], references: [id], onDelete: Restrict)
+  shift         PosShift?       @relation(fields: [shiftId], references: [id], onDelete: SetNull)
   receipt       MedicalReceipt?
 
   @@unique([tenantId, number])
   @@index([walletId, createdAt])
+  @@index([shiftId, createdAt])
   @@index([tenantId, type, createdAt])
 }
 

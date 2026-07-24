@@ -4,7 +4,7 @@ import { ApiError } from "./api";
 export type DiscountableOffer = { kind: "PERCENT" | "AMOUNT"; value: unknown; maxDiscount?: unknown | null };
 
 export function money(value: number) {
-  return Math.round((value + Number.EPSILON) * 100) / 100;
+  return Math.round(value + Number.EPSILON);
 }
 
 export function offerDiscount(offer: DiscountableOffer, amount: number) {

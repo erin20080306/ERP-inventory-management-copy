@@ -3,7 +3,7 @@ import { requirePermission, requireTenantId } from "@/lib/api";
 import { notFound } from "next/navigation";
 import { AutoPrint } from "../../auto-print";
 import { CompanyHeader } from "../../CompanyHeader";
-import { formatDate, formatMoney } from "@/lib/utils";
+import { formatDate, formatMoney, formatUnitPrice } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -52,7 +52,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
                 <td>{i.product.sku}</td>
                 <td>{i.product.name}{i.product.spec ? `（${i.product.spec}）` : ""}</td>
                 <td className="num">{Number(i.quantity)}</td>
-                <td className="num">{formatMoney(i.unitPrice).replace("NT$ ", "")}</td>
+                <td className="num">{formatUnitPrice(i.unitPrice).replace("NT$ ", "")}</td>
                 <td className="num">{Number(i.discount) ? formatMoney(i.discount).replace("NT$ ", "") : ""}</td>
                 <td className="num">{formatMoney(i.subtotal).replace("NT$ ", "")}</td>
               </tr>

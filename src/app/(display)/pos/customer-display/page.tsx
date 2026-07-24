@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 const EMPTY = { items: [] as Array<{ name: string; quantity: number; amount: number }>, total: 0, paid: 0, change: 0, message: "歡迎光臨" };
 
 function money(value: number) {
-  return `NT$ ${Number(value || 0).toLocaleString("zh-TW", { maximumFractionDigits: 2 })}`;
+  return `NT$ ${Math.round(Number(value || 0)).toLocaleString("zh-TW", { maximumFractionDigits: 0 })}`;
 }
 
 export default function PosCustomerDisplayPage() {

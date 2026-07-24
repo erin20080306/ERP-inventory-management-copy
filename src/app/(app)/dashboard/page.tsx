@@ -15,7 +15,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { getSession } from "@/lib/api";
-import { hasPermission } from "@/lib/auth";
+import { hasPermission } from "@/lib/permissions";
 import { getDashboardKpis, getDashboardWorkItems, type DashboardAccess } from "@/lib/dashboard";
 import { normalizeBusinessMode } from "@/lib/product-editions";
 import { formatDateTime, formatMoney, formatNumber } from "@/lib/utils";

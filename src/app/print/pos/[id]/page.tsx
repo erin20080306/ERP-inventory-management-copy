@@ -13,7 +13,7 @@ const PAYMENT_LABELS: Record<string, string> = {
 };
 
 function money(value: unknown) {
-  return `NT$ ${Number(value ?? 0).toLocaleString("zh-TW", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+  return `NT$ ${Math.round(Number(value ?? 0)).toLocaleString("zh-TW", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 
 export default async function PosReceiptPage({

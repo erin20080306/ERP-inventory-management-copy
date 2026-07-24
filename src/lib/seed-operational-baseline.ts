@@ -308,7 +308,7 @@ export async function seedOperationalBaseline(tx: any, input: {
     });
     if (!purchase) {
       const subtotal = Number(primary.costPrice) * 10;
-      const taxAmount = Math.round(subtotal * 0.05 * 100) / 100;
+      const taxAmount = Math.round(subtotal * 0.05);
       await tx.purchaseOrder.create({
         data: {
           tenantId: input.tenantId,
@@ -332,7 +332,7 @@ export async function seedOperationalBaseline(tx: any, input: {
     });
     if (!sale) {
       const subtotal = Number(primary.salePrice) * 2;
-      const taxAmount = Math.round(subtotal * 0.05 * 100) / 100;
+      const taxAmount = Math.round(subtotal * 0.05);
       await tx.salesOrder.create({
         data: {
           tenantId: input.tenantId,

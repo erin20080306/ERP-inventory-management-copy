@@ -84,9 +84,9 @@ export function buildCustomerDisplayPayload(input: { items: Array<{ name: string
     version: 1,
     updatedAt: new Date().toISOString(),
     items: input.items.slice(-5),
-    total: Math.round(input.total * 100) / 100,
-    paid: Math.round(Number(input.paid ?? 0) * 100) / 100,
-    change: Math.round(Number(input.change ?? 0) * 100) / 100,
+    total: Math.round(input.total),
+    paid: Math.round(Number(input.paid ?? 0)),
+    change: Math.round(Number(input.change ?? 0)),
     message: input.message ?? "歡迎光臨",
   };
 }

@@ -6,7 +6,7 @@ import { PrintButton } from "./print-button";
 type ReceiptItem = { name: string; quantity: number; unitPrice: number; amount: number; kind?: string };
 
 function amount(value: number) {
-  return new Intl.NumberFormat("zh-TW", { maximumFractionDigits: 2 }).format(value);
+  return new Intl.NumberFormat("zh-TW", { maximumFractionDigits: 0 }).format(Math.round(value));
 }
 
 export default async function MedicalReceiptPage({ params }: { params: Promise<{ id: string }> }) {

@@ -16,23 +16,23 @@ export function calcTotals(items: DocItem[], isTaxable: boolean = true) {
   const computed = items.map((i) => {
     const qty = Math.round(Number(i.quantity) * 10_000) / 10_000;
     const price = Math.round(Number(i.unitPrice) * 10_000) / 10_000;
-    const line = Math.round(qty * price * 100) / 100;
-    const ldisc = Math.round(Number(i.discount ?? 0) * 100) / 100;
+    const line = Math.round(qty * price);
+    const ldisc = Math.round(Number(i.discount ?? 0));
     if (!Number.isFinite(qty) || qty <= 0) throw new Error("數量必須大於 0");
     if (!Number.isFinite(price) || price < 0) throw new Error("單價不可小於 0");
     if (!Number.isFinite(ldisc) || ldisc < 0 || ldisc > line) throw new Error("折扣金額不正確");
-    const taxable = Math.round((line - ldisc) * 100) / 100;
+    const taxable = Math.round(line - ldisc);
     const rate = isTaxable ? Number(i.taxRate ?? 0.05) : 0;
-    const lineTax = Math.round(taxable * rate * 100) / 100;
+    const lineTax = Math.round(taxable * rate);
     subtotal += line;
     discount += ldisc;
     taxAmount += lineTax;
     return { ...i, quantity: qty, unitPrice: price, discount: ldisc, taxRate: rate, subtotal: taxable };
   });
-  subtotal = Math.round(subtotal * 100) / 100;
-  discount = Math.round(discount * 100) / 100;
-  taxAmount = Math.round(taxAmount * 100) / 100;
-  const total = Math.round((subtotal - discount + taxAmount) * 100) / 100;
+  subtotal = Math.round(subtotal);
+  discount = Math.round(discount);
+  taxAmount = Math.round(taxAmount);
+  const total = Math.round(subtotal - discount + taxAmount);
   return {
     subtotal,
     discount,
@@ -57,7 +57,7 @@ export type JournalLineInput = {
 const QTY_EPSILON = 0.00001;
 
 function roundMoney(value: number) {
-  return Math.round((value + Number.EPSILON) * 100) / 100;
+  return Math.round(value + Number.EPSILON);
 }
 
 function roundQuantity(value: number) {

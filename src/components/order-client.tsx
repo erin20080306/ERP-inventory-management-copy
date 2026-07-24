@@ -9,7 +9,7 @@ import { StatusBadge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/layout/page-shell";
 import { toast } from "sonner";
 import { Plus, Loader2, Trash2, Eye, Search, Download, Printer, FileDown, Pencil, RotateCcw, CreditCard } from "lucide-react";
-import { formatDate, formatMoney } from "@/lib/utils";
+import { formatDate, formatMoney, formatUnitPrice } from "@/lib/utils";
 import { downloadCSV, toCSV } from "@/lib/csv";
 import { useCustomColumns, useCustomFieldValues, CustomColumnDialog, CustomColumnButton, CustomFieldGridCell } from "@/components/custom-columns";
 import { readSessionCache, TableHint, useColumnDrag, useDebouncedValue, writeSessionCache } from "@/components/table-helpers";
@@ -662,7 +662,7 @@ function CreateOrderDialog({ kind, open, onClose, onCreated }: { kind: Kind; ope
     }
   }
 
-  const subtotal = items.reduce((s, i) => s + Math.round(Number(i.quantity)) * Math.round(Number(i.unitPrice)), 0);
+  const subtotal = items.reduce((s, i) => s + Math.round(Number(i.quantity) * Number(i.unitPrice)), 0);
   const discount = items.reduce((s, i) => s + Math.round(Number(i.discount ?? 0)), 0);
   const taxableTotal = subtotal - discount;
   const taxAmount = isTaxable ? Math.round(taxableTotal * 0.05) : 0;
@@ -732,7 +732,7 @@ function CreateOrderDialog({ kind, open, onClose, onCreated }: { kind: Kind; ope
         {/* 手機版：卡片式明細 */}
         <div className="md:hidden space-y-3">
           {items.map((it, idx) => {
-            const line = Number(it.quantity) * Number(it.unitPrice) - Number(it.discount ?? 0);
+            const line = Math.round(Number(it.quantity) * Number(it.unitPrice)) - Math.round(Number(it.discount ?? 0));
             const product = products.find((p) => p.id === it.productId);
             return (
               <div key={idx} className="border rounded-lg p-3 space-y-2 bg-muted/20">
@@ -765,11 +765,11 @@ function CreateOrderDialog({ kind, open, onClose, onCreated }: { kind: Kind; ope
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">單價</Label>
-                    <Input type="number" step="1" value={it.unitPrice} onChange={(e) => updateItem(idx, { unitPrice: Number(e.target.value) })} onKeyDown={(e) => handleItemKeyDown(e, idx, "unitPrice")} />
+                    <Input type="number" step="0.0001" value={it.unitPrice} onChange={(e) => updateItem(idx, { unitPrice: Number(e.target.value) })} onKeyDown={(e) => handleItemKeyDown(e, idx, "unitPrice")} />
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">折扣</Label>
-                    <Input type="number" step="1" value={it.discount ?? 0} onChange={(e) => updateItem(idx, { discount: Number(e.target.value) })} onKeyDown={(e) => handleItemKeyDown(e, idx, "discount")} />
+                    <Input type="number" step="1" value={it.discount ?? 0} onChange={(e) => updateItem(idx, { discount: Math.round(Number(e.target.value)) })} onKeyDown={(e) => handleItemKeyDown(e, idx, "discount")} />
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">稅率</Label>
@@ -805,7 +805,7 @@ function CreateOrderDialog({ kind, open, onClose, onCreated }: { kind: Kind; ope
               </thead>
               <tbody>
                 {items.map((it, idx) => {
-                  const line = Number(it.quantity) * Number(it.unitPrice) - Number(it.discount ?? 0);
+                  const line = Math.round(Number(it.quantity) * Number(it.unitPrice)) - Math.round(Number(it.discount ?? 0));
                   const product = products.find((p) => p.id === it.productId);
                   return (
                     <tr key={idx} className="border-t">
@@ -825,8 +825,8 @@ function CreateOrderDialog({ kind, open, onClose, onCreated }: { kind: Kind; ope
                         </select>
                       </td>
                       <td className="p-2"><Input type="number" value={it.quantity} onChange={(e) => updateItem(idx, { quantity: Number(e.target.value) })} onKeyDown={(e) => handleItemKeyDown(e, idx, "quantity")} className={activeCell?.rowIdx === idx && activeCell?.colKey === "quantity" ? "ring-2 ring-ring ring-inset" : ""} ref={(el) => { if (el && activeCell?.rowIdx === idx && activeCell?.colKey === "quantity") el.focus(); }} /></td>
-                      <td className="p-2"><Input type="number" step="0.01" value={it.unitPrice} onChange={(e) => updateItem(idx, { unitPrice: Number(e.target.value) })} onKeyDown={(e) => handleItemKeyDown(e, idx, "unitPrice")} className={activeCell?.rowIdx === idx && activeCell?.colKey === "unitPrice" ? "ring-2 ring-ring ring-inset" : ""} ref={(el) => { if (el && activeCell?.rowIdx === idx && activeCell?.colKey === "unitPrice") el.focus(); }} /></td>
-                      <td className="p-2"><Input type="number" step="0.01" value={it.discount ?? 0} onChange={(e) => updateItem(idx, { discount: Number(e.target.value) })} onKeyDown={(e) => handleItemKeyDown(e, idx, "discount")} className={activeCell?.rowIdx === idx && activeCell?.colKey === "discount" ? "ring-2 ring-ring ring-inset" : ""} ref={(el) => { if (el && activeCell?.rowIdx === idx && activeCell?.colKey === "discount") el.focus(); }} /></td>
+                      <td className="p-2"><Input type="number" step="0.0001" value={it.unitPrice} onChange={(e) => updateItem(idx, { unitPrice: Number(e.target.value) })} onKeyDown={(e) => handleItemKeyDown(e, idx, "unitPrice")} className={activeCell?.rowIdx === idx && activeCell?.colKey === "unitPrice" ? "ring-2 ring-ring ring-inset" : ""} ref={(el) => { if (el && activeCell?.rowIdx === idx && activeCell?.colKey === "unitPrice") el.focus(); }} /></td>
+                      <td className="p-2"><Input type="number" step="1" value={it.discount ?? 0} onChange={(e) => updateItem(idx, { discount: Math.round(Number(e.target.value)) })} onKeyDown={(e) => handleItemKeyDown(e, idx, "discount")} className={activeCell?.rowIdx === idx && activeCell?.colKey === "discount" ? "ring-2 ring-ring ring-inset" : ""} ref={(el) => { if (el && activeCell?.rowIdx === idx && activeCell?.colKey === "discount") el.focus(); }} /></td>
                       <td className="p-2"><Input type="number" step="0.01" value={it.taxRate ?? 0} onChange={(e) => updateItem(idx, { taxRate: Number(e.target.value) })} onKeyDown={(e) => handleItemKeyDown(e, idx, "taxRate")} className={activeCell?.rowIdx === idx && activeCell?.colKey === "taxRate" ? "ring-2 ring-ring ring-inset" : ""} ref={(el) => { if (el && activeCell?.rowIdx === idx && activeCell?.colKey === "taxRate") el.focus(); }} /></td>
                       <td className="p-2 text-right">{formatMoney(line)}</td>
                       <td className="p-2">
@@ -1091,7 +1091,7 @@ function ViewOrderDialog({ kind, id, onClose, onChanged }: any) {
                         />
                       </td>
                     )}
-                    <td className="p-2 text-right whitespace-nowrap">{formatMoney(i.unitPrice)}</td>
+                    <td className="p-2 text-right whitespace-nowrap">{formatUnitPrice(i.unitPrice)}</td>
                     <td className="p-2 text-right whitespace-nowrap">{formatMoney(i.subtotal)}</td>
                   </tr>
                 );
@@ -1278,8 +1278,8 @@ function EditOrderDialog({ kind, id, onClose, onSaved }: { kind: Kind; id: strin
     setItems(items.filter((_, i) => i !== idx));
   }
 
-  const subtotal = items.reduce((s, i) => s + Number(i.quantity) * Number(i.unitPrice), 0);
-  const discount = items.reduce((s, i) => s + Number(i.discount ?? 0), 0);
+  const subtotal = items.reduce((s, i) => s + Math.round(Number(i.quantity) * Number(i.unitPrice)), 0);
+  const discount = items.reduce((s, i) => s + Math.round(Number(i.discount ?? 0)), 0);
   const taxableTotal = subtotal - discount;
   const taxAmount = Math.round(taxableTotal * 0.05);
   const total = subtotal - discount + taxAmount;
@@ -1333,7 +1333,7 @@ function EditOrderDialog({ kind, id, onClose, onSaved }: { kind: Kind; id: strin
         {/* 手機版：卡片式明細 */}
         <div className="md:hidden space-y-3">
           {items.map((it, idx) => {
-            const line = Number(it.quantity) * Number(it.unitPrice) - Number(it.discount ?? 0);
+            const line = Math.round(Number(it.quantity) * Number(it.unitPrice)) - Math.round(Number(it.discount ?? 0));
             return (
               <div key={idx} className="border rounded-lg p-3 space-y-2 bg-muted/20">
                 <div className="flex items-center justify-between">
@@ -1358,11 +1358,11 @@ function EditOrderDialog({ kind, id, onClose, onSaved }: { kind: Kind; id: strin
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">單價</Label>
-                    <Input type="number" step="1" value={it.unitPrice} onChange={(e) => updateItem(idx, { unitPrice: Number(e.target.value) })} />
+                    <Input type="number" step="0.0001" value={it.unitPrice} onChange={(e) => updateItem(idx, { unitPrice: Number(e.target.value) })} />
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">折扣</Label>
-                    <Input type="number" step="1" value={it.discount ?? 0} onChange={(e) => updateItem(idx, { discount: Number(e.target.value) })} />
+                    <Input type="number" step="1" value={it.discount ?? 0} onChange={(e) => updateItem(idx, { discount: Math.round(Number(e.target.value)) })} />
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">稅率</Label>
@@ -1398,7 +1398,7 @@ function EditOrderDialog({ kind, id, onClose, onSaved }: { kind: Kind; id: strin
               </thead>
               <tbody>
                 {items.map((it, idx) => {
-                  const line = Number(it.quantity) * Number(it.unitPrice) - Number(it.discount ?? 0);
+                  const line = Math.round(Number(it.quantity) * Number(it.unitPrice)) - Math.round(Number(it.discount ?? 0));
                   return (
                     <tr key={idx} className="border-t">
                       <td className="p-2">
@@ -1410,8 +1410,8 @@ function EditOrderDialog({ kind, id, onClose, onSaved }: { kind: Kind; id: strin
                         </select>
                       </td>
                       <td className="p-2"><Input type="number" value={it.quantity} onChange={(e) => updateItem(idx, { quantity: Number(e.target.value) })} /></td>
-                      <td className="p-2"><Input type="number" step="0.01" value={it.unitPrice} onChange={(e) => updateItem(idx, { unitPrice: Number(e.target.value) })} /></td>
-                      <td className="p-2"><Input type="number" step="0.01" value={it.discount ?? 0} onChange={(e) => updateItem(idx, { discount: Number(e.target.value) })} /></td>
+                      <td className="p-2"><Input type="number" step="0.0001" value={it.unitPrice} onChange={(e) => updateItem(idx, { unitPrice: Number(e.target.value) })} /></td>
+                      <td className="p-2"><Input type="number" step="1" value={it.discount ?? 0} onChange={(e) => updateItem(idx, { discount: Math.round(Number(e.target.value)) })} /></td>
                       <td className="p-2"><Input type="number" step="0.01" value={it.taxRate ?? 0} onChange={(e) => updateItem(idx, { taxRate: Number(e.target.value) })} /></td>
                       <td className="p-2 text-right">{formatMoney(line)}</td>
                       <td className="p-2">

@@ -171,10 +171,4 @@ export const authOptions: NextAuthOptions = {
   },
 };
 
-export function hasPermission(perms: string[] | undefined, code: string) {
-  if (!perms || perms.length === 0) return false;
-  if (perms.includes("*")) return true;
-  if (perms.includes(code)) return true;
-  const [mod] = code.split(".");
-  return perms.includes(`${mod}.manage`);
-}
+export { hasPermission } from "./permissions";

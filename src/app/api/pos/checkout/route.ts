@@ -3,7 +3,7 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { ApiError, apiHandler, audit, requirePosPermission, requireTenantId } from "@/lib/api";
 import { createEInvoiceOutbox, processEInvoiceEvent } from "@/lib/e-invoice";
-import { hasPermission } from "@/lib/auth";
+import { hasPermission } from "@/lib/permissions";
 import { nextNumberFastInTransaction } from "@/lib/number-sequence";
 import { drainPendingPosSales, fulfillPosSale } from "@/lib/pos-fulfillment";
 import { discountApprovalFingerprint, money, resolveCheckoutOffers } from "@/lib/pos-offers";
@@ -23,11 +23,11 @@ const CheckoutInput = z.object({
   items: z.array(z.object({
     productId: z.string().min(1),
     quantity: z.coerce.number().positive().max(100_000),
-    discount: z.coerce.number().min(0).default(0),
+    discount: z.coerce.number().int().min(0).default(0),
   })).min(1).max(200),
   payments: z.array(z.object({
     method: z.enum(["CASH", "CARD", "TRANSFER", "MOBILE", "WALLET"]),
-    amount: z.coerce.number().positive().max(100_000_000),
+    amount: z.coerce.number().int().positive().max(100_000_000),
     reference: z.string().max(100).optional().nullable(),
   })).min(1).max(4),
   invoice: z.object({
@@ -49,7 +49,7 @@ const CheckoutInput = z.object({
 });
 
 function roundMoney(value: number) {
-  return Math.round((value + Number.EPSILON) * 100) / 100;
+  return Math.round(value + Number.EPSILON);
 }
 
 function normalizeItems(items: Array<{ productId: string; quantity: number; discount: number }>) {

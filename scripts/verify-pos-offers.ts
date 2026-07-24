@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { discountApprovalFingerprint, offerDiscount } from "../src/lib/pos-offers";
 
-assert.equal(offerDiscount({ kind: "PERCENT", value: 10 }, 999), 99.9);
+assert.equal(offerDiscount({ kind: "PERCENT", value: 10 }, 999), 100);
 assert.equal(offerDiscount({ kind: "AMOUNT", value: 200 }, 100), 100);
 assert.equal(offerDiscount({ kind: "PERCENT", value: 20, maxDiscount: 50 }, 500), 50);
 

@@ -6,7 +6,11 @@ import { prisma } from "@/lib/prisma";
 type CheckoutJournalLine = { code: string; debit?: number; credit?: number; memo: string };
 
 function roundMoney(value: number) {
-  return Math.round((value + Number.EPSILON) * 100) / 100;
+  return Math.round(value + Number.EPSILON);
+}
+
+function roundUnitPrice(value: number) {
+  return Math.round((value + Number.EPSILON) * 10_000) / 10_000;
 }
 
 export async function createCheckoutJournal(
@@ -106,7 +110,7 @@ export async function fulfillPosSale(saleId: string) {
               productId: item.productId,
               quantity,
               shippedQty: quantity,
-              unitPrice: quantity > 0 ? roundMoney(net / quantity) : 0,
+              unitPrice: quantity > 0 ? roundUnitPrice(net / quantity) : 0,
               discount: Number(item.discount),
               taxRate,
               subtotal: net,

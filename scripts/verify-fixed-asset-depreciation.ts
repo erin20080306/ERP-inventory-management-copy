@@ -24,7 +24,7 @@ assert.deepEqual(computeSuggestedDepreciation({ ...base, method: "STRAIGHT_LINE"
   closingBookValue: 118_000,
 });
 assert.equal(computeSuggestedDepreciation({ ...base, method: "DOUBLE_DECLINING" }, 0).amount, 4_000);
-assert.equal(computeSuggestedDepreciation({ ...base, method: "SUM_OF_YEARS" }, 0).amount, 3_934.43);
+assert.equal(computeSuggestedDepreciation({ ...base, method: "SUM_OF_YEARS" }, 0).amount, 3_934);
 assert.equal(computeSuggestedDepreciation({
   ...base,
   method: "STRAIGHT_LINE",

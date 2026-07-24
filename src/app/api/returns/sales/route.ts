@@ -127,9 +127,9 @@ export const PATCH = apiHandler(async (req: NextRequest) => {
           await tx.salesReturnItem.update({ where: { id: item.id }, data: { salesOrderItemId: sourceItem.id, disposition: "SELLABLE" } });
         }
       }
-      const returnSubtotal = Math.round(ret.items.reduce((sum, item) => sum + Number(item.subtotal), 0) * 100) / 100;
-      const returnTax = Math.round((Number(ret.total) - returnSubtotal) * 100) / 100;
-      const returnCogs = Math.round(ret.items.reduce((sum, item) => sum + Number(item.quantity) * Number(item.product.costPrice), 0) * 100) / 100;
+      const returnSubtotal = Math.round(ret.items.reduce((sum, item) => sum + Number(item.subtotal), 0));
+      const returnTax = Math.round(Number(ret.total) - returnSubtotal);
+      const returnCogs = Math.round(ret.items.reduce((sum, item) => sum + Number(item.quantity) * Number(item.product.costPrice), 0));
       await tx.accountsReceivable.create({ data: { tenantId, customerId: ret.customerId, salesOrderId: ret.salesOrderId, amount: Number(ret.total) * -1, status: "POSTED", updatedBy: currentUserId } });
       await createPostedJournal(tx, tenantId, `銷貨退回 ${ret.number}（原單 ${ret.salesOrder.number}）`, session.user.id, [
         { code: "4102", debit: returnSubtotal, memo: `銷貨退回－${ret.number}` },

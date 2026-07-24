@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { apiHandler, requirePermission, requireTenantId } from "@/lib/api";
 import { getDashboardVisualStats } from "@/lib/dashboard";
-import { hasPermission } from "@/lib/auth";
+import { hasPermission } from "@/lib/permissions";
 
 export const GET = apiHandler(async () => {
   const session = await requirePermission("dashboard.view");
