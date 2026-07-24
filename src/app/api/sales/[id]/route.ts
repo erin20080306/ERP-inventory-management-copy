@@ -16,6 +16,12 @@ export const GET = apiHandler(async (_req: NextRequest, { params }: { params: { 
         include: { warehouse: true, items: { include: { product: true } }, receivable: true },
         orderBy: { createdAt: "desc" },
       },
+      storefrontPayment: true,
+      returns: {
+        where: { status: "POSTED" },
+        include: { items: { include: { product: true } } },
+        orderBy: { createdAt: "desc" },
+      },
     },
   });
   return NextResponse.json(item);
@@ -26,13 +32,26 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: {
   const tenantId = await requireTenantId();
   const currentUserId = await getCurrentUserId();
   const body = await req.json();
-  const { action, warehouseId, items, remark } = body;
+  const { action, warehouseId, items, remark, providerReference } = body;
   const existing = await prisma.salesOrder.findUnique({ where: { id: params.id, tenantId } });
   if (!existing) throw new Error("找不到銷售單");
 
   let response: Record<string, unknown> = { ok: true };
 
-  if (action === "submit") {
+  if (action === "confirm_payment") {
+    await requirePermission("sales.approve");
+    const reference = String(providerReference ?? "").trim();
+    if (reference.length < 2) throw new Error("請輸入付款交易序號或轉帳憑證");
+    const payment = await prisma.storefrontPayment.findFirst({ where: { orderId: params.id, tenantId } });
+    if (!payment) throw new Error("此單不是電商付款訂單");
+    if (["PAID", "PARTIALLY_REFUNDED", "REFUNDED"].includes(payment.status)) throw new Error("此訂單已確認付款");
+    if (["CANCELLED", "EXPIRED"].includes(payment.status)) throw new Error("此付款已取消或逾期，不可確認收款");
+    await prisma.storefrontPayment.update({
+      where: { id: payment.id },
+      data: { status: "PAID", paidAt: new Date(), providerReference: reference },
+    });
+    response = { ok: true, message: "電商付款已確認；出貨時將自動入銀行、沖應收並建立傳票" };
+  } else if (action === "submit") {
     await requirePermission("sales.submit");
     if (!["DRAFT", "REJECTED"].includes(existing.status)) throw new Error("只有草稿或退回單據可以送審");
     await prisma.salesOrder.update({ where: { id: params.id, tenantId }, data: { status: "SUBMITTED", updatedBy: currentUserId } });

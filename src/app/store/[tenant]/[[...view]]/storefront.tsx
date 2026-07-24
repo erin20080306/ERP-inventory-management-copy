@@ -72,6 +72,7 @@ type Order = {
     method: "CARD" | "MOBILE" | "TRANSFER";
     status: string;
     charged: boolean;
+    refundedAmount?: number;
     nextAction: string;
     bankTransfer?: {
       bankName: string;
@@ -701,6 +702,8 @@ function memberStatusLabel(status: string) {
 
 function memberPaymentLabel(order: Order) {
   if (!order.payment) return "";
+  if (order.payment.status === "REFUNDED") return "已全額退款";
+  if (order.payment.status === "PARTIALLY_REFUNDED") return `部分退款 ${money(order.payment.refundedAmount ?? 0)}`;
   if (order.payment.charged || order.payment.status === "PAID") return "已付款";
   if (order.payment.status === "AWAITING_TRANSFER") return "待匯款確認";
   if (order.payment.status === "GATEWAY_REQUIRED") return "未扣款・待串金流";

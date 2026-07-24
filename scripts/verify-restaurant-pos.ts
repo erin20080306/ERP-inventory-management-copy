@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { PrismaClient } from "@prisma/client";
 import { seedTenantDefaults } from "../src/lib/seed-tenant";
 import { createRestaurantTable, deleteRestaurantTableSafely, setRestaurantTableActive, updateRestaurantTable } from "../src/lib/restaurant-tables";
+import { cancelRestaurantItem } from "../src/lib/restaurant-cancellations";
 
 const prisma = new PrismaClient();
 const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -48,7 +49,16 @@ async function main() {
     await prisma.restaurantOrderItem.update({ where: { id: item.id }, data: { status: "PREPARING" } });
     const ready = await prisma.restaurantOrderItem.update({ where: { id: item.id }, data: { status: "READY" } });
     assert.equal(ready.status, "READY");
-    console.log("Restaurant POS table CRUD, safe history archive, image menu, order and kitchen ticket: PASS");
+    const cancelled = await cancelRestaurantItem({ tenantId: tenant.id, userId: user.id, itemId: item.id, reason: "客人改點，已製作餐點報廢", disposition: "WASTE" });
+    assert.equal(cancelled.item.status, "CANCELLED");
+    assert.equal(cancelled.item.cancelDisposition, "WASTE");
+    assert.equal(cancelled.wasteAmount, 160);
+    assert.equal(Number((await prisma.inventoryStock.findUniqueOrThrow({ where: { productId_warehouseId: { productId: product.id, warehouseId: warehouse.id } } })).quantity), 8);
+    assert.equal((await prisma.restaurantKitchenTicket.findUniqueOrThrow({ where: { id: ticket.id } })).status, "CANCELLED");
+    assert.equal(await prisma.inventoryTransaction.count({ where: { refType: "RESTAURANT_WASTE", refId: item.id } }), 1);
+    const wasteJournal = await prisma.journalEntry.findFirstOrThrow({ where: { tenantId: tenant.id, summary: { contains: order.number } }, include: { lines: true } });
+    assert.equal(wasteJournal.lines.reduce((sum, line) => sum + Number(line.debit), 0), wasteJournal.lines.reduce((sum, line) => sum + Number(line.credit), 0));
+    console.log("Restaurant POS table CRUD, safe history archive, kitchen cancel audit, waste inventory and journal: PASS");
   } finally {
     await prisma.$transaction(async (tx) => {
       await tx.restaurantOrder.deleteMany({ where: { tenantId: tenant.id } });
@@ -60,6 +70,8 @@ async function main() {
       await tx.purchaseOrder.deleteMany({ where: { tenantId: tenant.id } });
       await tx.inventoryStock.deleteMany({ where: { tenantId: tenant.id } });
       await tx.inventoryTransaction.deleteMany({ where: { tenantId: tenant.id } });
+      await tx.journalEntryLine.deleteMany({ where: { entry: { tenantId: tenant.id } } });
+      await tx.journalEntry.deleteMany({ where: { tenantId: tenant.id } });
       await tx.product.deleteMany({ where: { tenantId: tenant.id } });
       await tx.productCategory.deleteMany({ where: { tenantId: tenant.id } });
       await tx.productUnit.deleteMany({ where: { tenantId: tenant.id } });

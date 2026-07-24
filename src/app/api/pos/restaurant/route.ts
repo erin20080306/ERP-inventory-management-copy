@@ -5,7 +5,8 @@ import { hasPermission } from "@/lib/auth";
 import { resolveDemoProductImage } from "@/lib/demo-product-media";
 import { nextNumberFastInTransaction } from "@/lib/number-sequence";
 import { prisma } from "@/lib/prisma";
-import { attachPosShiftOperators, getLedgerCashBalance, getPosDailySummary, getPosShiftCashPosition } from "@/lib/pos-daily-summary";
+import { attachPosShiftOperators, getLedgerCashBalance, getPosDailySummary, getPosShiftCashPosition, taipeiDayRange } from "@/lib/pos-daily-summary";
+import { cancelRestaurantItem } from "@/lib/restaurant-cancellations";
 import { productCatalogScope } from "@/lib/product-editions";
 import { createRestaurantTable, deleteRestaurantTableSafely, setRestaurantTableActive, updateRestaurantTable } from "@/lib/restaurant-tables";
 
@@ -27,6 +28,7 @@ const ActionInput = z.discriminatedUnion("action", [
   z.object({ action: z.literal("UPDATE_ITEM"), itemId: z.string().min(1), quantity: z.coerce.number().min(0).max(99), note: z.string().trim().max(200).optional().default("") }),
   z.object({ action: z.literal("SEND_KITCHEN"), orderId: z.string().min(1) }),
   z.object({ action: z.literal("SET_ITEM_STATUS"), itemId: z.string().min(1), status: z.enum(["PREPARING", "READY", "SERVED"]) }),
+  z.object({ action: z.literal("CANCEL_ITEM"), itemId: z.string().min(1), reason: z.string().trim().min(2).max(200), disposition: z.enum(["NOT_PREPARED", "WASTE"]) }),
   z.object({ action: z.literal("MOVE_TABLE"), orderId: z.string().min(1), targetTableId: z.string().min(1) }),
   z.object({ action: z.literal("CANCEL_ORDER"), orderId: z.string().min(1), reason: z.string().trim().min(2).max(200) }),
 ]);
@@ -66,7 +68,10 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const session = await requireRestaurantPermission("view");
   const tenantId = await requireTenantId(session);
   const catalogScope = productCatalogScope("POS_RESTAURANT");
-  const kitchenOnly = req.nextUrl.searchParams.get("view") === "kitchen";
+  const view = req.nextUrl.searchParams.get("view") ?? "front";
+  const kitchenOnly = view === "kitchen" || view === "kitchen-history";
+  const kitchenHistory = view === "kitchen-history";
+  const { start: todayStart, end: todayEnd } = taipeiDayRange();
   const canManageTables = hasPermission(session.user.permissions, "restaurant.manage");
   const openShiftPromise = prisma.posShift.findFirst({
     where: { tenantId, userId: session.user.id, status: "OPEN" },
@@ -117,16 +122,25 @@ export const GET = apiHandler(async (req: NextRequest) => {
       orderBy: { name: "asc" },
     }),
     kitchenOnly ? prisma.restaurantKitchenTicket.findMany({
-      where: {
-        tenantId,
-        OR: [
-          { status: { in: ["NEW", "PREPARING", "READY"] } },
-          { status: "SERVED", servedAt: { gte: new Date(Date.now() - 30 * 60_000) } },
-        ],
+      where: kitchenHistory
+        ? {
+            tenantId,
+            sentAt: { gte: todayStart, lt: todayEnd },
+            items: { some: { orderItem: { status: { in: ["SERVED", "CANCELLED"] } } } },
+          }
+        : {
+            tenantId,
+            items: { some: { orderItem: { status: { in: ["SENT", "PREPARING", "READY"] } } } },
+          },
+      include: {
+        order: { include: { table: true } },
+        items: {
+          where: { orderItem: { status: { in: kitchenHistory ? ["SERVED", "CANCELLED"] : ["SENT", "PREPARING", "READY"] } } },
+          include: { orderItem: { include: { product: { select: { name: true, imageUrl: true } } } } },
+        },
       },
-      include: { order: { include: { table: true } }, items: { include: { orderItem: { include: { product: { select: { name: true, imageUrl: true } } } } } } },
-      orderBy: { sentAt: "asc" },
-      take: 100,
+      orderBy: { sentAt: kitchenHistory ? "desc" : "asc" },
+      take: kitchenHistory ? 200 : 100,
     }) : Promise.resolve([]),
     !kitchenOnly && canManageTables
       ? prisma.restaurantArea.findMany({
@@ -153,6 +167,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
     categories,
     products: products.map((product) => ({ ...product, imageUrl: resolveDemoProductImage(product.sku, product.imageUrl), salePrice: Number(product.salePrice), stockTotal: stockByProduct.get(product.id) ?? 0 })),
     kitchenTickets,
+    kitchenHistory,
     canManageTables,
     tableSettings,
     serverTime: new Date().toISOString(),
@@ -164,8 +179,10 @@ export const POST = apiHandler(async (req: NextRequest) => {
   const isTableManagement = ["CREATE_TABLE", "UPDATE_TABLE", "SET_TABLE_ACTIVE", "DELETE_TABLE"].includes(body.action);
   const permission = isTableManagement
     ? "manage"
-    : body.action === "SET_ITEM_STATUS" || body.action === "MOVE_TABLE"
-    ? "edit"
+    : body.action === "CANCEL_ITEM"
+      ? "edit"
+      : body.action === "SET_ITEM_STATUS" || body.action === "MOVE_TABLE"
+        ? "edit"
     : body.action === "SEND_KITCHEN"
       ? "submit"
       : body.action === "CANCEL_ORDER"
@@ -247,12 +264,30 @@ export const POST = apiHandler(async (req: NextRequest) => {
   if (body.action === "UPDATE_ITEM") {
     const item = await prisma.restaurantOrderItem.findFirst({ where: { id: body.itemId, order: { tenantId, shift: { userId: session.user.id, status: "OPEN" }, status: { in: [...ACTIVE_ORDER_STATUSES] } }, status: "PENDING" } });
     if (!item) throw new ApiError(409, "只有尚未送廚的餐點可修改");
-    if (body.quantity === 0) {
-      await prisma.restaurantOrderItem.delete({ where: { id: item.id } });
-      return NextResponse.json({ ok: true, deleted: true });
-    }
+    if (body.quantity === 0) throw new ApiError(400, "數量歸零請使用取消餐點，系統才會保留原因與稽核紀錄");
     const updated = await prisma.restaurantOrderItem.update({ where: { id: item.id }, data: { quantity: body.quantity, note: body.note || null }, include: { product: true } });
     return NextResponse.json({ ok: true, item: updated });
+  }
+
+  if (body.action === "CANCEL_ITEM") {
+    if (body.disposition === "WASTE" && !hasPermission(session.user.permissions, "restaurant.approve")) {
+      throw new ApiError(403, "餐點報廢會影響庫存與會計，需要餐飲審核權限");
+    }
+    const result = await cancelRestaurantItem({
+      tenantId,
+      userId: session.user.id,
+      itemId: body.itemId,
+      reason: body.reason,
+      disposition: body.disposition,
+    });
+    auditAfterResponse({
+      userId: session.user.id,
+      action: "restaurant_cancel_item",
+      module: "restaurant",
+      refId: result.item.id,
+      detail: `${result.item.product.name}；${body.disposition === "WASTE" ? `報廢 ${result.wasteAmount}` : "未製作取消"}；${body.reason}`,
+    });
+    return NextResponse.json({ ok: true, ...result, changedAt: result.cancelledAt.toISOString() });
   }
 
   if (body.action === "SEND_KITCHEN") {
