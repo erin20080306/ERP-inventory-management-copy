@@ -3,6 +3,7 @@ import { generateKeyPairSync, randomBytes, randomUUID } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import { NextRequest } from "next/server";
 import { POST as storefrontOrders } from "../src/app/api/license/storefront-orders/route";
+import { POST as storefrontOrderStatus } from "../src/app/api/license/storefront-order-status/route";
 import { shipSalesOrder } from "../src/lib/documents";
 import {
   fingerprintDeviceId,
@@ -12,7 +13,10 @@ import {
 } from "../src/lib/license";
 import { prisma } from "../src/lib/prisma";
 import { seedTenantDefaults } from "../src/lib/seed-tenant";
-import { syncCentralStorefrontOrders } from "../src/lib/storefront-order-sync";
+import {
+  syncCentralStorefrontOrders,
+  syncLocalStorefrontOrderStatus,
+} from "../src/lib/storefront-order-sync";
 import { assertTestDatabase } from "./assert-test-database";
 
 assertTestDatabase(/^erp_storefront_host_test_[a-z0-9_]+$/, "erp_storefront_host_test_*");
@@ -213,12 +217,15 @@ async function main() {
     process.env.LOCAL_ACTIVATION_KEY = activationKey;
     process.env.LOCAL_DEVICE_ID = deviceId;
     globalThis.fetch = (async (input, init) => {
-      const request = new NextRequest(String(input), {
+      const url = String(input);
+      const request = new NextRequest(url, {
         method: init?.method || "GET",
         headers: init?.headers,
         body: init?.body,
       });
-      return storefrontOrders(request);
+      return url.includes("/api/license/storefront-order-status")
+        ? storefrontOrderStatus(request)
+        : storefrontOrders(request);
     }) as typeof fetch;
 
     const wrongDevice = await storefrontOrders(new NextRequest("http://localhost/api/license/storefront-orders", {
@@ -227,6 +234,17 @@ async function main() {
       body: JSON.stringify({ activationKey, deviceId: `wrong-${deviceId}`, cursor: null }),
     }));
     assert.equal(wrongDevice.status, 403);
+
+    const wrongStatusDevice = await storefrontOrderStatus(new NextRequest("http://localhost/api/license/storefront-order-status", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-real-ip": `wrong-status-${suffix}` },
+      body: JSON.stringify({
+        activationKey,
+        deviceId: `wrong-${deviceId}`,
+        updates: [{ orderId: centralOrder.id, status: "APPROVED" }],
+      }),
+    }));
+    assert.equal(wrongStatusDevice.status, 403);
 
     const orderCountBeforeSync = await prisma.salesOrder.count({ where: { tenantId: local.id } });
     const firstSync = await syncCentralStorefrontOrders(local.id);
@@ -248,7 +266,13 @@ async function main() {
     assert.equal(await prisma.salesOrder.count({ where: { tenantId: local.id } }), orderCountBeforeSync + 1);
 
     await prisma.salesOrder.update({ where: { id: imported.id }, data: { status: "APPROVED" } });
-    await shipSalesOrder(imported.id, localWarehouse.id, local.id);
+    const approvedStatusSync = await syncLocalStorefrontOrderStatus(local.id, imported.id);
+    assert.equal(approvedStatusSync.synced, true);
+    assert.equal((await prisma.salesOrder.findUniqueOrThrow({ where: { id: centralOrder.id } })).status, "APPROVED");
+
+    const shipment = await shipSalesOrder(imported.id, localWarehouse.id, local.id);
+    const shippedStatusSync = await syncLocalStorefrontOrderStatus(local.id, imported.id);
+    assert.equal(shippedStatusSync.synced, true);
     assert.equal(Number((await prisma.inventoryStock.findUniqueOrThrow({
       where: { productId_warehouseId: { productId: localProduct.id, warehouseId: localWarehouse.id } },
     })).quantity), 8);
@@ -260,14 +284,21 @@ async function main() {
     }), 1);
     assert.equal(await prisma.journalEntry.count({ where: { tenantId: local.id, status: "POSTED" } }), 1);
 
-    console.log("Vercel storefront order -> installed Host fulfillment, inventory and accounting: PASS");
+    const centralAfterShipment = await prisma.salesOrder.findUniqueOrThrow({ where: { id: centralOrder.id } });
+    assert.equal(centralAfterShipment.status, "POSTED");
+    assert.ok(centralAfterShipment.shippedAt);
+    assert.match(centralAfterShipment.remark || "", /\[HOST-FULFILLMENT:[A-Za-z0-9_-]+\]/);
+    assert.ok(centralAfterShipment.remark?.includes("request="));
+    assert.ok(shipment.shipment.number);
+
+    console.log("Vercel storefront order <-> installed Host fulfillment and consumer tracking status: PASS");
   } finally {
     globalThis.fetch = originalFetch;
     for (const [name, value] of Object.entries(originalEnv)) {
       if (value === undefined) delete process.env[name];
       else process.env[name] = value;
     }
-    await prisma.systemSetting.deleteMany({ where: { key: { contains: "storefront-order-sync:" } } });
+    await prisma.systemSetting.deleteMany({ where: { key: { contains: "storefront-order-" } } });
     await cleanupTenant(localTenantId);
     await cleanupTenant(centralTenantId);
     await prisma.$disconnect();
