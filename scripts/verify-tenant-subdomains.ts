@@ -16,6 +16,13 @@ const originalPublicRoot = process.env.PUBLIC_STOREFRONT_ROOT_DOMAIN;
 const originalNextPublicRoot = process.env.NEXT_PUBLIC_STOREFRONT_ROOT_DOMAIN;
 
 try {
+  delete process.env.PUBLIC_STOREFRONT_ROOT_DOMAIN;
+  delete process.env.NEXT_PUBLIC_STOREFRONT_ROOT_DOMAIN;
+
+  assert.equal(publicStorefrontRootDomain(), "erin-com.com");
+  assert.equal(storefrontUrl("legacy-store"), "https://legacy-store.erin-com.com");
+  assert.equal(storefrontUrl("www"), "https://www.erin-com.com/store/www");
+
   process.env.PUBLIC_STOREFRONT_ROOT_DOMAIN = "https://www.erin-com.com/";
   delete process.env.NEXT_PUBLIC_STOREFRONT_ROOT_DOMAIN;
 

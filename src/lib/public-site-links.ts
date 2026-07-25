@@ -1,6 +1,7 @@
 import { normalizeRootDomain, tenantSubdomainLabel } from "./tenant-subdomain";
 
-const DEFAULT_PUBLIC_STOREFRONT_ORIGIN = "https://erp-inventory-management-copy.vercel.app";
+const DEFAULT_PUBLIC_STOREFRONT_ORIGIN = "https://www.erin-com.com";
+const DEFAULT_PUBLIC_STOREFRONT_ROOT_DOMAIN = "erin-com.com";
 
 export function publicStorefrontOrigin() {
   const serverOrigin = typeof window === "undefined"
@@ -19,7 +20,8 @@ export function publicStorefrontRootDomain() {
     : undefined;
   return normalizeRootDomain(
     serverRootDomain
-      || process.env.NEXT_PUBLIC_STOREFRONT_ROOT_DOMAIN,
+      || process.env.NEXT_PUBLIC_STOREFRONT_ROOT_DOMAIN
+      || DEFAULT_PUBLIC_STOREFRONT_ROOT_DOMAIN,
   );
 }
 
