@@ -21,6 +21,22 @@ const PUBLIC_ORDER_STATUS: Record<string, string> = {
   REJECTED: "訂單待確認",
 };
 
+type HostFulfillment = {
+  shipmentNumber?: string | null;
+  shippedAt?: string | null;
+};
+
+function readHostFulfillment(remark: string | null): HostFulfillment | null {
+  const encoded = remark?.match(/\[HOST-FULFILLMENT:([A-Za-z0-9_-]+)\]/)?.[1];
+  if (!encoded) return null;
+  try {
+    const parsed = JSON.parse(Buffer.from(encoded, "base64url").toString("utf8"));
+    return parsed && typeof parsed === "object" ? parsed as HostFulfillment : null;
+  } catch {
+    return null;
+  }
+}
+
 export const POST = apiHandler(async (req: NextRequest, { params }: { params: { tenant: string } }) => {
   const { tenant } = await resolveStorefrontTenant(params.tenant);
   const input = TrackingInput.parse(await req.json());
@@ -35,6 +51,7 @@ export const POST = apiHandler(async (req: NextRequest, { params }: { params: { 
       status: true,
       total: true,
       createdAt: true,
+      shippedAt: true,
       remark: true,
       _count: { select: { items: true } },
       shipments: {
@@ -54,6 +71,7 @@ export const POST = apiHandler(async (req: NextRequest, { params }: { params: { 
       const token = tokens.find((candidate) => order.remark?.includes(`request=${candidate}`));
       if (!token) return [];
       const latestShipment = order.shipments[0];
+      const hostFulfillment = readHostFulfillment(order.remark);
       return [{
         trackingToken: token,
         id: order.number,
@@ -61,8 +79,11 @@ export const POST = apiHandler(async (req: NextRequest, { params }: { params: { 
         total: Number(order.total),
         items: order._count.items,
         createdAt: order.createdAt.toISOString(),
-        shipmentNumber: latestShipment?.number ?? null,
-        shippedAt: latestShipment?.shipmentDate.toISOString() ?? null,
+        shipmentNumber: latestShipment?.number ?? hostFulfillment?.shipmentNumber ?? null,
+        shippedAt: latestShipment?.shipmentDate.toISOString()
+          ?? hostFulfillment?.shippedAt
+          ?? order.shippedAt?.toISOString()
+          ?? null,
         payment: order.storefrontPayment ? {
           method: order.storefrontPayment.method,
           status: order.storefrontPayment.status,
