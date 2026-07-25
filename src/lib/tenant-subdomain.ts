@@ -8,6 +8,8 @@ const RESERVED_TENANT_SUBDOMAINS = new Set([
   "smtp",
   "cdn",
   "assets",
+  // 平台管理者的內部帳同時擁有商城與醫美網站，必須保留舊路徑來區分兩者。
+  "erin-internal",
 ]);
 
 function stripPort(value: string) {
