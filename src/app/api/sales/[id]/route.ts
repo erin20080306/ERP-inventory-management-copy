@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { apiHandler, requirePermission, requireTenantId, audit, getCurrentUserId } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { shipSalesOrder, calcTotals } from "@/lib/documents";
+import { syncLocalStorefrontOrderStatus } from "@/lib/storefront-order-sync";
 
 export const GET = apiHandler(async (_req: NextRequest, { params }: { params: { id: string } }) => {
   await requirePermission("sales.view");
@@ -78,13 +79,17 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: {
       refId: params.id,
       detail: `出貨單 ${result.shipment.number}；${result.complete ? "全部完成" : "部分出貨"}`,
     });
+    const statusSync = await syncLocalStorefrontOrderStatus(tenantId, params.id);
+    const syncNote = statusSync.queued ? "；消費者商城狀態將於中央連線恢復後自動補同步" : "";
     return NextResponse.json({
       ok: true,
       complete: result.complete,
       shipmentNumber: result.shipment.number,
-      message: result.complete
+      storefrontStatusSynced: statusSync.synced,
+      storefrontStatusQueued: statusSync.queued,
+      message: (result.complete
         ? "出貨完成，庫存、應收帳款與銷貨傳票已同步"
-        : "部分出貨完成，未交數量可於下次繼續出貨",
+        : "部分出貨完成，未交數量可於下次繼續出貨") + syncNote,
     });
   } else if (action === "cancel") {
     await requirePermission("sales.void");
@@ -96,6 +101,14 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: {
     throw new Error("不支援的銷售動作");
   }
   await audit({ userId: session.user.id, action, module: "sales", refId: params.id });
+  if (["submit", "confirm", "approve", "reject", "cancel"].includes(action)) {
+    const statusSync = await syncLocalStorefrontOrderStatus(tenantId, params.id);
+    response.storefrontStatusSynced = statusSync.synced;
+    response.storefrontStatusQueued = statusSync.queued;
+    if (statusSync.queued && typeof response.message === "string") {
+      response.message += "；消費者商城狀態將於中央連線恢復後自動補同步";
+    }
+  }
   return NextResponse.json(response);
 });
 
