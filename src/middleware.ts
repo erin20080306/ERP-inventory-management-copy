@@ -36,25 +36,31 @@ function configuredRootDomain() {
     || "";
 }
 
+function requestTenantSlug(request: { headers: Headers }) {
+  const host = request.headers.get("x-forwarded-host") || request.headers.get("host");
+  return tenantSubdomainFromHost(host, configuredRootDomain());
+}
+
 export default withAuth(
   function middleware(request) {
     const pathname = request.nextUrl.pathname;
-    if (pathname.startsWith("/site/") || /\.[^/]+$/.test(pathname) || isProtectedPath(pathname)) {
+    if (pathname.startsWith("/site/") || /\.[^/]+$/.test(pathname)) {
       return NextResponse.next();
     }
 
-    const host = request.headers.get("x-forwarded-host") || request.headers.get("host");
-    const tenantSlug = tenantSubdomainFromHost(host, configuredRootDomain());
+    const tenantSlug = requestTenantSlug(request);
     const rewritePath = tenantSlug ? tenantSiteRewritePath(tenantSlug, pathname) : null;
-    if (!rewritePath) return NextResponse.next();
+    if (rewritePath) {
+      const url = request.nextUrl.clone();
+      url.pathname = rewritePath;
+      return NextResponse.rewrite(url);
+    }
 
-    const url = request.nextUrl.clone();
-    url.pathname = rewritePath;
-    return NextResponse.rewrite(url);
+    return NextResponse.next();
   },
   {
     callbacks: {
-      authorized: ({ token, req }) => !isProtectedPath(req.nextUrl.pathname) || Boolean(token),
+      authorized: ({ token, req }) => Boolean(requestTenantSlug(req)) || !isProtectedPath(req.nextUrl.pathname) || Boolean(token),
     },
   },
 );
