@@ -41,6 +41,16 @@ function requestTenantSlug(request: { headers: Headers }) {
   return tenantSubdomainFromHost(host, configuredRootDomain());
 }
 
+function cleanLegacyTenantPath(pathname: string, tenantSlug: string) {
+  const encodedSlug = encodeURIComponent(tenantSlug);
+  for (const prefix of [`/store/${encodedSlug}`, `/medical/${encodedSlug}`]) {
+    if (pathname !== prefix && !pathname.startsWith(`${prefix}/`)) continue;
+    const remainder = pathname.slice(prefix.length);
+    return remainder || "/";
+  }
+  return null;
+}
+
 export default withAuth(
   function middleware(request) {
     const pathname = request.nextUrl.pathname;
@@ -49,11 +59,20 @@ export default withAuth(
     }
 
     const tenantSlug = requestTenantSlug(request);
-    const rewritePath = tenantSlug ? tenantSiteRewritePath(tenantSlug, pathname) : null;
-    if (rewritePath) {
-      const url = request.nextUrl.clone();
-      url.pathname = rewritePath;
-      return NextResponse.rewrite(url);
+    if (tenantSlug) {
+      const cleanPath = cleanLegacyTenantPath(pathname, tenantSlug);
+      if (cleanPath) {
+        const redirectUrl = request.nextUrl.clone();
+        redirectUrl.pathname = cleanPath;
+        return NextResponse.redirect(redirectUrl, 308);
+      }
+
+      const rewritePath = tenantSiteRewritePath(tenantSlug, pathname);
+      if (rewritePath) {
+        const url = request.nextUrl.clone();
+        url.pathname = rewritePath;
+        return NextResponse.rewrite(url);
+      }
     }
 
     return NextResponse.next();
