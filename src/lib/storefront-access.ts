@@ -1,5 +1,5 @@
 import { normalizeBusinessMode, type BusinessMode } from "./product-editions";
-import { medicalSitePath, storefrontPath } from "./public-site-links";
+import { medicalSitePath, medicalSiteUrl, storefrontPath, storefrontUrl } from "./public-site-links";
 
 export type StorefrontAccessUser = {
   tenantId?: string | null;
@@ -20,6 +20,10 @@ function normalizedTenantKey(value: string | null | undefined) {
   return decoded.trim().toUpperCase();
 }
 
+function tenantPublicKey(user: StorefrontAccessUser | null | undefined) {
+  return user?.storeSlug?.trim() || user?.companyCode?.trim() || user?.tenantId?.trim() || "";
+}
+
 export function isTenantHighestPrivilege(user: StorefrontAccessUser | null | undefined) {
   return Boolean(user && !user.isSuperAdmin && user.isTenantOwner);
 }
@@ -33,23 +37,35 @@ export function canAccessTenantErp(user: StorefrontAccessUser | null | undefined
 export function tenantStorefrontPath(user: StorefrontAccessUser | null | undefined) {
   if (user?.isSuperAdmin) {
     if (normalizedTenantKey(user.companyCode) !== "ERIN-INTERNAL") return null;
-    const tenantKey = user.storeSlug?.trim() || user.companyCode?.trim() || user.tenantId?.trim();
+    const tenantKey = tenantPublicKey(user);
     return tenantKey ? storefrontPath(tenantKey) : null;
   }
   if (!canAccessTenantErp(user) || normalizeBusinessMode(user?.businessMode) !== "ECOMMERCE") return null;
-  const tenantKey = user?.storeSlug?.trim() || user?.companyCode?.trim() || user?.tenantId?.trim();
+  const tenantKey = tenantPublicKey(user);
   return tenantKey ? storefrontPath(tenantKey) : null;
+}
+
+export function tenantStorefrontUrl(user: StorefrontAccessUser | null | undefined) {
+  if (!tenantStorefrontPath(user)) return null;
+  const tenantKey = tenantPublicKey(user);
+  return tenantKey ? storefrontUrl(tenantKey) : null;
 }
 
 export function tenantMedicalSitePath(user: StorefrontAccessUser | null | undefined) {
   if (user?.isSuperAdmin) {
     if (normalizedTenantKey(user.companyCode) !== "ERIN-INTERNAL") return null;
-    const tenantKey = user.storeSlug?.trim() || user.companyCode?.trim() || user.tenantId?.trim();
+    const tenantKey = tenantPublicKey(user);
     return tenantKey ? medicalSitePath(tenantKey) : null;
   }
   if (!canAccessTenantErp(user) || normalizeBusinessMode(user?.businessMode) !== "POS_MEDICAL") return null;
-  const tenantKey = user?.storeSlug?.trim() || user?.companyCode?.trim() || user?.tenantId?.trim();
+  const tenantKey = tenantPublicKey(user);
   return tenantKey ? medicalSitePath(tenantKey) : null;
+}
+
+export function tenantMedicalSiteUrl(user: StorefrontAccessUser | null | undefined) {
+  if (!tenantMedicalSitePath(user)) return null;
+  const tenantKey = tenantPublicKey(user);
+  return tenantKey ? medicalSiteUrl(tenantKey) : null;
 }
 
 export function canManageTenantStorefront(user: StorefrontAccessUser | null | undefined, requestedTenant: string) {
