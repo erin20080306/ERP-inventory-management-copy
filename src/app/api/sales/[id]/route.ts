@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { apiHandler, requirePermission, requireTenantId, audit, getCurrentUserId } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { shipSalesOrder, calcTotals } from "@/lib/documents";
+import { resolveSalesFulfillmentWarehouse } from "@/lib/fulfillment-warehouse";
 import { syncLocalStorefrontOrderStatus } from "@/lib/storefront-order-sync";
 
 export const GET = apiHandler(async (_req: NextRequest, { params }: { params: { id: string } }) => {
@@ -71,13 +72,29 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: {
   } else if (action === "ship") {
     await requirePermission("sales.post");
     if (!warehouseId) throw new Error("請選擇出貨倉庫");
-    const result = await shipSalesOrder(params.id, warehouseId, tenantId, items, session.user.id, remark);
+    const warehouseResolution = await resolveSalesFulfillmentWarehouse({
+      tenantId,
+      orderId: params.id,
+      requestedWarehouseId: warehouseId,
+      requestedItems: items,
+    });
+    const result = await shipSalesOrder(
+      params.id,
+      warehouseResolution.warehouseId,
+      tenantId,
+      items,
+      session.user.id,
+      remark,
+    );
+    const warehouseNote = warehouseResolution.autoSelected
+      ? `；所選 ${warehouseResolution.requestedWarehouse.code} - ${warehouseResolution.requestedWarehouse.name} 無足夠庫存，已自動改由 ${warehouseResolution.warehouse.code} - ${warehouseResolution.warehouse.name} 出貨`
+      : "";
     await audit({
       userId: session.user.id,
       action,
       module: "sales",
       refId: params.id,
-      detail: `出貨單 ${result.shipment.number}；${result.complete ? "全部完成" : "部分出貨"}`,
+      detail: `出貨單 ${result.shipment.number}；${result.complete ? "全部完成" : "部分出貨"}${warehouseNote}`,
     });
     const statusSync = await syncLocalStorefrontOrderStatus(tenantId, params.id);
     const syncNote = statusSync.queued ? "；消費者商城狀態將於中央連線恢復後自動補同步" : "";
@@ -85,11 +102,15 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: {
       ok: true,
       complete: result.complete,
       shipmentNumber: result.shipment.number,
+      warehouseId: warehouseResolution.warehouseId,
+      warehouseCode: warehouseResolution.warehouse.code,
+      warehouseName: warehouseResolution.warehouse.name,
+      warehouseAutoSelected: warehouseResolution.autoSelected,
       storefrontStatusSynced: statusSync.synced,
       storefrontStatusQueued: statusSync.queued,
       message: (result.complete
         ? "出貨完成，庫存、應收帳款與銷貨傳票已同步"
-        : "部分出貨完成，未交數量可於下次繼續出貨") + syncNote,
+        : "部分出貨完成，未交數量可於下次繼續出貨") + warehouseNote + syncNote,
     });
   } else if (action === "cancel") {
     await requirePermission("sales.void");
