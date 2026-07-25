@@ -5,6 +5,7 @@ import { NextRequest } from "next/server";
 import { POST as storefrontOrders } from "../src/app/api/license/storefront-orders/route";
 import { POST as storefrontOrderStatus } from "../src/app/api/license/storefront-order-status/route";
 import { shipSalesOrder } from "../src/lib/documents";
+import { resolveSalesFulfillmentWarehouse } from "../src/lib/fulfillment-warehouse";
 import {
   fingerprintDeviceId,
   hashActivationKey,
@@ -171,6 +172,9 @@ async function main() {
     const localWarehouse = await prisma.warehouse.findFirstOrThrow({
       where: { tenantId: local.id, code: "WH01" },
     });
+    const emptyWarehouse = await prisma.warehouse.create({
+      data: { tenantId: local.id, code: "WH-MAIN", name: "主倉庫" },
+    });
     const localProduct = await prisma.product.create({
       data: {
         tenantId: local.id,
@@ -270,7 +274,17 @@ async function main() {
     assert.equal(approvedStatusSync.synced, true);
     assert.equal((await prisma.salesOrder.findUniqueOrThrow({ where: { id: centralOrder.id } })).status, "APPROVED");
 
-    const shipment = await shipSalesOrder(imported.id, localWarehouse.id, local.id);
+    const warehouseResolution = await resolveSalesFulfillmentWarehouse({
+      tenantId: local.id,
+      orderId: imported.id,
+      requestedWarehouseId: emptyWarehouse.id,
+    });
+    assert.equal(warehouseResolution.autoSelected, true);
+    assert.equal(warehouseResolution.requestedWarehouse.id, emptyWarehouse.id);
+    assert.equal(warehouseResolution.warehouseId, localWarehouse.id);
+
+    const shipment = await shipSalesOrder(imported.id, warehouseResolution.warehouseId, local.id);
+    assert.equal(shipment.shipment.warehouseId, localWarehouse.id);
     const shippedStatusSync = await syncLocalStorefrontOrderStatus(local.id, imported.id);
     assert.equal(shippedStatusSync.synced, true);
     assert.equal(Number((await prisma.inventoryStock.findUniqueOrThrow({
@@ -291,7 +305,7 @@ async function main() {
     assert.ok(centralAfterShipment.remark?.includes("request="));
     assert.ok(shipment.shipment.number);
 
-    console.log("Vercel storefront order <-> installed Host fulfillment and consumer tracking status: PASS");
+    console.log("Vercel storefront order <-> installed Host stocked-warehouse fulfillment and consumer tracking status: PASS");
   } finally {
     globalThis.fetch = originalFetch;
     for (const [name, value] of Object.entries(originalEnv)) {
