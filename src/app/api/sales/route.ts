@@ -3,6 +3,7 @@ import { apiHandler, requirePermission, requireTenantId, audit, nextNumber, getC
 import { prisma } from "@/lib/prisma";
 import { calcTotals } from "@/lib/documents";
 import { syncCentralStorefrontOrders } from "@/lib/storefront-order-sync";
+import { backfillLocalStorefrontOrderStatuses } from "@/lib/storefront-order-status-backfill";
 
 export const GET = apiHandler(async (req: NextRequest) => {
   const session = await requirePermission("sales.view");
@@ -17,6 +18,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
   if (channel === "WEB" && process.env.LOCAL_LICENSE_MODE === "true") {
     try {
       await syncCentralStorefrontOrders(tenantId);
+      await backfillLocalStorefrontOrderStatuses(tenantId);
     } catch (error) {
       const message = error instanceof Error ? error.message : "未知錯誤";
       throw new Error(`無法同步中央商城訂單：${message}`);
