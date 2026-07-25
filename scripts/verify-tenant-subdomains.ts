@@ -23,11 +23,14 @@ try {
   assert.equal(publicStorefrontRootDomain(), "erin-com.com");
   assert.equal(tenantSubdomainLabel("Fat-Duck"), "fat-duck");
   assert.equal(tenantSubdomainLabel("www"), null);
+  assert.equal(tenantSubdomainLabel("erin-internal"), null);
   assert.equal(tenantSubdomainLabel("bad_slug"), null);
 
   assert.equal(storefrontUrl("fat-duck"), "https://fat-duck.erin-com.com");
   assert.equal(medicalSiteUrl("clinic-tw"), "https://clinic-tw.erin-com.com");
   assert.match(storefrontUrl("www"), /\/store\/www$/);
+  assert.match(storefrontUrl("erin-internal"), /\/store\/erin-internal$/);
+  assert.match(medicalSiteUrl("erin-internal"), /\/medical\/erin-internal$/);
 
   assert.equal(tenantSubdomainFromHost("fat-duck.erin-com.com", "erin-com.com"), "fat-duck");
   assert.equal(tenantSubdomainFromHost("fat-duck.erin-com.com:443", "https://www.erin-com.com"), "fat-duck");
