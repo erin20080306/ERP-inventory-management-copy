@@ -46,6 +46,8 @@ try {
 
   assert.match(middleware, /tenantSubdomainFromHost/);
   assert.match(middleware, /tenantSiteRewritePath/);
+  assert.match(middleware, /cleanLegacyTenantPath/);
+  assert.match(middleware, /NextResponse\.redirect\(redirectUrl, 308\)/);
   assert.match(middleware, /NextResponse\.rewrite/);
   assert.match(middleware, /isProtectedPath/);
   assert.match(tenantSitePage, /FashionStorefront/);
