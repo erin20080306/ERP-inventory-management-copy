@@ -1,0 +1,119 @@
+name: Validate performance and precision batch
+
+on:
+  push:
+    branches: [codex/performance-precision-batch]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: performance-precision-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: erp
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d erp"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/erp?schema=public
+      NEXTAUTH_URL: http://localhost:3000
+      NEXTAUTH_SECRET: github-actions-performance-precision-secret
+      LOCAL_LICENSE_MODE: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx prisma validate
+      - run: npx prisma migrate deploy
+      - run: npm run test:money-decimal
+      - run: npm run test:tenant-constraints
+      - run: npm run test:update
+      - run: npm run test:fulfillment
+      - run: npx tsc --noEmit
+      - run: npm run build
+      - run: git diff --check
+
+      - name: Build slim Host candidate
+        run: docker build --build-arg ERIN_RELEASE_SHA=${GITHUB_SHA} -t erin-erp-host-candidate:${GITHUB_SHA} .
+
+      - name: Enforce candidate size and runtime contents
+        run: |
+          set -eu
+          size_bytes="$(docker image inspect erin-erp-host-candidate:${GITHUB_SHA} --format '{{.Size}}')"
+          echo "Slim candidate size: ${size_bytes} bytes"
+          test "$size_bytes" -lt 1500000000
+          docker run --rm --entrypoint sh erin-erp-host-candidate:${GITHUB_SHA} -c '
+            test -x ./node_modules/.bin/next
+            test -x ./node_modules/.bin/prisma
+            test -x ./node_modules/.bin/tsx
+            test -f ./prisma/schema.prisma
+            test -f ./scripts/create-encrypted-backup.ts
+            test -f ./docker/entrypoint.sh
+          '
+
+      - name: Smoke test candidate startup and backup
+        run: |
+          set -eu
+          ENV_FILE=/tmp/erin-erp-performance.env
+          BACKUP_DIR=/tmp/erin-erp-performance-backups
+          mkdir -p "$BACKUP_DIR"
+          cat > "$ENV_FILE" <<EOF
+          ERP_IMAGE=erin-erp-host-candidate:${GITHUB_SHA}
+          POSTGRES_PASSWORD=github-actions-postgres-password
+          NEXTAUTH_URL=http://app:3000
+          NEXTAUTH_SECRET=github-actions-nextauth-secret-at-least-32-characters
+          ADMIN_USERNAME=admin
+          ADMIN_PASSWORD=GithubActions1234
+          ADMIN_EMAIL=local-admin@erin-erp.local
+          COMPANY_NAME=Performance Candidate
+          BUSINESS_MODE=ERP
+          CENTRAL_LICENSE_URL=https://example.invalid
+          LOCAL_ACTIVATION_KEY=github-actions-local-activation-key
+          LOCAL_DEVICE_ID=github-actions-amd64
+          LOCAL_DEVICE_NAME=GitHub-Actions
+          LOCAL_INSTALLER_TOKEN=github-actions-installer-token
+          HOST_UPDATE_TOKEN=github-actions-host-update-token-at-least-32-characters
+          HOST_BACKUP_DIR=$BACKUP_DIR
+          BACKUP_ENCRYPTION_KEY=github-actions-backup-encryption-key-at-least-32-characters
+          BACKUP_RETENTION_DAYS=30
+          BACKUP_INTERVAL_HOURS=24
+          LICENSE_ED25519_PUBLIC_KEY_B64=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+          INTEGRITY_SECRET=github-actions-integrity-secret-at-least-32-characters
+          EOF
+          cleanup() {
+            docker compose --env-file "$ENV_FILE" -p erinerp-performance -f docker-compose.local.yml down -v --remove-orphans || true
+          }
+          trap cleanup EXIT
+          docker compose --env-file "$ENV_FILE" -p erinerp-performance -f docker-compose.local.yml up -d postgres app
+          for attempt in $(seq 1 90); do
+            if docker compose --env-file "$ENV_FILE" -p erinerp-performance -f docker-compose.local.yml exec -T app wget -q -T 4 -O /dev/null http://127.0.0.1:3000/login; then
+              echo "Slim candidate became ready after $((attempt * 2)) seconds."
+              break
+            fi
+            if [ "$attempt" = "90" ]; then
+              docker compose --env-file "$ENV_FILE" -p erinerp-performance -f docker-compose.local.yml logs --no-color --tail=200 postgres app
+              exit 1
+            fi
+            sleep 2
+          done
+          docker compose --env-file "$ENV_FILE" -p erinerp-performance -f docker-compose.local.yml run --rm --no-deps --entrypoint sh backup -c './node_modules/.bin/tsx scripts/create-encrypted-backup.ts'
+          test -n "$(find "$BACKUP_DIR" -maxdepth 1 -name '*.erpbackup' -print -quit)"
