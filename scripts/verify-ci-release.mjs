@@ -35,7 +35,8 @@ assert.ok(existsSync("scripts/verify-speed-patch.mjs"));
 assert.ok(existsSync("scripts/verify-pos-fast-checkout-v5.mjs"));
 
 assert.match(hostWorkflow, /Capture immutable candidate Digest/);
-assert.match(hostWorkflow, /sha256sum \/tmp\/erin-erp-candidate-manifest\.json/);
+assert.match(hostWorkflow, /--format '\{\{json \.Manifest\}\}'/);
+assert.match(hostWorkflow, /JSON\.parse/);
 assert.match(hostWorkflow, /Record released Host image version and Digest/);
 assert.match(hostWorkflow, /digest: \\"\$RELEASE_DIGEST\\"/);
 assert.match(releaseRoute, /imageDigest/);
@@ -53,6 +54,7 @@ assert.match(outboxLibrary, /FOR UPDATE SKIP LOCKED/);
 assert.match(outboxLibrary, /retryStorefrontStatusOutbox/);
 
 assert.match(dockerfile, /FROM base AS production-deps/);
+assert.match(dockerfile, /FROM base AS runtime-tools/);
 assert.match(dockerfile, /COPY --from=build \/app\/\.next \.\/\.next/);
 assert.doesNotMatch(dockerfile, /COPY --from=build \/app \.\//);
 
