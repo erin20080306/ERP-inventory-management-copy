@@ -28,6 +28,8 @@
     "test:dashboard-permissions": "tsx scripts/verify-dashboard-permissions.ts",
     "test:storefront": "tsx scripts/verify-storefront-access.ts && tsx scripts/verify-tenant-subdomains.ts",
     "test:tenant-subdomains": "tsx scripts/verify-tenant-subdomains.ts",
+    "test:tenant-constraints": "tsx scripts/verify-tenant-scope-constraints.ts",
+    "test:money-decimal": "tsx scripts/verify-money-decimal-audit.ts",
     "test:installed-storefront": "tsx scripts/verify-installed-storefront-sync.ts",
     "test:storefront-host-sync": "tsx scripts/verify-storefront-host-order-sync.ts",
     "test:tenant-access": "tsx scripts/verify-tenant-owner-access.ts",
