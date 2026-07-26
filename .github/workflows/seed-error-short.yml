@@ -1,0 +1,37 @@
+name: Show slim candidate seed error
+
+on:
+  push:
+    branches: [codex/performance-precision-batch]
+
+permissions:
+  packages: read
+
+jobs:
+  seed-error:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Run candidate seed only
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CANDIDATE_IMAGE: ghcr.io/erin20080306/erp-inventory-management-copy:candidate-33bddff23fe0a208ba5052877b83b242447f4412
+        run: |
+          set -eu
+          echo "$GH_TOKEN" | docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin >/dev/null 2>&1
+          docker pull "$CANDIDATE_IMAGE" >/dev/null
+          docker network create erin-seed-diagnostic >/dev/null
+          docker run -d --name erin-seed-postgres --network erin-seed-diagnostic \
+            -e POSTGRES_DB=erp -e POSTGRES_USER=erp -e POSTGRES_PASSWORD=test-password \
+            postgres:16-alpine >/dev/null
+          trap 'docker rm -f erin-seed-postgres >/dev/null 2>&1 || true; docker network rm erin-seed-diagnostic >/dev/null 2>&1 || true' EXIT
+          for attempt in $(seq 1 30); do
+            docker exec erin-seed-postgres pg_isready -U erp -d erp >/dev/null 2>&1 && break
+            sleep 1
+          done
+          docker run --rm --network erin-seed-diagnostic \
+            -e DATABASE_URL='postgresql://erp:test-password@erin-seed-postgres:5432/erp?schema=public' \
+            -e ADMIN_USERNAME=admin -e ADMIN_PASSWORD=GithubActions1234 \
+            -e ADMIN_EMAIL=local-admin@erin-erp.local -e COMPANY_NAME='Seed Diagnostic' \
+            -e BUSINESS_MODE=ERP --entrypoint sh "$CANDIDATE_IMAGE" \
+            -c 'npx prisma migrate deploy >/dev/null && npm run db:seed'
