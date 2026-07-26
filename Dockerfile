@@ -14,10 +14,16 @@ RUN --mount=type=cache,target=/root/.npm \
       echo "production npm ci attempt ${attempt} failed; retrying." >&2; \
     done; \
     exit 1
-# Runtime still needs the Prisma CLI for migrate deploy and tsx for first-install seed.
+
+FROM base AS runtime-tools
+WORKDIR /tools
 RUN --mount=type=cache,target=/root/.npm \
-    npm install --no-save --package-lock=false --omit=optional --ignore-scripts --no-audit --no-fund prisma@5.22.0 tsx@4.19.2 \
-    && npx prisma generate
+    printf '{"private":true}\n' > package.json \
+    && npm install --no-audit --no-fund prisma@5.22.0 tsx@4.19.2
+
+FROM production-deps AS runtime-deps
+COPY --from=runtime-tools /tools/node_modules ./node_modules
+RUN npx prisma generate
 
 FROM base AS build
 ARG ERIN_RELEASE_SHA=development
@@ -45,7 +51,7 @@ LABEL org.opencontainers.image.revision=$ERIN_RELEASE_SHA
 RUN apk add --no-cache openssl libc6-compat postgresql-client
 
 COPY package.json package-lock.json next.config.js ./
-COPY --from=production-deps /app/node_modules ./node_modules
+COPY --from=runtime-deps /app/node_modules ./node_modules
 COPY --from=build /app/.next ./.next
 COPY --from=build /app/public ./public
 COPY --from=build /app/prisma ./prisma
