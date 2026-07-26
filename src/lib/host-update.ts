@@ -17,11 +17,15 @@ export type HostUpdateState = {
 export type HostRelease = {
   version: string;
   image: string;
+  imageDigest?: string;
+  immutableImage?: string;
   publishedAt: string;
 };
 
 const VERSION_PATTERN = /^(?:[a-f0-9]{7,64}|development)$/i;
-const IMAGE = "ghcr.io/erin20080306/erp-inventory-management-copy:latest";
+const DIGEST_PATTERN = /^sha256:[a-f0-9]{64}$/i;
+const IMAGE_REPOSITORY = "ghcr.io/erin20080306/erp-inventory-management-copy";
+const IMAGE = `${IMAGE_REPOSITORY}:latest`;
 
 export function shortHostVersion(value: string | null | undefined) {
   if (!value) return "—";
@@ -86,15 +90,33 @@ export async function fetchCurrentHostRelease(): Promise<HostRelease> {
   const expiresAt = new Date(String(payload.expiresAt || ""));
   const version = String(payload.version || "");
   const image = String(payload.image || "");
+  const imageDigestCandidate = String(payload.imageDigest || "").trim().toLowerCase();
+  const immutableImageCandidate = String(payload.immutableImage || "").trim();
   if (
     !VERSION_PATTERN.test(version) || image !== IMAGE ||
     Number.isNaN(issuedAt.getTime()) || Number.isNaN(expiresAt.getTime()) ||
     Date.now() < issuedAt.getTime() - 5 * 60_000 || Date.now() >= expiresAt.getTime()
   ) throw new Error("中央版本內容無效或已過期");
-  return { version, image, publishedAt: String(payload.publishedAt || issuedAt.toISOString()) };
+
+  let imageDigest: string | undefined;
+  let immutableImage: string | undefined;
+  if (imageDigestCandidate || immutableImageCandidate) {
+    if (!DIGEST_PATTERN.test(imageDigestCandidate)) throw new Error("中央版本 Digest 格式無效");
+    const expectedImmutableImage = `${IMAGE_REPOSITORY}@${imageDigestCandidate}`;
+    if (immutableImageCandidate !== expectedImmutableImage) throw new Error("中央版本不可變映像與 Digest 不一致");
+    imageDigest = imageDigestCandidate;
+    immutableImage = expectedImmutableImage;
+  }
+
+  return {
+    version,
+    image,
+    ...(imageDigest && immutableImage ? { imageDigest, immutableImage } : {}),
+    publishedAt: String(payload.publishedAt || issuedAt.toISOString()),
+  };
 }
 
-export async function triggerHostUpdater() {
+export async function triggerHostUpdater(release?: HostRelease) {
   const url = process.env.HOST_UPDATE_URL;
   const token = process.env.HOST_UPDATE_TOKEN;
   if (!url || !token || token.length < 32) throw new Error("背景更新服務尚未安裝，請先執行新版 Host 安裝包一次");
@@ -102,7 +124,11 @@ export async function triggerHostUpdater() {
   try {
     response = await fetch(url, {
       method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
+      headers: {
+        Authorization: `Bearer ${token}`,
+        ...(release?.version ? { "X-Erin-Release-Version": release.version } : {}),
+        ...(release?.imageDigest ? { "X-Erin-Image-Digest": release.imageDigest } : {}),
+      },
       signal: AbortSignal.timeout(10 * 60_000),
     });
   } catch (error) {
