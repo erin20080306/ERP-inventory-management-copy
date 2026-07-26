@@ -1,122 +1,54 @@
-name: Diagnose slim Host candidate
+name: Diagnose slim Host seed
 
 on:
   push:
     branches: [codex/performance-precision-batch]
   pull_request:
     branches: [main]
-  workflow_dispatch:
 
 permissions:
   contents: read
   packages: read
 
-concurrency:
-  group: performance-precision-diagnostic-${{ github.ref }}
-  cancel-in-progress: true
-
-env:
-  CANDIDATE_IMAGE: ghcr.io/erin20080306/erp-inventory-management-copy:candidate-33bddff23fe0a208ba5052877b83b242447f4412
-
 jobs:
-  diagnose:
+  diagnose-seed:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 12
+    env:
+      CANDIDATE_IMAGE: ghcr.io/erin20080306/erp-inventory-management-copy:candidate-33bddff23fe0a208ba5052877b83b242447f4412
     steps:
       - uses: actions/checkout@v4
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
+      - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Pull validated candidate
-        run: docker pull "$CANDIDATE_IMAGE"
-
-      - name: Prepare diagnostic environment
+      - name: Run seed and show only failure tail
         run: |
           set -eu
-          ENV_FILE=/tmp/erin-erp-performance.env
-          BACKUP_DIR=/tmp/erin-erp-performance-backups
-          mkdir -p "$BACKUP_DIR"
-          cat > "$ENV_FILE" <<EOF
-          ERP_IMAGE=$CANDIDATE_IMAGE
-          POSTGRES_PASSWORD=github-actions-postgres-password
-          NEXTAUTH_URL=http://app:3000
-          NEXTAUTH_SECRET=github-actions-nextauth-secret-at-least-32-characters
-          ADMIN_USERNAME=admin
-          ADMIN_PASSWORD=GithubActions1234
-          ADMIN_EMAIL=local-admin@erin-erp.local
-          COMPANY_NAME=Performance Candidate
-          BUSINESS_MODE=ERP
-          CENTRAL_LICENSE_URL=https://example.invalid
-          LOCAL_ACTIVATION_KEY=github-actions-local-activation-key
-          LOCAL_DEVICE_ID=github-actions-amd64
-          LOCAL_DEVICE_NAME=GitHub-Actions
-          LOCAL_INSTALLER_TOKEN=github-actions-installer-token
-          HOST_UPDATE_TOKEN=github-actions-host-update-token-at-least-32-characters
-          HOST_BACKUP_DIR=$BACKUP_DIR
-          BACKUP_ENCRYPTION_KEY=github-actions-backup-encryption-key-at-least-32-characters
-          BACKUP_RETENTION_DAYS=30
-          BACKUP_INTERVAL_HOURS=24
-          LICENSE_ED25519_PUBLIC_KEY_B64=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
-          INTEGRITY_SECRET=github-actions-integrity-secret-at-least-32-characters
-          EOF
-          echo "CANDIDATE_ENV_FILE=$ENV_FILE" >> "$GITHUB_ENV"
-          echo "CANDIDATE_BACKUP_DIR=$BACKUP_DIR" >> "$GITHUB_ENV"
-
-      - name: Start PostgreSQL only
-        run: docker compose --env-file "$CANDIDATE_ENV_FILE" -p erinerp-performance -f docker-compose.local.yml up -d postgres
-
-      - name: Run Prisma migration inside candidate
-        run: docker compose --env-file "$CANDIDATE_ENV_FILE" -p erinerp-performance -f docker-compose.local.yml run --rm --no-deps --entrypoint sh app -c 'set -eux; npx prisma migrate deploy'
-
-      - name: Verify Prisma client inside candidate
-        run: docker compose --env-file "$CANDIDATE_ENV_FILE" -p erinerp-performance -f docker-compose.local.yml run --rm --no-deps --entrypoint sh app -c 'set -eux; node -e '\''const {PrismaClient}=require("@prisma/client"); const p=new PrismaClient(); p.user.count().then(n=>console.log({userCount:n})).finally(()=>p.$disconnect())'\'''
-
-      - name: Run initial tenant seed inside candidate
-        run: docker compose --env-file "$CANDIDATE_ENV_FILE" -p erinerp-performance -f docker-compose.local.yml run --rm --no-deps --entrypoint sh app -c 'set -eux; npm run db:seed'
-
-      - name: Start Next server without entrypoint
-        run: docker compose --env-file "$CANDIDATE_ENV_FILE" -p erinerp-performance -f docker-compose.local.yml run -d --name erinerp-performance-next --no-deps --entrypoint sh app -c 'exec npm start -- -H 0.0.0.0'
-
-      - name: Wait for Next server
-        run: |
-          set -eu
-          for attempt in $(seq 1 60); do
-            if docker exec erinerp-performance-next wget -q -T 4 -O /dev/null http://127.0.0.1:3000/login; then
-              echo "Next server became ready after $((attempt * 2)) seconds."
-              exit 0
-            fi
-            if ! docker inspect erinerp-performance-next --format '{{.State.Running}}' | grep -q true; then
-              docker logs erinerp-performance-next || true
-              exit 1
-            fi
-            sleep 2
+          docker pull "$CANDIDATE_IMAGE" >/dev/null
+          docker network create erin-seed-diagnostic >/dev/null
+          docker run -d --name erin-seed-postgres --network erin-seed-diagnostic \
+            -e POSTGRES_DB=erp -e POSTGRES_USER=erp -e POSTGRES_PASSWORD=test-password \
+            postgres:16-alpine >/dev/null
+          cleanup() {
+            docker rm -f erin-seed-postgres >/dev/null 2>&1 || true
+            docker network rm erin-seed-diagnostic >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          for attempt in $(seq 1 30); do
+            if docker exec erin-seed-postgres pg_isready -U erp -d erp >/dev/null 2>&1; then break; fi
+            sleep 1
           done
-          docker logs erinerp-performance-next || true
-          exit 1
-
-      - name: Run encrypted backup inside candidate
-        run: docker compose --env-file "$CANDIDATE_ENV_FILE" -p erinerp-performance -f docker-compose.local.yml run --rm --no-deps --entrypoint sh backup -c 'set -eux; ./node_modules/.bin/tsx scripts/create-encrypted-backup.ts'
-
-      - name: Verify encrypted backup artifact
-        run: |
-          set -eu
-          backup_file="$(find "$CANDIDATE_BACKUP_DIR" -maxdepth 1 -name '*.erpbackup' -print -quit)"
-          test -n "$backup_file"
-          test -s "$backup_file"
-          echo "Encrypted candidate backup: $backup_file"
-
-      - name: Show diagnostic logs
-        if: always()
-        run: |
-          docker logs erinerp-performance-next 2>&1 || true
-          docker compose --env-file "$CANDIDATE_ENV_FILE" -p erinerp-performance -f docker-compose.local.yml logs --no-color --tail=200 postgres || true
-
-      - name: Stop diagnostic services
-        if: always()
-        run: |
-          docker rm -f erinerp-performance-next 2>/dev/null || true
-          docker compose --env-file "$CANDIDATE_ENV_FILE" -p erinerp-performance -f docker-compose.local.yml down -v --remove-orphans || true
+          set +e
+          docker run --rm --network erin-seed-diagnostic \
+            -e DATABASE_URL='postgresql://erp:test-password@erin-seed-postgres:5432/erp?schema=public' \
+            -e ADMIN_USERNAME=admin -e ADMIN_PASSWORD=GithubActions1234 \
+            -e ADMIN_EMAIL=local-admin@erin-erp.local -e COMPANY_NAME='Seed Diagnostic' \
+            -e BUSINESS_MODE=ERP --entrypoint sh "$CANDIDATE_IMAGE" \
+            -c 'npx prisma migrate deploy >/dev/null && npm run db:seed' \
+            > /tmp/seed.log 2>&1
+          result=$?
+          set -e
+          tail -n 80 /tmp/seed.log
+          exit "$result"
