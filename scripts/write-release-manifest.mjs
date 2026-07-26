@@ -1,23 +1,43 @@
 import { createHash } from "node:crypto";
-import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { closeSync, openSync, readFileSync, readSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 const INSTALLER_PATTERN = /^ErinERP-(?:Host|Desktop)-[A-Za-z0-9._-]+\.(?:dmg|zip|exe)$/i;
 
+export function sha256File(filePath) {
+  const hash = createHash("sha256");
+  const handle = openSync(filePath, "r");
+  const buffer = Buffer.allocUnsafe(1024 * 1024);
+  try {
+    let bytesRead = 0;
+    do {
+      bytesRead = readSync(handle, buffer, 0, buffer.length, null);
+      if (bytesRead > 0) hash.update(buffer.subarray(0, bytesRead));
+    } while (bytesRead > 0);
+  } finally {
+    closeSync(handle);
+  }
+  return hash.digest("hex");
+}
+
 export function writeReleaseManifest(outputDir, version, options = {}) {
   const names = readdirSync(outputDir).filter((name) => INSTALLER_PATTERN.test(name)).sort();
   const artifacts = names.map((name) => {
     const fullPath = path.join(outputDir, name);
-    const content = readFileSync(fullPath);
     const kind = name.startsWith("ErinERP-Host-") ? "company-host" : "workstation";
+    const architecture = /apple-silicon|arm64/i.test(name)
+      ? "arm64"
+      : /windows-x64|macos-intel|x64/i.test(name)
+        ? "x64"
+        : "all";
     return {
       name,
       kind,
       platform: /windows/i.test(name) ? "Windows" : /macos/i.test(name) ? "macOS" : "unknown",
-      architecture: /arm64/i.test(name) ? "arm64" : /x64/i.test(name) ? "x64" : "all",
+      architecture,
       size: statSync(fullPath).size,
-      sha256: createHash("sha256").update(content).digest("hex"),
+      sha256: sha256File(fullPath),
       codeSigning: kind === "workstation"
         ? options.desktopSigned
           ? "signed"
@@ -26,6 +46,7 @@ export function writeReleaseManifest(outputDir, version, options = {}) {
             : "unsigned-test"
         : "not-applicable",
       requiresDockerDesktop: kind === "company-host",
+      includesBundledHostImage: kind === "company-host" && /windows-x64|apple-silicon|macos-intel/i.test(name),
     };
   });
   const manifest = {
