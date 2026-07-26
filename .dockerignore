@@ -7,8 +7,6 @@ dist
 docs
 coverage
 backups
-installer
-updater
 *.log
 *.dmg
 *.exe
