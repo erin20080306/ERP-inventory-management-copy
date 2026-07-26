@@ -182,9 +182,11 @@ jobs:
           compression-level: 0
           retention-days: 3
 
+  # Signed desktop clients are intentionally opt-in. They require Apple and
+  # Windows signing secrets, so a normal v* tag only publishes manual Host ZIPs.
   desktop-clients:
     needs: quality
-    if: startsWith(github.ref, 'refs/tags/v') && !(github.event_name == 'workflow_dispatch' && inputs.host_only)
+    if: startsWith(github.ref, 'refs/tags/v') && github.event_name == 'workflow_dispatch' && !inputs.host_only
     strategy:
       fail-fast: false
       matrix:
@@ -249,9 +251,10 @@ jobs:
             dist/desktop/*.exe
           if-no-files-found: error
 
+  # A normal pushed version tag is the supported manual-install release path.
   host-release:
     needs: host-installers
-    if: startsWith(github.ref, 'refs/tags/v') && github.event_name == 'workflow_dispatch' && inputs.host_only
+    if: startsWith(github.ref, 'refs/tags/v') && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.host_only))
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -268,9 +271,11 @@ jobs:
           gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1 || gh release create "${GITHUB_REF_NAME}" --generate-notes
           gh release upload "${GITHUB_REF_NAME}" release-assets/* --clobber
 
+  # Full signed desktop publishing remains available by manually dispatching
+  # this workflow against a version tag with host_only left disabled.
   release:
     needs: [host-installers, desktop-clients]
-    if: startsWith(github.ref, 'refs/tags/v') && !(github.event_name == 'workflow_dispatch' && inputs.host_only)
+    if: startsWith(github.ref, 'refs/tags/v') && github.event_name == 'workflow_dispatch' && !inputs.host_only
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
