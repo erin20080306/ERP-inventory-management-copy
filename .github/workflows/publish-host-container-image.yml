@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "Dockerfile"
+      - ".dockerignore"
       - "docker/**"
       - "docker-compose.local.yml"
       - "updater/**"
@@ -15,10 +16,28 @@ on:
       - "scripts/verify-company-discovery.ts"
       - "scripts/verify-host-update.mjs"
       - "scripts/verify-installed-storefront-sync.ts"
+      - "scripts/verify-money-decimal-audit.ts"
+      - "scripts/verify-tenant-scope-constraints.ts"
       - "package.json"
       - "package-lock.json"
       - "next.config.*"
       - ".github/workflows/release-desktop.yml"
+      - ".github/workflows/publish-host-container-image.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "Dockerfile"
+      - ".dockerignore"
+      - "docker/**"
+      - "docker-compose.local.yml"
+      - "prisma/**"
+      - "src/**"
+      - "scripts/verify-host-update.mjs"
+      - "scripts/verify-money-decimal-audit.ts"
+      - "scripts/verify-tenant-scope-constraints.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "next.config.*"
       - ".github/workflows/publish-host-container-image.yml"
   workflow_dispatch:
 
@@ -28,7 +47,7 @@ permissions:
 
 concurrency:
   group: publish-host-container-image-${{ github.ref }}
-  # main 有新提交時只建置最新映像，避免已過期候選映像占用約 30 分鐘。
+  # main 或 PR 有新提交時只建置最新候選映像，避免過期映像占用建置資源。
   cancel-in-progress: true
 
 env:
@@ -99,7 +118,7 @@ jobs:
   build-and-push:
     needs: build-platform
     runs-on: ubuntu-24.04-arm
-    timeout-minutes: 30
+    timeout-minutes: 35
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -133,6 +152,24 @@ jobs:
           grep -q "linux/amd64" /tmp/erin-erp-candidate-manifest.txt
           grep -q "linux/arm64" /tmp/erin-erp-candidate-manifest.txt
 
+      - name: Enforce slim candidate size and runtime contents
+        env:
+          CANDIDATE_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:candidate-${{ github.sha }}
+        run: |
+          set -eu
+          docker pull "$CANDIDATE_IMAGE"
+          size_bytes="$(docker image inspect "$CANDIDATE_IMAGE" --format '{{.Size}}')"
+          echo "Apple Silicon candidate size: ${size_bytes} bytes"
+          test "$size_bytes" -lt 1500000000
+          docker run --rm --entrypoint sh "$CANDIDATE_IMAGE" -c '
+            test -x ./node_modules/.bin/next
+            test -x ./node_modules/.bin/prisma
+            test -x ./node_modules/.bin/tsx
+            test -f ./prisma/schema.prisma
+            test -f ./scripts/create-encrypted-backup.ts
+            test -f ./docker/entrypoint.sh
+          '
+
       - name: Smoke test Apple Silicon Host startup
         env:
           ERP_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:candidate-${{ github.sha }}
@@ -141,6 +178,8 @@ jobs:
           set -eu
           cp docker/Caddyfile Caddyfile
           ENV_FILE=/tmp/erin-erp-smoke.env
+          BACKUP_DIR=/tmp/erin-erp-smoke-backups
+          mkdir -p "$BACKUP_DIR"
           cat > "$ENV_FILE" <<EOF
           ERP_HTTPS_PORT=3443
           SERVER_HOST=127.0.0.1
@@ -159,8 +198,8 @@ jobs:
           LOCAL_DEVICE_NAME=GitHub-Actions
           LOCAL_INSTALLER_TOKEN=github-actions-installer-token
           HOST_UPDATE_TOKEN=github-actions-host-update-token-at-least-32-characters
-          HOST_BACKUP_DIR=/tmp/erin-erp-smoke-backups
-          BACKUP_ENCRYPTION_KEY=github-actions-backup-encryption-key
+          HOST_BACKUP_DIR=$BACKUP_DIR
+          BACKUP_ENCRYPTION_KEY=github-actions-backup-encryption-key-at-least-32-characters
           BACKUP_RETENTION_DAYS=30
           BACKUP_INTERVAL_HOURS=24
           LICENSE_ED25519_PUBLIC_KEY_B64=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
@@ -190,12 +229,16 @@ jobs:
           for attempt in $(seq 1 90); do
             if curl -kfsS https://127.0.0.1:3443/login >/dev/null; then
               echo "Apple Silicon Host became ready after $((attempt * 2)) seconds."
-              exit 0
+              break
+            fi
+            if [ "$attempt" = "90" ]; then
+              echo "Apple Silicon Host did not become ready within 180 seconds." >&2
+              exit 1
             fi
             sleep 2
           done
-          echo "Apple Silicon Host did not become ready within 180 seconds." >&2
-          exit 1
+          DOCKER_DEFAULT_PLATFORM=linux/arm64 docker compose --env-file "$ENV_FILE" -f docker-compose.local.yml run --rm --no-deps --entrypoint sh backup -c './node_modules/.bin/tsx scripts/create-encrypted-backup.ts'
+          test -n "$(find "$BACKUP_DIR" -maxdepth 1 -name '*.erpbackup' -print -quit)"
 
       - name: Check candidate is still current main
         id: freshness
@@ -210,7 +253,7 @@ jobs:
             echo "Candidate is current main and may be promoted."
           else
             echo "promote=false" >> "$GITHUB_OUTPUT"
-            echo "A newer main commit exists; this verified candidate will not replace latest."
+            echo "A PR or newer main commit is being tested; candidate will not replace latest."
           fi
 
       - name: Promote verified image to latest
@@ -266,8 +309,7 @@ jobs:
           echo "Verified image published: ghcr.io/${IMAGE_NAME}:latest"
           echo "The GHCR package must be Public so customer manual Host installers can pull it anonymously."
 
-      - name: Show superseded candidate result
+      - name: Show candidate-only result
         if: steps.freshness.outputs.promote != 'true'
         run: |
-          echo "Candidate passed manifest and Apple Silicon startup tests but was superseded by a newer main commit."
-          echo "The newer queued workflow will be responsible for promoting latest."
+          echo "Candidate passed manifest, size, startup and backup tests without changing latest."
