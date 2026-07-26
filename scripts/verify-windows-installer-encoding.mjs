@@ -74,18 +74,21 @@ assert.equal(
   "Vercel embedded installer must preserve the source PowerShell text apart from platform line endings",
 );
 
-const releaseBuilder = readFileSync("scripts/build-host-installers.mjs", "utf8");
-assert.match(releaseBuilder, /cpSync\(sourcePath, targetPath\)/, "Bundled builder must first copy the BOM-preserving source bytes");
-assert.match(releaseBuilder, /transformWindowsInstaller\(readFileSync\(targetPath, "utf8"\)\)/);
-assert.match(releaseBuilder, /writeFileSync\(targetPath, transformed, "utf8"\)/);
-assert.match(releaseBuilder, /ErinERP-Host-Windows-x64-/);
-assert.match(releaseBuilder, /ErinERP-Host-macOS-Apple-Silicon-/);
-assert.match(releaseBuilder, /ErinERP-Host-macOS-Intel-/);
-assert.match(releaseBuilder, /images\/erin-erp-host-image\.tar\.gz/);
-assert.match(releaseBuilder, /Import-BundledErpImage/);
-assert.match(releaseBuilder, /Assert-BundleArchitecture/);
-assert.match(releaseBuilder, /自動顯示提示並開啟 Docker 官方安裝頁/);
-assert.match(releaseBuilder, /輸入艾琳設計提供的啟用碼/);
+const releaseEntry = readFileSync("scripts/build-host-installers.mjs", "utf8");
+const bundledBuilder = readFileSync("scripts/build-bundled-host-installers.mjs", "utf8");
+assert.match(releaseEntry, /import "\.\/build-bundled-host-installers\.mjs"/);
+assert.match(bundledBuilder, /cpSync\(sourcePath, targetPath\)/, "Bundled builder must first copy the BOM-preserving source bytes");
+assert.match(bundledBuilder, /transformWindowsInstaller\(readFileSync\(targetPath, "utf8"\)\)/);
+assert.match(bundledBuilder, /transformed\.startsWith\("\\uFEFF"\)/);
+assert.match(bundledBuilder, /ErinERP-Host-Windows-x64-/);
+assert.match(bundledBuilder, /ErinERP-Host-macOS-Apple-Silicon-/);
+assert.match(bundledBuilder, /ErinERP-Host-macOS-Intel-/);
+assert.match(bundledBuilder, /images\/erin-erp-host-image\.tar\.gz/);
+assert.match(bundledBuilder, /Import-BundledErpImage/);
+assert.match(bundledBuilder, /Assert-BundleArchitecture/);
+assert.match(bundledBuilder, /自動顯示提示並開啟 Docker 官方安裝頁/);
+assert.match(bundledBuilder, /輸入艾琳設計提供的啟用碼/);
+assert.match(bundledBuilder, /sha256File\(imageArchive\)/);
 
 if (process.platform === "win32") {
   execFileSync(
@@ -102,4 +105,4 @@ if (process.platform === "win32") {
   );
 }
 
-console.log("Windows PowerShell BOM, Docker guidance, embedded ZIP and three bundled Host package safeguards: PASS");
+console.log("Windows PowerShell BOM, Docker guidance, embedded ZIP and delegated three-package Host builder: PASS");
