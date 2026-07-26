@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       host_only:
-        description: "只發布 Windows／macOS 手動 Host ZIP，不建置原生桌面程式"
+        description: "只發布三種內含 ERP 映像的手動 Host ZIP"
         required: false
         default: false
         type: boolean
@@ -73,23 +73,114 @@ jobs:
       - run: npx tsc --noEmit
       - run: npm run build
 
-  host-installers:
+  host-images:
     needs: quality
+    if: startsWith(github.ref, 'refs/tags/v')
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            platform: linux/amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build native bundled ERP Host image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: ${{ matrix.platform }}
+          load: true
+          tags: erin-erp-host-bundle:${{ github.sha }}-${{ matrix.arch }}
+          build-args: |
+            ERIN_RELEASE_SHA=${{ github.sha }}
+          cache-from: type=gha,scope=bundled-host-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=bundled-host-${{ matrix.arch }}
+      - name: Export compressed ERP Host image
+        run: |
+          set -eu
+          mkdir -p dist/host-image
+          docker image save "erin-erp-host-bundle:${GITHUB_SHA}-${{ matrix.arch }}" \
+            | gzip -1 > "dist/host-image/erin-erp-host-image-${{ matrix.arch }}.tar.gz"
+          test -s "dist/host-image/erin-erp-host-image-${{ matrix.arch }}.tar.gz"
+          sha256sum "dist/host-image/erin-erp-host-image-${{ matrix.arch }}.tar.gz"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: host-image-${{ matrix.arch }}
+          path: dist/host-image/erin-erp-host-image-${{ matrix.arch }}.tar.gz
+          compression-level: 0
+          retention-days: 3
+
+  host-installers:
+    needs: host-images
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Package local server launchers
+      - uses: actions/download-artifact@v4
+        with:
+          name: host-image-amd64
+          path: dist/host-images/amd64
+      - uses: actions/download-artifact@v4
+        with:
+          name: host-image-arm64
+          path: dist/host-images/arm64
+      - name: Package three manual Host installers with images
+        env:
+          ERIN_RELEASE_SHA: ${{ github.sha }}
+          ERIN_HOST_IMAGE_AMD64_ARCHIVE: dist/host-images/amd64/erin-erp-host-image-amd64.tar.gz
+          ERIN_HOST_IMAGE_ARM64_ARCHIVE: dist/host-images/arm64/erin-erp-host-image-arm64.tar.gz
+          ERIN_HOST_IMAGE_AMD64_TAG: erin-erp-host-bundle:${{ github.sha }}-amd64
+          ERIN_HOST_IMAGE_ARM64_TAG: erin-erp-host-bundle:${{ github.sha }}-arm64
         run: node scripts/build-host-installers.mjs "${GITHUB_REF_NAME}"
-      - name: Verify manual Host installers use the smoke-tested latest image
+      - name: Verify bundled package names, images and instructions
         run: |
-          test "$(unzip -p dist/desktop/ErinERP-Host-Windows-*.zip image-tag.txt | tr -d '\r\n')" = "latest"
-          test "$(unzip -p dist/desktop/ErinERP-Host-macOS-*.zip image-tag.txt | tr -d '\r\n')" = "latest"
+          set -eu
+          WIN="$(echo dist/desktop/ErinERP-Host-Windows-x64-*.zip)"
+          ARM="$(echo dist/desktop/ErinERP-Host-macOS-Apple-Silicon-*.zip)"
+          INTEL="$(echo dist/desktop/ErinERP-Host-macOS-Intel-*.zip)"
+          test -f "$WIN"
+          test -f "$ARM"
+          test -f "$INTEL"
+          test "$(unzip -p "$WIN" bundle-arch.txt | tr -d '\r\n')" = "amd64"
+          test "$(unzip -p "$ARM" bundle-arch.txt | tr -d '\r\n')" = "arm64"
+          test "$(unzip -p "$INTEL" bundle-arch.txt | tr -d '\r\n')" = "amd64"
+          for package in "$WIN" "$ARM" "$INTEL"; do
+            unzip -l "$package" | grep -q "images/erin-erp-host-image.tar.gz"
+            unzip -l "$package" | grep -q "安裝說明.txt"
+            unzip -p "$package" 安裝說明.txt | grep -q "輸入艾琳設計提供的啟用碼"
+            unzip -p "$package" 安裝說明.txt | grep -q "自動顯示提示並開啟 Docker 官方安裝頁"
+            size="$(stat -c%s "$package")"
+            test "$size" -lt 1900000000
+          done
+          unzip -p "$ARM" installer/Install-ErinERP.command > /tmp/Install-ErinERP-arm64.command
+          unzip -p "$INTEL" installer/Install-ErinERP.command > /tmp/Install-ErinERP-intel.command
+          bash -n /tmp/Install-ErinERP-arm64.command
+          bash -n /tmp/Install-ErinERP-intel.command
+          unzip -p "$WIN" installer/Install-ErinERP.ps1 > /tmp/Install-ErinERP.ps1
+      - name: Verify generated Windows PowerShell installer
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile('/tmp/Install-ErinERP.ps1', [ref]$tokens, [ref]$errors) | Out-Null
+          if ($errors.Count) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            exit 1
+          }
       - uses: actions/upload-artifact@v4
         with:
           name: local-server-installers
-          path: |
-            dist/desktop/ErinERP-Host-*.zip
+          path: dist/desktop/ErinERP-Host-*.zip
+          compression-level: 0
+          retention-days: 3
 
   desktop-clients:
     needs: quality
@@ -133,7 +224,7 @@ jobs:
           CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
         run: |
           if (-not $env:CSC_LINK) { throw "Missing WIN_CSC_LINK" }
-          if (-not $env:CSC_KEY_PASSWORD) { throw "Missing WIN_CSC_KEY_PASSWORD" }
+          if (-not $env:CSC_KEY_PASSWORD) { throw "Missing CSC_KEY_PASSWORD" }
       - name: Build signed and notarized macOS clients
         if: runner.os == 'macOS'
         env:
@@ -170,7 +261,7 @@ jobs:
           path: release-assets
       - name: Generate Host release manifest and SHA-256 checksums
         run: node scripts/write-release-manifest.mjs release-assets "${GITHUB_REF_NAME}"
-      - name: Attach tested manual Host installers to GitHub Release
+      - name: Attach three bundled manual Host installers to GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
