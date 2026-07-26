@@ -13,9 +13,19 @@ RUN --mount=type=cache,target=/root/.npm \
       rm -rf node_modules; \
       echo "production npm ci attempt ${attempt} failed; retrying." >&2; \
       if [ "$attempt" = "3" ]; then exit 1; fi; \
-    done \
-    && npm install --no-save --omit=dev --ignore-scripts --no-audit --no-fund prisma@5.22.0 tsx@4.19.2 \
-    && npx prisma generate
+    done
+
+# Prisma CLI and tsx are runtime tools. They must install with lifecycle scripts enabled
+# so esbuild's platform binary is available for prisma/seed.ts and backup scripts.
+FROM base AS runtime-tools
+WORKDIR /tools
+RUN --mount=type=cache,target=/root/.npm \
+    printf '{"private":true}\n' > package.json \
+    && npm install --no-audit --no-fund prisma@5.22.0 tsx@4.19.2
+
+FROM production-deps AS runtime-deps
+COPY --from=runtime-tools /tools/node_modules ./node_modules
+RUN npx prisma generate
 
 FROM base AS build
 ARG ERIN_RELEASE_SHA=development
@@ -42,8 +52,8 @@ ENV ERIN_RELEASE_SHA=$ERIN_RELEASE_SHA
 LABEL org.opencontainers.image.revision=$ERIN_RELEASE_SHA
 RUN apk add --no-cache openssl libc6-compat postgresql-client
 
-COPY package.json package-lock.json next.config.js ./
-COPY --from=production-deps /app/node_modules ./node_modules
+COPY package.json package-lock.json next.config.js tsconfig.json ./
+COPY --from=runtime-deps /app/node_modules ./node_modules
 COPY --from=build /app/.next ./.next
 COPY --from=build /app/public ./public
 COPY --from=build /app/prisma ./prisma
@@ -54,6 +64,7 @@ COPY --from=build /app/docker ./docker
 RUN test -x ./node_modules/.bin/next \
     && test -x ./node_modules/.bin/prisma \
     && test -x ./node_modules/.bin/tsx \
+    && test -x ./node_modules/@esbuild/linux-*/bin/esbuild \
     && test -f ./scripts/create-encrypted-backup.ts \
     && chmod +x /app/docker/entrypoint.sh /app/docker/backup-entrypoint.sh
 EXPOSE 3000
