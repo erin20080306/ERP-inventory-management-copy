@@ -54,6 +54,8 @@ jobs:
       - run: npm run test:pos-medical
       - run: npm run test:commerce
       - run: npm run test:storefront
+      - run: npm run test:tenant-constraints
+      - run: npm run test:money-decimal
       - run: npm run test:installed-storefront
       - run: npm run test:storefront-host-sync
       - run: npm run test:storefront-members
