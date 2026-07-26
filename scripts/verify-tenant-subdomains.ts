@@ -60,6 +60,9 @@ try {
   assert.match(middleware, /NextResponse\.redirect\(redirectUrl, 308\)/);
   assert.match(middleware, /NextResponse\.rewrite/);
   assert.match(middleware, /isProtectedPath/);
+  assert.match(middleware, /const TENANT_PUBLIC_PROTECTED_PREFIXES = \["\/products"\]/);
+  assert.match(middleware, /tenantSlug && isTenantPublicProtectedPath\(pathname\)/);
+  assert.doesNotMatch(middleware, /tenantSlug && !\/\\\.\[\^\/\]\+\$\/\.test\(pathname\)/);
   assert.match(tenantSitePage, /FashionStorefront/);
   assert.match(tenantSitePage, /MedicalClinicSite/);
   assert.match(tenantSitePage, /businessMode: \{ in: \["ECOMMERCE", "POS_MEDICAL"\] \}/);
@@ -72,4 +75,4 @@ try {
   else process.env.NEXT_PUBLIC_STOREFRONT_ROOT_DOMAIN = originalNextPublicRoot;
 }
 
-console.log("Tenant wildcard subdomain routing: PASS");
+console.log("Tenant wildcard subdomain routing and protected-path whitelist: PASS");
