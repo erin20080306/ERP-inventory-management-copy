@@ -119,12 +119,14 @@ assert.doesNotMatch(macInstaller, /LAN_IP=.*127\.0\.0\.1/);
 assert.match(windowsInstaller, /ArgumentList "\/S"/);
 
 assert.match(dockerfile, /FROM base AS production-deps/);
+assert.match(dockerfile, /FROM base AS runtime-tools/);
 assert.match(dockerfile, /COPY --from=build \/app\/\.next \.\/\.next/);
 assert.doesNotMatch(dockerfile, /COPY --from=build \/app \.\//);
 assert.match(workflow, /ERIN_RELEASE_SHA=\$\{\{ github\.sha \}\}/);
 assert.match(workflow, /ubuntu-24\.04-arm/);
 assert.match(workflow, /Capture immutable candidate Digest/);
-assert.match(workflow, /sha256sum \/tmp\/erin-erp-candidate-manifest\.json/);
+assert.match(workflow, /--format '\{\{json \.Manifest\}\}'/);
+assert.match(workflow, /JSON\.parse/);
 assert.match(workflow, /Smoke test Apple Silicon Host startup/);
 assert.match(workflow, /Promote verified Digest to latest compatibility tag/);
 assert.match(workflow, /Record released Host image version and Digest/);
