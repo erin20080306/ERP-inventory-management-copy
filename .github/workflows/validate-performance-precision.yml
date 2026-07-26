@@ -3,6 +3,8 @@ name: Validate performance and precision batch
 on:
   push:
     branches: [codex/performance-precision-batch]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
