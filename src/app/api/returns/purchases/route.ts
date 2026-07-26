@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { apiHandler, requirePermission, requireTenantId, audit, nextNumber, getCurrentUserId } from "@/lib/api";
+import { apiHandler, requirePermission, requireTenantId, audit, nextNumber, getCurrentUserName } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { calcTotals } from "@/lib/documents";
 
@@ -40,7 +40,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
 export const POST = apiHandler(async (req: NextRequest) => {
   const session = await requirePermission("returns.edit");
   const tenantId = await requireTenantId();
-  const currentUserId = await getCurrentUserId();
+  const currentUserId = await getCurrentUserName();
   const body = await req.json();
   const { supplierId, purchaseOrderId, reason, status, items, isTaxable } = body as any;
   if (!supplierId) throw new Error("請選擇供應商");
@@ -86,7 +86,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
 export const PATCH = apiHandler(async (req: NextRequest) => {
   const session = await requirePermission("returns.edit");
   const tenantId = await requireTenantId();
-  const currentUserId = await getCurrentUserId();
+  const currentUserId = await getCurrentUserName();
   const body = await req.json();
   const { id, action } = body as any;
   const existing = await prisma.purchaseReturn.findUnique({ where: { id, tenantId } });
@@ -140,7 +140,7 @@ export const PATCH = apiHandler(async (req: NextRequest) => {
 export const PUT = apiHandler(async (req: NextRequest) => {
   const session = await requirePermission("returns.edit");
   const tenantId = await requireTenantId();
-  const currentUserId = await getCurrentUserId();
+  const currentUserId = await getCurrentUserName();
   const body = await req.json();
   const { id, supplierId, purchaseOrderId, reason, items, isTaxable } = body as any;
   if (!supplierId) throw new Error("請選擇供應商");

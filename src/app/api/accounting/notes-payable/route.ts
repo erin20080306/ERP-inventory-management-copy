@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { apiHandler, requirePermission, requireTenantId, audit, nextNumber, getCurrentUserId } from "@/lib/api";
+import { apiHandler, requirePermission, requireTenantId, audit, nextNumber, getCurrentUserName } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 
 export const GET = apiHandler(async (req: NextRequest) => {
@@ -46,7 +46,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
 export const POST = apiHandler(async (req: NextRequest) => {
   const session = await requirePermission("notes.create");
   const tenantId = await requireTenantId();
-  const currentUserId = await getCurrentUserId();
+  const currentUserId = await getCurrentUserName();
   const body = await req.json();
   if (!body.supplierId) throw new Error("請選擇供應商");
   if (!body.amount || Number(body.amount) <= 0) throw new Error("金額必須大於 0");
@@ -77,7 +77,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
 export const PUT = apiHandler(async (req: NextRequest) => {
   const session = await requirePermission("notes.edit");
   const tenantId = await requireTenantId();
-  const currentUserId = await getCurrentUserId();
+  const currentUserId = await getCurrentUserName();
   const body = await req.json();
   const { id, supplierId, noteNumber, noteType, bankAccountId, payeeName, amount, issueDate, dueDate, remark } = body;
   if (!supplierId) throw new Error("請選擇供應商");

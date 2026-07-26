@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { apiHandler, requirePermission, requireTenantId, audit, nextNumber, getCurrentUserId } from "@/lib/api";
+import { apiHandler, requirePermission, requireTenantId, audit, nextNumber, getCurrentUserName } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { buildSupplierPaymentDraft, buildDiscountNoteDraft, autoCreateJournal } from "@/lib/auto-journal";
 
@@ -44,7 +44,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
 export const POST = apiHandler(async (req: NextRequest) => {
   const session = await requirePermission("payables.edit");
   const tenantId = await requireTenantId();
-  const currentUserId = await getCurrentUserId();
+  const currentUserId = await getCurrentUserName();
   const body = await req.json();
   const { payableId, amount, discount, discountNote, method, remark } = body;
   const paymentAmount = Number(amount || 0);

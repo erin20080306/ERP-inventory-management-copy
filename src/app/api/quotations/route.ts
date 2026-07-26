@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { apiHandler, requirePermission, requireTenantId, audit, nextNumber, getCurrentUserId } from "@/lib/api";
+import { apiHandler, requirePermission, requireTenantId, audit, nextNumber, getCurrentUserName } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { calcTotals } from "@/lib/documents";
 
@@ -39,7 +39,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
 export const POST = apiHandler(async (req: NextRequest) => {
   const session = await requirePermission("quotations.edit");
   const tenantId = await requireTenantId();
-  const currentUserId = await getCurrentUserId();
+  const currentUserId = await getCurrentUserName();
   const body = await req.json();
   const { customerId, quoteDate, validUntil, reason, status, items, isTaxable } = body as any;
   if (!customerId) throw new Error("請選擇客戶");
@@ -80,7 +80,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
 export const PATCH = apiHandler(async (req: NextRequest) => {
   const session = await requirePermission("quotations.edit");
   const tenantId = await requireTenantId();
-  const currentUserId = await getCurrentUserId();
+  const currentUserId = await getCurrentUserName();
   const body = await req.json();
   const { id, status, action } = body as any;
 
@@ -118,7 +118,7 @@ export const PATCH = apiHandler(async (req: NextRequest) => {
 export const PUT = apiHandler(async (req: NextRequest) => {
   const session = await requirePermission("quotations.edit");
   const tenantId = await requireTenantId();
-  const currentUserId = await getCurrentUserId();
+  const currentUserId = await getCurrentUserName();
   const body = await req.json();
   const { id, customerId, quoteDate, validUntil, status, items, isTaxable } = body as any;
   if (!customerId) throw new Error("請選擇客戶");

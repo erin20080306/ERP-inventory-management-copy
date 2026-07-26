@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { apiHandler, requirePermission, requireTenantId, audit, getCurrentUserId } from "@/lib/api";
+import { apiHandler, requirePermission, requireTenantId, audit, getCurrentUserName } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { receivePurchaseOrder, calcTotals } from "@/lib/documents";
 
@@ -24,7 +24,7 @@ export const GET = apiHandler(async (_req: NextRequest, { params }: { params: { 
 export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: { id: string } }) => {
   const session = await requirePermission("purchases.edit");
   const tenantId = await requireTenantId();
-  const currentUserId = await getCurrentUserId();
+  const currentUserId = await getCurrentUserName();
   const body = await req.json();
   const { action, warehouseId, items, remark } = body;
   const existing = await prisma.purchaseOrder.findUnique({ where: { id: params.id, tenantId } });
@@ -79,7 +79,7 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: {
 export const PUT = apiHandler(async (req: NextRequest, { params }: { params: { id: string } }) => {
   const session = await requirePermission("purchases.edit");
   const tenantId = await requireTenantId();
-  const currentUserId = await getCurrentUserId();
+  const currentUserId = await getCurrentUserName();
   const existing = await prisma.purchaseOrder.findUnique({ where: { id: params.id, tenantId } });
   if (!existing) throw new Error("找不到採購單");
   if (!["DRAFT", "REJECTED"].includes(existing.status)) {
@@ -90,35 +90,38 @@ export const PUT = apiHandler(async (req: NextRequest, { params }: { params: { i
   if (!supplierId) throw new Error("請選擇供應商");
   if (!items?.length) throw new Error("請至少新增一項商品");
   const totals = calcTotals(items, isTaxable !== false);
-  await prisma.purchaseOrderItem.deleteMany({ where: { orderId: params.id } });
-  const updated = await prisma.purchaseOrder.update({
-    where: { id: params.id, tenantId },
-    data: {
-      supplierId,
-      remark,
-      subtotal: totals.subtotal,
-      discount: totals.discount,
-      taxAmount: totals.taxAmount,
-      total: totals.total,
-      isTaxable: isTaxable !== false,
-      updatedBy: currentUserId,
-      items: {
-        create: totals.computed.map((i: any) => ({
-          productId: i.productId,
-          quantity: i.quantity,
-          unitPrice: i.unitPrice,
-          discount: i.discount === "" ? 0 : (i.discount ?? 0),
-          taxRate: i.taxRate === "" ? 0 : (i.taxRate ?? 0),
-          subtotal: i.subtotal,
-        })),
+  const updated = await prisma.$transaction(async (tx) => {
+    await tx.purchaseOrderItem.deleteMany({ where: { orderId: params.id } });
+    const order = await tx.purchaseOrder.update({
+      where: { id: params.id, tenantId },
+      data: {
+        supplierId,
+        remark,
+        subtotal: totals.subtotal,
+        discount: totals.discount,
+        taxAmount: totals.taxAmount,
+        total: totals.total,
+        isTaxable: isTaxable !== false,
+        updatedBy: currentUserId,
+        items: {
+          create: totals.computed.map((i: any) => ({
+            productId: i.productId,
+            quantity: i.quantity,
+            unitPrice: i.unitPrice,
+            discount: i.discount === "" ? 0 : (i.discount ?? 0),
+            taxRate: i.taxRate === "" ? 0 : (i.taxRate ?? 0),
+            subtotal: i.subtotal,
+          })),
+        },
       },
-    },
-    include: { items: true, supplier: true },
+      include: { items: true, supplier: true },
+    });
+    const ap = await tx.accountsPayable.findFirst({ where: { purchaseOrderId: params.id, tenantId } });
+    if (ap && Number(ap.paidAmount) === 0) {
+      await tx.accountsPayable.update({ where: { id: ap.id }, data: { amount: totals.total } });
+    }
+    return order;
   });
-  const ap = await prisma.accountsPayable.findFirst({ where: { purchaseOrderId: params.id, tenantId } });
-  if (ap && Number(ap.paidAmount) === 0) {
-    await prisma.accountsPayable.update({ where: { id: ap.id }, data: { amount: totals.total } });
-  }
   await audit({ userId: session.user.id, action: "edit", module: "purchases", refId: params.id });
   return NextResponse.json(updated);
 });
@@ -131,22 +134,24 @@ export const DELETE = apiHandler(async (_req: NextRequest, { params }: { params:
   const canDelete = ["DRAFT", "REJECTED"].includes(order.status);
   if (!canDelete) throw new Error("送審後的單據須保留稽核軌跡，請改用退回或作廢");
   
-  // 刪除關聯的傳票
-  const journal = await prisma.journalEntry.findFirst({
-    where: {
-      tenantId,
-      summary: { contains: `採購核准 ${order.number}` },
-      status: { not: "VOIDED" },
-    },
+  await prisma.$transaction(async (tx) => {
+    // 刪除關聯的傳票
+    const journal = await tx.journalEntry.findFirst({
+      where: {
+        tenantId,
+        summary: { contains: `採購核准 ${order.number}` },
+        status: { not: "VOIDED" },
+      },
+    });
+    if (journal) {
+      await tx.journalEntryLine.deleteMany({ where: { entryId: journal.id } });
+      await tx.journalEntry.delete({ where: { id: journal.id, tenantId } });
+    }
+
+    // 刪除關聯的 AP
+    await tx.accountsPayable.deleteMany({ where: { purchaseOrderId: params.id, tenantId } });
+    await tx.purchaseOrder.delete({ where: { id: params.id, tenantId } });
   });
-  if (journal) {
-    await prisma.journalEntryLine.deleteMany({ where: { entryId: journal.id } });
-    await prisma.journalEntry.delete({ where: { id: journal.id, tenantId } });
-  }
-  
-  // 刪除關聯的 AP
-  await prisma.accountsPayable.deleteMany({ where: { purchaseOrderId: params.id, tenantId } });
-  await prisma.purchaseOrder.delete({ where: { id: params.id, tenantId } });
   await audit({ userId: session.user.id, action: "delete", module: "purchases", refId: params.id });
   return NextResponse.json({ ok: true });
 });

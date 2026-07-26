@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ApiError, apiHandler, requirePermission, requireTenantId, audit, getCurrentUserId } from "@/lib/api";
+import { ApiError, apiHandler, requirePermission, requireTenantId, audit, getCurrentUserName } from "@/lib/api";
 import { lockAndAssertAccountingPeriodOpen } from "@/lib/accounting-controls";
 import { nextNumberInTransaction } from "@/lib/documents";
 import { prisma } from "@/lib/prisma";
@@ -66,7 +66,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
 export const POST = apiHandler(async (req: NextRequest) => {
   const session = await requirePermission("journals.create");
   const tenantId = await requireTenantId();
-  const currentUserId = await getCurrentUserId();
+  const currentUserId = await getCurrentUserName();
   const body = await req.json();
   const { summary, entryDate, lines, attachment } = body as any;
   if (!lines?.length) throw new Error("請至少新增一筆分錄");

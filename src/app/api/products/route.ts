@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ApiError, apiHandler, requirePermission, requireTenantId, audit, getCurrentUserId } from "@/lib/api";
+import { ApiError, apiHandler, requirePermission, requireTenantId, audit, getCurrentUserName } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { resolveDemoProductImage } from "@/lib/demo-product-media";
@@ -131,7 +131,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
   const session = await requirePermission("products.create");
   const tenantId = await requireTenantId(session);
   const catalogMode = normalizeBusinessMode(session.user.businessMode);
-  const currentUserId = await getCurrentUserId();
+  const currentUserId = await getCurrentUserName();
   const body = ProductInput.parse(await req.json());
   const normalizedBarcode = body.barcode?.trim() || null;
   const upsert = req.nextUrl.searchParams.get("upsert") === "1";

@@ -114,15 +114,10 @@ export async function requireTenantId(activeSession?: Awaited<ReturnType<typeof 
   return tenantId as string;
 }
 
-export async function getCurrentUserId() {
+export async function getCurrentUserName() {
   const session = await requireAuth();
   // 回傳使用者姓名作為操作人員欄位顯示值
   return (session.user as any).name as string || (session.user as any).username as string || (session.user as any).id as string;
-}
-
-export async function getCurrentUserName() {
-  const session = await requireAuth();
-  return (session.user as any).name as string || (session.user as any).username as string || "";
 }
 
 export class ApiError extends Error {
@@ -278,12 +273,16 @@ export function getClientInfo(req: NextRequest) {
 // 編號產生器
 export async function nextNumber(key: string, tenantId: string) {
   return await prisma.$transaction(async (tx: any) => {
-    let seq = await tx.numberSequence.findUnique({
+    await tx.numberSequence.upsert({
+      where: { tenantId_key: { tenantId, key } },
+      update: {},
+      create: { tenantId, key, prefix: key, nextNo: 1 },
+    });
+    await tx.$executeRaw`SELECT 1 FROM "NumberSequence" WHERE "tenantId" = ${tenantId} AND "key" = ${key} FOR UPDATE`;
+    const seq = await tx.numberSequence.findUnique({
       where: { tenantId_key: { tenantId, key } },
     });
-    if (!seq) {
-      seq = await tx.numberSequence.create({ data: { tenantId, key, prefix: key, nextNo: 1 } });
-    }
+    if (!seq) throw new ApiError(500, `無法取得 ${key} 編號設定`);
     const now = new Date();
     const yyyy = String(now.getFullYear());
     const yy = yyyy.slice(2);

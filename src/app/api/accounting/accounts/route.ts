@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { apiHandler, requirePermission, requireTenantId, audit, getCurrentUserId } from "@/lib/api";
+import { apiHandler, requirePermission, requireTenantId, audit, getCurrentUserName } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 
 export const GET = apiHandler(async (req: NextRequest) => {
@@ -25,7 +25,7 @@ export const GET = apiHandler(async (req: NextRequest) => {
 export const POST = apiHandler(async (req: NextRequest) => {
   const session = await requirePermission("accounting.create");
   const tenantId = await requireTenantId();
-  const currentUserId = await getCurrentUserId();
+  const currentUserId = await getCurrentUserName();
   const body = await req.json();
   const upsert = req.nextUrl.searchParams.get("upsert") === "1";
   if (upsert && body.code) {

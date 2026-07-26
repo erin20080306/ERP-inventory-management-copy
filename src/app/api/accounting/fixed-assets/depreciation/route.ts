@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ApiError, apiHandler, audit, getCurrentUserId, requirePermission, requireTenantId } from "@/lib/api";
+import { ApiError, apiHandler, audit, getCurrentUserName, requirePermission, requireTenantId } from "@/lib/api";
 import { lockAndAssertAccountingPeriodOpen } from "@/lib/accounting-controls";
 import { createPostedJournal } from "@/lib/documents";
 import {
@@ -130,7 +130,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
   if (action === "confirm") {
     const session = await requirePermission("assets.edit");
     const tenantId = await requireTenantId(session);
-    const updatedBy = await getCurrentUserId();
+    const updatedBy = await getCurrentUserName();
     const assetId = String(body.assetId ?? "");
     const date = requestedDepreciationDate(body.depreciationDate);
     const period = depreciationPeriod(date);

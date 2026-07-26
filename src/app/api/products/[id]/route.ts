@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ApiError, apiHandler, requirePermission, requireTenantId, audit, getCurrentUserId } from "@/lib/api";
+import { ApiError, apiHandler, requirePermission, requireTenantId, audit, getCurrentUserName } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { normalizeBusinessMode, productCatalogScope } from "@/lib/product-editions";
 
@@ -9,7 +9,7 @@ export const PUT = apiHandler(async (req: NextRequest, { params }: { params: { i
   const session = await requirePermission("products.edit");
   const tenantId = await requireTenantId(session);
   const catalogMode = normalizeBusinessMode(session.user.businessMode);
-  const currentUserId = await getCurrentUserId();
+  const currentUserId = await getCurrentUserName();
   const body = await req.json();
   const data: any = {};
   for (const key of ALLOWED_FIELDS) {
@@ -53,7 +53,7 @@ export const DELETE = apiHandler(async (_req: NextRequest, { params }: { params:
   if (!product) throw new ApiError(404, "找不到目前營運模式的商品");
   await prisma.product.update({
     where: { id: params.id, tenantId },
-    data: { isArchived: true, isActive: false, isPublished: false, updatedBy: await getCurrentUserId() },
+    data: { isArchived: true, isActive: false, isPublished: false, updatedBy: await getCurrentUserName() },
   });
   await audit({ userId: session.user.id, action: "delete", module: "products", refId: params.id });
   return NextResponse.json({ ok: true, mode: "ARCHIVED" });

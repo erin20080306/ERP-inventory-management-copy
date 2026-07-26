@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { apiHandler, requirePermission, requireTenantId, audit, getCurrentUserId } from "@/lib/api";
+import { apiHandler, requirePermission, requireTenantId, audit, getCurrentUserName } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 
 export const DELETE = apiHandler(async (_req: NextRequest, { params }: { params: { id: string } }) => {
   const session = await requirePermission("receivables.edit");
   const tenantId = await requireTenantId();
-  const currentUserId = await getCurrentUserId();
+  const currentUserId = await getCurrentUserName();
   const ar = await prisma.accountsReceivable.findUnique({ 
     where: { id: params.id },
     include: { payments: true, notes: true },
@@ -33,7 +33,7 @@ export const DELETE = apiHandler(async (_req: NextRequest, { params }: { params:
 export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: { id: string } }) => {
   const session = await requirePermission("receivables.edit");
   const tenantId = await requireTenantId();
-  const currentUserId = await getCurrentUserId();
+  const currentUserId = await getCurrentUserName();
   const body = await req.json();
   const { action } = body;
 
@@ -61,7 +61,7 @@ export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: {
 export const PUT = apiHandler(async (req: NextRequest, { params }: { params: { id: string } }) => {
   const session = await requirePermission("receivables.edit");
   const tenantId = await requireTenantId();
-  const currentUserId = await getCurrentUserId();
+  const currentUserId = await getCurrentUserName();
   const body = await req.json();
   const { amount, dueDate, status } = body;
   const nextAmount = amount !== undefined ? Number(amount) : null;

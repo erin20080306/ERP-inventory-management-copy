@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { apiHandler, requirePermission, requireTenantId, audit, getCurrentUserId } from "@/lib/api";
+import { apiHandler, requirePermission, requireTenantId, audit, getCurrentUserName } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { calculateInvoiceTotals } from "@/lib/invoice-totals";
 
 export const PUT = apiHandler(async (req: NextRequest, { params }: { params: { id: string } }) => {
   const session = await requirePermission("invoices.edit");
   const tenantId = await requireTenantId();
-  const currentUserId = await getCurrentUserId();
+  const currentUserId = await getCurrentUserName();
   const body = await req.json();
   const existing = await prisma.invoice.findUnique({
     where: { id: params.id, tenantId },
@@ -61,7 +61,7 @@ export const PUT = apiHandler(async (req: NextRequest, { params }: { params: { i
 export const PATCH = apiHandler(async (req: NextRequest, { params }: { params: { id: string } }) => {
   const session = await requirePermission("invoices.edit");
   const tenantId = await requireTenantId();
-  const currentUserId = await getCurrentUserId();
+  const currentUserId = await getCurrentUserName();
   const { action } = await req.json();
   
   if (action === "submit") {
