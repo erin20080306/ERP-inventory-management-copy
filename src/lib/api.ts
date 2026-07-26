@@ -62,6 +62,7 @@ export async function requireAuth() {
   const authPromise = (async () => {
     const session = await getSession();
     if (!session?.user) throw new ApiError(401, "未登入");
+    if (session.user.revoked) throw new ApiError(401, "帳號已停用或登入狀態已失效，請重新登入");
     const access = await getLicenseAccessForUser(session.user.id);
     if (!access.allowed) {
       throw new ApiError(402, access.reason ?? "公司授權已到期，請聯絡艾琳設計開通");
@@ -195,6 +196,11 @@ export function apiHandler<T extends (...args: any[]) => Promise<any>>(fn: T) {
         if (e instanceof ApiError) {
           return NextResponse.json({ error: e.message }, { status: e.status });
         }
+        if (e?.name === "ZodError") {
+          const issue = Array.isArray(e?.issues) ? e.issues[0] : undefined;
+          const detail = issue?.message ? `：${issue.message}` : "";
+          return NextResponse.json({ error: `輸入資料格式不正確${detail}` }, { status: 400 });
+        }
         console.error("[API Error]", e);
         let ctx: { tenantId?: string | null; userId?: string | null; method?: string | null; path?: string | null; status: number; ip?: string | null; userAgent?: string | null } = { status: 500 };
         try {
@@ -209,7 +215,11 @@ export function apiHandler<T extends (...args: any[]) => Promise<any>>(fn: T) {
           ctx.userId = (session?.user as any)?.id ?? null;
         } catch {}
         void reportError(e, ctx);
-        return NextResponse.json({ error: e?.message ?? "伺服器錯誤" }, { status: 500 });
+        const internalError =
+          typeof e?.name === "string" &&
+          (e.name.startsWith("PrismaClient") || ["TypeError", "SyntaxError", "RangeError", "ReferenceError"].includes(e.name));
+        const message = !internalError && e instanceof Error && e.message ? e.message : "伺服器發生錯誤，請稍後再試";
+        return NextResponse.json({ error: message }, { status: 500 });
       }
     });
   };

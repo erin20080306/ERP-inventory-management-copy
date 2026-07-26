@@ -9,6 +9,8 @@ import { verifyLocalWorkstationRequest } from "@/lib/license";
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
   if (!session?.user) redirect("/login");
+  if (session.user.revoked) redirect("/login");
+  if (!session.user.isSuperAdmin) redirect("/dashboard");
   if (session.user.isSuperAdmin) {
     await ensureInternalAdminTenant(session.user.id);
   }

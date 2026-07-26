@@ -21,6 +21,7 @@ declare module "next-auth" {
       isSuperAdmin?: boolean;
       isInternalAdminTenant?: boolean;
       isTenantOwner?: boolean;
+      revoked?: boolean;
     };
   }
 }
@@ -37,8 +38,14 @@ declare module "next-auth/jwt" {
     isSuperAdmin?: boolean;
     isInternalAdminTenant?: boolean;
     isTenantOwner?: boolean;
+    revoked?: boolean;
+    activeCheckedAt?: number;
   }
 }
+
+const LOGIN_LOCK_WINDOW_MS = 15 * 60_000;
+const LOGIN_LOCK_MAX_FAILURES = 5;
+const SESSION_REVALIDATE_MS = 60_000;
 
 export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt", maxAge: 60 * 60 * 8 },
@@ -78,6 +85,25 @@ export const authOptions: NextAuthOptions = {
         });
 
         const logUsername = user?.username ?? identifier;
+
+        const lockWindowStart = new Date(Date.now() - LOGIN_LOCK_WINDOW_MS);
+        const lastSuccess = await prisma.loginLog.findFirst({
+          where: { username: { equals: logUsername, mode: "insensitive" }, success: true },
+          orderBy: { createdAt: "desc" },
+          select: { createdAt: true },
+        });
+        const failuresSince = lastSuccess && lastSuccess.createdAt > lockWindowStart ? lastSuccess.createdAt : lockWindowStart;
+        const recentFailures = await prisma.loginLog.count({
+          where: {
+            username: { equals: logUsername, mode: "insensitive" },
+            success: false,
+            createdAt: { gt: failuresSince },
+          },
+        });
+        if (recentFailures >= LOGIN_LOCK_MAX_FAILURES) {
+          prisma.loginLog.create({ data: { userId: user?.id, username: logUsername, success: false, ip } }).catch(() => {});
+          throw new Error("登入失敗次數過多，帳號已暫時鎖定，請 15 分鐘後再試");
+        }
 
         if (!user) {
           prisma.loginLog.create({ data: { username: logUsername, success: false, ip } }).catch(() => {});
@@ -158,6 +184,16 @@ export const authOptions: NextAuthOptions = {
         token.isSuperAdmin = u.isSuperAdmin;
         token.isInternalAdminTenant = u.isInternalAdminTenant;
         token.isTenantOwner = u.isTenantOwner;
+        token.revoked = false;
+        token.activeCheckedAt = Date.now();
+      }
+      if (token.uid && Date.now() - Number(token.activeCheckedAt ?? 0) > SESSION_REVALIDATE_MS) {
+        const account = await prisma.user.findUnique({
+          where: { id: token.uid },
+          select: { isActive: true },
+        });
+        token.revoked = !account?.isActive;
+        token.activeCheckedAt = Date.now();
       }
       if (token.uid && token.isTenantOwner === undefined) {
         const persistedUser = await prisma.user.findUnique({
@@ -213,6 +249,7 @@ export const authOptions: NextAuthOptions = {
         isSuperAdmin: token.isSuperAdmin,
         isInternalAdminTenant: token.isInternalAdminTenant,
         isTenantOwner: token.isTenantOwner,
+        revoked: token.revoked,
       };
       return session;
     },

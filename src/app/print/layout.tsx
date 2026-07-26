@@ -7,6 +7,7 @@ import "./print.css";
 export default async function PrintLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
   if (!session?.user) redirect("/login");
+  if (session.user.revoked) redirect("/login");
   if (process.env.LOCAL_LICENSE_MODE === "true" && session.user.tenantId) {
     const requestHeaders = await headers();
     const workstation = await verifyLocalWorkstationRequest(session.user.tenantId, {

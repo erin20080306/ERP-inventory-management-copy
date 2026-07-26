@@ -79,7 +79,13 @@ export default withAuth(
   },
   {
     callbacks: {
-      authorized: ({ token, req }) => Boolean(requestTenantSlug(req)) || !isProtectedPath(req.nextUrl.pathname) || Boolean(token),
+      authorized: ({ token, req }) => {
+        const pathname = req.nextUrl.pathname;
+        if (!isProtectedPath(pathname)) return true;
+        const tenantSlug = requestTenantSlug(req);
+        if (tenantSlug && !/\.[^/]+$/.test(pathname)) return true;
+        return Boolean(token) && !token?.revoked;
+      },
     },
   },
 );
