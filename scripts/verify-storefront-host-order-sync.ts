@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { generateKeyPairSync, randomBytes, randomUUID } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import { NextRequest } from "next/server";
+import { POST as storefrontMembers } from "../src/app/api/license/storefront-members/route";
 import { POST as storefrontOrders } from "../src/app/api/license/storefront-orders/route";
 import { POST as storefrontOrderStatus } from "../src/app/api/license/storefront-order-status/route";
 import { shipSalesOrder } from "../src/lib/documents";
@@ -14,6 +15,7 @@ import {
 } from "../src/lib/license";
 import { prisma } from "../src/lib/prisma";
 import { seedTenantDefaults } from "../src/lib/seed-tenant";
+import { syncCentralStorefrontMembers } from "../src/lib/storefront-member-sync";
 import {
   syncCentralStorefrontOrders,
   syncLocalStorefrontOrderStatus,
@@ -127,6 +129,17 @@ async function main() {
         phone: "0912345678",
         email: `buyer-${suffix}@example.test`,
         address: "台北市測試路 1 號",
+        remark: "由品牌官網會員註冊建立",
+      },
+    });
+    await prisma.storefrontMember.create({
+      data: {
+        tenantId: central.id,
+        customerId: centralCustomer.id,
+        email: centralCustomer.email!,
+        passwordHash: "integration-test-password-hash",
+        name: centralCustomer.companyName,
+        phone: centralCustomer.phone,
       },
     });
     const centralOrder = await prisma.salesOrder.create({
@@ -227,10 +240,17 @@ async function main() {
         headers: init?.headers,
         body: init?.body,
       });
-      return url.includes("/api/license/storefront-order-status")
-        ? storefrontOrderStatus(request)
-        : storefrontOrders(request);
+      if (url.includes("/api/license/storefront-order-status")) return storefrontOrderStatus(request);
+      if (url.includes("/api/license/storefront-members")) return storefrontMembers(request);
+      return storefrontOrders(request);
     }) as typeof fetch;
+
+    const wrongMemberDevice = await storefrontMembers(new NextRequest("http://localhost/api/license/storefront-members", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-real-ip": `wrong-member-${suffix}` },
+      body: JSON.stringify({ activationKey, deviceId: `wrong-${deviceId}`, cursor: null }),
+    }));
+    assert.equal(wrongMemberDevice.status, 403);
 
     const wrongDevice = await storefrontOrders(new NextRequest("http://localhost/api/license/storefront-orders", {
       method: "POST",
@@ -250,6 +270,19 @@ async function main() {
     }));
     assert.equal(wrongStatusDevice.status, 403);
 
+    const firstMemberSync = await syncCentralStorefrontMembers(local.id);
+    assert.equal(firstMemberSync.created, 1);
+    const localMemberCustomer = await prisma.customer.findFirstOrThrow({
+      where: {
+        tenantId: local.id,
+        email: centralCustomer.email,
+        remark: { contains: `[CENTRAL-MEMBER:${centralCustomer.id}]` },
+      },
+    });
+    assert.equal(localMemberCustomer.companyName, centralCustomer.companyName);
+    assert.equal(localMemberCustomer.phone, centralCustomer.phone);
+    assert.equal(localMemberCustomer.updatedBy, "CENTRAL_STOREFRONT_MEMBER_SYNC");
+
     const orderCountBeforeSync = await prisma.salesOrder.count({ where: { tenantId: local.id } });
     const firstSync = await syncCentralStorefrontOrders(local.id);
     assert.equal(firstSync.imported, 1);
@@ -259,6 +292,7 @@ async function main() {
     });
     assert.equal(imported.number, centralOrder.number);
     assert.equal(imported.status, "SUBMITTED");
+    assert.equal(imported.customer.id, localMemberCustomer.id);
     assert.equal(imported.customer.email, centralCustomer.email);
     assert.equal(imported.items.length, 1);
     assert.equal(imported.items[0].productId, localProduct.id);
@@ -268,6 +302,29 @@ async function main() {
     const secondSync = await syncCentralStorefrontOrders(local.id);
     assert.equal(secondSync.imported, 0);
     assert.equal(await prisma.salesOrder.count({ where: { tenantId: local.id } }), orderCountBeforeSync + 1);
+
+    await prisma.$transaction([
+      prisma.storefrontMember.update({
+        where: { customerId: centralCustomer.id },
+        data: { name: "商城消費者已更新", phone: "0988777666" },
+      }),
+      prisma.customer.update({
+        where: { id: centralCustomer.id },
+        data: {
+          companyName: "商城消費者已更新",
+          contactName: "商城消費者已更新",
+          phone: "0988777666",
+        },
+      }),
+    ]);
+    const updatedMemberSync = await syncCentralStorefrontMembers(local.id);
+    assert.equal(updatedMemberSync.updated, 1);
+    const updatedLocalMember = await prisma.customer.findUniqueOrThrow({ where: { id: localMemberCustomer.id } });
+    assert.equal(updatedLocalMember.companyName, "商城消費者已更新");
+    assert.equal(updatedLocalMember.phone, "0988777666");
+    assert.equal(await prisma.customer.count({
+      where: { tenantId: local.id, email: centralCustomer.email },
+    }), 1);
 
     await prisma.salesOrder.update({ where: { id: imported.id }, data: { status: "APPROVED" } });
     const approvedStatusSync = await syncLocalStorefrontOrderStatus(local.id, imported.id);
@@ -305,14 +362,43 @@ async function main() {
     assert.ok(centralAfterShipment.remark?.includes("request="));
     assert.ok(shipment.shipment.number);
 
-    console.log("Vercel storefront order <-> installed Host stocked-warehouse fulfillment and consumer tracking status: PASS");
+    await prisma.$transaction(async (tx) => {
+      await tx.storefrontMember.delete({ where: { customerId: centralCustomer.id } });
+      await tx.customer.update({
+        where: { id: centralCustomer.id },
+        data: {
+          companyName: "已刪除會員",
+          contactName: "已刪除會員",
+          phone: null,
+          email: null,
+          address: null,
+          isActive: false,
+          remark: "官網會員已依本人要求刪除；歷史交易僅保留法定帳務關聯",
+        },
+      });
+    });
+    const disabledMemberSync = await syncCentralStorefrontMembers(local.id);
+    assert.equal(disabledMemberSync.disabled, 1);
+    const disabledLocalMember = await prisma.customer.findUniqueOrThrow({ where: { id: localMemberCustomer.id } });
+    assert.equal(disabledLocalMember.isActive, false);
+    assert.equal(disabledLocalMember.email, null);
+    assert.equal(disabledLocalMember.contactName, "已刪除會員");
+
+    console.log("Vercel storefront members/orders <-> installed Host ERP customer, fulfillment and tracking sync: PASS");
   } finally {
     globalThis.fetch = originalFetch;
     for (const [name, value] of Object.entries(originalEnv)) {
       if (value === undefined) delete process.env[name];
       else process.env[name] = value;
     }
-    await prisma.systemSetting.deleteMany({ where: { key: { contains: "storefront-order-" } } });
+    await prisma.systemSetting.deleteMany({
+      where: {
+        OR: [
+          { key: { contains: "storefront-order-" } },
+          { key: { contains: "storefront-member-" } },
+        ],
+      },
+    });
     await cleanupTenant(localTenantId);
     await cleanupTenant(centralTenantId);
     await prisma.$disconnect();

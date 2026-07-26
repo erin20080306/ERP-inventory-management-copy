@@ -681,6 +681,11 @@ export function CrudTable<T extends { id: string }>({
         </div>
       </div>
 
+      {data?.warning && (
+        <div role="status" className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          {data.warning}
+        </div>
+      )}
       <TableHint />
       <Table>
         <THead>

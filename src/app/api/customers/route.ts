@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiHandler, requirePermission, requireTenantId, audit, getCurrentUserName } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
+import { syncCentralStorefrontMembers } from "@/lib/storefront-member-sync";
 
 export const GET = apiHandler(async (req: NextRequest) => {
   const session = await requirePermission("customers.view");
@@ -11,6 +12,15 @@ export const GET = apiHandler(async (req: NextRequest) => {
   const pageSize = Math.min(Number(sp.get("pageSize") ?? 20), 200);
   const fromDate = sp.get("from") ?? "";
   const toDate = sp.get("to") ?? "";
+  let syncWarning: string | null = null;
+  if (process.env.LOCAL_LICENSE_MODE === "true" && page === 1) {
+    try {
+      await syncCentralStorefrontMembers(tenantId);
+    } catch (error) {
+      syncWarning = `中央商城會員暫時無法同步：${error instanceof Error ? error.message : "未知錯誤"}`;
+      console.error("customer storefront member sync error", error);
+    }
+  }
   const where: any = q
     ? { tenantId, OR: [{ code: { contains: q, mode: "insensitive" } }, { companyName: { contains: q, mode: "insensitive" } }, { taxId: { contains: q } }, { phone: { contains: q } }] }
     : { tenantId };
@@ -31,9 +41,15 @@ export const GET = apiHandler(async (req: NextRequest) => {
         code: true,
         companyName: true,
         taxId: true,
+        contactName: true,
         phone: true,
         email: true,
         address: true,
+        paymentTerms: true,
+        creditLimit: true,
+        remark: true,
+        isActive: true,
+        updatedBy: true,
         createdAt: true,
       },
       orderBy: { createdAt: "desc" },
@@ -42,7 +58,9 @@ export const GET = apiHandler(async (req: NextRequest) => {
     }),
     prisma.customer.count({ where }),
   ]);
-  return NextResponse.json({ items, total });
+  return NextResponse.json({ items, total, warning: syncWarning }, {
+    headers: { "Cache-Control": "no-store, max-age=0" },
+  });
 });
 
 export const POST = apiHandler(async (req: NextRequest) => {
