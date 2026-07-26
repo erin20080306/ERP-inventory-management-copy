@@ -129,6 +129,9 @@ assert.match(compose, /EINVOICE_MIG_VERSION/);
 assert.match(compose, /EINVOICE_TURNKEY_OUTBOX_DIR/);
 assert.match(compose, /EINVOICE_VAN_BASE_URL/);
 assert.match(dockerfile, /postgresql-client/);
+assert.match(dockerfile, /id=erp-build-npm,target=\/root\/\.npm,sharing=locked/);
+assert.match(dockerfile, /id=erp-runtime-tools-npm,target=\/root\/\.npm,sharing=locked/);
+assert.doesNotMatch(dockerfile, /npm cache clean --force/);
 assert.match(backupEntrypoint, /create-encrypted-backup\.ts/);
 
 for (const installer of [macInstaller, windowsInstaller]) {
@@ -188,7 +191,11 @@ assert.match(workflow, /needs: \[host-installers, desktop-clients\]/);
 assert.match(workflow, /host_only:/);
 assert.match(workflow, /host-release:[\s\S]*needs: host-installers/);
 assert.match(workflow, /inputs\.host_only/);
-assert.match(workflow, /unzip -p dist\/desktop\/ErinERP-Host-Windows-/);
-assert.match(workflow, /unzip -p dist\/desktop\/ErinERP-Host-macOS-/);
+assert.match(workflow, /WIN="\$\(echo dist\/desktop\/ErinERP-Host-Windows-x64-\*\.zip\)"/);
+assert.match(workflow, /ARM="\$\(echo dist\/desktop\/ErinERP-Host-macOS-Apple-Silicon-\*\.zip\)"/);
+assert.match(workflow, /INTEL="\$\(echo dist\/desktop\/ErinERP-Host-macOS-Intel-\*\.zip\)"/);
+assert.match(workflow, /unzip -p "\$WIN" installer\/Install-ErinERP\.ps1/);
+assert.match(workflow, /unzip -p "\$ARM" installer\/Install-ErinERP\.command/);
+assert.match(workflow, /unzip -p "\$INTEL" installer\/Install-ErinERP\.command/);
 
 console.log("Desktop package, Windows Host path bridge, signature repair, updater recovery and security configuration: PASS");
