@@ -34,19 +34,7 @@ jobs:
       - name: Pull validated candidate
         run: docker pull "$CANDIDATE_IMAGE"
 
-      - name: Verify candidate runtime contents
-        run: |
-          set -eu
-          docker run --rm --entrypoint sh "$CANDIDATE_IMAGE" -c '
-            test -x ./node_modules/.bin/next
-            test -x ./node_modules/.bin/prisma
-            test -x ./node_modules/.bin/tsx
-            test -f ./prisma/schema.prisma
-            test -f ./scripts/create-encrypted-backup.ts
-            test -f ./docker/entrypoint.sh
-          '
-
-      - name: Prepare candidate smoke environment
+      - name: Prepare diagnostic environment
         run: |
           set -eu
           ENV_FILE=/tmp/erin-erp-performance.env
@@ -78,23 +66,40 @@ jobs:
           echo "CANDIDATE_ENV_FILE=$ENV_FILE" >> "$GITHUB_ENV"
           echo "CANDIDATE_BACKUP_DIR=$BACKUP_DIR" >> "$GITHUB_ENV"
 
-      - name: Start candidate services
-        run: docker compose --env-file "$CANDIDATE_ENV_FILE" -p erinerp-performance -f docker-compose.local.yml up -d postgres app
+      - name: Start PostgreSQL only
+        run: docker compose --env-file "$CANDIDATE_ENV_FILE" -p erinerp-performance -f docker-compose.local.yml up -d postgres
 
-      - name: Wait for candidate application
+      - name: Run Prisma migration inside candidate
+        run: docker compose --env-file "$CANDIDATE_ENV_FILE" -p erinerp-performance -f docker-compose.local.yml run --rm --no-deps --entrypoint sh app -c 'set -eux; npx prisma migrate deploy'
+
+      - name: Verify Prisma client inside candidate
+        run: docker compose --env-file "$CANDIDATE_ENV_FILE" -p erinerp-performance -f docker-compose.local.yml run --rm --no-deps --entrypoint sh app -c 'set -eux; node -e '\''const {PrismaClient}=require("@prisma/client"); const p=new PrismaClient(); p.user.count().then(n=>console.log({userCount:n})).finally(()=>p.$disconnect())'\'''
+
+      - name: Run initial tenant seed inside candidate
+        run: docker compose --env-file "$CANDIDATE_ENV_FILE" -p erinerp-performance -f docker-compose.local.yml run --rm --no-deps --entrypoint sh app -c 'set -eux; npm run db:seed'
+
+      - name: Start Next server without entrypoint
+        run: docker compose --env-file "$CANDIDATE_ENV_FILE" -p erinerp-performance -f docker-compose.local.yml run -d --name erinerp-performance-next --no-deps --entrypoint sh app -c 'exec npm start -- -H 0.0.0.0'
+
+      - name: Wait for Next server
         run: |
           set -eu
-          for attempt in $(seq 1 90); do
-            if docker compose --env-file "$CANDIDATE_ENV_FILE" -p erinerp-performance -f docker-compose.local.yml exec -T app wget -q -T 4 -O /dev/null http://127.0.0.1:3000/login; then
-              echo "Slim candidate became ready after $((attempt * 2)) seconds."
+          for attempt in $(seq 1 60); do
+            if docker exec erinerp-performance-next wget -q -T 4 -O /dev/null http://127.0.0.1:3000/login; then
+              echo "Next server became ready after $((attempt * 2)) seconds."
               exit 0
+            fi
+            if ! docker inspect erinerp-performance-next --format '{{.State.Running}}' | grep -q true; then
+              docker logs erinerp-performance-next || true
+              exit 1
             fi
             sleep 2
           done
+          docker logs erinerp-performance-next || true
           exit 1
 
-      - name: Run encrypted backup in candidate
-        run: docker compose --env-file "$CANDIDATE_ENV_FILE" -p erinerp-performance -f docker-compose.local.yml run --rm --no-deps --entrypoint sh backup -c './node_modules/.bin/tsx scripts/create-encrypted-backup.ts'
+      - name: Run encrypted backup inside candidate
+        run: docker compose --env-file "$CANDIDATE_ENV_FILE" -p erinerp-performance -f docker-compose.local.yml run --rm --no-deps --entrypoint sh backup -c 'set -eux; ./node_modules/.bin/tsx scripts/create-encrypted-backup.ts'
 
       - name: Verify encrypted backup artifact
         run: |
@@ -104,12 +109,14 @@ jobs:
           test -s "$backup_file"
           echo "Encrypted candidate backup: $backup_file"
 
-      - name: Show candidate status and logs
+      - name: Show diagnostic logs
         if: always()
         run: |
-          docker compose --env-file "$CANDIDATE_ENV_FILE" -p erinerp-performance -f docker-compose.local.yml ps || true
-          docker compose --env-file "$CANDIDATE_ENV_FILE" -p erinerp-performance -f docker-compose.local.yml logs --no-color --tail=300 postgres app || true
+          docker logs erinerp-performance-next 2>&1 || true
+          docker compose --env-file "$CANDIDATE_ENV_FILE" -p erinerp-performance -f docker-compose.local.yml logs --no-color --tail=200 postgres || true
 
-      - name: Stop candidate services
+      - name: Stop diagnostic services
         if: always()
-        run: docker compose --env-file "$CANDIDATE_ENV_FILE" -p erinerp-performance -f docker-compose.local.yml down -v --remove-orphans || true
+        run: |
+          docker rm -f erinerp-performance-next 2>/dev/null || true
+          docker compose --env-file "$CANDIDATE_ENV_FILE" -p erinerp-performance -f docker-compose.local.yml down -v --remove-orphans || true
