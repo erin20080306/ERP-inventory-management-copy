@@ -72,7 +72,7 @@ jobs:
             test -f ./docker/entrypoint.sh
           '
 
-      - name: Smoke test candidate startup and backup
+      - name: Prepare candidate smoke environment
         run: |
           set -eu
           ENV_FILE=/tmp/erin-erp-performance.env
@@ -101,21 +101,41 @@ jobs:
           LICENSE_ED25519_PUBLIC_KEY_B64=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
           INTEGRITY_SECRET=github-actions-integrity-secret-at-least-32-characters
           EOF
-          cleanup() {
-            docker compose --env-file "$ENV_FILE" -p erinerp-performance -f docker-compose.local.yml down -v --remove-orphans || true
-          }
-          trap cleanup EXIT
-          docker compose --env-file "$ENV_FILE" -p erinerp-performance -f docker-compose.local.yml up -d postgres app
+          echo "CANDIDATE_ENV_FILE=$ENV_FILE" >> "$GITHUB_ENV"
+          echo "CANDIDATE_BACKUP_DIR=$BACKUP_DIR" >> "$GITHUB_ENV"
+
+      - name: Start candidate services
+        run: docker compose --env-file "$CANDIDATE_ENV_FILE" -p erinerp-performance -f docker-compose.local.yml up -d postgres app
+
+      - name: Wait for candidate application
+        run: |
+          set -eu
           for attempt in $(seq 1 90); do
-            if docker compose --env-file "$ENV_FILE" -p erinerp-performance -f docker-compose.local.yml exec -T app wget -q -T 4 -O /dev/null http://127.0.0.1:3000/login; then
+            if docker compose --env-file "$CANDIDATE_ENV_FILE" -p erinerp-performance -f docker-compose.local.yml exec -T app wget -q -T 4 -O /dev/null http://127.0.0.1:3000/login; then
               echo "Slim candidate became ready after $((attempt * 2)) seconds."
-              break
-            fi
-            if [ "$attempt" = "90" ]; then
-              docker compose --env-file "$ENV_FILE" -p erinerp-performance -f docker-compose.local.yml logs --no-color --tail=200 postgres app
-              exit 1
+              exit 0
             fi
             sleep 2
           done
-          docker compose --env-file "$ENV_FILE" -p erinerp-performance -f docker-compose.local.yml run --rm --no-deps --entrypoint sh backup -c './node_modules/.bin/tsx scripts/create-encrypted-backup.ts'
-          test -n "$(find "$BACKUP_DIR" -maxdepth 1 -name '*.erpbackup' -print -quit)"
+          docker compose --env-file "$CANDIDATE_ENV_FILE" -p erinerp-performance -f docker-compose.local.yml ps || true
+          docker compose --env-file "$CANDIDATE_ENV_FILE" -p erinerp-performance -f docker-compose.local.yml logs --no-color --tail=300 postgres app || true
+          exit 1
+
+      - name: Run encrypted backup in candidate
+        run: docker compose --env-file "$CANDIDATE_ENV_FILE" -p erinerp-performance -f docker-compose.local.yml run --rm --no-deps --entrypoint sh backup -c './node_modules/.bin/tsx scripts/create-encrypted-backup.ts'
+
+      - name: Verify encrypted backup artifact
+        run: |
+          set -eu
+          backup_file="$(find "$CANDIDATE_BACKUP_DIR" -maxdepth 1 -name '*.erpbackup' -print -quit)"
+          test -n "$backup_file"
+          test -s "$backup_file"
+          echo "Encrypted candidate backup: $backup_file"
+
+      - name: Show candidate logs
+        if: always()
+        run: docker compose --env-file "$CANDIDATE_ENV_FILE" -p erinerp-performance -f docker-compose.local.yml logs --no-color --tail=120 postgres app || true
+
+      - name: Stop candidate services
+        if: always()
+        run: docker compose --env-file "$CANDIDATE_ENV_FILE" -p erinerp-performance -f docker-compose.local.yml down -v --remove-orphans || true
