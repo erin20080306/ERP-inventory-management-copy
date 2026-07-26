@@ -75,16 +75,17 @@ assert.equal(
 );
 
 const releaseBuilder = readFileSync("scripts/build-host-installers.mjs", "utf8");
-assert.match(
-  releaseBuilder,
-  /cpSync\(path\.join\(root, "installer", "安裝艾琳ERP\.ps1"\), path\.join\(windows, "installer", "Install-ErinERP\.ps1"\)\)/,
-  "GitHub Release builder must copy the BOM-preserving source bytes",
-);
-assert.match(
-  releaseBuilder,
-  /const imageTag = process\.argv\[3\] \|\| "latest";/,
-  "Tagged manual Host installers must pull the smoke-tested latest image unless an explicit image tag is supplied",
-);
+assert.match(releaseBuilder, /cpSync\(sourcePath, targetPath\)/, "Bundled builder must first copy the BOM-preserving source bytes");
+assert.match(releaseBuilder, /transformWindowsInstaller\(readFileSync\(targetPath, "utf8"\)\)/);
+assert.match(releaseBuilder, /writeFileSync\(targetPath, transformed, "utf8"\)/);
+assert.match(releaseBuilder, /ErinERP-Host-Windows-x64-/);
+assert.match(releaseBuilder, /ErinERP-Host-macOS-Apple-Silicon-/);
+assert.match(releaseBuilder, /ErinERP-Host-macOS-Intel-/);
+assert.match(releaseBuilder, /images\/erin-erp-host-image\.tar\.gz/);
+assert.match(releaseBuilder, /Import-BundledErpImage/);
+assert.match(releaseBuilder, /Assert-BundleArchitecture/);
+assert.match(releaseBuilder, /自動顯示提示並開啟 Docker 官方安裝頁/);
+assert.match(releaseBuilder, /輸入艾琳設計提供的啟用碼/);
 
 if (process.platform === "win32") {
   execFileSync(
@@ -101,4 +102,4 @@ if (process.platform === "win32") {
   );
 }
 
-console.log("Windows PowerShell 5.1 BOM, Vercel embedded ZIP, and GitHub Release copy path: PASS");
+console.log("Windows PowerShell BOM, Docker guidance, embedded ZIP and three bundled Host package safeguards: PASS");
