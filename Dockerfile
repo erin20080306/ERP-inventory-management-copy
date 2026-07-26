@@ -21,36 +21,32 @@ ENV ERIN_RELEASE_SHA=$ERIN_RELEASE_SHA
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build && rm -rf .next/cache
 
-FROM base AS production-deps
-COPY package.json package-lock.json ./
-COPY prisma ./prisma
-RUN --mount=type=cache,target=/root/.npm \
-    npm ci --omit=dev --ignore-scripts --prefer-offline --fetch-retries=1 --fetch-timeout=60000 && \
-    npm cache clean --force
-
 FROM base AS runtime-tools
 WORKDIR /tools
+ENV PRISMA_SKIP_POSTINSTALL_GENERATE=true
 RUN --mount=type=cache,target=/root/.npm \
+    npm init -y >/dev/null 2>&1 && \
     npm install --omit=dev --no-package-lock --no-audit --no-fund \
-      prisma@5.22.0 tsx@4.19.2 && \
+      @prisma/client@5.22.0 bcryptjs@2.4.3 prisma@5.22.0 tsx@4.19.2 && \
     npm cache clean --force
 
 FROM base AS runtime
 ARG ERIN_RELEASE_SHA=development
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV HOSTNAME=0.0.0.0
+ENV PORT=3000
 ENV ERIN_RELEASE_SHA=$ERIN_RELEASE_SHA
 LABEL org.opencontainers.image.revision=$ERIN_RELEASE_SHA
 RUN apk add --no-cache postgresql-client
 
-COPY --from=production-deps /app/node_modules ./node_modules
-COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=runtime-tools /tools/node_modules ./node_modules
-COPY --from=build /app/.next ./.next
+COPY --from=build /app/.next/standalone ./
+COPY --from=build /app/.next/static ./.next/static
 COPY --from=build /app/public ./public
-COPY --from=build /app/package.json ./package.json
-COPY --from=build /app/next.config.js ./next.config.js
+COPY --from=runtime-tools /tools/node_modules ./node_modules
+COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=build /app/prisma ./prisma
+COPY --from=build /app/tsconfig.json ./tsconfig.json
 COPY --from=build /app/src/lib ./src/lib
 COPY --from=build /app/scripts/create-encrypted-backup.ts ./scripts/create-encrypted-backup.ts
 COPY --from=build /app/docker ./docker
