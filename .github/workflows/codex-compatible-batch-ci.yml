@@ -1,0 +1,52 @@
+name: Validate compatible security batch
+
+on:
+  push:
+    branches: [codex/compatible-security-batch]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: compatible-security-batch-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: erp
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d erp"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/erp?schema=public
+      NEXTAUTH_URL: http://localhost:3000
+      NEXTAUTH_SECRET: github-actions-compatible-batch-secret
+      LOCAL_LICENSE_MODE: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx prisma migrate deploy
+      - run: npm run test:commercial
+      - run: npm run test:tenant-subdomains
+      - run: npm run test:update
+      - run: npm run test:storefront-host-sync
+      - run: npx tsc --noEmit
+      - run: npm run build
+      - run: git diff --check
