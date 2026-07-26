@@ -16,7 +16,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  CANDIDATE_IMAGE: ghcr.io/erin20080306/erp-inventory-management-copy:candidate-e10a8825dc4a12aef4347d5181829c6271c257a7
+  CANDIDATE_IMAGE: ghcr.io/erin20080306/erp-inventory-management-copy:candidate-33bddff23fe0a208ba5052877b83b242447f4412
 
 jobs:
   diagnose:
