@@ -26,8 +26,19 @@ const PROTECTED_PREFIXES = [
   "/downloads",
 ];
 
+// 商城商品頁沿用既有公開操作；其餘受保護路徑即使位於租戶子網域仍需登入。
+const TENANT_PUBLIC_PROTECTED_PREFIXES = ["/products"];
+
+function matchesPathPrefix(pathname: string, prefix: string) {
+  return pathname === prefix || pathname.startsWith(`${prefix}/`);
+}
+
 function isProtectedPath(pathname: string) {
-  return PROTECTED_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+  return PROTECTED_PREFIXES.some((prefix) => matchesPathPrefix(pathname, prefix));
+}
+
+function isTenantPublicProtectedPath(pathname: string) {
+  return TENANT_PUBLIC_PROTECTED_PREFIXES.some((prefix) => matchesPathPrefix(pathname, prefix));
 }
 
 function configuredRootDomain() {
@@ -83,7 +94,7 @@ export default withAuth(
         const pathname = req.nextUrl.pathname;
         if (!isProtectedPath(pathname)) return true;
         const tenantSlug = requestTenantSlug(req);
-        if (tenantSlug && !/\.[^/]+$/.test(pathname)) return true;
+        if (tenantSlug && isTenantPublicProtectedPath(pathname)) return true;
         return Boolean(token) && !token?.revoked;
       },
     },

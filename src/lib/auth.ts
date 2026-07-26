@@ -47,6 +47,17 @@ const LOGIN_LOCK_WINDOW_MS = 15 * 60_000;
 const LOGIN_LOCK_MAX_FAILURES = 5;
 const SESSION_REVALIDATE_MS = 60_000;
 
+function requestHeaderValue(value: unknown) {
+  if (Array.isArray(value)) return String(value[0] || "");
+  return typeof value === "string" ? value : "";
+}
+
+function loginRequestIp(headers: Record<string, unknown> | undefined) {
+  const forwarded = requestHeaderValue(headers?.["x-forwarded-for"]);
+  const direct = requestHeaderValue(headers?.["x-real-ip"]);
+  return (forwarded || direct).split(",")[0].trim().slice(0, 100) || "unknown";
+}
+
 export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt", maxAge: 60 * 60 * 8 },
   pages: { signIn: "/login" },
@@ -61,7 +72,7 @@ export const authOptions: NextAuthOptions = {
         if (!credentials?.username || !credentials.password) return null;
         const identifier = credentials.username.trim().toLowerCase();
         if (!identifier) return null;
-        const ip = (req?.headers?.["x-forwarded-for"] as string) || "";
+        const ip = loginRequestIp(req?.headers as Record<string, unknown> | undefined);
 
         const user = await prisma.user.findFirst({
           where: {
@@ -88,7 +99,7 @@ export const authOptions: NextAuthOptions = {
 
         const lockWindowStart = new Date(Date.now() - LOGIN_LOCK_WINDOW_MS);
         const lastSuccess = await prisma.loginLog.findFirst({
-          where: { username: { equals: logUsername, mode: "insensitive" }, success: true },
+          where: { username: { equals: logUsername, mode: "insensitive" }, success: true, ip },
           orderBy: { createdAt: "desc" },
           select: { createdAt: true },
         });
@@ -96,13 +107,14 @@ export const authOptions: NextAuthOptions = {
         const recentFailures = await prisma.loginLog.count({
           where: {
             username: { equals: logUsername, mode: "insensitive" },
+            ip,
             success: false,
             createdAt: { gt: failuresSince },
           },
         });
         if (recentFailures >= LOGIN_LOCK_MAX_FAILURES) {
           prisma.loginLog.create({ data: { userId: user?.id, username: logUsername, success: false, ip } }).catch(() => {});
-          throw new Error("登入失敗次數過多，帳號已暫時鎖定，請 15 分鐘後再試");
+          throw new Error("登入失敗次數過多，此來源已暫時鎖定，請 15 分鐘後再試");
         }
 
         if (!user) {
