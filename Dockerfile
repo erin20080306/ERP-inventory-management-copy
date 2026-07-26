@@ -43,14 +43,27 @@ RUN apk add --no-cache postgresql-client
 COPY --from=build /app/.next/standalone ./
 COPY --from=build /app/.next/static ./.next/static
 COPY --from=build /app/public ./public
-COPY --from=runtime-tools /tools/node_modules ./node_modules
+
+# Keep operational CLI dependencies outside the standalone dependency tree.
+# Only copy the two seed-time application packages and expose stable CLI links.
+COPY --from=runtime-tools /tools /tools
+COPY --from=runtime-tools /tools/node_modules/@prisma/client ./node_modules/@prisma/client
+COPY --from=runtime-tools /tools/node_modules/bcryptjs ./node_modules/bcryptjs
 COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
+
 COPY --from=build /app/prisma ./prisma
 COPY --from=build /app/tsconfig.json ./tsconfig.json
 COPY --from=build /app/src/lib ./src/lib
 COPY --from=build /app/scripts/create-encrypted-backup.ts ./scripts/create-encrypted-backup.ts
 COPY --from=build /app/docker ./docker
-RUN chmod +x /app/docker/entrypoint.sh /app/docker/backup-entrypoint.sh
+RUN mkdir -p /app/node_modules/.bin && \
+    ln -sf /tools/node_modules/.bin/prisma /app/node_modules/.bin/prisma && \
+    ln -sf /tools/node_modules/.bin/tsx /app/node_modules/.bin/tsx && \
+    test -f /app/server.js && \
+    test -x /app/node_modules/.bin/prisma && \
+    test -x /app/node_modules/.bin/tsx && \
+    node -e 'require.resolve("@prisma/client"); require.resolve("bcryptjs")' && \
+    chmod +x /app/docker/entrypoint.sh /app/docker/backup-entrypoint.sh
 
 EXPOSE 3000
 ENTRYPOINT ["/app/docker/entrypoint.sh"]
