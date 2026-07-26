@@ -3,6 +3,8 @@ name: Validate compatible security batch
 on:
   push:
     branches: [codex/compatible-security-batch]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
