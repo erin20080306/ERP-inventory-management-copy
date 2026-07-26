@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { apiHandler, requirePermission, requireTenantId, audit, nextNumber, getCurrentUserName } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { calcTotals } from "@/lib/documents";
+import { auditDocumentTotalsDecimal } from "@/lib/money-audit";
 
 export const GET = apiHandler(async (req: NextRequest) => {
   const session = await requirePermission("purchases.view");
@@ -74,7 +75,12 @@ export const POST = apiHandler(async (req: NextRequest) => {
   const { supplierId, items, remark, status, isTaxable } = body as any;
   if (!supplierId) throw new Error("請選擇供應商");
   if (!items?.length) throw new Error("請至少新增一項商品");
-  const totals = calcTotals(items, isTaxable !== false);
+  const taxable = isTaxable !== false;
+  const totals = calcTotals(items, taxable);
+  auditDocumentTotalsDecimal("purchases.create", items, taxable, totals, {
+    tenantId,
+    itemCount: items.length,
+  });
   const number = await nextNumber("PO", tenantId);
   const s = status === "SUBMITTED" ? "SUBMITTED" : "DRAFT";
 
@@ -91,7 +97,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
         discount: totals.discount,
         taxAmount: totals.taxAmount,
         total: totals.total,
-        isTaxable: isTaxable !== false,
+        isTaxable: taxable,
         updatedBy: currentUserId,
         items: {
           create: totals.computed.map((i: any) => ({
