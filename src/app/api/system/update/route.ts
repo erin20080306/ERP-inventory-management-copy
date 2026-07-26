@@ -111,11 +111,11 @@ export const POST = apiHandler(async () => {
     userId: session.user.id,
     action: "backup_and_update_host",
     module: "settings",
-    detail: `${currentVersion} -> ${latest.version}; backup=${backup.name}`,
+    detail: `${currentVersion} -> ${latest.version}; backup=${backup.name}; digest=${latest.imageDigest || "latest"}`,
   });
 
   setTimeout(() => {
-    void triggerHostUpdater().catch(async (error) => {
+    void triggerHostUpdater(latest).catch(async (error) => {
       console.error("host updater failed", error);
       await writeHostUpdateState({
         state: "failed",
