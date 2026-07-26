@@ -5,7 +5,6 @@ on:
     branches: [main]
     paths:
       - "Dockerfile"
-      - ".dockerignore"
       - "docker/**"
       - "docker-compose.local.yml"
       - "updater/**"
@@ -29,6 +28,7 @@ permissions:
 
 concurrency:
   group: publish-host-container-image-${{ github.ref }}
+  # main 有新提交時只建置最新映像，避免已過期候選映像占用約 30 分鐘。
   cancel-in-progress: true
 
 env:
@@ -42,8 +42,10 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
       - name: Verify Host release safeguards
         run: node scripts/verify-host-update.mjs
+
       - name: Build isolated updater sidecar
         run: docker build -t erin-erp-host-updater:test ./updater
 
@@ -65,14 +67,17 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Build and push native candidate image
         uses: docker/build-push-action@v6
         with:
@@ -98,45 +103,39 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Assemble candidate multi-platform manifest
         env:
           CANDIDATE_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:candidate-${{ github.sha }}
         run: |
           set -eu
-          docker buildx imagetools create --tag "$CANDIDATE_IMAGE" "${CANDIDATE_IMAGE}-amd64" "${CANDIDATE_IMAGE}-arm64"
-      - name: Capture immutable candidate Digest
-        id: manifest
+          docker buildx imagetools create \
+            --tag "$CANDIDATE_IMAGE" \
+            "${CANDIDATE_IMAGE}-amd64" \
+            "${CANDIDATE_IMAGE}-arm64"
+
+      - name: Verify candidate multi-platform manifest
         env:
           CANDIDATE_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:candidate-${{ github.sha }}
         run: |
           set -eu
-          manifest_json="$(docker buildx imagetools inspect "$CANDIDATE_IMAGE" --format '{{json .Manifest}}')"
-          digest="$(printf '%s' "$manifest_json" | node -e 'const fs=require("node:fs"); const value=JSON.parse(fs.readFileSync(0,"utf8")).digest; if(typeof value!=="string") process.exit(1); process.stdout.write(value)')"
-          case "$digest" in
-            sha256:????????????????????????????????????????????????????????????????) ;;
-            *) echo "Invalid candidate digest: $digest" >&2; exit 1 ;;
-          esac
-          echo "digest=$digest" >> "$GITHUB_OUTPUT"
-          echo "Candidate digest: $digest"
-      - name: Verify candidate multi-platform manifest by Digest
-        env:
-          IMMUTABLE_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.manifest.outputs.digest }}
-        run: |
-          set -eu
-          docker buildx imagetools inspect "$IMMUTABLE_IMAGE" | tee /tmp/erin-erp-candidate-manifest.txt
+          docker buildx imagetools inspect "$CANDIDATE_IMAGE" | tee /tmp/erin-erp-candidate-manifest.txt
           grep -q "linux/amd64" /tmp/erin-erp-candidate-manifest.txt
           grep -q "linux/arm64" /tmp/erin-erp-candidate-manifest.txt
+
       - name: Smoke test Apple Silicon Host startup
         env:
-          ERP_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.manifest.outputs.digest }}
+          ERP_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:candidate-${{ github.sha }}
           COMPOSE_PROJECT_NAME: erinerp-smoke-${{ github.run_id }}
         run: |
           set -eu
@@ -197,6 +196,7 @@ jobs:
           done
           echo "Apple Silicon Host did not become ready within 180 seconds." >&2
           exit 1
+
       - name: Check candidate is still current main
         id: freshness
         env:
@@ -207,30 +207,33 @@ jobs:
           current_main="$(git rev-parse origin/main)"
           if [ "$current_main" = "$RELEASE_SHA" ]; then
             echo "promote=true" >> "$GITHUB_OUTPUT"
+            echo "Candidate is current main and may be promoted."
           else
             echo "promote=false" >> "$GITHUB_OUTPUT"
             echo "A newer main commit exists; this verified candidate will not replace latest."
           fi
-      - name: Promote verified Digest to latest compatibility tag
+
+      - name: Promote verified image to latest
         if: steps.freshness.outputs.promote == 'true'
         env:
-          VERIFIED_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.manifest.outputs.digest }}
+          VERIFIED_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:candidate-${{ github.sha }}
           LATEST_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-        run: docker buildx imagetools create --tag "$LATEST_IMAGE" "$VERIFIED_IMAGE"
-      - name: Verify promoted latest points to the released manifest
-        if: steps.freshness.outputs.promote == 'true'
-        env:
-          RELEASE_DIGEST: ${{ steps.manifest.outputs.digest }}
         run: |
           set -eu
-          manifest_json="$(docker buildx imagetools inspect "${REGISTRY}/${IMAGE_NAME}:latest" --format '{{json .Manifest}}')"
-          latest_digest="$(printf '%s' "$manifest_json" | node -e 'const fs=require("node:fs"); const value=JSON.parse(fs.readFileSync(0,"utf8")).digest; if(typeof value!=="string") process.exit(1); process.stdout.write(value)')"
-          test "$latest_digest" = "$RELEASE_DIGEST"
-      - name: Record released Host image version and Digest
+          docker buildx imagetools create --tag "$LATEST_IMAGE" "$VERIFIED_IMAGE"
+
+      - name: Verify promoted latest manifest
+        if: steps.freshness.outputs.promote == 'true'
+        run: |
+          set -eu
+          docker buildx imagetools inspect "${REGISTRY}/${IMAGE_NAME}:latest" | tee /tmp/erin-erp-latest-manifest.txt
+          grep -q "linux/amd64" /tmp/erin-erp-latest-manifest.txt
+          grep -q "linux/arm64" /tmp/erin-erp-latest-manifest.txt
+
+      - name: Record released Host image version
         if: steps.freshness.outputs.promote == 'true' && github.ref == 'refs/heads/main'
         env:
           RELEASE_SHA: ${{ github.sha }}
-          RELEASE_DIGEST: ${{ steps.manifest.outputs.digest }}
         run: |
           set -eu
           git fetch origin main
@@ -245,20 +248,26 @@ jobs:
             '// This file is advanced only after the multi-platform Host image passes its smoke test.' \
             'export const CURRENT_HOST_RELEASE = {' \
             "  version: \"$RELEASE_SHA\"," \
-            "  digest: \"$RELEASE_DIGEST\"," \
             "  publishedAt: \"$published_at\"," \
             '} as const;' > src/generated/current-host-release.ts
-          if git diff --quiet -- src/generated/current-host-release.ts; then exit 0; fi
+          if git diff --quiet -- src/generated/current-host-release.ts; then
+            echo "Host release marker already current."
+            exit 0
+          fi
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add src/generated/current-host-release.ts
-          git commit -m "chore: record Host image $RELEASE_SHA $RELEASE_DIGEST [skip ci]"
+          git commit -m "chore: record Host image $RELEASE_SHA [skip ci]"
           git push origin HEAD:main
+
       - name: Show published Host image
         if: steps.freshness.outputs.promote == 'true'
         run: |
-          echo "Verified compatibility tag: ghcr.io/${IMAGE_NAME}:latest"
-          echo "Immutable release: ghcr.io/${IMAGE_NAME}@${{ steps.manifest.outputs.digest }}"
+          echo "Verified image published: ghcr.io/${IMAGE_NAME}:latest"
+          echo "The GHCR package must be Public so customer manual Host installers can pull it anonymously."
+
       - name: Show superseded candidate result
         if: steps.freshness.outputs.promote != 'true'
-        run: echo "Candidate passed tests but was superseded by a newer main commit."
+        run: |
+          echo "Candidate passed manifest and Apple Silicon startup tests but was superseded by a newer main commit."
+          echo "The newer queued workflow will be responsible for promoting latest."

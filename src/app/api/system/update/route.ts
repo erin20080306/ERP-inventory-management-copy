@@ -22,7 +22,12 @@ export const GET = apiHandler(async () => {
   const session = await requirePermission("settings.view");
   const canUpdate = hasPermission(session.user.permissions, "settings.manage");
   if (!localHost()) {
-    return NextResponse.json({ localHost: false, hostedManaged: true, canUpdate: false, currentVersion: currentRuntimeVersion() });
+    return NextResponse.json({
+      localHost: false,
+      hostedManaged: true,
+      canUpdate: false,
+      currentVersion: currentRuntimeVersion(),
+    });
   }
   const currentVersion = currentHostVersion();
   const state = await readHostUpdateState();
@@ -35,7 +40,6 @@ export const GET = apiHandler(async () => {
       updaterReady: Boolean(process.env.HOST_UPDATE_URL && process.env.HOST_UPDATE_TOKEN),
       currentVersion,
       latestVersion: latest.version,
-      latestDigest: latest.imageDigest,
       updateAvailable: latest.version !== "development" && currentVersion !== latest.version,
       publishedAt: latest.publishedAt,
       status: state,
@@ -48,7 +52,6 @@ export const GET = apiHandler(async () => {
       updaterReady: Boolean(process.env.HOST_UPDATE_URL && process.env.HOST_UPDATE_TOKEN),
       currentVersion,
       latestVersion: null,
-      latestDigest: null,
       updateAvailable: false,
       status: state,
       checkError: error instanceof Error ? error.message : "無法查詢中央版本",
@@ -62,7 +65,6 @@ export const POST = apiHandler(async () => {
   if (!process.env.HOST_UPDATE_URL || !process.env.HOST_UPDATE_TOKEN) {
     throw new ApiError(503, "背景更新服務尚未安裝，請先執行新版 Host 安裝包一次；之後即可在 ERP 內更新");
   }
-
   const latest = await fetchCurrentHostRelease();
   let backup;
   try {
@@ -72,6 +74,8 @@ export const POST = apiHandler(async () => {
   }
   const currentVersion = currentHostVersion();
 
+  // 已是最新版時只完成備份與版本確認，不再呼叫 updater。舊 updater 若尚未
+  // 完成修復，也不會因為沒有實際更新需求而顯示無意義的「fetch failed」。
   if (latest.version === currentVersion) {
     await writeHostUpdateState({
       state: "current",
@@ -84,7 +88,7 @@ export const POST = apiHandler(async () => {
       userId: session.user.id,
       action: "backup_and_check_host_update",
       module: "settings",
-      detail: `${currentVersion}; digest=${latest.imageDigest}; backup=${backup.name}; current=true`,
+      detail: `${currentVersion}; backup=${backup.name}; current=true`,
     });
     return NextResponse.json({
       ok: true,
@@ -93,7 +97,6 @@ export const POST = apiHandler(async () => {
       backup,
       currentVersion,
       targetVersion: latest.version,
-      targetDigest: latest.imageDigest,
     }, { status: 202 });
   }
 
@@ -108,11 +111,11 @@ export const POST = apiHandler(async () => {
     userId: session.user.id,
     action: "backup_and_update_host",
     module: "settings",
-    detail: `${currentVersion} -> ${latest.version}; digest=${latest.imageDigest}; backup=${backup.name}`,
+    detail: `${currentVersion} -> ${latest.version}; backup=${backup.name}`,
   });
 
   setTimeout(() => {
-    void triggerHostUpdater(latest).catch(async (error) => {
+    void triggerHostUpdater().catch(async (error) => {
       console.error("host updater failed", error);
       await writeHostUpdateState({
         state: "failed",
@@ -124,12 +127,5 @@ export const POST = apiHandler(async () => {
     });
   }, 1_000);
 
-  return NextResponse.json({
-    ok: true,
-    accepted: true,
-    backup,
-    currentVersion,
-    targetVersion: latest.version,
-    targetDigest: latest.imageDigest,
-  }, { status: 202 });
+  return NextResponse.json({ ok: true, accepted: true, backup, currentVersion, targetVersion: latest.version }, { status: 202 });
 });

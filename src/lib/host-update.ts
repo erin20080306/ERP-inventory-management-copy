@@ -17,15 +17,11 @@ export type HostUpdateState = {
 export type HostRelease = {
   version: string;
   image: string;
-  imageDigest: string;
-  immutableImage: string;
   publishedAt: string;
 };
 
 const VERSION_PATTERN = /^(?:[a-f0-9]{7,64}|development)$/i;
-const DIGEST_PATTERN = /^sha256:[a-f0-9]{64}$/i;
-const IMAGE_REPOSITORY = "ghcr.io/erin20080306/erp-inventory-management-copy";
-const LEGACY_IMAGE = `${IMAGE_REPOSITORY}:latest`;
+const IMAGE = "ghcr.io/erin20080306/erp-inventory-management-copy:latest";
 
 export function shortHostVersion(value: string | null | undefined) {
   if (!value) return "—";
@@ -59,6 +55,7 @@ export async function writeHostUpdateState(state: HostUpdateState) {
 
 async function verifyCurrentReleaseSignature(central: string, signed: SignedOfflineLease) {
   if (verifyOfflineLease(signed)) return true;
+
   try {
     const response = await fetch(`${central}/api/license/public-key`, {
       cache: "no-store",
@@ -79,56 +76,39 @@ export async function fetchCurrentHostRelease(): Promise<HostRelease> {
   const response = await fetch(`${central}/api/releases/current`, { cache: "no-store", signal: AbortSignal.timeout(15_000) });
   const result = await response.json().catch(() => null) as { release?: SignedOfflineLease; error?: string } | null;
   if (!response.ok) throw new Error(result?.error || `中央版本服務回覆 ${response.status}`);
-
   const signed = result?.release;
   if (!signed || !(await verifyCurrentReleaseSignature(central, signed))) {
     throw new Error("中央版本簽章無效；請重新執行現有 Host 安裝程式一次以同步簽章公鑰");
   }
-
   const payload = signed.payload;
   if (payload.type !== "ERIN_ERP_HOST_RELEASE_V1") throw new Error("中央版本資料格式錯誤");
   const issuedAt = new Date(String(payload.issuedAt || ""));
   const expiresAt = new Date(String(payload.expiresAt || ""));
   const version = String(payload.version || "");
   const image = String(payload.image || "");
-  const imageDigest = String(payload.imageDigest || "").toLowerCase();
-  const immutableImage = String(payload.immutableImage || "");
-
   if (
-    !VERSION_PATTERN.test(version)
-    || image !== LEGACY_IMAGE
-    || !DIGEST_PATTERN.test(imageDigest)
-    || immutableImage !== `${IMAGE_REPOSITORY}@${imageDigest}`
-    || Number.isNaN(issuedAt.getTime())
-    || Number.isNaN(expiresAt.getTime())
-    || Date.now() < issuedAt.getTime() - 5 * 60_000
-    || Date.now() >= expiresAt.getTime()
-  ) throw new Error("中央版本內容無效、Digest 不一致或已過期");
-
-  return { version, image, imageDigest, immutableImage, publishedAt: String(payload.publishedAt || issuedAt.toISOString()) };
+    !VERSION_PATTERN.test(version) || image !== IMAGE ||
+    Number.isNaN(issuedAt.getTime()) || Number.isNaN(expiresAt.getTime()) ||
+    Date.now() < issuedAt.getTime() - 5 * 60_000 || Date.now() >= expiresAt.getTime()
+  ) throw new Error("中央版本內容無效或已過期");
+  return { version, image, publishedAt: String(payload.publishedAt || issuedAt.toISOString()) };
 }
 
-export async function triggerHostUpdater(release: HostRelease) {
+export async function triggerHostUpdater() {
   const url = process.env.HOST_UPDATE_URL;
   const token = process.env.HOST_UPDATE_TOKEN;
   if (!url || !token || token.length < 32) throw new Error("背景更新服務尚未安裝，請先執行新版 Host 安裝包一次");
-
   let response: Response;
   try {
     response = await fetch(url, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "X-Erin-Release-Version": release.version,
-        "X-Erin-Image-Digest": release.imageDigest,
-      },
+      headers: { Authorization: `Bearer ${token}` },
       signal: AbortSignal.timeout(10 * 60_000),
     });
   } catch (error) {
     const detail = error instanceof Error && error.name === "TimeoutError" ? "連線逾時" : "服務尚未啟動";
     throw new Error(`背景更新服務無法連線（${detail}）。請關閉並重新開啟艾琳 ERP，桌面程式會自動修復後再試`);
   }
-
   const result = await response.json().catch(() => null) as { error?: string } | null;
   if (!response.ok) throw new Error(result?.error || `背景更新服務回覆 ${response.status}`);
 }

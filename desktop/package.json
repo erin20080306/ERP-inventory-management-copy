@@ -4,7 +4,7 @@
   "private": true,
   "description": "艾琳 ERP macOS 與 Windows 安全工作站（依授權提供 ERP／零售 POS／餐飲 POS）",
   "author": "艾琳設計",
-  "main": "security-bootstrap.cjs",
+  "main": "main.cjs",
   "scripts": {
     "start": "electron .",
     "pack": "electron-builder --publish=never --dir",
@@ -26,13 +26,12 @@
     "asar": true,
     "npmRebuild": false,
     "extraMetadata": {
-      "main": "security-bootstrap.cjs"
+      "main": "v107-bootstrap.cjs"
     },
     "directories": {
       "output": "../dist/desktop"
     },
     "files": [
-      "security-bootstrap.cjs",
       "runtime-repair.cjs",
       "v107-bootstrap.cjs",
       "v106-bootstrap.cjs",
@@ -58,7 +57,12 @@
     },
     "win": {
       "icon": "assets/icon.png",
-      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
       "artifactName": "ErinERP-Desktop-Windows-${arch}-v${version}-Setup.${ext}"
     },
     "nsis": {

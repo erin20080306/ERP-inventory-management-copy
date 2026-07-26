@@ -1,0 +1,115 @@
+name: Apply runtime speed optimizations
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".speed-optimization-trigger"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-pos-fast-checkout
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply POS fast checkout v7 patch
+        run: |
+          node scripts/apply-pos-fast-checkout-v5.mjs
+          node scripts/fix-pos-fast-checkout-v6.mjs
+          node scripts/fix-restaurant-order-queue-v7.mjs
+          node -e 'const fs=require("fs");const p=JSON.parse(fs.readFileSync("package.json","utf8"));p.scripts["test:speed"]="node scripts/verify-speed-patch.mjs && node scripts/verify-pos-fast-checkout-v5.mjs";fs.writeFileSync("package.json",JSON.stringify(p,null,2)+"\n")'
+          rm -f .speed-optimization-diagnostic.txt
+      - name: Verify speed and payment safeguards
+        id: speed_verify
+        continue-on-error: true
+        run: |
+          set +e
+          npm run test:speed 2>&1 | tee /tmp/speed-verify.log
+          exit ${PIPESTATUS[0]}
+      - name: Publish speed safeguard diagnostic
+        if: steps.speed_verify.outcome == 'failure'
+        run: |
+          cp /tmp/speed-verify.log .speed-optimization-diagnostic.txt
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add .speed-optimization-diagnostic.txt
+          git commit -m "chore: record POS fast checkout safeguard failure [skip ci]"
+          git pull --rebase origin main
+          git push origin HEAD:main
+      - name: Stop after safeguard failure
+        if: steps.speed_verify.outcome == 'failure'
+        run: exit 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install dependencies
+        id: npm_ci
+        continue-on-error: true
+        run: |
+          set +e
+          npm ci --no-audit --no-fund 2>&1 | tee /tmp/speed-npm-ci.log
+          exit ${PIPESTATUS[0]}
+      - name: Publish npm diagnostic
+        if: steps.npm_ci.outcome == 'failure'
+        run: |
+          cp /tmp/speed-npm-ci.log .speed-optimization-diagnostic.txt
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add .speed-optimization-diagnostic.txt
+          git commit -m "chore: record POS fast checkout npm failure [skip ci]"
+          git pull --rebase origin main
+          git push origin HEAD:main
+      - name: Stop after npm failure
+        if: steps.npm_ci.outcome == 'failure'
+        run: exit 1
+      - name: TypeScript check
+        id: typescript
+        continue-on-error: true
+        run: |
+          set +e
+          npx tsc --noEmit 2>&1 | tee /tmp/speed-typescript.log
+          exit ${PIPESTATUS[0]}
+      - name: Restore TypeScript incremental build cache
+        if: always()
+        run: git restore --worktree -- tsconfig.tsbuildinfo
+      - name: Publish TypeScript diagnostic
+        if: steps.typescript.outcome == 'failure'
+        run: |
+          cp /tmp/speed-typescript.log .speed-optimization-diagnostic.txt
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add .speed-optimization-diagnostic.txt
+          git commit -m "chore: record POS fast checkout TypeScript failure [skip ci]"
+          git pull --rebase origin main
+          git push origin HEAD:main
+      - name: Stop after TypeScript failure
+        if: steps.typescript.outcome == 'failure'
+        run: exit 1
+      - name: Check patch formatting
+        run: git diff --check
+      - name: Commit optimized runtime
+        run: |
+          if git diff --quiet; then
+            echo "POS fast checkout v7 is already applied."
+            exit 0
+          fi
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add src/app src/lib package.json
+          git add -A .speed-optimization-diagnostic.txt
+          git commit -m "perf: complete POS checkout before background ERP sync"
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "Unexpected uncommitted files remain after the optimization commit."
+            git status --short
+            exit 1
+          fi
+          git pull --rebase origin main
+          git push origin HEAD:main

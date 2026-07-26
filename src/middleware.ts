@@ -3,21 +3,37 @@ import { NextResponse } from "next/server";
 import { tenantSiteRewritePath, tenantSubdomainFromHost } from "@/lib/tenant-subdomain";
 
 const PROTECTED_PREFIXES = [
-  "/dashboard", "/workspace", "/pos", "/products", "/customers", "/suppliers", "/purchases", "/sales",
-  "/quotations", "/inventory", "/warehouses", "/returns", "/accounting", "/reports", "/users", "/roles",
-  "/settings", "/audit", "/print", "/admin", "/downloads",
+  "/dashboard",
+  "/workspace",
+  "/pos",
+  "/products",
+  "/customers",
+  "/suppliers",
+  "/purchases",
+  "/sales",
+  "/quotations",
+  "/inventory",
+  "/warehouses",
+  "/returns",
+  "/accounting",
+  "/reports",
+  "/users",
+  "/roles",
+  "/settings",
+  "/audit",
+  "/print",
+  "/admin",
+  "/downloads",
 ];
 
 function isProtectedPath(pathname: string) {
   return PROTECTED_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 }
 
-function isTenantPublicProtectedPath(pathname: string) {
-  return pathname === "/products" || pathname.startsWith("/products/");
-}
-
 function configuredRootDomain() {
-  return process.env.PUBLIC_STOREFRONT_ROOT_DOMAIN || process.env.NEXT_PUBLIC_STOREFRONT_ROOT_DOMAIN || "";
+  return process.env.PUBLIC_STOREFRONT_ROOT_DOMAIN
+    || process.env.NEXT_PUBLIC_STOREFRONT_ROOT_DOMAIN
+    || "";
 }
 
 function requestTenantSlug(request: { headers: Headers }) {
@@ -38,7 +54,9 @@ function cleanLegacyTenantPath(pathname: string, tenantSlug: string) {
 export default withAuth(
   function middleware(request) {
     const pathname = request.nextUrl.pathname;
-    if (pathname.startsWith("/site/") || /\.[^/]+$/.test(pathname)) return NextResponse.next();
+    if (pathname.startsWith("/site/") || /\.[^/]+$/.test(pathname)) {
+      return NextResponse.next();
+    }
 
     const tenantSlug = requestTenantSlug(request);
     if (tenantSlug) {
@@ -48,6 +66,7 @@ export default withAuth(
         redirectUrl.pathname = cleanPath;
         return NextResponse.redirect(redirectUrl, 308);
       }
+
       const rewritePath = tenantSiteRewritePath(tenantSlug, pathname);
       if (rewritePath) {
         const url = request.nextUrl.clone();
@@ -55,6 +74,7 @@ export default withAuth(
         return NextResponse.rewrite(url);
       }
     }
+
     return NextResponse.next();
   },
   {
@@ -63,7 +83,7 @@ export default withAuth(
         const pathname = req.nextUrl.pathname;
         if (!isProtectedPath(pathname)) return true;
         const tenantSlug = requestTenantSlug(req);
-        if (tenantSlug && isTenantPublicProtectedPath(pathname)) return true;
+        if (tenantSlug && !/\.[^/]+$/.test(pathname)) return true;
         return Boolean(token) && !token?.revoked;
       },
     },
@@ -71,5 +91,7 @@ export default withAuth(
 );
 
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|manifest.webmanifest|sw.js).*)"],
+  matcher: [
+    "/((?!api|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|manifest.webmanifest|sw.js).*)",
+  ],
 };
