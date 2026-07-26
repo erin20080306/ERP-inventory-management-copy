@@ -118,8 +118,8 @@ jobs:
           CANDIDATE_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:candidate-${{ github.sha }}
         run: |
           set -eu
-          docker buildx imagetools inspect "$CANDIDATE_IMAGE" --raw > /tmp/erin-erp-candidate-manifest.json
-          digest="sha256:$(sha256sum /tmp/erin-erp-candidate-manifest.json | awk '{print $1}')"
+          manifest_json="$(docker buildx imagetools inspect "$CANDIDATE_IMAGE" --format '{{json .Manifest}}')"
+          digest="$(printf '%s' "$manifest_json" | node -e 'const fs=require("node:fs"); const value=JSON.parse(fs.readFileSync(0,"utf8")).digest; if(typeof value!=="string") process.exit(1); process.stdout.write(value)')"
           case "$digest" in
             sha256:????????????????????????????????????????????????????????????????) ;;
             *) echo "Invalid candidate digest: $digest" >&2; exit 1 ;;
@@ -223,8 +223,8 @@ jobs:
           RELEASE_DIGEST: ${{ steps.manifest.outputs.digest }}
         run: |
           set -eu
-          docker buildx imagetools inspect "${REGISTRY}/${IMAGE_NAME}:latest" --raw > /tmp/erin-erp-latest-manifest.json
-          latest_digest="sha256:$(sha256sum /tmp/erin-erp-latest-manifest.json | awk '{print $1}')"
+          manifest_json="$(docker buildx imagetools inspect "${REGISTRY}/${IMAGE_NAME}:latest" --format '{{json .Manifest}}')"
+          latest_digest="$(printf '%s' "$manifest_json" | node -e 'const fs=require("node:fs"); const value=JSON.parse(fs.readFileSync(0,"utf8")).digest; if(typeof value!=="string") process.exit(1); process.stdout.write(value)')"
           test "$latest_digest" = "$RELEASE_DIGEST"
       - name: Record released Host image version and Digest
         if: steps.freshness.outputs.promote == 'true' && github.ref == 'refs/heads/main'
