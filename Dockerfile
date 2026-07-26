@@ -9,13 +9,15 @@ COPY package.json package-lock.json ./
 COPY prisma ./prisma
 RUN --mount=type=cache,target=/root/.npm \
     for attempt in 1 2 3; do \
-      timeout 600 npm ci --omit=dev --prefer-offline --no-audit --no-fund --fetch-retries=1 --fetch-timeout=60000 && exit 0; \
+      timeout 600 npm ci --omit=dev --ignore-scripts --prefer-offline --no-audit --no-fund --fetch-retries=1 --fetch-timeout=60000 && exit 0; \
       rm -rf node_modules; \
       echo "production npm ci attempt ${attempt} failed; retrying." >&2; \
     done; \
     exit 1
+# Runtime still needs the Prisma CLI for migrate deploy and tsx for first-install seed.
 RUN --mount=type=cache,target=/root/.npm \
-    npm install --no-save --omit=optional --no-audit --no-fund prisma@5.22.0 tsx@4.19.2
+    npm install --no-save --package-lock=false --omit=optional --ignore-scripts --no-audit --no-fund prisma@5.22.0 tsx@4.19.2 \
+    && npx prisma generate
 
 FROM base AS build
 ARG ERIN_RELEASE_SHA=development
