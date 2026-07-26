@@ -81,11 +81,14 @@ for (const plan of PLAN_CATALOG) {
 const authSource = readFileSync("src/lib/auth.ts", "utf8");
 assert.match(authSource, /const LOGIN_LOCK_WINDOW_MS = 15 \* 60_000/);
 assert.match(authSource, /const LOGIN_LOCK_MAX_FAILURES = 5/);
+assert.match(authSource, /function loginRequestIp/);
+assert.match(authSource, /split\(","\)\[0\]/);
 assert.match(authSource, /const recentFailures = await prisma\.loginLog\.count/);
+assert.match(authSource, /username: \{ equals: logUsername, mode: "insensitive" \},\s+ip,\s+success: false/s);
 assert.match(authSource, /if \(recentFailures >= LOGIN_LOCK_MAX_FAILURES\)/);
-assert.match(authSource, /帳號已暫時鎖定，請 15 分鐘後再試/);
+assert.match(authSource, /此來源已暫時鎖定，請 15 分鐘後再試/);
 assert.match(authSource, /const SESSION_REVALIDATE_MS = 60_000/);
 assert.match(authSource, /token\.revoked = !account\?\.isActive/);
 assert.match(authSource, /loginLog\.create/);
 
-console.log("Commercial trial, renewal, ecommerce pricing, login lockout and offline expiry controls: PASS");
+console.log("Commercial trial, renewal, ecommerce pricing, IP-scoped login lockout and offline expiry controls: PASS");
