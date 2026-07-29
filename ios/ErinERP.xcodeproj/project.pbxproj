@@ -1,0 +1,459 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		04780FAC2DB689A1DCA672B2 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = BAD0D15DA176E94C3E3F2866 /* PrivacyInfo.xcprivacy */; };
+		160523E9750E681407C7C924 /* AppNavigationPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDB76D7CD979D0735DC9A1B7 /* AppNavigationPolicyTests.swift */; };
+		2A01486C33042AC58280E3F8 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1FCA3D653EFA2A4AB7F2BD62 /* Assets.xcassets */; };
+		3E9D40D325532F9D0CD0D271 /* ShareSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7E35E64AF13CC1972E54354 /* ShareSheet.swift */; };
+		AB8C018DC9A686B18F1E8D62 /* NativeSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C526BA85791A79D865C14941 /* NativeSettingsView.swift */; };
+		AD5375602F4EFA452F80C1B9 /* ErinERPApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F761D9961EE0F3F5FE7EB69C /* ErinERPApp.swift */; };
+		AEB461B7C1212645345F9DA7 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E260F912C51F5378C4AF69AC /* RootView.swift */; };
+		DD7AB725C712F6DE649C4E79 /* ERPAppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00ABE5FEBC69C4BD4D75609A /* ERPAppState.swift */; };
+		E11333AA15975C3981572861 /* ERPWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EDC7EBADFF21FC28CF88D3E /* ERPWebView.swift */; };
+		EFA7E10BD33368D63584CFE3 /* AppNavigationPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D387554F4AEA4883A188870 /* AppNavigationPolicy.swift */; };
+		F86814B004A4965D3005E3FC /* ERPWebViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7255902C890E6BE66752D76 /* ERPWebViewModel.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		4528AE82784ECF484B866ED6 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 87F1292312B74C0C884CC7C2 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = DDBA616730D7BA3255FDB482;
+			remoteInfo = ErinERP;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		00ABE5FEBC69C4BD4D75609A /* ERPAppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ERPAppState.swift; sourceTree = "<group>"; };
+		1D387554F4AEA4883A188870 /* AppNavigationPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppNavigationPolicy.swift; sourceTree = "<group>"; };
+		1EDC7EBADFF21FC28CF88D3E /* ERPWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ERPWebView.swift; sourceTree = "<group>"; };
+		1FCA3D653EFA2A4AB7F2BD62 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		4B027BF5518997F501BD9FD4 /* ErinERP.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = ErinERP.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A7E35E64AF13CC1972E54354 /* ShareSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareSheet.swift; sourceTree = "<group>"; };
+		BAD0D15DA176E94C3E3F2866 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		C526BA85791A79D865C14941 /* NativeSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeSettingsView.swift; sourceTree = "<group>"; };
+		DBBB6E2A76DD516A0454B76C /* ErinERPTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = ErinERPTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		E260F912C51F5378C4AF69AC /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		E7255902C890E6BE66752D76 /* ERPWebViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ERPWebViewModel.swift; sourceTree = "<group>"; };
+		F761D9961EE0F3F5FE7EB69C /* ErinERPApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErinERPApp.swift; sourceTree = "<group>"; };
+		FDB76D7CD979D0735DC9A1B7 /* AppNavigationPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppNavigationPolicyTests.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		26AD8197469E1634264F4374 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				4B027BF5518997F501BD9FD4 /* ErinERP.app */,
+				DBBB6E2A76DD516A0454B76C /* ErinERPTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		2B7DAEB888930E9BE791C926 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				1FCA3D653EFA2A4AB7F2BD62 /* Assets.xcassets */,
+				BAD0D15DA176E94C3E3F2866 /* PrivacyInfo.xcprivacy */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		5C55B21F458C8A249B32B2CE = {
+			isa = PBXGroup;
+			children = (
+				73EEBC8F7FB2061267348370 /* ErinERP */,
+				C0088DD689910010DF886FC3 /* ErinERPTests */,
+				26AD8197469E1634264F4374 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		73EEBC8F7FB2061267348370 /* ErinERP */ = {
+			isa = PBXGroup;
+			children = (
+				2B7DAEB888930E9BE791C926 /* Resources */,
+				E982B4C17E453C53A17BB73D /* Sources */,
+			);
+			path = ErinERP;
+			sourceTree = "<group>";
+		};
+		C0088DD689910010DF886FC3 /* ErinERPTests */ = {
+			isa = PBXGroup;
+			children = (
+				FDB76D7CD979D0735DC9A1B7 /* AppNavigationPolicyTests.swift */,
+			);
+			path = ErinERPTests;
+			sourceTree = "<group>";
+		};
+		E982B4C17E453C53A17BB73D /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				1D387554F4AEA4883A188870 /* AppNavigationPolicy.swift */,
+				F761D9961EE0F3F5FE7EB69C /* ErinERPApp.swift */,
+				00ABE5FEBC69C4BD4D75609A /* ERPAppState.swift */,
+				1EDC7EBADFF21FC28CF88D3E /* ERPWebView.swift */,
+				E7255902C890E6BE66752D76 /* ERPWebViewModel.swift */,
+				C526BA85791A79D865C14941 /* NativeSettingsView.swift */,
+				E260F912C51F5378C4AF69AC /* RootView.swift */,
+				A7E35E64AF13CC1972E54354 /* ShareSheet.swift */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		6FB90EBE56B1E83E1FB35FEA /* ErinERPTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5C15396F7F19239194BA64C8 /* Build configuration list for PBXNativeTarget "ErinERPTests" */;
+			buildPhases = (
+				EA5D6B68EE3C73527DDB8BDD /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				0D56115761BFF85AF33C10A1 /* PBXTargetDependency */,
+			);
+			name = ErinERPTests;
+			packageProductDependencies = (
+			);
+			productName = ErinERPTests;
+			productReference = DBBB6E2A76DD516A0454B76C /* ErinERPTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		DDBA616730D7BA3255FDB482 /* ErinERP */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 17438A1AF363F8CCF80571BC /* Build configuration list for PBXNativeTarget "ErinERP" */;
+			buildPhases = (
+				2546220A4D8F2B973516423C /* Sources */,
+				402BAE7EC1D8D7E94690926A /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = ErinERP;
+			packageProductDependencies = (
+			);
+			productName = ErinERP;
+			productReference = 4B027BF5518997F501BD9FD4 /* ErinERP.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		87F1292312B74C0C884CC7C2 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					DDBA616730D7BA3255FDB482 = {
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = 796AFDBC06BF12D61E9115DA /* Build configuration list for PBXProject "ErinERP" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 5C55B21F458C8A249B32B2CE;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 26AD8197469E1634264F4374 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				DDBA616730D7BA3255FDB482 /* ErinERP */,
+				6FB90EBE56B1E83E1FB35FEA /* ErinERPTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		402BAE7EC1D8D7E94690926A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2A01486C33042AC58280E3F8 /* Assets.xcassets in Resources */,
+				04780FAC2DB689A1DCA672B2 /* PrivacyInfo.xcprivacy in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		2546220A4D8F2B973516423C /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				EFA7E10BD33368D63584CFE3 /* AppNavigationPolicy.swift in Sources */,
+				DD7AB725C712F6DE649C4E79 /* ERPAppState.swift in Sources */,
+				E11333AA15975C3981572861 /* ERPWebView.swift in Sources */,
+				F86814B004A4965D3005E3FC /* ERPWebViewModel.swift in Sources */,
+				AD5375602F4EFA452F80C1B9 /* ErinERPApp.swift in Sources */,
+				AB8C018DC9A686B18F1E8D62 /* NativeSettingsView.swift in Sources */,
+				AEB461B7C1212645345F9DA7 /* RootView.swift in Sources */,
+				3E9D40D325532F9D0CD0D271 /* ShareSheet.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		EA5D6B68EE3C73527DDB8BDD /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				160523E9750E681407C7C924 /* AppNavigationPolicyTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		0D56115761BFF85AF33C10A1 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = DDBA616730D7BA3255FDB482 /* ErinERP */;
+			targetProxy = 4528AE82784ECF484B866ED6 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		161CDBBBACE3C4587EB6B9AE /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_STRICT_CONCURRENCY = minimal;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		1A4021B88B3A50E9D5016524 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.erincom.erp.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ErinERP.app/ErinERP";
+			};
+			name = Debug;
+		};
+		24BE8E406640DE6CFDE27C93 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.erincom.erp.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ErinERP.app/ErinERP";
+			};
+			name = Release;
+		};
+		55418F2A034F1297CEAAB8D0 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_STRICT_CONCURRENCY = minimal;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		77B0A40834F07CA626453835 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				INFOPLIST_FILE = ErinERP/Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.erincom.erp;
+				PRODUCT_NAME = ErinERP;
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		A18514211123A49260D48114 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				INFOPLIST_FILE = ErinERP/Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.erincom.erp;
+				PRODUCT_NAME = ErinERP;
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		17438A1AF363F8CCF80571BC /* Build configuration list for PBXNativeTarget "ErinERP" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				77B0A40834F07CA626453835 /* Debug */,
+				A18514211123A49260D48114 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		5C15396F7F19239194BA64C8 /* Build configuration list for PBXNativeTarget "ErinERPTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1A4021B88B3A50E9D5016524 /* Debug */,
+				24BE8E406640DE6CFDE27C93 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		796AFDBC06BF12D61E9115DA /* Build configuration list for PBXProject "ErinERP" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				161CDBBBACE3C4587EB6B9AE /* Debug */,
+				55418F2A034F1297CEAAB8D0 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 87F1292312B74C0C884CC7C2 /* Project object */;
+}

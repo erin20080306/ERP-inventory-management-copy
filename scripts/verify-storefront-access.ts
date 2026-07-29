@@ -190,6 +190,7 @@ const productCatalogRepairMigration = readFileSync("prisma/migrations/2026072404
 const fulfillmentRoleMigration = readFileSync("prisma/migrations/20260724150000_ecommerce_fulfillment_role/migration.sql", "utf8");
 const tenantBaseline = readFileSync("src/lib/tenant-baseline.ts", "utf8");
 const loginPage = readFileSync("src/app/login/page.tsx", "utf8");
+const loginClient = readFileSync("src/app/login/client.tsx", "utf8");
 assert.doesNotMatch(commerceDashboard, /商城已綁定公司代碼/);
 assert.doesNotMatch(commerceWorkspace, /商城與後台共用公司代碼/);
 assert.match(commerceStoreApi, /businessMode: "ECOMMERCE"/);
@@ -301,7 +302,8 @@ assert.match(settingsClient, /電商月租與年租方案另收一次設定費 N
 assert.match(settingsClient, /商城銀行轉帳資訊/);
 assert.match(settingsClient, /正式收款需由客戶提供金流商帳號及串接資料後開通/);
 assert.match(commerceWorkspaceSource, /王小美是預設體驗顧客/);
-assert.match(loginPage, /電商客戶｜您的專屬商城網址/);
-assert.match(loginPage, /登入後查看專屬商城網址/);
+assert.match(loginPage, /LoginClient/);
+assert.match(loginClient, /電商客戶｜您的專屬商城網址/);
+assert.match(loginClient, /登入後查看專屬商城網址/);
 
 console.log("Tenant storefront / ERP switching access: PASS");

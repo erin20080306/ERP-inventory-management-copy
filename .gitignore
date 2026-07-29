@@ -12,3 +12,7 @@ prisma/migrations/dev.db*
 .local-test
 public/uploads/
 *.tsbuildinfo
+ios/DerivedData/
+ios/build/
+ios/**/*.xcuserstate
+ios/**/xcuserdata/

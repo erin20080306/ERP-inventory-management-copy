@@ -34,11 +34,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     }
   }
   return (
-    <TrialGate initialAccess={initialAccess}>
+    <TrialGate initialAccess={initialAccess} iosApp={!medicalEnabled}>
       <div className="flex min-h-screen">
         <Sidebar medicalEnabled={medicalEnabled} />
         <div className="flex-1 flex flex-col min-w-0">
-          <Header showDownloads={initialAccess.status === "paid"} medicalEnabled={medicalEnabled} />
+          <Header showDownloads={medicalEnabled && initialAccess.status === "paid"} medicalEnabled={medicalEnabled} />
           <UpdateNotice />
           <main className="flex-1 p-6" data-erp-keyboard-scope>
             <PrintCompanyHeader />

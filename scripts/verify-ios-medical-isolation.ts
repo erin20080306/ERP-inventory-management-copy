@@ -45,6 +45,8 @@ const sources = {
   workspace: readFileSync(path.join(root, "src/app/(app)/workspace/page.tsx"), "utf8"),
   sidebar: readFileSync(path.join(root, "src/components/layout/sidebar-nav.tsx"), "utf8"),
   registerApi: readFileSync(path.join(root, "src/app/api/register/route.ts"), "utf8"),
+  login: readFileSync(path.join(root, "src/app/login/client.tsx"), "utf8"),
+  trialGate: readFileSync(path.join(root, "src/components/trial-gate.tsx"), "utf8"),
 };
 
 assert.match(sources.middleware, /isIosRestrictedMedicalPath/, "middleware 必須阻擋 iOS 醫美頁面與 API");
@@ -52,5 +54,7 @@ assert.match(sources.layout, /medicalEnabled/, "登入後版面必須把平台�
 assert.match(sources.workspace, /medicalEnabled/, "工作區不得把 iOS 醫美租戶自動導向醫美頁");
 assert.match(sources.sidebar, /medicalEnabled/, "桌面與行動側邊欄必須隱藏 iOS 醫美入口");
 assert.match(sources.registerApi, /isIosAppRequest/, "註冊 API 必須拒絕 iOS 建立醫美租戶");
+assert.match(sources.login, /!iosApp/, "iOS 登入頁不得顯示網頁金流入口");
+assert.match(sources.trialGate, /!iosApp/, "iOS 試用與到期畫面不得引導網頁付款");
 
 console.log("iOS App medical isolation with full Vercel, Safari and desktop preservation: PASS");
