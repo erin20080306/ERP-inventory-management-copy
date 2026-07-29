@@ -314,6 +314,9 @@ export function SidebarNav({ onNavigate, collapsed = false, medicalEnabled = tru
   }, [router]);
 
   useEffect(() => {
+    // iOS 透過遠端 Vercel 使用 ERP；避免啟動後批量預抓頁面與目前操作競爭頻寬。
+    // 使用者觸碰選項時仍會由 onTouchStart 立即預抓目標頁面與資料。
+    if (!medicalEnabled) return;
     const visibleHrefs = sections
       .flatMap((section) => section.items)
       .filter((item) => !item.perm || hasPermission(perms, item.perm))
@@ -325,7 +328,7 @@ export function SidebarNav({ onNavigate, collapsed = false, medicalEnabled = tru
     }
     const id = setTimeout(warmCommonRoutes, 1200);
     return () => clearTimeout(id);
-  }, [permKey, warmRoute, sections]);
+  }, [medicalEnabled, permKey, warmRoute, sections]);
 
   return (
     <nav className="flex-1 overflow-y-auto py-3">
@@ -367,6 +370,7 @@ export function SidebarNav({ onNavigate, collapsed = false, medicalEnabled = tru
                     <li key={i.href}>
                       <Link
                         href={i.href}
+                        prefetch={medicalEnabled}
                         title={collapsed ? i.title : undefined}
                         aria-label={collapsed ? i.title : undefined}
                         onClick={() => {

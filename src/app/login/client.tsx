@@ -46,6 +46,15 @@ function LoginInner({ iosApp }: { iosApp: boolean }) {
   const isOnlineRuntime = runtimeMode === "online";
   const registered = sp.get("registered") === "1";
 
+  function navigateAfterLogin(path: string) {
+    if (iosApp) {
+      router.replace(path);
+      router.refresh();
+      return;
+    }
+    window.location.href = path;
+  }
+
   useEffect(() => {
     const localHost = ["127.0.0.1", "localhost"].includes(window.location.hostname);
     fetch("/api/runtime-mode", { cache: "no-store" })
@@ -93,15 +102,14 @@ function LoginInner({ iosApp }: { iosApp: boolean }) {
       // 登入後依平台管理者／公司模式進入正確工作區。
       const sess = await fetch("/api/auth/session").then((r) => r.json());
       if (sess?.user?.isSuperAdmin) {
-        window.location.href = "/admin";
+        navigateAfterLogin("/admin");
         return;
       }
       if (!sp.get("callbackUrl")) {
-        window.location.href = "/workspace";
+        navigateAfterLogin("/workspace");
         return;
       }
-      // 整頁導航，避免 push+refresh 需要按兩次的問題
-      window.location.href = callbackUrl;
+      navigateAfterLogin(callbackUrl);
     } catch (error: any) {
       toast.error(error?.message || "登入失敗，請檢查網路後重試");
     } finally {

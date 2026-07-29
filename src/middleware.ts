@@ -67,6 +67,12 @@ function cleanLegacyTenantPath(pathname: string, tenantSlug: string) {
 export default withAuth(
   function middleware(request) {
     const pathname = request.nextUrl.pathname;
+    if (pathname === "/login" && isIosAppRequest(request.headers)) {
+      const destination = request.nextUrl.clone();
+      destination.pathname = "/login/ios";
+      return NextResponse.rewrite(destination);
+    }
+
     if (isIosAppRequest(request.headers) && isIosRestrictedMedicalPath(pathname)) {
       if (pathname.startsWith("/api/")) {
         return NextResponse.json({ error: IOS_UNAVAILABLE_MESSAGE }, { status: 403 });

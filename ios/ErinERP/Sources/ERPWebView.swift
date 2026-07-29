@@ -15,7 +15,27 @@ struct ERPWebView: UIViewRepresentable {
         configuration.defaultWebpagePreferences.allowsContentJavaScript = true
 
         let platformScript = WKUserScript(
-            source: "window.__ERIN_CLIENT_PLATFORM__ = 'ios-app';",
+            source: """
+            (() => {
+              window.__ERIN_CLIENT_PLATFORM__ = 'ios-app';
+              document.documentElement.dataset.erinClientPlatform = 'ios-app';
+              const erinPerformanceStyle = document.createElement('style');
+              erinPerformanceStyle.textContent = `
+                html[data-erin-client-platform="ios-app"] .blur-3xl.animate-pulse {
+                  animation: none !important;
+                }
+                html[data-erin-client-platform="ios-app"] .backdrop-blur-xl,
+                html[data-erin-client-platform="ios-app"] .backdrop-blur-2xl {
+                  -webkit-backdrop-filter: none !important;
+                  backdrop-filter: none !important;
+                }
+                html[data-erin-client-platform="ios-app"] * {
+                  -webkit-tap-highlight-color: transparent;
+                }
+              `;
+              document.documentElement.appendChild(erinPerformanceStyle);
+            })();
+            """,
             injectionTime: .atDocumentStart,
             forMainFrameOnly: false
         )

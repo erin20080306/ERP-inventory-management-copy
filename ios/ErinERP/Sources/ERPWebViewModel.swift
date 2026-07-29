@@ -26,7 +26,7 @@ final class ERPWebViewModel: ObservableObject {
     weak var webView: WKWebView?
 
     var initialRequest: URLRequest {
-        request(path: "/login?source=ios-app")
+        request(path: "/workspace?source=ios-app")
     }
 
     func attach(_ webView: WKWebView) {
