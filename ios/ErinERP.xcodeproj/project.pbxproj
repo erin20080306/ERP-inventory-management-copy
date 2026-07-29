@@ -155,6 +155,7 @@
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					DDBA616730D7BA3255FDB482 = {
+						DevelopmentTeam = SFV746H7N6;
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -388,6 +389,7 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = SFV746H7N6;
 				INFOPLIST_FILE = ErinERP/Resources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -409,6 +411,7 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = SFV746H7N6;
 				INFOPLIST_FILE = ErinERP/Resources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

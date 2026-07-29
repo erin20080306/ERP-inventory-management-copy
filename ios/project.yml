@@ -28,6 +28,7 @@ targets:
         INFOPLIST_FILE: ErinERP/Resources/Info.plist
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: SFV746H7N6
         TARGETED_DEVICE_FAMILY: "1,2"
         SUPPORTS_MACCATALYST: NO
     scheme:
