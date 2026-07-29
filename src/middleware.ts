@@ -1,6 +1,7 @@
 import { withAuth } from "next-auth/middleware";
 import { NextResponse } from "next/server";
 import { tenantSiteRewritePath, tenantSubdomainFromHost } from "@/lib/tenant-subdomain";
+import { isIosAppRequest, isIosRestrictedMedicalPath } from "@/lib/client-platform";
 
 const PROTECTED_PREFIXES = [
   "/dashboard",
@@ -28,6 +29,7 @@ const PROTECTED_PREFIXES = [
 
 // 商城商品頁沿用既有公開操作；其餘受保護路徑即使位於租戶子網域仍需登入。
 const TENANT_PUBLIC_PROTECTED_PREFIXES = ["/products"];
+const IOS_UNAVAILABLE_MESSAGE = "此功能目前不在 iOS App 提供，請使用完整網頁版或桌面版。";
 
 function matchesPathPrefix(pathname: string, prefix: string) {
   return pathname === prefix || pathname.startsWith(`${prefix}/`);
@@ -65,6 +67,16 @@ function cleanLegacyTenantPath(pathname: string, tenantSlug: string) {
 export default withAuth(
   function middleware(request) {
     const pathname = request.nextUrl.pathname;
+    if (isIosAppRequest(request.headers) && isIosRestrictedMedicalPath(pathname)) {
+      if (pathname.startsWith("/api/")) {
+        return NextResponse.json({ error: IOS_UNAVAILABLE_MESSAGE }, { status: 403 });
+      }
+      const destination = request.nextUrl.clone();
+      destination.pathname = pathname === "/medical" ? "/workspace" : "/solutions";
+      destination.search = "";
+      return NextResponse.redirect(destination);
+    }
+
     if (pathname.startsWith("/site/") || /\.[^/]+$/.test(pathname)) {
       return NextResponse.next();
     }
@@ -104,5 +116,7 @@ export default withAuth(
 export const config = {
   matcher: [
     "/((?!api|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|manifest.webmanifest|sw.js).*)",
+    "/api/medical/:path*",
+    "/api/medical-site/:path*",
   ],
 };

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { ArrowUpRight, Building2, Calculator, ClipboardList, HeartPulse, Package, PackageCheck, ScanBarcode, Shield, ShoppingCart, Store, UtensilsCrossed } from "lucide-react";
 import { getSession } from "@/lib/api";
 import { hasPermission } from "@/lib/permissions";
@@ -9,6 +10,7 @@ import { formatMoney, formatNumber } from "@/lib/utils";
 import { prisma } from "@/lib/prisma";
 import { normalizeStoreSlug } from "@/lib/storefront-branding";
 import { medicalSitePath, storefrontPath } from "@/lib/public-site-links";
+import { isMedicalEnabledForRequest } from "@/lib/client-platform";
 
 export const dynamic = "force-dynamic";
 
@@ -28,18 +30,19 @@ export default async function WorkspacePage() {
   const edition = getProductEdition(mode);
   const permissions = session.user.permissions;
   const isPlatformAdmin = Boolean(session.user.isSuperAdmin);
+  const medicalEnabled = isMedicalEnabledForRequest(await headers());
   if (!isPlatformAdmin) {
     if (mode === "ERP" && hasPermission(permissions, "dashboard.view")) redirect("/dashboard");
     if (mode === "POS_RETAIL" && hasPermission(permissions, "pos.view")) redirect("/pos");
     if (mode === "POS_RESTAURANT" && hasPermission(permissions, "restaurant.view")) redirect("/pos/restaurant");
-    if (mode === "POS_MEDICAL" && (hasPermission(permissions, "medical.view") || hasPermission(permissions, "pos.view"))) redirect("/medical");
+    if (medicalEnabled && mode === "POS_MEDICAL" && (hasPermission(permissions, "medical.view") || hasPermission(permissions, "pos.view"))) redirect("/medical");
   }
   const storefrontCode = session.user.companyCode || session.user.tenantId;
   const [commerceStats, publicWebsiteSettings] = await Promise.all([
     mode === "ECOMMERCE" && session.user.tenantId
       ? getDashboardKpis(session.user.tenantId, { webOnly: true })
       : null,
-    ["ECOMMERCE", "POS_MEDICAL"].includes(mode) && session.user.tenantId
+    (mode === "ECOMMERCE" || (medicalEnabled && mode === "POS_MEDICAL")) && session.user.tenantId
       ? prisma.companySetting.findFirst({
           where: { tenantId: session.user.tenantId },
           select: { storeSlug: true },
@@ -64,10 +67,10 @@ export default async function WorkspacePage() {
     ...((mode === "POS_RESTAURANT" || isPlatformAdmin) && hasPermission(permissions, "restaurant.view")
       ? [{ title: "餐飲桌位與點餐", description: "圖片點餐、加點、送廚、出餐與桌位結帳", href: "/pos/restaurant", icon: UtensilsCrossed, tone: "orange" }]
       : []),
-    ...((mode === "POS_MEDICAL" || isPlatformAdmin)
+    ...(medicalEnabled && (mode === "POS_MEDICAL" || isPlatformAdmin)
       ? [{ title: mode === "POS_MEDICAL" ? "預覽我的醫美官網" : "預覽內部醫美官網", description: "專業形象官網、圖片選服務與線上預約", href: tenantMedicalSiteHref, icon: Store, tone: "rose" }]
       : []),
-    ...((mode === "POS_MEDICAL" || isPlatformAdmin) && (hasPermission(permissions, "medical.view") || hasPermission(permissions, "pos.view"))
+    ...(medicalEnabled && (mode === "POS_MEDICAL" || isPlatformAdmin) && (hasPermission(permissions, "medical.view") || hasPermission(permissions, "pos.view"))
       ? [{ title: "醫美 POS 與預約排程", description: "預約、套票、會員儲值、同意書、療程紀錄、醫療收據與耗材", href: "/medical", icon: HeartPulse, tone: "rose" }]
       : []),
     ...(hasPermission(permissions, "inventory.view")
@@ -80,6 +83,18 @@ export default async function WorkspacePage() {
       ? [{ title: "平台管理後台", description: "客戶公司、授權、席次、方案與裝置管理", href: "/admin", icon: Shield, tone: "amber" }]
       : []),
   ];
+  const workspaceTitle = isPlatformAdmin
+    ? medicalEnabled
+      ? "ERP／電商／零售 POS／餐飲 POS／醫美 POS 完整功能"
+      : "ERP／電商／零售 POS／餐飲 POS 行動工作區"
+    : !medicalEnabled && mode === "POS_MEDICAL"
+      ? "ERP 行動工作區"
+      : edition.label;
+  const workspaceDescription = !medicalEnabled && mode === "POS_MEDICAL"
+    ? "iOS App 提供商品、庫存、採購、銷售、會計與報表；完整醫美工作區保留於網頁版與桌面版。"
+    : isPlatformAdmin
+      ? "艾琳設計內部驗收帳套，永久免費且不會混入付費客戶資料。"
+      : edition.description;
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -89,8 +104,8 @@ export default async function WorkspacePage() {
             <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs">
               <Building2 className="h-3.5 w-3.5" />{isPlatformAdmin ? "管理者免費內部帳套" : "已鎖定公司業態"}
             </div>
-            <h1 className="text-2xl font-black md:text-3xl">{isPlatformAdmin ? "ERP／電商／零售 POS／餐飲 POS／醫美 POS 完整功能" : edition.label}</h1>
-            <p className="mt-2 text-sm text-slate-300">{isPlatformAdmin ? "艾琳設計內部驗收帳套，永久免費且不會混入付費客戶資料。" : edition.description}</p>
+            <h1 className="text-2xl font-black md:text-3xl">{workspaceTitle}</h1>
+            <p className="mt-2 text-sm text-slate-300">{workspaceDescription}</p>
           </div>
           <div className="max-w-sm rounded-2xl border border-white/10 bg-white/5 p-4 text-xs leading-6 text-slate-300">
             畫面依個人角色權限顯示。消費者只使用商城；租戶管理者登入後才可進 ERP。沒有權限的模組同時禁止網址與 API 存取。

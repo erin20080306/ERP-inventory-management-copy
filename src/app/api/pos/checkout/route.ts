@@ -8,6 +8,7 @@ import { nextNumberFastInTransaction } from "@/lib/number-sequence";
 import { drainPendingPosSales, fulfillPosSale } from "@/lib/pos-fulfillment";
 import { discountApprovalFingerprint, money, resolveCheckoutOffers } from "@/lib/pos-offers";
 import { prisma } from "@/lib/prisma";
+import { isIosAppRequest } from "@/lib/client-platform";
 import { productCatalogScope } from "@/lib/product-editions";
 
 const CheckoutInput = z.object({
@@ -127,6 +128,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
   if (!shift) throw new ApiError(409, "請先開班，或目前班次已結束");
   const workspaceMode = shift.register.mode;
   const isMedicalMode = workspaceMode === "POS_MEDICAL";
+  if (isMedicalMode && isIosAppRequest(req.headers)) throw new ApiError(403, "iOS App 暫不提供醫美 POS 結帳");
   if (isMedicalMode && body.invoice) throw new ApiError(400, "醫美模式不開立電子發票，請改用醫療收據");
   if (isMedicalMode && (!body.customerId || !body.medical)) throw new ApiError(400, "醫療收據需要選擇客戶並填寫就診人姓名");
   if (!isMedicalMode && (body.medical || body.payments.some((payment) => payment.method === "WALLET"))) {

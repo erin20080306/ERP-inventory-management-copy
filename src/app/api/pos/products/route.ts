@@ -3,6 +3,7 @@ import { ApiError, apiHandler, requirePosPermission, requireTenantId } from "@/l
 import { resolveDemoProductImage } from "@/lib/demo-product-media";
 import { prisma } from "@/lib/prisma";
 import { normalizeBusinessMode, productCatalogScope } from "@/lib/product-editions";
+import { isIosAppRequest } from "@/lib/client-platform";
 
 function serializeProduct(product: any, useRetailFallback: boolean) {
   return {
@@ -46,6 +47,9 @@ export const GET = apiHandler(async (req: NextRequest) => {
   if (!warehouse) throw new ApiError(404, "找不到可用門市倉庫");
   if (registerId && !register) throw new ApiError(404, "找不到此工作區的收銀台");
   const businessMode = register?.mode ?? normalizeBusinessMode(session.user.businessMode);
+  if (businessMode === "POS_MEDICAL" && isIosAppRequest(req.headers)) {
+    throw new ApiError(403, "iOS App 暫不提供醫美 POS 商品");
+  }
   if (!session.user.isSuperAdmin && businessMode !== normalizeBusinessMode(session.user.businessMode)) {
     throw new ApiError(403, "不可跨 POS 工作區讀取商品");
   }

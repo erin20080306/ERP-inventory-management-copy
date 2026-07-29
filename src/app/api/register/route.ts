@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { validateObjectForSQLInjection } from "@/lib/sql-validation";
 import { ensureTenantCompanyCode } from "@/lib/license";
+import { isIosAppRequest } from "@/lib/client-platform";
 
 export async function POST(req: NextRequest) {
   try {
@@ -47,6 +48,9 @@ export async function POST(req: NextRequest) {
         : businessMode === "ECOMMERCE"
           ? "ECOMMERCE"
           : "ERP";
+    if (isIosAppRequest(req.headers) && normalizedMode === "POS_MEDICAL") {
+      return NextResponse.json({ error: "iOS App 暫不提供醫美診所模式，請使用完整網頁版或桌面版" }, { status: 403 });
+    }
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0] || req.headers.get("x-real-ip") || "unknown";
 
     const sqlValidation = validateObjectForSQLInjection({ username: normalizedUsername, name: normalizedName, email: normalizedEmail, companyName: normalizedCompanyName });

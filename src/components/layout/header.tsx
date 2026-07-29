@@ -9,7 +9,7 @@ import { AIAssistantLauncher } from "@/components/ai-assistant-launcher";
 import { ErpKeyboardNavigator } from "@/components/erp-keyboard-navigator";
 import { tenantStorefrontPath } from "@/lib/storefront-access";
 
-export function Header({ showDownloads = false }: { showDownloads?: boolean }) {
+export function Header({ showDownloads = false, medicalEnabled = true }: { showDownloads?: boolean; medicalEnabled?: boolean }) {
   const { data } = useSession();
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
@@ -18,7 +18,7 @@ export function Header({ showDownloads = false }: { showDownloads?: boolean }) {
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-background/80 backdrop-blur px-6">
-      <MobileSidebar />
+      <MobileSidebar medicalEnabled={medicalEnabled} />
       <div className="flex-1" />
       {mounted && (
         <Button variant="ghost" size="icon" onClick={() => setTheme(theme === "dark" ? "light" : "dark")} aria-label="切換主題">

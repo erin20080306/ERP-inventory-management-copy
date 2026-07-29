@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { ApiError, apiHandler, audit, requirePosPermission, requireTenantId } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
+import { isIosAppRequest } from "@/lib/client-platform";
 
 const RegisterInput = z.object({
   id: z.string().optional(),
@@ -12,12 +13,13 @@ const RegisterInput = z.object({
   isActive: z.boolean().default(true),
 });
 
-export const GET = apiHandler(async () => {
+export const GET = apiHandler(async (req: NextRequest) => {
   const session = await requirePosPermission("view", "settings.view");
   const tenantId = await requireTenantId(session);
+  const iosApp = isIosAppRequest(req.headers);
   const [registers, warehouses] = await Promise.all([
     prisma.posRegister.findMany({
-      where: { tenantId },
+      where: { tenantId, ...(iosApp ? { mode: { not: "POS_MEDICAL" as const } } : {}) },
       include: { warehouse: { select: { id: true, code: true, name: true, isActive: true } }, _count: { select: { shifts: true, sales: true } } },
       orderBy: [{ isActive: "desc" }, { code: "asc" }],
     }),
@@ -30,6 +32,13 @@ export const POST = apiHandler(async (req: NextRequest) => {
   const session = await requirePosPermission("edit", "settings.edit");
   const tenantId = await requireTenantId(session);
   const body = RegisterInput.parse(await req.json());
+  if (isIosAppRequest(req.headers)) {
+    if (body.mode === "POS_MEDICAL") throw new ApiError(403, "iOS App 暫不提供醫美 POS 設定");
+    if (body.id) {
+      const existing = await prisma.posRegister.findFirst({ where: { id: body.id, tenantId }, select: { mode: true } });
+      if (existing?.mode === "POS_MEDICAL") throw new ApiError(403, "iOS App 暫不提供醫美 POS 設定");
+    }
+  }
   const warehouse = await prisma.warehouse.findFirst({ where: { id: body.warehouseId, tenantId, isActive: true }, select: { id: true } });
   if (!warehouse) throw new ApiError(400, "找不到可用倉庫");
   const duplicate = await prisma.posRegister.findFirst({ where: { tenantId, code: body.code, ...(body.id ? { id: { not: body.id } } : {}) }, select: { id: true } });

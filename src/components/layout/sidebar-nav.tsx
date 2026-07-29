@@ -187,7 +187,7 @@ const medicalBackendSections = posBackendSections.map((section) => ({
   items: section.items.filter((item) => item.title !== "發票管理"),
 }));
 
-const adminSections = (storefrontHref: string | null, medicalSiteHref: string | null): NavSection[] => [
+const adminSections = (storefrontHref: string | null, medicalSiteHref: string | null, medicalEnabled: boolean): NavSection[] => [
   {
     label: "管理者工作區",
     items: [
@@ -197,8 +197,8 @@ const adminSections = (storefrontHref: string | null, medicalSiteHref: string | 
       ...(storefrontHref ? [{ title: "我的店商城", href: storefrontHref, icon: Store }] : []),
       { title: "零售 POS", href: "/pos", icon: ShoppingBag },
       { title: "餐飲桌位與廚房", href: "/pos/restaurant", icon: UtensilsCrossed },
-      { title: "醫美診所營運 POS", href: "/medical", icon: HeartPulse },
-      ...(medicalSiteHref ? [{ title: "我的醫美官網", href: medicalSiteHref, icon: Store }] : []),
+      ...(medicalEnabled ? [{ title: "醫美診所營運 POS", href: "/medical", icon: HeartPulse }] : []),
+      ...(medicalEnabled && medicalSiteHref ? [{ title: "我的醫美官網", href: medicalSiteHref, icon: Store }] : []),
       { title: "電子發票佇列", href: "/pos/e-invoices", icon: FileCheck2 },
       { title: "POS 硬體診斷", href: "/pos/hardware", icon: Cable },
       { title: "促銷與店長授權", href: "/pos/offers", icon: BadgeDollarSign },
@@ -207,13 +207,13 @@ const adminSections = (storefrontHref: string | null, medicalSiteHref: string | 
   ...erpSections.slice(1),
 ];
 
-export function SidebarBrand({ collapsed = false }: { collapsed?: boolean }) {
+export function SidebarBrand({ collapsed = false, medicalEnabled = true }: { collapsed?: boolean; medicalEnabled?: boolean }) {
   const { data } = useSession();
   const mode = normalizeBusinessMode(data?.user?.businessMode);
   const isPos = ["POS_RETAIL", "POS_RESTAURANT", "POS_MEDICAL"].includes(mode) && !data?.user?.isSuperAdmin;
   const isRestaurant = mode === "POS_RESTAURANT" && !data?.user?.isSuperAdmin;
   const isCommerce = mode === "ECOMMERCE" && !data?.user?.isSuperAdmin;
-  const isMedical = mode === "POS_MEDICAL" && !data?.user?.isSuperAdmin;
+  const isMedical = medicalEnabled && mode === "POS_MEDICAL" && !data?.user?.isSuperAdmin;
   return (
     <div className={cn("flex h-16 shrink-0 items-center border-b border-white/10", collapsed ? "justify-center px-2" : "gap-2 px-5")}>
       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-gradient-to-br from-indigo-500 to-emerald-500 text-white">
@@ -229,14 +229,14 @@ export function SidebarBrand({ collapsed = false }: { collapsed?: boolean }) {
   );
 }
 
-export function SidebarNav({ onNavigate, collapsed = false }: { onNavigate?: () => void; collapsed?: boolean }) {  const pathname = usePathname();
+export function SidebarNav({ onNavigate, collapsed = false, medicalEnabled = true }: { onNavigate?: () => void; collapsed?: boolean; medicalEnabled?: boolean }) {  const pathname = usePathname();
   const router = useRouter();
   const { data } = useSession();
   const perms = data?.user?.permissions ?? [];
   const permKey = perms.join("|");
   const businessMode = normalizeBusinessMode(data?.user?.businessMode);
   const storefrontHref = tenantStorefrontPath(data?.user);
-  const medicalSiteHref = tenantMedicalSitePath(data?.user);
+  const medicalSiteHref = medicalEnabled ? tenantMedicalSitePath(data?.user) : null;
   const ecommerceFront: NavSection = {
     label: "電商營運",
     items: [
@@ -248,11 +248,13 @@ export function SidebarNav({ onNavigate, collapsed = false }: { onNavigate?: () 
     ],
   };
   const sections = data?.user?.isSuperAdmin
-    ? adminSections(storefrontHref, medicalSiteHref)
+    ? adminSections(storefrontHref, medicalSiteHref, medicalEnabled)
     : businessMode === "ECOMMERCE"
       ? [erpSections[0], ecommerceFront, ...posBackendSections]
-      : businessMode === "POS_MEDICAL"
+      : businessMode === "POS_MEDICAL" && medicalEnabled
         ? [erpSections[0], medicalPosFront(medicalSiteHref), ...medicalBackendSections]
+      : businessMode === "POS_MEDICAL"
+        ? [erpSections[0], ...medicalBackendSections]
       : businessMode === "POS_RESTAURANT"
         ? [erpSections[0], restaurantPosFront, ...posBackendSections]
         : businessMode === "POS_RETAIL"

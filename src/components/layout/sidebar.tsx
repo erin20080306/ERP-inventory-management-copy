@@ -6,7 +6,7 @@ import { SidebarBrand, SidebarNav, SidebarFooter } from "./sidebar-nav";
 
 const SIDEBAR_COLLAPSED_KEY = "erin-sidebar-collapsed";
 
-export function Sidebar() {
+export function Sidebar({ medicalEnabled = true }: { medicalEnabled?: boolean }) {
   const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
@@ -37,8 +37,8 @@ export function Sidebar() {
       >
         {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
       </button>
-      <SidebarBrand collapsed={collapsed} />
-      <SidebarNav collapsed={collapsed} />
+      <SidebarBrand collapsed={collapsed} medicalEnabled={medicalEnabled} />
+      <SidebarNav collapsed={collapsed} medicalEnabled={medicalEnabled} />
       <SidebarFooter collapsed={collapsed} />
     </aside>
   );

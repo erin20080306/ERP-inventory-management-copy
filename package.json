@@ -38,6 +38,7 @@
     "test:einvoice": "tsx scripts/verify-einvoice-readiness.ts",
     "test:commercial": "tsx scripts/verify-commercial-licensing.ts",
     "test:commercial-contact": "tsx scripts/verify-commercial-contact.ts",
+    "test:ios-platform": "tsx scripts/verify-ios-medical-isolation.ts",
     "test:demo-lifecycle": "tsx scripts/verify-demo-lifecycle.ts",
     "test:platform-admin": "tsx scripts/verify-platform-admin.ts",
     "test:accounting": "tsx scripts/verify-accounting-controls.ts",

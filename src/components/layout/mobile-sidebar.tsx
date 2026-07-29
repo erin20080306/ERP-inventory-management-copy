@@ -6,7 +6,7 @@ import { Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SidebarBrand, SidebarNav, SidebarFooter } from "./sidebar-nav";
 
-export function MobileSidebar() {
+export function MobileSidebar({ medicalEnabled = true }: { medicalEnabled?: boolean }) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const pathname = usePathname();
@@ -54,7 +54,7 @@ export function MobileSidebar() {
         aria-label="行動裝置側邊選單"
       >
         <div className="relative">
-          <SidebarBrand />
+          <SidebarBrand medicalEnabled={medicalEnabled} />
           <button
             type="button"
             onClick={() => setOpen(false)}
@@ -64,7 +64,7 @@ export function MobileSidebar() {
             <X className="h-4 w-4" />
           </button>
         </div>
-        <SidebarNav onNavigate={() => setOpen(false)} />
+        <SidebarNav onNavigate={() => setOpen(false)} medicalEnabled={medicalEnabled} />
         <SidebarFooter />
       </aside>
     </>

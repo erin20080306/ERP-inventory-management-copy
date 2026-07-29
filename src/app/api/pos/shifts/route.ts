@@ -4,6 +4,7 @@ import { ApiError, apiHandler, audit, requirePosPermission, requireTenantId } fr
 import { hasPermission } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { createShiftOpeningCashJournal } from "@/lib/pos-shift-accounting";
+import { isIosAppRequest } from "@/lib/client-platform";
 
 const ShiftAction = z.discriminatedUnion("action", [
   z.object({ action: z.literal("OPEN"), registerId: z.string().min(1), openingCash: z.coerce.number().int().min(0).max(10_000_000) }),
@@ -15,6 +16,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
   const session = await requirePosPermission("create", "sales.create");
   const tenantId = await requireTenantId(session);
   const body = ShiftAction.parse(await req.json());
+  const iosApp = isIosAppRequest(req.headers);
 
   if (body.action === "OPEN") {
     if (body.openingCash > 0 && !hasPermission(session.user.permissions, "cash.approve")) {
@@ -23,6 +25,7 @@ export const POST = apiHandler(async (req: NextRequest) => {
     const result = await prisma.$transaction(async (tx: any) => {
       const register = await tx.posRegister.findFirst({ where: { id: body.registerId, tenantId, isActive: true } });
       if (!register) throw new ApiError(404, "找不到可用收銀台");
+      if (iosApp && register.mode === "POS_MEDICAL") throw new ApiError(403, "iOS App 暫不提供醫美 POS 班次");
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`pos-user-workspace-shift:${tenantId}:${session.user.id}:${register.mode}`}))`;
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`pos-register:${tenantId}:${body.registerId}`}))`;
       const existingForUser = await tx.posShift.findFirst({
@@ -62,9 +65,10 @@ export const POST = apiHandler(async (req: NextRequest) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`pos-shift:${tenantId}:${body.shiftId}`}))`;
     const shift = await tx.posShift.findFirst({
       where: { id: body.shiftId, tenantId, userId: session.user.id, status: "OPEN" },
-      include: { register: { select: { code: true } } },
+      include: { register: { select: { code: true, mode: true } } },
     });
     if (!shift) throw new ApiError(404, "找不到你的未結班班次");
+    if (iosApp && shift.register.mode === "POS_MEDICAL") throw new ApiError(403, "iOS App 暫不提供醫美 POS 班次");
 
     const [salesPayments, refundPayments, walletTopUpPayments, salesTotal, refundsTotal, cashMovements, pendingMovementCount, heldSaleCount, draftCount, restaurantOrderCount] = await Promise.all([
       tx.posPayment.groupBy({

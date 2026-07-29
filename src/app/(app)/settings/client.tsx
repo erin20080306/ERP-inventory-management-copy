@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Download, Database, AlertTriangle, Loader2, Mail, MonitorCog, Plus, Store, RefreshCw, ShieldCheck, Copy, ExternalLink, Globe2 } from "lucide-react";
 
-export function SettingsClient() {
+export function SettingsClient({ medicalEnabled = true }: { medicalEnabled?: boolean }) {
   const [form, setForm] = useState<any>({ name: "", currency: "TWD", smtpSecure: true, smtpPort: 465 });
   const [businessMode, setBusinessMode] = useState("");
   const [isInternal, setIsInternal] = useState(false);
@@ -41,7 +41,7 @@ export function SettingsClient() {
       toast.success("已儲存");
     } catch (e: any) { toast.error(e.message); } finally { setSaving(false); }
   }
-  const isMedicalWebsite = !isInternal && businessMode === "POS_MEDICAL";
+  const isMedicalWebsite = medicalEnabled && !isInternal && businessMode === "POS_MEDICAL";
   const isEcommerceWebsite = isInternal || businessMode === "ECOMMERCE";
   const showPublicWebsiteSettings = isInternal || isEcommerceWebsite || isMedicalWebsite;
   const publicWebsiteUrl = isMedicalWebsite ? medicalSiteUrl : storefrontUrl;
@@ -91,7 +91,7 @@ export function SettingsClient() {
                 {publicWebsiteUrl && <Button type="button" size="sm" variant="outline" asChild><a href={publicWebsiteUrl} target="_blank" rel="noreferrer"><ExternalLink className="h-4 w-4" />開啟{websiteLabel}</a></Button>}
               </div>
             </div>
-            {isInternal && <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-rose-950">
+            {isInternal && medicalEnabled && <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-rose-950">
               <div className="flex items-center gap-2 text-sm font-semibold"><Globe2 className="h-4 w-4" />目前醫美官網網址</div>
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <a href={medicalSiteUrl || "#"} target="_blank" rel="noreferrer" className="min-w-0 break-all font-mono text-sm text-rose-800 underline">{medicalSiteUrl || "儲存後產生專屬網址"}</a>
@@ -189,7 +189,7 @@ export function SettingsClient() {
           <div className="col-span-2"><Button onClick={save} disabled={saving}>{saving ? "儲存中..." : "儲存 SMTP 設定"}</Button></div>
         </CardContent>
       </Card>
-      <PosRegisterCard />
+      <PosRegisterCard medicalEnabled={medicalEnabled} />
       <UpdateCenterCard />
       <BackupCard />
     </div>
@@ -351,7 +351,7 @@ type RegisterRow = {
   _count: { shifts: number; sales: number };
 };
 
-function PosRegisterCard() {
+function PosRegisterCard({ medicalEnabled = true }: { medicalEnabled?: boolean }) {
   const [registers, setRegisters] = useState<RegisterRow[]>([]);
   const [warehouses, setWarehouses] = useState<Array<{ id: string; code: string; name: string }>>([]);
   const [form, setForm] = useState({ id: "", code: "", name: "", mode: "POS_RETAIL" as RegisterRow["mode"], warehouseId: "", isActive: true });
@@ -364,7 +364,7 @@ function PosRegisterCard() {
       const res = await fetch("/api/pos/registers", { cache: "no-store" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "收銀台載入失敗");
-      setRegisters(data.registers ?? []);
+      setRegisters((data.registers ?? []).filter((register: RegisterRow) => medicalEnabled || register.mode !== "POS_MEDICAL"));
       setWarehouses(data.warehouses ?? []);
       setForm((current) => ({ ...current, warehouseId: current.warehouseId || data.warehouses?.[0]?.id || "" }));
     } catch (error: any) {
@@ -374,7 +374,7 @@ function PosRegisterCard() {
     }
   }
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => { void load(); }, [medicalEnabled]);
 
   function resetForm() {
     setForm({ id: "", code: "", name: "", mode: "POS_RETAIL", warehouseId: warehouses[0]?.id || "", isActive: true });
@@ -401,13 +401,13 @@ function PosRegisterCard() {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2"><MonitorCog className="h-5 w-5" />POS 收銀台與門市倉庫</CardTitle>
-        <CardDescription>每台收銀台綁定一個工作區與出貨倉庫；零售、餐飲、醫美的班次、現金、交易與退貨彼此隔離。</CardDescription>
+        <CardDescription>{medicalEnabled ? "每台收銀台綁定一個工作區與出貨倉庫；零售、餐飲、醫美的班次、現金、交易與退貨彼此隔離。" : "每台收銀台綁定一個工作區與出貨倉庫；iOS App 提供零售與餐飲工作區設定。"}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
         <div className="grid gap-3 rounded-lg border bg-muted/20 p-4 md:grid-cols-5">
           <div className="space-y-1"><Label>收銀台代碼</Label><Input placeholder="POS01" value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value.toUpperCase() })} /></div>
           <div className="space-y-1"><Label>顯示名稱</Label><Input placeholder="第一收銀台" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></div>
-          <div className="space-y-1"><Label>所屬工作區</Label><select value={form.mode} onChange={(event) => setForm({ ...form, mode: event.target.value as RegisterRow["mode"] })} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"><option value="POS_RETAIL">零售 POS</option><option value="POS_RESTAURANT">餐飲 POS</option><option value="POS_MEDICAL">醫美 POS</option></select></div>
+          <div className="space-y-1"><Label>所屬工作區</Label><select value={form.mode} onChange={(event) => setForm({ ...form, mode: event.target.value as RegisterRow["mode"] })} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"><option value="POS_RETAIL">零售 POS</option><option value="POS_RESTAURANT">餐飲 POS</option>{medicalEnabled && <option value="POS_MEDICAL">醫美 POS</option>}</select></div>
           <div className="space-y-1"><Label>門市／出貨倉庫</Label><select value={form.warehouseId} onChange={(event) => setForm({ ...form, warehouseId: event.target.value })} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">{warehouses.map((warehouse) => <option key={warehouse.id} value={warehouse.id}>{warehouse.code} · {warehouse.name}</option>)}</select></div>
           <div className="flex items-end gap-2"><Button onClick={() => void saveRegister()} disabled={saving || warehouses.length === 0}><Plus className="h-4 w-4" />{form.id ? "儲存修改" : "新增收銀台"}</Button>{form.id && <Button variant="outline" onClick={resetForm}>取消</Button>}</div>
         </div>

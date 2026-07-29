@@ -3,6 +3,7 @@ import { ApiError, apiHandler, requirePermission, requireTenantId, audit } from 
 import { invalidateLicenseAccessCache, refreshLocalLicenseLease } from "@/lib/license";
 import { prisma } from "@/lib/prisma";
 import { assertStoreSlug, medicalSiteUrl, normalizeStoreSlug, storefrontUrl } from "@/lib/storefront-branding";
+import { isIosAppRequest } from "@/lib/client-platform";
 
 function sanitizeCompanySetting(company: any) {
   return company
@@ -14,7 +15,7 @@ function sanitizeCompanySetting(company: any) {
     : null;
 }
 
-export const GET = apiHandler(async () => {
+export const GET = apiHandler(async (req: NextRequest) => {
   await requirePermission("settings.view");
   const tenantId = await requireTenantId();
   const [company, tenant] = await Promise.all([
@@ -24,12 +25,13 @@ export const GET = apiHandler(async () => {
   const storefrontKey = company?.storeSlug || normalizeStoreSlug(tenant?.companyCode || tenantId);
   const ecommerce = tenant?.isInternal || tenant?.businessMode === "ECOMMERCE";
   const medical = tenant?.isInternal || tenant?.businessMode === "POS_MEDICAL";
+  const medicalEnabled = !isIosAppRequest(req.headers) && medical;
   return NextResponse.json({
     company: sanitizeCompanySetting(company),
     businessMode: tenant?.businessMode,
     isInternal: Boolean(tenant?.isInternal),
     storefrontUrl: ecommerce && storefrontKey ? storefrontUrl(storefrontKey) : null,
-    medicalSiteUrl: medical && storefrontKey ? medicalSiteUrl(storefrontKey) : null,
+    medicalSiteUrl: medicalEnabled && storefrontKey ? medicalSiteUrl(storefrontKey) : null,
   });
 });
 
@@ -68,10 +70,11 @@ export const PUT = apiHandler(async (req: NextRequest) => {
   }
   const ecommerce = tenant.isInternal || tenant.businessMode === "ECOMMERCE";
   const medical = tenant.isInternal || tenant.businessMode === "POS_MEDICAL";
-  const hasPublicWebsite = ecommerce || medical;
+  const medicalEnabled = !isIosAppRequest(req.headers) && medical;
+  const hasPublicWebsite = ecommerce || medicalEnabled;
   const storeName = hasPublicWebsite ? String(body.storeName || body.name || tenant.name || "").trim() : null;
   if (hasPublicWebsite && (!storeName || storeName.length > 80)) {
-    throw new ApiError(400, `${medical ? "診所網站" : "商城"}名稱需為 1–80 個字`);
+    throw new ApiError(400, `${medicalEnabled ? "診所網站" : "商城"}名稱需為 1–80 個字`);
   }
   const storeSlug = hasPublicWebsite
     ? assertStoreSlug(body.storeSlug || existing?.storeSlug || tenant?.companyCode || tenantId)
@@ -144,6 +147,6 @@ export const PUT = apiHandler(async (req: NextRequest) => {
     businessMode: tenant?.businessMode,
     isInternal: Boolean(tenant?.isInternal),
     storefrontUrl: ecommerce && saved.storeSlug ? storefrontUrl(saved.storeSlug) : null,
-    medicalSiteUrl: medical && saved.storeSlug ? medicalSiteUrl(saved.storeSlug) : null,
+    medicalSiteUrl: medicalEnabled && saved.storeSlug ? medicalSiteUrl(saved.storeSlug) : null,
   });
 });

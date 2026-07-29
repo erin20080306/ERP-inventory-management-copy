@@ -8,11 +8,14 @@ import { TrialGate } from "@/components/trial-gate";
 import { UpdateNotice } from "@/components/update-notice";
 import { getLicenseAccessForUser, verifyLocalWorkstationRequest } from "@/lib/license";
 import { isTenantBaselineReady } from "@/lib/tenant-baseline";
+import { isMedicalEnabledForRequest } from "@/lib/client-platform";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
   if (!session?.user) redirect("/login");
   if (session.user.revoked) redirect("/login");
+  const requestHeaders = await headers();
+  const medicalEnabled = isMedicalEnabledForRequest(requestHeaders);
 
   if (!session.user.isSuperAdmin && session.user.tenantId) {
     const baselineReady = await isTenantBaselineReady(session.user.tenantId);
@@ -21,7 +24,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   let initialAccess = await getLicenseAccessForUser(session.user.id);
   if (initialAccess.allowed && process.env.LOCAL_LICENSE_MODE === "true" && session.user.tenantId && !session.user.isSuperAdmin) {
-    const requestHeaders = await headers();
     const workstation = await verifyLocalWorkstationRequest(session.user.tenantId, {
       method: requestHeaders.get("x-erin-original-method") || "GET",
       path: requestHeaders.get("x-erin-original-path") || "/dashboard",
@@ -34,9 +36,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <TrialGate initialAccess={initialAccess}>
       <div className="flex min-h-screen">
-        <Sidebar />
+        <Sidebar medicalEnabled={medicalEnabled} />
         <div className="flex-1 flex flex-col min-w-0">
-          <Header showDownloads={initialAccess.status === "paid"} />
+          <Header showDownloads={initialAccess.status === "paid"} medicalEnabled={medicalEnabled} />
           <UpdateNotice />
           <main className="flex-1 p-6" data-erp-keyboard-scope>
             <PrintCompanyHeader />
