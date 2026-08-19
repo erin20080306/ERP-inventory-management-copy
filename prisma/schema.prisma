@@ -387,6 +387,10 @@ model Product {
   costPrice      Decimal  @default(0) @db.Decimal(18, 4)
   salePrice      Decimal  @default(0) @db.Decimal(18, 4)
   safetyStock    Decimal  @default(0) @db.Decimal(18, 4)
+  // 智慧補貨用：前置期(天)、補貨週期(天)、偏好供應商。皆可留空由系統推算。
+  leadTimeDays        Int?
+  reorderReviewDays   Int?
+  preferredSupplierId String?
   trackInventory Boolean  @default(true)
   taxRateId      String?
   isActive       Boolean  @default(true)
@@ -401,6 +405,7 @@ model Product {
   category             ProductCategory?           @relation(fields: [categoryId], references: [id])
   unit                 ProductUnit?               @relation(fields: [unitId], references: [id])
   taxRate              TaxRate?                   @relation(fields: [taxRateId], references: [id])
+  preferredSupplier    Supplier?                  @relation("PreferredSupplierProducts", fields: [preferredSupplierId], references: [id])
   stocks               InventoryStock[]
   txns                 InventoryTransaction[]
   purchaseItems        PurchaseOrderItem[]
@@ -424,6 +429,7 @@ model Product {
   @@index([tenantId, isArchived])
   @@index([tenantId, isActive])
   @@index([tenantId, isPublished])
+  @@index([tenantId, preferredSupplierId])
 }
 
 // ─────────────────────────── 客戶 / 供應商 ───────────────────────────
@@ -563,20 +569,23 @@ model Supplier {
   email        String?
   address      String?
   paymentTerms String?
+  // 智慧補貨用：此供應商的預設前置期(天)，商品未個別設定時採用。
+  leadTimeDays Int?
   remark       String?
   isActive     Boolean  @default(true)
   updatedBy    String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  tenant           Tenant            @relation(fields: [tenantId], references: [id])
-  purchaseOrders   PurchaseOrder[]
-  payables         AccountsPayable[]
-  supplierPayments SupplierPayment[]
-  purchaseReturns  PurchaseReturn[]
-  invoices         Invoice[]
-  notes            NotePayable[]
-  discountNotes    DiscountNote[]
+  tenant             Tenant            @relation(fields: [tenantId], references: [id])
+  purchaseOrders     PurchaseOrder[]
+  payables           AccountsPayable[]
+  supplierPayments   SupplierPayment[]
+  purchaseReturns    PurchaseReturn[]
+  invoices           Invoice[]
+  notes              NotePayable[]
+  discountNotes      DiscountNote[]
+  preferredForProducts Product[]       @relation("PreferredSupplierProducts")
 
   @@unique([tenantId, code])
   @@index([tenantId])
