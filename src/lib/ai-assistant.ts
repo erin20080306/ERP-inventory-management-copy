@@ -1899,6 +1899,107 @@ async function buildProductDetail(tenantId: string, question: string): Promise<R
   };
 }
 
+// ─────────────────────────── LLM 意圖分派 ───────────────────────────
+// 供 Gemini function calling 使用：把「意圖」映射到既有報表函式。
+// 每個意圖沿用原本的 buildXxx，仍走各自的 tenantId 過濾與期間/商品解析。
+
+export type AssistantIntent =
+  | "sales-summary"
+  | "product-ranking"
+  | "inventory-alerts"
+  | "purchase-suggestions"
+  | "receivables-collection"
+  | "payables-payment"
+  | "order-anomalies"
+  | "monthly-summary"
+  | "financial-anomalies"
+  | "price-variance"
+  | "bom-cost"
+  | "purchase-summary"
+  | "return-summary"
+  | "notes-overview"
+  | "bank-accounts"
+  | "warehouse-overview"
+  | "employee-payroll"
+  | "product-detail"
+  | "journal-account-review"
+  | "pos-operations";
+
+export const ASSISTANT_INTENTS: Array<{ intent: AssistantIntent; description: string }> = [
+  { intent: "sales-summary", description: "銷售、營收、業績、客單價統計" },
+  { intent: "product-ranking", description: "熱銷/毛利商品排行、Top N" },
+  { intent: "inventory-alerts", description: "低於安全庫存、缺貨、零庫存警示" },
+  { intent: "purchase-suggestions", description: "補貨、請購、採購建議、供應商建議" },
+  { intent: "receivables-collection", description: "應收帳款、逾期、催收、未收款" },
+  { intent: "payables-payment", description: "應付帳款、待付款、供應商付款" },
+  { intent: "order-anomalies", description: "訂單異常、離群、風險偵測、審核" },
+  { intent: "monthly-summary", description: "營運摘要、月報、老闆/主管總覽" },
+  { intent: "financial-anomalies", description: "財務報表、損益、資產負債、會計異常" },
+  { intent: "price-variance", description: "單價/售價異動、價格差異、歷史價格" },
+  { intent: "bom-cost", description: "BOM 用料、商品成本、庫存成本分析" },
+  { intent: "purchase-summary", description: "採購/進貨統計彙總" },
+  { intent: "return-summary", description: "退貨、銷退、採退統計" },
+  { intent: "notes-overview", description: "票據、支票、應收/應付票據" },
+  { intent: "bank-accounts", description: "銀行、帳戶、存款總覽" },
+  { intent: "warehouse-overview", description: "倉庫、庫位、盤點概況" },
+  { intent: "employee-payroll", description: "員工、薪資、人事、出勤、調薪" },
+  { intent: "product-detail", description: "單一商品/產品的明細查詢" },
+  { intent: "journal-account-review", description: "傳票、分錄、會計科目正確性檢查" },
+  { intent: "pos-operations", description: "POS 門市營運、班別、現金、來客" },
+];
+
+// 依意圖呼叫對應報表；未知意圖回退到關鍵字分派。
+export async function runReportByIntent(
+  tenantId: string,
+  intent: AssistantIntent,
+  question: string
+): Promise<AssistantResult> {
+  switch (intent) {
+    case "sales-summary":
+      return buildSalesReport(tenantId, question);
+    case "product-ranking":
+      return buildProductRanking(tenantId, question);
+    case "inventory-alerts":
+      return buildInventoryAlerts(tenantId, question);
+    case "purchase-suggestions":
+      return buildPurchaseSuggestions(tenantId, question);
+    case "receivables-collection":
+      return buildReceivablesCollection(tenantId, question);
+    case "payables-payment":
+      return buildPayablesPayment(tenantId, question);
+    case "order-anomalies":
+      return buildOrderAnomalies(tenantId, question);
+    case "monthly-summary":
+      return buildMonthlySummary(tenantId, question);
+    case "financial-anomalies":
+      return buildFinancialAnomalies(tenantId, question);
+    case "price-variance":
+      return buildPriceVarianceReport(tenantId, question);
+    case "bom-cost":
+      return buildBomCostAnalysis(tenantId, question);
+    case "purchase-summary":
+      return buildPurchaseSummary(tenantId, question);
+    case "return-summary":
+      return buildReturnSummary(tenantId, question);
+    case "notes-overview":
+      return buildNotesOverview(tenantId, question);
+    case "bank-accounts":
+      return buildBankAccountsOverview(tenantId, question);
+    case "warehouse-overview":
+      return buildWarehouseOverview(tenantId, question);
+    case "employee-payroll":
+      return buildEmployeePayroll(tenantId, question);
+    case "product-detail":
+      return buildProductDetail(tenantId, question);
+    case "journal-account-review":
+      return buildJournalAccountReview(tenantId, question);
+    case "pos-operations":
+      return buildPosOperationsReport(tenantId, question);
+    default:
+      return runAssistantQuery(tenantId, question);
+  }
+}
+
 export async function runAssistantQuery(tenantId: string, question: string): Promise<AssistantResult> {
   const text = String(question ?? "").trim();
   if (!text) throw new Error("請輸入想查詢的問題。");

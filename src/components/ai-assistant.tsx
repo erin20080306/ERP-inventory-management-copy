@@ -32,6 +32,7 @@ type AssistantResult =
       description: string;
       cards: Array<{ label: string; value: string }>;
       tables: AssistantTable[];
+      aiSummary?: string;
     }
   | {
       kind: "help";
@@ -259,6 +260,13 @@ export function AIAssistant({ initialOpen = false }: AIAssistantProps) {
                 <h3 className="text-base font-semibold">{result.title}</h3>
                 <p className="text-sm text-muted-foreground">{result.description}</p>
               </div>
+
+              {result.aiSummary && (
+                <div className="flex gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-100">
+                  <Sparkles className="mt-0.5 h-4 w-4 shrink-0" />
+                  <p className="whitespace-pre-wrap leading-relaxed">{result.aiSummary}</p>
+                </div>
+              )}
 
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 {result.cards.map((item) => (
