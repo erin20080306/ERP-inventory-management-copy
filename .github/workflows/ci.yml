@@ -1,0 +1,73 @@
+name: CI
+
+# PR 與 main 推送時執行的一般 CI：型別檢查 + 建置 + 核心驗證腳本。
+# 既有樣式 lint 債仍多（next.config.js 已 ignoreDuringBuilds），故 lint 設為非阻斷。
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# 同一 PR 只跑最新一次，取消進行中的舊 job
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-verify:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: erp
+          POSTGRES_PASSWORD: erp
+          POSTGRES_DB: erp_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U erp"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://erp:erp@localhost:5432/erp_ci?schema=public
+      NEXTAUTH_URL: http://localhost:3000
+      NEXTAUTH_SECRET: ci-placeholder-secret-not-for-production
+      CRON_SECRET: ci-cron-secret
+      # 建置期間不需要真的寄信 / 授權金鑰，給空值即可
+      GMAIL_APP_PASSWORD: ""
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prisma generate
+        run: npx prisma generate
+
+      - name: Sync schema to CI database
+        run: npx prisma db push --skip-generate
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Lint (non-blocking)
+        run: npm run lint || true
+
+      - name: Build
+        run: npm run build
+
+      - name: Accounting controls verification
+        run: npm run test:accounting
+
+      - name: Resilience verification
+        run: npm run test:resilience
