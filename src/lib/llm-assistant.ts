@@ -1,4 +1,6 @@
-import { GoogleGenerativeAI, SchemaType, type FunctionDeclaration } from "@google/generative-ai";
+import { generateText, tool, stepCountIs } from "ai";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { z } from "zod";
 import {
   ASSISTANT_INTENTS,
   runReportByIntent,
@@ -8,21 +10,40 @@ import {
 } from "@/lib/ai-assistant";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Gemini 智慧問答
+// AI 智慧問答（Vercel AI SDK + Gemini）
 //
-// 以 Gemini 做「意圖路由 + 自然語言總結」，實際資料仍由既有的 buildXxx 報表函式
-// 提供（透過 get_report 工具）。好處：
-//   1. 使用者可自由發問，不受關鍵字限制；
-//   2. 不讓模型直接產生 SQL，查詢一律走已加 tenantId 過濾的函式，安全；
-//   3. 回覆是「人話」摘要，附上原本的卡片/表格供前端呈現。
-// 未設定 GEMINI_API_KEY 時 hasLlm() 回 false，呼叫端會退回關鍵字分派。
+// 以 LLM 做「意圖路由 + 自然語言總結」，實際資料仍由既有的 buildXxx 報表函式
+// 透過 get_report 工具提供。不讓模型直接產生 SQL，查詢一律走已加 tenantId 過濾
+// 的函式，安全；回覆為「人話」摘要，並附上原本卡片/表格供前端呈現。
+//
+// 供應商解析優先序：
+//   1. Vercel AI Gateway（AI_GATEWAY_API_KEY，或部署在 Vercel 上的 OIDC）
+//      → 用 Vercel Pro 內含額度，統一計費/限額/觀測，正式環境可零金鑰。
+//   2. 直接呼叫 Google（GOOGLE_GENERATIVE_AI_API_KEY 或 GEMINI_API_KEY）。
+//   3. 皆無 → hasLlm() 回 false，呼叫端退回關鍵字分派，功能不中斷。
 // ─────────────────────────────────────────────────────────────────────────────
 
-const MODEL = process.env.GEMINI_MODEL || "gemini-2.0-flash";
-const MAX_TOOL_ROUNDS = 3;
+const DIRECT_MODEL_ID = process.env.AI_MODEL || "gemini-2.0-flash";
+const GATEWAY_MODEL_ID = process.env.AI_GATEWAY_MODEL || "google/gemini-2.0-flash";
+const MAX_STEPS = 4;
+
+function useGateway(): boolean {
+  return Boolean(process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN || process.env.VERCEL);
+}
+
+function googleApiKey(): string | undefined {
+  return process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GEMINI_API_KEY;
+}
 
 export function hasLlm(): boolean {
-  return Boolean(process.env.GEMINI_API_KEY);
+  return useGateway() || Boolean(googleApiKey());
+}
+
+/** 依環境決定模型：Gateway 用字串（走 Vercel），否則用 Google provider。 */
+function resolveModel() {
+  if (useGateway()) return GATEWAY_MODEL_ID; // 字串模型 → 由內建 Vercel AI Gateway 路由
+  const google = createGoogleGenerativeAI({ apiKey: googleApiKey() });
+  return google(DIRECT_MODEL_ID);
 }
 
 export type LlmAssistantResult = {
@@ -39,30 +60,8 @@ const SYSTEM_INSTRUCTION = `你是一個 ERP 系統的智慧營運助理，服�
 4. 若資料為空或無結果，直接說明查無資料，不要編造。
 5. 語氣專業、精簡，像一位可靠的營運分析師。`;
 
-function buildGetReportDeclaration(): FunctionDeclaration {
-  const intents = ASSISTANT_INTENTS.map((i) => i.intent);
-  const guide = ASSISTANT_INTENTS.map((i) => `${i.intent}: ${i.description}`).join("\n");
-  return {
-    name: "get_report",
-    description: `依使用者問題取得對應的 ERP 報表資料。可用意圖：\n${guide}`,
-    parameters: {
-      type: SchemaType.OBJECT,
-      properties: {
-        intent: {
-          type: SchemaType.STRING,
-          format: "enum",
-          enum: intents,
-          description: "要查詢的報表意圖",
-        },
-        question: {
-          type: SchemaType.STRING,
-          description: "轉述使用者的原始問題（保留期間、商品名等關鍵字，供報表解析）",
-        },
-      },
-      required: ["intent", "question"],
-    },
-  };
-}
+const INTENT_GUIDE = ASSISTANT_INTENTS.map((i) => `${i.intent}: ${i.description}`).join("\n");
+const INTENT_VALUES = ASSISTANT_INTENTS.map((i) => i.intent) as [AssistantIntent, ...AssistantIntent[]];
 
 /** 將報表壓縮成精簡結構餵回模型，控制 token。 */
 function compactReport(report: AssistantResult): unknown {
@@ -87,63 +86,37 @@ function compactReport(report: AssistantResult): unknown {
 }
 
 /**
- * 用 Gemini 執行一次智慧問答。失敗時擲出錯誤，呼叫端可退回關鍵字分派。
+ * 用 LLM 執行一次智慧問答。失敗時擲出錯誤，呼叫端可退回關鍵字分派。
  */
 export async function runLlmAssistant(tenantId: string, question: string): Promise<LlmAssistantResult> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error("未設定 GEMINI_API_KEY");
-
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({
-    model: MODEL,
-    systemInstruction: SYSTEM_INSTRUCTION,
-    tools: [{ functionDeclarations: [buildGetReportDeclaration()] }],
-  });
-
-  const chat = model.startChat();
-  let response = (await chat.sendMessage(question)).response;
+  if (!hasLlm()) throw new Error("未設定 AI 供應商金鑰");
 
   let primaryReport: AssistantResult | null = null;
   let primaryIntent: AssistantIntent | null = null;
 
-  for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-    const calls = response.functionCalls();
-    if (!calls || calls.length === 0) break;
+  const result = await generateText({
+    model: resolveModel(),
+    system: SYSTEM_INSTRUCTION,
+    prompt: question,
+    stopWhen: stepCountIs(MAX_STEPS),
+    tools: {
+      get_report: tool({
+        description: `依使用者問題取得對應的 ERP 報表資料。可用意圖：\n${INTENT_GUIDE}`,
+        inputSchema: z.object({
+          intent: z.enum(INTENT_VALUES).describe("要查詢的報表意圖"),
+          question: z.string().describe("轉述使用者原始問題（保留期間、商品名等關鍵字，供報表解析）"),
+        }),
+        execute: async ({ intent, question: q }) => {
+          const report = await runReportByIntent(tenantId, intent, q || question);
+          if (!primaryReport && report.kind !== "help" && report.kind !== "followup") {
+            primaryReport = report;
+            primaryIntent = intent;
+          }
+          return { data: compactReport(report) };
+        },
+      }),
+    },
+  });
 
-    // 逐一執行模型要求的報表，並把結果一次回覆（協定要求回應每個 call）
-    const parts = [];
-    for (const call of calls) {
-      if (call.name !== "get_report") {
-        parts.push({ functionResponse: { name: call.name, response: { error: "未知工具" } } });
-        continue;
-      }
-      const args = (call.args ?? {}) as { intent?: string; question?: string };
-      const intent = (args.intent ?? "") as AssistantIntent;
-      const q = args.question || question;
-      let report: AssistantResult;
-      try {
-        report = await runReportByIntent(tenantId, intent, q);
-      } catch (e: any) {
-        parts.push({ functionResponse: { name: "get_report", response: { error: e?.message ?? "報表產生失敗" } } });
-        continue;
-      }
-      if (!primaryReport && report.kind !== "help" && report.kind !== "followup") {
-        primaryReport = report;
-        primaryIntent = intent;
-      }
-      parts.push({ functionResponse: { name: "get_report", response: { data: compactReport(report) } } });
-    }
-    response = (await chat.sendMessage(parts)).response;
-  }
-
-  const aiSummary = safeText(response);
-  return { intent: primaryIntent, aiSummary, report: primaryReport };
-}
-
-function safeText(response: any): string {
-  try {
-    return response.text() || "";
-  } catch {
-    return "";
-  }
+  return { intent: primaryIntent, aiSummary: result.text ?? "", report: primaryReport };
 }
