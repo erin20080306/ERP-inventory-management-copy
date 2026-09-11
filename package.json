@@ -65,7 +65,8 @@
     "db:demo": "tsx scripts/create-local-demo-accounts.ts",
     "db:reset": "prisma migrate reset --force",
     "test:speed": "node scripts/verify-speed-patch.mjs && node scripts/verify-pos-fast-checkout-v5.mjs",
-    "test:i18n": "tsx scripts/verify-i18n.ts"
+    "test:i18n": "tsx scripts/verify-i18n.ts",
+    "test:db-guard": "tsx scripts/verify-test-database-guard.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
