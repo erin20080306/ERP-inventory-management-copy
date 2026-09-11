@@ -77,15 +77,22 @@ function walk(dir: string, files: string[] = []): string[] {
 const unresolved: string[] = [];
 for (const file of walk(path.join(root, "src"))) {
   const source = readFileSync(file, "utf8");
-  const namespaces = [
-    ...source.matchAll(/use(?:Translations)\("([^"]+)"\)/g),
-    ...source.matchAll(/getTranslations\("([^"]+)"\)/g),
-  ].map((match) => match[1]);
-  if (namespaces.length === 0) continue;
-  const used = new Set([...source.matchAll(/\bt(?:Common)?\("([A-Za-z0-9_.]+)"/g)].map((m) => m[1]));
-  for (const key of used) {
-    if (!namespaces.some((ns) => `${ns}.${key}` in zh)) {
-      unresolved.push(`${path.relative(root, file)} → ${key}`);
+  // 解析出「變數名 → 命名空間」，因此 const f = useTranslations("fields") 之後
+  // 的 f("code") 也會被檢查，不是只認 t(...)。
+  const byVariable = new Map<string, string[]>();
+  for (const match of source.matchAll(/(?:const|let)\s+(\w+)\s*=\s*(?:await\s+)?(?:useTranslations|getTranslations)\("([^"]+)"\)/g)) {
+    const [, variable, namespace] = match;
+    byVariable.set(variable, [...(byVariable.get(variable) ?? []), namespace]);
+  }
+  if (byVariable.size === 0) continue;
+
+  for (const [variable, namespaces] of byVariable) {
+    const calls = source.matchAll(new RegExp(`\\b${variable}\\("([A-Za-z0-9_.]+)"`, "g"));
+    for (const call of calls) {
+      const key = call[1];
+      if (!namespaces.some((ns) => `${ns}.${key}` in zh)) {
+        unresolved.push(`${path.relative(root, file)} → ${variable}("${key}") 不在 ${namespaces.join(" / ")}`);
+      }
     }
   }
 }
