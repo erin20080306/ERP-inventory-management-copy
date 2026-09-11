@@ -1,4 +1,5 @@
 "use client";
+import { useTranslations } from "next-intl";
 import React, { useEffect, useState } from "react";
 
 const SESSION_CACHE_PREFIX = "erp_table_cache:";
@@ -48,17 +49,18 @@ export function TableSkeletonRows({ rows = 6, columns }: { rows?: number; column
  * 表格操作提示
  */
 export function TableHint() {
+  const t = useTranslations("table");
   return (
     <div className="text-xs text-muted-foreground mb-2 space-y-1">
       <div className="flex flex-wrap gap-x-4 gap-y-1">
-        <span>🖱️ <strong>拖曳欄位</strong>：拖曳欄位標題調整順序</span>
-        <span>✏️ <strong>點擊編輯</strong>：點擊可編輯欄位進行修改</span>
-        <span>⌨️ <strong>方向鍵</strong>：↑↓ 跳行、←→ 跳欄</span>
-        <span>↵ <strong>Enter</strong>：儲存並跳下一行</span>
-        <span>⇥ <strong>Tab</strong>：跳下一欄 / Shift+Tab 上一欄</span>
-        <span>📋 <strong>複製貼上</strong>：支援 Excel 多列多欄資料</span>
-        <span>🖱️ <strong>右鍵</strong>：複製貼上、編輯、刪除；表頭可新增／隱藏欄位</span>
-        <span>⎋ <strong>Escape</strong>：取消編輯</span>
+        <span>🖱️ <strong>{t("hintDrag")}</strong>{t("hintDragBody")}</span>
+        <span>✏️ <strong>{t("hintClickEdit")}</strong>{t("hintClickEditBody")}</span>
+        <span>⌨️ <strong>{t("hintArrows")}</strong>{t("hintArrowsBody")}</span>
+        <span>↵ <strong>Enter</strong>{t("hintEnterBody")}</span>
+        <span>⇥ <strong>Tab</strong>{t("hintTabBody")}</span>
+        <span>📋 <strong>{t("hintCopyPaste")}</strong>{t("hintCopyPasteBody")}</span>
+        <span>🖱️ <strong>{t("hintRightClick")}</strong>{t("hintRightClickBody")}</span>
+        <span>⎋ <strong>Escape</strong>{t("hintEscBody")}</span>
       </div>
     </div>
   );
@@ -79,6 +81,7 @@ export function useDebouncedValue<T>(value: T, delay = 300) {
  * 拖曳欄位排序 hook
  */
 export function useColumnDrag(moduleKey: string, defaultKeys: string[]) {
+  const t = useTranslations("table");
   const storageKey = `erp_col_order_${moduleKey}`;
   const [dragCol, setDragCol] = useState<string | null>(null);
   const [colOrder, setColOrder] = useState<string[]>(() => {
@@ -118,7 +121,7 @@ export function useColumnDrag(moduleKey: string, defaultKeys: string[]) {
       onDrop: () => handleDrop(key),
       style: dragCol === key ? { opacity: 0.65, background: "hsl(var(--muted))" } as React.CSSProperties : undefined,
       className: "cursor-grab select-none hover:text-foreground",
-      title: "拖曳調整欄位順序",
+      title: t("dragToReorder"),
     };
   }
 

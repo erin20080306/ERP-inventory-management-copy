@@ -3,18 +3,20 @@ import { Button } from "@/components/ui/button";
 import { Download } from "lucide-react";
 import { toast } from "sonner";
 import { downloadCSV, toCSV } from "@/lib/csv";
+import { useTranslations } from "next-intl";
 
 export function ExportButton({
   filename,
   rows,
   columns,
-  label = "匯出 CSV",
+  label,
 }: {
   filename: string;
   rows: any[];
   columns: { key: string; title: string; get?: (r: any) => any }[];
   label?: string;
 }) {
+  const t = useTranslations("table");
   return (
     <Button
       variant="outline"
@@ -22,11 +24,11 @@ export function ExportButton({
       onClick={() => {
         const csv = toCSV(rows, columns);
         downloadCSV(`${filename}-${new Date().toISOString().slice(0, 10)}.csv`, csv);
-        toast.success("已匯出 CSV");
+        toast.success(t("exportedCsv"));
       }}
     >
       <Download className="h-4 w-4" />
-      {label}
+      {label ?? t("exportCsv")}
     </Button>
   );
 }

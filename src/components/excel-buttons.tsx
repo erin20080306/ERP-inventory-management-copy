@@ -3,15 +3,17 @@ import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { FileSpreadsheet, Upload, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 
 /** 匯出 Excel 按鈕：透過呼叫 onExport callback (內部執行 fetch + downloadExcel) */
 export function ExportExcelButton({
-  label = "匯出 Excel",
+  label,
   onExport,
 }: {
   label?: string;
   onExport: () => Promise<void>;
 }) {
+  const t = useTranslations("table");
   const [busy, setBusy] = useState(false);
   return (
     <Button
@@ -21,23 +23,23 @@ export function ExportExcelButton({
         setBusy(true);
         try {
           await onExport();
-          toast.success("已匯出 Excel");
+          toast.success(t("exportedExcel"));
         } catch (e: any) {
-          toast.error(e.message || "匯出失敗");
+          toast.error(e.message || t("exportFailed"));
         } finally {
           setBusy(false);
         }
       }}
     >
       {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />}
-      {label}
+      {label ?? t("exportExcel")}
     </Button>
   );
 }
 
 /** 匯入 Excel 按鈕：選檔後執行 onImport callback */
 export function ImportExcelButton({
-  label = "匯入 Excel",
+  label,
   onImport,
   templateHeaders,
   templateName,
@@ -47,6 +49,7 @@ export function ImportExcelButton({
   templateHeaders?: string[];
   templateName?: string;
 }) {
+  const t = useTranslations("table");
   const [busy, setBusy] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -58,17 +61,17 @@ export function ImportExcelButton({
       const { readExcelFile } = await import("@/lib/excel");
       const rows = await readExcelFile(file);
       if (rows.length === 0) {
-        toast.error("檔案無資料");
+        toast.error(t("fileEmpty"));
         return;
       }
       const r = await onImport(rows);
       if (r.failed > 0) {
-        toast.error(`成功 ${r.success} 筆 / 失敗 ${r.failed} 筆${r.errors?.length ? "\n" + r.errors.slice(0, 3).join("; ") : ""}`);
+        toast.error(`${t("importPartialExcel", { success: r.success, failed: r.failed })}${r.errors?.length ? "\n" + r.errors.slice(0, 3).join("; ") : ""}`);
       } else {
-        toast.success(`已匯入 ${r.success} 筆`);
+        toast.success(t("importedCount", { count: r.success }));
       }
     } catch (err: any) {
-      toast.error(err.message || "匯入失敗");
+      toast.error(err.message || t("importFailed"));
     } finally {
       setBusy(false);
       if (inputRef.current) inputRef.current.value = "";
@@ -78,7 +81,7 @@ export function ImportExcelButton({
   async function downloadTemplate() {
     if (!templateHeaders) return;
     const { downloadExcelTemplate } = await import("@/lib/excel");
-    downloadExcelTemplate(templateName ?? "template", "資料", templateHeaders);
+    downloadExcelTemplate(templateName ?? "template", t("sheetName"), templateHeaders);
   }
 
   return (
@@ -92,11 +95,11 @@ export function ImportExcelButton({
       />
       <Button variant="outline" disabled={busy} onClick={() => inputRef.current?.click()}>
         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-        {label}
+        {label ?? t("importExcel")}
       </Button>
       {templateHeaders && (
         <Button variant="ghost" size="sm" onClick={downloadTemplate}>
-          範本
+          {t("template")}
         </Button>
       )}
     </div>
