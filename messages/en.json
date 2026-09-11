@@ -793,5 +793,232 @@
     "template": "Template",
     "totalRows": "{total} records",
     "updating": "Updating…"
+  },
+  "pages": {
+    "accountingCash": {
+      "title": "Cash & bank",
+      "description": "Cash and bank accounts, transfers and reconciliation"
+    },
+    "accountingFixedAssets": {
+      "title": "Fixed asset register",
+      "description": "Register and depreciate land, buildings, machinery and equipment"
+    },
+    "accountingInvoices": {
+      "title": "Invoices",
+      "description": "Output and input invoices. Add them manually, or issue one directly from a sales or purchase order."
+    },
+    "accountingInvoicesScan": {
+      "title": "Scan invoice",
+      "description": "Scan an e-invoice QR code with the camera, or photograph a triplicate invoice for the record"
+    },
+    "accountingInvoicesTracks": {
+      "title": "Invoice number tracks",
+      "description": "Set e-invoice tracks and number ranges; numbers are drawn automatically when issuing"
+    },
+    "accountingJournals": {
+      "title": "Journal entries",
+      "description": "Create, review and void journal entries; debits must equal credits"
+    },
+    "accountingNotesPayable": {
+      "title": "Notes payable",
+      "description": "Notes your company issues to suppliers (current-account cheques)"
+    },
+    "accountingNotesReceivable": {
+      "title": "Notes receivable",
+      "description": "Notes issued or endorsed by customers (cheques, promissory notes, drafts)"
+    },
+    "accountingPayables": {
+      "title": "Accounts payable",
+      "description": "Generated automatically from purchase orders; supports partial settlement and overdue tracking"
+    },
+    "accountingPayments": {
+      "title": "Settled payments",
+      "description": "All collections, payments and allowances"
+    },
+    "accountingReceivables": {
+      "title": "Accounts receivable",
+      "description": "Generated automatically from sales orders; supports partial settlement and overdue tracking"
+    },
+    "audit": {
+      "title": "Audit log",
+      "description": "Track system actions and sign-in records for security"
+    },
+    "bom": {
+      "title": "Bill of materials",
+      "description": "One view across every module, filterable by date"
+    },
+    "customers": {
+      "title": "Customers",
+      "description": "Manage customer records, contacts and payment terms"
+    },
+    "discounts": {
+      "title": "Allowance notes",
+      "description": "Sales allowances and purchase allowances"
+    },
+    "fulfillment": {
+      "title": "Online orders & fulfillment",
+      "description": "Once a storefront order is approved, choose the warehouse and the quantity to ship. Completing it deducts physical stock and creates the shipment, receivable and journal entry together."
+    },
+    "hrDepartments": {
+      "title": "Departments",
+      "description": "Set up your company's organisational structure"
+    },
+    "hrEmployees": {
+      "title": "Employees",
+      "description": "Employee records, pay settings and insurance details"
+    },
+    "hrPayroll": {
+      "title": "Payroll",
+      "description": "Monthly payroll with automatic labour/health insurance, pension and income tax; exports to Excel"
+    },
+    "hrPayrollSummary": {
+      "title": "Monthly payroll summary",
+      "description": "Review monthly payroll details and statistics"
+    },
+    "inventory": {
+      "title": "Inventory",
+      "description": "Live stock, movement history and multi-warehouse counting"
+    },
+    "inventoryAdjustments": {
+      "title": "Period-end stock count",
+      "description": "Count and adjust stock, with journal entries posted automatically"
+    },
+    "products": {
+      "title": "Products",
+      "description": "Showing the product catalogue for \"{edition}\" only. Adding, editing or deleting here does not affect other business modes."
+    },
+    "productsCosts": {
+      "title": "Product costing",
+      "description": "Maintain cost and sale price in one place, with bulk Excel import"
+    },
+    "productsOverview": {
+      "title": "Product overview",
+      "description": "Stock, sales, purchasing and margin analysis for the {edition} product catalogue"
+    },
+    "purchases": {
+      "title": "Purchase orders",
+      "description": "Create and approve purchase orders, receive stock and raise payables"
+    },
+    "purchasesReorder": {
+      "title": "Smart replenishment",
+      "description": "Suggests order quantities from sales trend, lead time and safety stock, and drafts the purchase order for you"
+    },
+    "quotations": {
+      "title": "Quotations",
+      "description": "Manage customer quotations and their status"
+    },
+    "returns": {
+      "title": "Returns",
+      "description": "Sales and purchase returns, with stock and ledger adjusted automatically"
+    },
+    "roles": {
+      "title": "Roles & permissions",
+      "description": "System templates are read-only; the tenant owner can create roles scoped to this tenant"
+    },
+    "sales": {
+      "title": "Sales orders",
+      "description": "Create sales orders, ship and deduct stock, and raise receivables"
+    },
+    "settings": {
+      "title": "Settings",
+      "description": "Company details, currency and other global settings"
+    },
+    "suppliers": {
+      "title": "Suppliers",
+      "description": "Manage supplier records, contacts and payment terms"
+    },
+    "users": {
+      "title": "Users",
+      "description": "The tenant owner adds users to this tenant and assigns roles and permissions available within it"
+    },
+    "warehouses": {
+      "title": "Warehouses",
+      "description": "Multi-warehouse setup, enable and disable"
+    }
+  },
+  "fulfillment": {
+    "allSalesOrders": "All sales orders",
+    "noticeTitle": "Storefront fulfilment does not deduct physical stock at order time",
+    "noticeBody": "Placing an order reserves sellable quantity only. Stock leaves the chosen warehouse when you press Confirm shipment. You can ship in batches — anything undelivered stays on this page."
+  },
+  "editions": {
+    "ERP": {
+      "label": "Enterprise trade, inventory and accounting",
+      "shortLabel": "Enterprise ERP",
+      "description": "Purchasing, sales, inventory, AR/AP, invoices and journal entries"
+    },
+    "POS_RETAIL": {
+      "label": "Retail store — POS with trade, inventory and accounting",
+      "shortLabel": "Retail POS",
+      "description": "Barcode scanning, member promotions, returns, daily close, stock and accounting"
+    },
+    "POS_RESTAURANT": {
+      "label": "Restaurant — table ordering, kitchen, trade, inventory and accounting",
+      "shortLabel": "Restaurant POS",
+      "description": "Visual ordering, tables, kitchen tickets, service, checkout, stock and accounting"
+    },
+    "ECOMMERCE": {
+      "label": "Brand commerce — storefront with ERP back office",
+      "shortLabel": "Commerce ERP",
+      "description": "Storefront, online orders, members, stock, fulfilment, purchasing and accounting all share one tenant"
+    },
+    "POS_MEDICAL": {
+      "label": "Medical aesthetics clinic operations POS",
+      "shortLabel": "Medical POS",
+      "description": "Bookings, treatments, members, consumables, medical receipts, trade and accounting in one"
+    }
+  },
+  "workspace": {
+    "lockedMode": "Business mode locked",
+    "internalAccount": "Internal admin account",
+    "adminFull": "ERP / Commerce / Retail POS / Restaurant POS / Medical POS — full access",
+    "adminNoMedical": "ERP / Commerce / Retail POS / Restaurant POS mobile workspace",
+    "iosMobile": "ERP mobile workspace",
+    "iosMobileDesc": "The iOS app covers products, inventory, purchasing, sales, accounting and reports. The full medical workspace stays on the web and desktop editions.",
+    "internalAccountDesc": "Erin Design internal acceptance tenant — free forever and never mixed with paying customer data.",
+    "permissionNote": "What you see follows your role. Shoppers only use the storefront; only tenant administrators can enter the ERP after signing in. Modules you lack permission for are blocked at both the URL and the API.",
+    "commerceEyebrow": "One trial tenant · two points of view",
+    "commerceHeading": "From shopper checkout to ERP order and fulfilment",
+    "openStorefront": "Open storefront",
+    "erpFulfillment": "ERP orders & fulfillment",
+    "webRevenueToday": "Online revenue today",
+    "webRevenueHint": "Counts [WEB] storefront orders only",
+    "webOrdersToday": "Online orders today",
+    "webOrdersHint": "Counted by Taipei business day",
+    "webUnitsToday": "Units sold today",
+    "webUnitsHint": "Total items across storefront orders",
+    "openingFloat": "Opening float",
+    "notApplicable": "Not applicable",
+    "openingFloatHint": "Online payments have no physical drawer, so no petty-cash entry is created",
+    "step1Title": "1. Check out as the demo shopper",
+    "step1Body": "A demo customer is provided so you can run the full storefront checkout and ERP intake flow. Card and mobile payments are not really charged — connect your own payment provider before taking real money.",
+    "step2Title": "2. Take the order in the ERP",
+    "step2Body": "New orders appear under Sales marked [WEB], with the customer record created or merged automatically.",
+    "step3Title": "3. Approve and ship",
+    "step3Body": "Pending orders reserve sellable quantity first. Physical stock is deducted only once you ship, which then feeds the receivable and the journal entry.",
+    "chooseWorkspace": "Choose a workspace",
+    "chooseWorkspaceHint": "Front office and back office are used separately, but transactions stay in sync within one company ledger.",
+    "enterWorkspace": "Open workspace →",
+    "noWorkspace": "This account has no workspace permissions yet. Contact your company administrator.",
+    "cardStorefrontMine": "Preview my storefront",
+    "cardStorefrontInternal": "Preview the internal test store",
+    "cardStorefrontDesc": "The shopper front end shares products, sellable stock, members and online orders with the ERP",
+    "cardErp": "Open the ERP back office",
+    "cardErpDesc": "Online orders, products, stock, fulfilment, receivables and accounting in one place",
+    "cardRetail": "Retail POS register",
+    "cardRetailDesc": "Scanning, members, promotions, mixed payments, returns and daily close",
+    "cardRestaurant": "Restaurant tables & ordering",
+    "cardRestaurantDesc": "Visual ordering, add-ons, kitchen tickets, service and table checkout",
+    "cardMedicalSiteMine": "Preview my clinic website",
+    "cardMedicalSiteInternal": "Preview the internal clinic website",
+    "cardMedicalSiteDesc": "A professional clinic site with visual service selection and online booking",
+    "cardMedical": "Medical POS & scheduling",
+    "cardMedicalDesc": "Bookings, packages, stored value, consent forms, treatment records, medical receipts and consumables",
+    "cardInventory": "Trade & inventory back office",
+    "cardInventoryDesc": "Products, purchasing, sales, stock, transfers and returns",
+    "cardAccounting": "Accounting back office",
+    "cardAccountingDesc": "Journals, AR/AP, invoices, cash and bank, and financial reports",
+    "cardAdmin": "Platform administration",
+    "cardAdminDesc": "Customer companies, licensing, seats, plans and devices"
   }
 }

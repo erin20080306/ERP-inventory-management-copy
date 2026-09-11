@@ -5,6 +5,7 @@ import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { formatDateTime } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireTenantId } from "@/lib/api";
+import { getTranslations } from "next-intl/server";
 
 export const dynamic = "force-dynamic";
 
@@ -67,6 +68,7 @@ function formatRefId(detail: string | null, refId: string | null) {
 }
 
 export default async function Page() {
+  const t = await getTranslations("pages");
   const g = await requirePermissionOrForbidden("audit.view");
   if (g.forbidden) return g.element;
   const tenantId = await requireTenantId();
@@ -84,7 +86,7 @@ export default async function Page() {
     }),
   ]);
   return (
-    <PageShell title="稽核紀錄" description="追蹤系統操作與登入紀錄，確保資訊安全">
+    <PageShell title={t("audit.title")} description={t("audit.description")}>
       <Card>
         <CardHeader><CardTitle>操作紀錄 (最近 200 筆)</CardTitle></CardHeader>
         <CardContent>

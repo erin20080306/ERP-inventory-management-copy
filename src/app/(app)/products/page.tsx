@@ -2,16 +2,19 @@ import { PageShell } from "@/components/layout/page-shell";
 import { requirePermissionOrForbidden } from "@/components/perm-guard";
 import { ProductClient } from "./client";
 import { getProductEdition, normalizeBusinessMode } from "@/lib/product-editions";
+import { getTranslations } from "next-intl/server";
 
 export default async function ProductsPage() {
+  const t = await getTranslations("pages");
+  const tEdition = await getTranslations("editions");
   const g = await requirePermissionOrForbidden("products.view");
   if (g.forbidden) return g.element;
   const businessMode = normalizeBusinessMode(g.session.user.businessMode);
   const edition = getProductEdition(businessMode);
   return (
     <PageShell
-      title="商品管理"
-      description={`目前顯示「${edition.shortLabel}」獨立商品目錄；新增、修改與刪除不會影響其他營運模式。`}
+      title={t("products.title")}
+      description={t("products.description", { edition: tEdition(`${edition.mode}.shortLabel`) })}
     >
       <ProductClient isCommerce={businessMode === "ECOMMERCE"} />
     </PageShell>

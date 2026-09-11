@@ -793,5 +793,232 @@
     "template": "範本",
     "totalRows": "共 {total} 筆",
     "updating": "更新中..."
+  },
+  "pages": {
+    "accountingCash": {
+      "title": "現金銀行",
+      "description": "現金帳戶與銀行帳戶、轉帳與對帳"
+    },
+    "accountingFixedAssets": {
+      "title": "固定資產目錄",
+      "description": "土地、建築、機器、設備等固定資產登錄與折舊管理"
+    },
+    "accountingInvoices": {
+      "title": "發票管理",
+      "description": "銷項 / 進項發票。可手動新增，或從銷售 / 採購單一鍵開立。"
+    },
+    "accountingInvoicesScan": {
+      "title": "掃描發票",
+      "description": "使用相機掃描電子發票 QR Code，或拍照記錄三聯式發票"
+    },
+    "accountingInvoicesTracks": {
+      "title": "發票字軌管理",
+      "description": "設定電子發票字軌、號碼區間，開立發票時自動取號"
+    },
+    "accountingJournals": {
+      "title": "傳票管理",
+      "description": "建立、審核與作廢會計傳票，借貸必平衡"
+    },
+    "accountingNotesPayable": {
+      "title": "應付票據",
+      "description": "本公司開立給供應商之票據管理（甲存支票）"
+    },
+    "accountingNotesReceivable": {
+      "title": "應收票據",
+      "description": "客戶開立或背書轉讓之票據管理（支票/本票/匯票）"
+    },
+    "accountingPayables": {
+      "title": "應付帳款",
+      "description": "由採購單自動產生；支援部分沖帳與逾期追蹤"
+    },
+    "accountingPayments": {
+      "title": "已沖帳記錄",
+      "description": "所有收款、付款、折讓記錄"
+    },
+    "accountingReceivables": {
+      "title": "應收帳款",
+      "description": "由銷售單自動產生；支援部分沖帳與逾期追蹤"
+    },
+    "audit": {
+      "title": "稽核紀錄",
+      "description": "追蹤系統操作與登入紀錄，確保資訊安全"
+    },
+    "bom": {
+      "title": "BOM 總覽",
+      "description": "一覽所有模組資料，可依日期篩選顯示"
+    },
+    "customers": {
+      "title": "客戶管理",
+      "description": "管理客戶資料、聯絡人與付款條件"
+    },
+    "discounts": {
+      "title": "折讓單",
+      "description": "銷售折讓 / 進貨折讓"
+    },
+    "fulfillment": {
+      "title": "電商接單與出貨",
+      "description": "商城訂單核准後，選擇倉庫與本次出貨數量；完成時同步扣除實體庫存、建立出貨單、應收與會計傳票。"
+    },
+    "hrDepartments": {
+      "title": "部門管理",
+      "description": "公司組織部門設定"
+    },
+    "hrEmployees": {
+      "title": "員工管理",
+      "description": "員工基本資料、薪資設定與投保資訊"
+    },
+    "hrPayroll": {
+      "title": "薪資管理",
+      "description": "月薪資結算、自動計算勞健保/勞退/所得稅，可匯出 Excel"
+    },
+    "hrPayrollSummary": {
+      "title": "每月薪資發放明細總表",
+      "description": "查看每月薪資發放明細和統計"
+    },
+    "inventory": {
+      "title": "庫存管理",
+      "description": "即時庫存、異動紀錄與多倉庫盤點"
+    },
+    "inventoryAdjustments": {
+      "title": "期末盤點調整",
+      "description": "庫存盤點與調整，自動切傳票"
+    },
+    "products": {
+      "title": "商品管理",
+      "description": "目前顯示「{edition}」獨立商品目錄；新增、修改與刪除不會影響其他營運模式。"
+    },
+    "productsCosts": {
+      "title": "成本管理",
+      "description": "商品成本與售價統一維護，支援 Excel 批次匯入更新"
+    },
+    "productsOverview": {
+      "title": "商品一覽表",
+      "description": "{edition}商品目錄的庫存、銷售、採購與毛利分析"
+    },
+    "purchases": {
+      "title": "採購管理",
+      "description": "採購單建立、核准、進貨入庫與應付帳款"
+    },
+    "purchasesReorder": {
+      "title": "智慧補貨",
+      "description": "依銷售趨勢、前置期與安全庫存推算建議採購量，一鍵生成採購草稿"
+    },
+    "quotations": {
+      "title": "報價單",
+      "description": "管理客戶報價與狀態"
+    },
+    "returns": {
+      "title": "退貨管理",
+      "description": "銷售退貨 / 採購退貨，自動調整庫存與帳款"
+    },
+    "roles": {
+      "title": "角色權限",
+      "description": "系統範本唯讀；租戶擁有人可建立只屬於本租戶的角色與權限"
+    },
+    "sales": {
+      "title": "銷售管理",
+      "description": "銷售訂單建立、出貨扣庫與應收帳款"
+    },
+    "settings": {
+      "title": "系統設定",
+      "description": "公司基本資料、幣別與其他全域設定"
+    },
+    "suppliers": {
+      "title": "供應商管理",
+      "description": "管理供應商資料、聯絡人與付款條件"
+    },
+    "users": {
+      "title": "使用者管理",
+      "description": "由租戶擁有人新增同租戶使用者，並指派租戶內可用的角色與權限"
+    },
+    "warehouses": {
+      "title": "倉庫管理",
+      "description": "多倉庫設定與啟停用"
+    }
+  },
+  "fulfillment": {
+    "allSalesOrders": "全部銷售單",
+    "noticeTitle": "商城履約不會在下單時先扣實體庫存",
+    "noticeBody": "下單先保留可售量；按下「確認本次出貨」後才扣除所選倉庫庫存。可分批出貨，未交數量會留在此頁繼續處理。"
+  },
+  "editions": {
+    "ERP": {
+      "label": "一般企業進銷存會計",
+      "shortLabel": "企業 ERP",
+      "description": "採購、銷售、庫存、應收應付、發票與會計傳票"
+    },
+    "POS_RETAIL": {
+      "label": "門市零售版・POS＋進銷存＋會計",
+      "shortLabel": "零售 POS",
+      "description": "條碼掃碼、會員促銷、退換貨、日結、庫存與會計"
+    },
+    "POS_RESTAURANT": {
+      "label": "餐飲版・桌位點餐＋廚房＋進銷存＋會計",
+      "shortLabel": "餐飲 POS",
+      "description": "圖片點餐、桌位、送廚、出餐、結帳、庫存與會計"
+    },
+    "ECOMMERCE": {
+      "label": "品牌電商・網站＋ERP 營運後台",
+      "shortLabel": "電商 ERP",
+      "description": "品牌官網、網路訂單、會員、庫存、出貨、採購與會計共用同一租戶資料"
+    },
+    "POS_MEDICAL": {
+      "label": "醫美診所營運管理 POS",
+      "shortLabel": "醫美 POS",
+      "description": "預約、療程、會員、耗材、醫療收據、進銷存與會計整合"
+    }
+  },
+  "workspace": {
+    "lockedMode": "已鎖定公司業態",
+    "internalAccount": "管理者免費內部帳套",
+    "adminFull": "ERP／電商／零售 POS／餐飲 POS／醫美 POS 完整功能",
+    "adminNoMedical": "ERP／電商／零售 POS／餐飲 POS 行動工作區",
+    "iosMobile": "ERP 行動工作區",
+    "iosMobileDesc": "iOS App 提供商品、庫存、採購、銷售、會計與報表；完整醫美工作區保留於網頁版與桌面版。",
+    "internalAccountDesc": "艾琳設計內部驗收帳套，永久免費且不會混入付費客戶資料。",
+    "permissionNote": "畫面依個人角色權限顯示。消費者只使用商城；租戶管理者登入後才可進 ERP。沒有權限的模組同時禁止網址與 API 存取。",
+    "commerceEyebrow": "同一試用租戶・雙視角操作",
+    "commerceHeading": "從消費者結帳，到 ERP 接單與出貨",
+    "openStorefront": "進入商店官網",
+    "erpFulfillment": "ERP 接單與出貨",
+    "webRevenueToday": "今日官網營業額",
+    "webRevenueHint": "僅計算 [WEB] 官網訂單",
+    "webOrdersToday": "今日官網訂單",
+    "webOrdersHint": "以台北營業日統計",
+    "webUnitsToday": "今日售出件數",
+    "webUnitsHint": "官網訂單商品數量合計",
+    "openingFloat": "開店零用金",
+    "notApplicable": "不適用",
+    "openingFloatHint": "線上付款沒有實體錢櫃，不建立零用金傳票",
+    "step1Title": "1．以王小美體驗結帳",
+    "step1Body": "王小美是預設體驗顧客，可用來完成商城結帳與 ERP 接單流程；信用卡／行動支付不會真實扣款，正式收款需先串接租戶金流。",
+    "step2Title": "2．回 ERP 接單",
+    "step2Body": "在銷售管理看到標示 [WEB] 的新訂單與自動建立／合併的客戶資料。",
+    "step3Title": "3．核准與出貨",
+    "step3Body": "待處理訂單會先保留可售量；完成出貨後才扣實體庫存並銜接應收與傳票。",
+    "chooseWorkspace": "選擇工作區",
+    "chooseWorkspaceHint": "前台與後台分開操作，但交易資料會在同一家公司帳套同步。",
+    "enterWorkspace": "進入工作區 →",
+    "noWorkspace": "此帳號尚未獲得任何工作區權限，請聯絡公司管理員。",
+    "cardStorefrontMine": "預覽我的品牌商城",
+    "cardStorefrontInternal": "預覽內部測試商城",
+    "cardStorefrontDesc": "消費者前台與 ERP 共用商品、可售庫存、會員與網路訂單",
+    "cardErp": "進入 ERP 營運後台",
+    "cardErpDesc": "網路訂單、商品、庫存、出貨、應收與會計整合管理",
+    "cardRetail": "零售 POS 收銀",
+    "cardRetailDesc": "掃碼、會員、促銷、多元支付、退換貨與日結",
+    "cardRestaurant": "餐飲桌位與點餐",
+    "cardRestaurantDesc": "圖片點餐、加點、送廚、出餐與桌位結帳",
+    "cardMedicalSiteMine": "預覽我的醫美官網",
+    "cardMedicalSiteInternal": "預覽內部醫美官網",
+    "cardMedicalSiteDesc": "專業形象官網、圖片選服務與線上預約",
+    "cardMedical": "醫美 POS 與預約排程",
+    "cardMedicalDesc": "預約、套票、會員儲值、同意書、療程紀錄、醫療收據與耗材",
+    "cardInventory": "進銷存後台",
+    "cardInventoryDesc": "商品、採購、銷售、庫存、調撥與退貨",
+    "cardAccounting": "會計後台",
+    "cardAccountingDesc": "傳票、應收應付、發票、現金銀行與財務報表",
+    "cardAdmin": "平台管理後台",
+    "cardAdminDesc": "客戶公司、授權、席次、方案與裝置管理"
   }
 }

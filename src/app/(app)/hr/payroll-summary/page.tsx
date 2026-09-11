@@ -1,14 +1,16 @@
 import { PageShell } from "@/components/layout/page-shell";
 import { requirePermissionOrForbidden } from "@/components/perm-guard";
 import { PayrollSummaryClient } from "./client";
+import { getTranslations } from "next-intl/server";
 
 export const dynamic = "force-dynamic";
 
 export default async function Page() {
+  const t = await getTranslations("pages");
   const g = await requirePermissionOrForbidden("payroll.view");
   if (g.forbidden) return g.element;
   return (
-    <PageShell title="每月薪資發放明細總表" description="查看每月薪資發放明細和統計">
+    <PageShell title={t("hrPayrollSummary.title")} description={t("hrPayrollSummary.description")}>
       <PayrollSummaryClient />
     </PageShell>
   );
