@@ -15,9 +15,12 @@ import {
 } from "lucide-react";
 import { normalizeBusinessMode } from "@/lib/product-editions";
 import { tenantMedicalSitePath, tenantStorefrontPath } from "@/lib/storefront-access";
+import { useTranslations } from "next-intl";
 
-type NavItem = { title: string; href: string; icon: any; perm?: string };
-type NavSection = { label: string; items: NavItem[] };
+// key 對應 messages/*.json 的 nav.items / nav.sections，
+// 顯示文字一律在渲染時翻譯，避免把語言寫死在路由設定裡。
+type NavItem = { key: string; href: string; icon: any; perm?: string };
+type NavSection = { key: string; items: NavItem[] };
 
 const DATA_PREFETCH_BY_HREF: Record<string, string[]> = {
   "/products": ["/api/products?q=&page=1&pageSize=20"],
@@ -43,6 +46,9 @@ const DATA_PREFETCH_BY_HREF: Record<string, string[]> = {
   "/fulfillment": ["/api/sales?q=&page=1&pageSize=20&channel=WEB&status=SUBMITTED%2CAPPROVED%2CPARTIALLY_SHIPPED"],
 };
 
+// 這兩個區塊永遠預設展開，改以穩定 key 判斷，不受介面語言影響。
+const ALWAYS_OPEN_SECTION_KEYS = ["overview", "adminWorkspace"];
+
 const warmedRoutes = new Set<string>();
 const warmedData = new Set<string>();
 
@@ -61,153 +67,155 @@ function prefetchDataForRoute(href: string) {
 }
 
 const erpSections: NavSection[] = [
-  { label: "總覽", items: [
-    { title: "工作區選擇", href: "/workspace", icon: PanelsTopLeft },
-    { title: "儀表板", href: "/dashboard", icon: LayoutDashboard, perm: "dashboard.view" },
+  { key: "overview", items: [
+    { key: "workspace", href: "/workspace", icon: PanelsTopLeft },
+    { key: "dashboard", href: "/dashboard", icon: LayoutDashboard, perm: "dashboard.view" },
   ] },
   {
-    label: "進銷存",
+    key: "inventoryTrade",
     items: [
-      { title: "商品管理", href: "/products", icon: Package, perm: "products.view" },
-      { title: "成本管理", href: "/products/costs", icon: Coins, perm: "products.edit" },
-      { title: "客戶管理", href: "/customers", icon: Users, perm: "customers.view" },
-      { title: "供應商管理", href: "/suppliers", icon: Truck, perm: "suppliers.view" },
-      { title: "採購管理", href: "/purchases", icon: ShoppingCart, perm: "purchases.view" },
-      { title: "銷售管理", href: "/sales", icon: Receipt, perm: "sales.view" },
-      { title: "報價單", href: "/quotations", icon: FileText, perm: "quotations.view" },
-      { title: "庫存管理", href: "/inventory", icon: Warehouse, perm: "inventory.view" },
-      { title: "退貨管理", href: "/returns", icon: RotateCcw, perm: "returns.view" },
+      { key: "products", href: "/products", icon: Package, perm: "products.view" },
+      { key: "productCosts", href: "/products/costs", icon: Coins, perm: "products.edit" },
+      { key: "customers", href: "/customers", icon: Users, perm: "customers.view" },
+      { key: "suppliers", href: "/suppliers", icon: Truck, perm: "suppliers.view" },
+      { key: "purchases", href: "/purchases", icon: ShoppingCart, perm: "purchases.view" },
+      { key: "sales", href: "/sales", icon: Receipt, perm: "sales.view" },
+      { key: "quotations", href: "/quotations", icon: FileText, perm: "quotations.view" },
+      { key: "inventory", href: "/inventory", icon: Warehouse, perm: "inventory.view" },
+      { key: "returns", href: "/returns", icon: RotateCcw, perm: "returns.view" },
     ],
   },
   {
-    label: "會計",
+    key: "accounting",
     items: [
-      { title: "會計科目", href: "/accounting/accounts", icon: BookOpen, perm: "accounting.view" },
-      { title: "傳票管理", href: "/accounting/journals", icon: BookMarked, perm: "journals.view" },
-      { title: "應收帳款", href: "/accounting/receivables", icon: Coins, perm: "receivables.view" },
-      { title: "應付帳款", href: "/accounting/payables", icon: Wallet, perm: "payables.view" },
-      { title: "已沖帳記錄", href: "/accounting/payments", icon: Receipt, perm: "receivables.view" },
-      { title: "應收票據", href: "/accounting/notes-receivable", icon: ScrollText, perm: "notes.view" },
-      { title: "應付票據", href: "/accounting/notes-payable", icon: ScrollText, perm: "notes.view" },
-      { title: "現金銀行", href: "/accounting/cash", icon: Wallet, perm: "cash.view" },
-      { title: "發票管理", href: "/accounting/invoices", icon: FileSpreadsheet, perm: "invoices.view" },
-      { title: "固定資產", href: "/accounting/fixed-assets", icon: Landmark, perm: "assets.view" },
+      { key: "accountingAccounts", href: "/accounting/accounts", icon: BookOpen, perm: "accounting.view" },
+      { key: "journals", href: "/accounting/journals", icon: BookMarked, perm: "journals.view" },
+      { key: "receivables", href: "/accounting/receivables", icon: Coins, perm: "receivables.view" },
+      { key: "payables", href: "/accounting/payables", icon: Wallet, perm: "payables.view" },
+      { key: "payments", href: "/accounting/payments", icon: Receipt, perm: "receivables.view" },
+      { key: "notesReceivable", href: "/accounting/notes-receivable", icon: ScrollText, perm: "notes.view" },
+      { key: "notesPayable", href: "/accounting/notes-payable", icon: ScrollText, perm: "notes.view" },
+      { key: "cash", href: "/accounting/cash", icon: Wallet, perm: "cash.view" },
+      { key: "invoices", href: "/accounting/invoices", icon: FileSpreadsheet, perm: "invoices.view" },
+      { key: "fixedAssets", href: "/accounting/fixed-assets", icon: Landmark, perm: "assets.view" },
     ],
   },
   {
-    label: "人事薪資",
+    key: "hr",
     items: [
-      { title: "員工管理", href: "/hr/employees", icon: Briefcase, perm: "hr.view" },
-      { title: "部門管理", href: "/hr/departments", icon: Building, perm: "hr.view" },
-      { title: "薪資管理", href: "/hr/payroll", icon: BadgeDollarSign, perm: "payroll.view" },
+      { key: "hrEmployees", href: "/hr/employees", icon: Briefcase, perm: "hr.view" },
+      { key: "hrDepartments", href: "/hr/departments", icon: Building, perm: "hr.view" },
+      { key: "payroll", href: "/hr/payroll", icon: BadgeDollarSign, perm: "payroll.view" },
     ],
   },
-  { label: "報表", items: [
-    { title: "財務報表", href: "/reports", icon: BarChart3, perm: "reports.view" },
-    { title: "BOM 總覽", href: "/bom", icon: FileSpreadsheet, perm: "inventory.view" },
+  { key: "reports", items: [
+    { key: "reports", href: "/reports", icon: BarChart3, perm: "reports.view" },
+    { key: "bom", href: "/bom", icon: FileSpreadsheet, perm: "inventory.view" },
   ] },
   {
-    label: "系統",
+    key: "system",
     items: [
-      { title: "使用者管理", href: "/users", icon: UserCog, perm: "users.view" },
-      { title: "角色權限", href: "/roles", icon: Shield, perm: "roles.view" },
-      { title: "系統設定", href: "/settings", icon: Settings, perm: "settings.view" },
-      { title: "稽核紀錄", href: "/audit", icon: History, perm: "audit.view" },
+      { key: "users", href: "/users", icon: UserCog, perm: "users.view" },
+      { key: "roles", href: "/roles", icon: Shield, perm: "roles.view" },
+      { key: "settings", href: "/settings", icon: Settings, perm: "settings.view" },
+      { key: "audit", href: "/audit", icon: History, perm: "audit.view" },
     ],
   },
 ];
 
 const retailPosFront: NavSection =
   {
-    label: "零售 POS 前台",
+    key: "retailPosFront",
     items: [
-      { title: "POS 收銀台", href: "/pos", icon: ScanBarcode, perm: "pos.view" },
-      { title: "電子發票佇列", href: "/pos/e-invoices", icon: FileCheck2, perm: "pos.view" },
-      { title: "硬體模擬診斷", href: "/pos/hardware", icon: Cable, perm: "pos.view" },
-      { title: "促銷與店長授權", href: "/pos/offers", icon: BadgeDollarSign, perm: "pos.approve" },
+      { key: "posRegister", href: "/pos", icon: ScanBarcode, perm: "pos.view" },
+      { key: "posEInvoices", href: "/pos/e-invoices", icon: FileCheck2, perm: "pos.view" },
+      { key: "posHardware", href: "/pos/hardware", icon: Cable, perm: "pos.view" },
+      { key: "posOffers", href: "/pos/offers", icon: BadgeDollarSign, perm: "pos.approve" },
     ],
   };
 
 const restaurantPosFront: NavSection = {
-  label: "餐飲 POS 前台",
+  key: "restaurantPosFront",
   items: [
-    { title: "桌位與圖片點餐", href: "/pos/restaurant", icon: UtensilsCrossed, perm: "restaurant.view" },
-    { title: "廚房出餐看板", href: "/pos/restaurant/kitchen", icon: ChefHat, perm: "restaurant.view" },
-    { title: "電子發票佇列", href: "/pos/e-invoices", icon: FileCheck2, perm: "pos.view" },
-    { title: "硬體模擬診斷", href: "/pos/hardware", icon: Cable, perm: "pos.view" },
+    { key: "restaurantTables", href: "/pos/restaurant", icon: UtensilsCrossed, perm: "restaurant.view" },
+    { key: "restaurantKitchen", href: "/pos/restaurant/kitchen", icon: ChefHat, perm: "restaurant.view" },
+    { key: "posEInvoices", href: "/pos/e-invoices", icon: FileCheck2, perm: "pos.view" },
+    { key: "posHardware", href: "/pos/hardware", icon: Cable, perm: "pos.view" },
   ],
 };
 
 const medicalPosFront = (medicalSiteHref: string | null): NavSection => ({
-  label: "醫美 POS 前台",
+  key: "medicalPosFront",
   items: [
-    ...(medicalSiteHref ? [{ title: "進入診所官網", href: medicalSiteHref, icon: Store }] : []),
-    { title: "醫美櫃台與收據", href: "/medical", icon: HeartPulse, perm: "medical.view" },
+    ...(medicalSiteHref ? [{ key: "medicalSite", href: medicalSiteHref, icon: Store }] : []),
+    { key: "medicalCounter", href: "/medical", icon: HeartPulse, perm: "medical.view" },
   ],
 });
 
 const posBackendSections: NavSection[] = [
   {
-    label: "進銷存後台",
+    key: "posBackend",
     items: [
-      { title: "商品與圖片售價", href: "/products", icon: Package, perm: "products.view" },
-      { title: "會員／客戶", href: "/customers", icon: Users, perm: "customers.view" },
-      { title: "銷售與退換貨", href: "/sales", icon: Receipt, perm: "sales.view" },
-      { title: "退貨管理", href: "/returns", icon: RotateCcw, perm: "returns.view" },
-      { title: "即時庫存", href: "/inventory", icon: Warehouse, perm: "inventory.view" },
-      { title: "採購補貨", href: "/purchases", icon: ShoppingCart, perm: "purchases.view" },
-      { title: "供應商", href: "/suppliers", icon: Truck, perm: "suppliers.view" },
-      { title: "倉庫／門市", href: "/warehouses", icon: Store, perm: "inventory.view" },
+      { key: "productsWithMedia", href: "/products", icon: Package, perm: "products.view" },
+      { key: "membersCustomers", href: "/customers", icon: Users, perm: "customers.view" },
+      { key: "salesAndReturns", href: "/sales", icon: Receipt, perm: "sales.view" },
+      { key: "returns", href: "/returns", icon: RotateCcw, perm: "returns.view" },
+      { key: "liveInventory", href: "/inventory", icon: Warehouse, perm: "inventory.view" },
+      { key: "purchaseReplenishment", href: "/purchases", icon: ShoppingCart, perm: "purchases.view" },
+      { key: "suppliersShort", href: "/suppliers", icon: Truck, perm: "suppliers.view" },
+      { key: "warehousesStores", href: "/warehouses", icon: Store, perm: "inventory.view" },
     ],
   },
   {
-    label: "會計與分析",
+    key: "accountingAnalysis",
     items: [
-      { title: "營運報表", href: "/reports", icon: BarChart3, perm: "reports.view" },
-      { title: "應收與收款", href: "/accounting/receivables", icon: Coins, perm: "receivables.view" },
-      { title: "發票管理", href: "/accounting/invoices", icon: FileSpreadsheet, perm: "invoices.view" },
-      { title: "會計傳票", href: "/accounting/journals", icon: BookMarked, perm: "journals.view" },
-      { title: "應付帳款", href: "/accounting/payables", icon: Wallet, perm: "payables.view" },
-      { title: "現金銀行", href: "/accounting/cash", icon: Landmark, perm: "cash.view" },
+      { key: "operationReports", href: "/reports", icon: BarChart3, perm: "reports.view" },
+      { key: "receivablesAndPayments", href: "/accounting/receivables", icon: Coins, perm: "receivables.view" },
+      { key: "invoices", href: "/accounting/invoices", icon: FileSpreadsheet, perm: "invoices.view" },
+      { key: "accountingJournals", href: "/accounting/journals", icon: BookMarked, perm: "journals.view" },
+      { key: "payables", href: "/accounting/payables", icon: Wallet, perm: "payables.view" },
+      { key: "cash", href: "/accounting/cash", icon: Landmark, perm: "cash.view" },
     ],
   },
   {
-    label: "系統",
+    key: "system",
     items: [
-      { title: "使用者管理", href: "/users", icon: UserCog, perm: "users.view" },
-      { title: "角色權限", href: "/roles", icon: Shield, perm: "roles.view" },
-      { title: "系統設定", href: "/settings", icon: Settings, perm: "settings.view" },
-      { title: "稽核紀錄", href: "/audit", icon: History, perm: "audit.view" },
+      { key: "users", href: "/users", icon: UserCog, perm: "users.view" },
+      { key: "roles", href: "/roles", icon: Shield, perm: "roles.view" },
+      { key: "settings", href: "/settings", icon: Settings, perm: "settings.view" },
+      { key: "audit", href: "/audit", icon: History, perm: "audit.view" },
     ],
   },
 ];
 
+// 醫美帳套不開放發票管理；改以路由比對，翻譯後仍然正確。
 const medicalBackendSections = posBackendSections.map((section) => ({
   ...section,
-  items: section.items.filter((item) => item.title !== "發票管理"),
+  items: section.items.filter((item) => item.href !== "/accounting/invoices"),
 }));
 
 const adminSections = (storefrontHref: string | null, medicalSiteHref: string | null, medicalEnabled: boolean): NavSection[] => [
   {
-    label: "管理者工作區",
+    key: "adminWorkspace",
     items: [
-      { title: "平台授權後台", href: "/admin", icon: Shield },
-      { title: "工作區選擇", href: "/workspace", icon: PanelsTopLeft },
-      { title: "一般企業 ERP", href: "/dashboard", icon: LayoutDashboard },
-      ...(storefrontHref ? [{ title: "我的店商城", href: storefrontHref, icon: Store }] : []),
-      { title: "零售 POS", href: "/pos", icon: ShoppingBag },
-      { title: "餐飲桌位與廚房", href: "/pos/restaurant", icon: UtensilsCrossed },
-      ...(medicalEnabled ? [{ title: "醫美診所營運 POS", href: "/medical", icon: HeartPulse }] : []),
-      ...(medicalEnabled && medicalSiteHref ? [{ title: "我的醫美官網", href: medicalSiteHref, icon: Store }] : []),
-      { title: "電子發票佇列", href: "/pos/e-invoices", icon: FileCheck2 },
-      { title: "POS 硬體診斷", href: "/pos/hardware", icon: Cable },
-      { title: "促銷與店長授權", href: "/pos/offers", icon: BadgeDollarSign },
+      { key: "platformAdmin", href: "/admin", icon: Shield },
+      { key: "workspace", href: "/workspace", icon: PanelsTopLeft },
+      { key: "enterpriseErp", href: "/dashboard", icon: LayoutDashboard },
+      ...(storefrontHref ? [{ key: "myStore", href: storefrontHref, icon: Store }] : []),
+      { key: "retailPos", href: "/pos", icon: ShoppingBag },
+      { key: "restaurantPos", href: "/pos/restaurant", icon: UtensilsCrossed },
+      ...(medicalEnabled ? [{ key: "medicalPos", href: "/medical", icon: HeartPulse }] : []),
+      ...(medicalEnabled && medicalSiteHref ? [{ key: "myMedicalSite", href: medicalSiteHref, icon: Store }] : []),
+      { key: "posEInvoices", href: "/pos/e-invoices", icon: FileCheck2 },
+      { key: "posHardwareShort", href: "/pos/hardware", icon: Cable },
+      { key: "posOffers", href: "/pos/offers", icon: BadgeDollarSign },
     ],
   },
   ...erpSections.slice(1),
 ];
 
 export function SidebarBrand({ collapsed = false, medicalEnabled = true }: { collapsed?: boolean; medicalEnabled?: boolean }) {
+  const t = useTranslations("brand");
   const { data } = useSession();
   const mode = normalizeBusinessMode(data?.user?.businessMode);
   const isPos = ["POS_RETAIL", "POS_RESTAURANT", "POS_MEDICAL"].includes(mode) && !data?.user?.isSuperAdmin;
@@ -221,15 +229,19 @@ export function SidebarBrand({ collapsed = false, medicalEnabled = true }: { col
       </div>
       {!collapsed && (
         <div>
-          <div className="font-semibold text-sm">{isCommerce ? "電商 ERP" : isMedical ? "醫美 POS" : isRestaurant ? "餐飲 POS" : isPos ? "零售 POS" : "艾琳 ERP 系統"}</div>
-          <div className="text-[10px] text-white/50">{isCommerce ? "Commerce Edition" : isMedical ? "Medical Aesthetics Edition" : isRestaurant ? "Restaurant Edition" : isPos ? "Retail Edition" : "Enterprise Edition"}</div>
+          <div className="font-semibold text-sm">{t(isCommerce ? "commerce" : isMedical ? "medical" : isRestaurant ? "restaurant" : isPos ? "retail" : "erp")}</div>
+          <div className="text-[10px] text-white/50">{t(isCommerce ? "editionCommerce" : isMedical ? "editionMedical" : isRestaurant ? "editionRestaurant" : isPos ? "editionRetail" : "editionEnterprise")}</div>
         </div>
       )}
     </div>
   );
 }
 
-export function SidebarNav({ onNavigate, collapsed = false, medicalEnabled = true }: { onNavigate?: () => void; collapsed?: boolean; medicalEnabled?: boolean }) {  const pathname = usePathname();
+export function SidebarNav({ onNavigate, collapsed = false, medicalEnabled = true }: { onNavigate?: () => void; collapsed?: boolean; medicalEnabled?: boolean }) {
+  const t = useTranslations("nav");
+  const tSection = useTranslations("nav.sections");
+  const tItem = useTranslations("nav.items");
+  const pathname = usePathname();
   const router = useRouter();
   const { data } = useSession();
   const perms = data?.user?.permissions ?? [];
@@ -238,13 +250,13 @@ export function SidebarNav({ onNavigate, collapsed = false, medicalEnabled = tru
   const storefrontHref = tenantStorefrontPath(data?.user);
   const medicalSiteHref = medicalEnabled ? tenantMedicalSitePath(data?.user) : null;
   const ecommerceFront: NavSection = {
-    label: "電商營運",
+    key: "commerceFront",
     items: [
-      ...(storefrontHref ? [{ title: "進入商店官網", href: storefrontHref, icon: Store }] : []),
-      { title: "接單與出貨", href: "/fulfillment", icon: Truck, perm: "sales.view" },
-      { title: "全部網路訂單", href: "/sales", icon: ShoppingBag, perm: "sales.view" },
-      { title: "會員／客戶", href: "/customers", icon: Users, perm: "customers.view" },
-      { title: "商品與網站庫存", href: "/products", icon: Package, perm: "products.view" },
+      ...(storefrontHref ? [{ key: "storefront", href: storefrontHref, icon: Store }] : []),
+      { key: "fulfillment", href: "/fulfillment", icon: Truck, perm: "sales.view" },
+      { key: "webOrders", href: "/sales", icon: ShoppingBag, perm: "sales.view" },
+      { key: "membersCustomers", href: "/customers", icon: Users, perm: "customers.view" },
+      { key: "productsWebStock", href: "/products", icon: Package, perm: "products.view" },
     ],
   };
   const sections = data?.user?.isSuperAdmin
@@ -262,7 +274,7 @@ export function SidebarNav({ onNavigate, collapsed = false, medicalEnabled = tru
           : erpSections;
 
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
-  const sectionLabelsKey = sections.map((section) => section.label).join("|");
+  const sectionLabelsKey = sections.map((section) => section.key).join("|");
   const sidebarStorageKey = `erin-sidebar-sections:${data?.user?.id ?? "anonymous"}:${data?.user?.isSuperAdmin ? "admin" : businessMode}`;
 
   const sectionContainsCurrentPath = useCallback((section: NavSection) => section.items.some((item) =>
@@ -278,12 +290,12 @@ export function SidebarNav({ onNavigate, collapsed = false, medicalEnabled = tru
     } catch {}
 
     const next = Object.fromEntries(sections.map((section) => [
-      section.label,
-      saved[section.label] ?? (section.label === "總覽" || section.label === "管理者工作區" || sectionContainsCurrentPath(section)),
+      section.key,
+      saved[section.key] ?? (ALWAYS_OPEN_SECTION_KEYS.includes(section.key) || sectionContainsCurrentPath(section)),
     ])) as Record<string, boolean>;
     for (const section of sections) {
-      if (section.label === "總覽" || section.label === "管理者工作區" || sectionContainsCurrentPath(section)) {
-        next[section.label] = true;
+      if (ALWAYS_OPEN_SECTION_KEYS.includes(section.key) || sectionContainsCurrentPath(section)) {
+        next[section.key] = true;
       }
     }
     setOpenSections(next);
@@ -298,9 +310,9 @@ export function SidebarNav({ onNavigate, collapsed = false, medicalEnabled = tru
   }, [sidebarStorageKey]);
 
   const updateAllSections = useCallback((expanded: boolean) => {
-    const next = Object.fromEntries(sections.map((section) => [section.label, expanded])) as Record<string, boolean>;
+    const next = Object.fromEntries(sections.map((section) => [section.key, expanded])) as Record<string, boolean>;
     const activeSection = sections.find(sectionContainsCurrentPath);
-    if (!expanded && activeSection) next[activeSection.label] = true;
+    if (!expanded && activeSection) next[activeSection.key] = true;
     setOpenSections(next);
     try { window.localStorage.setItem(sidebarStorageKey, JSON.stringify(next)); } catch {}
   }, [sections, sectionContainsCurrentPath, sidebarStorageKey]);
@@ -334,30 +346,30 @@ export function SidebarNav({ onNavigate, collapsed = false, medicalEnabled = tru
     <nav className="flex-1 overflow-y-auto py-3">
       {!collapsed && (
         <div className="mb-2 flex items-center justify-end gap-1 px-3">
-          <button type="button" onClick={() => updateAllSections(true)} className="rounded px-2 py-1 text-[10px] text-white/45 hover:bg-white/5 hover:text-white/80">全部展開</button>
-          <button type="button" onClick={() => updateAllSections(false)} className="rounded px-2 py-1 text-[10px] text-white/45 hover:bg-white/5 hover:text-white/80">全部收合</button>
+          <button type="button" onClick={() => updateAllSections(true)} className="rounded px-2 py-1 text-[10px] text-white/45 hover:bg-white/5 hover:text-white/80">{t("expandAll")}</button>
+          <button type="button" onClick={() => updateAllSections(false)} className="rounded px-2 py-1 text-[10px] text-white/45 hover:bg-white/5 hover:text-white/80">{t("collapseAll")}</button>
         </div>
       )}
       {sections.map((s, sectionIndex) => {
         const visible = s.items.filter((i) => !i.perm || hasPermission(perms, i.perm));
         if (visible.length === 0) return null;
         const containsActiveItem = visible.some((item) => pathname === item.href || pathname.startsWith(item.href + "/"));
-        const expanded = openSections[s.label] ?? (s.label === "總覽" || s.label === "管理者工作區" || containsActiveItem);
+        const expanded = openSections[s.key] ?? (ALWAYS_OPEN_SECTION_KEYS.includes(s.key) || containsActiveItem);
         const regionId = `sidebar-section-${sectionIndex}`;
         return (
-          <div key={s.label} className={cn("mb-1.5", collapsed ? "border-b border-white/5 px-1 pb-1" : "px-2")}>
+          <div key={s.key} className={cn("mb-1.5", collapsed ? "border-b border-white/5 px-1 pb-1" : "px-2")}>
             {!collapsed && (
               <button
                 type="button"
                 aria-expanded={expanded}
                 aria-controls={regionId}
-                onClick={() => updateSectionState(s.label, !expanded)}
+                onClick={() => updateSectionState(s.key, !expanded)}
                 className={cn(
                   "flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-widest transition-colors",
                   containsActiveItem ? "bg-white/[0.06] text-white/75" : "text-white/40 hover:bg-white/5 hover:text-white/70"
                 )}
               >
-                <span>{s.label}</span>
+                <span>{tSection(s.key)}</span>
                 <ChevronDown className={cn("h-3.5 w-3.5 transition-transform duration-200", expanded ? "rotate-0" : "-rotate-90")} />
               </button>
             )}
@@ -371,8 +383,8 @@ export function SidebarNav({ onNavigate, collapsed = false, medicalEnabled = tru
                       <Link
                         href={i.href}
                         prefetch={medicalEnabled}
-                        title={collapsed ? i.title : undefined}
-                        aria-label={collapsed ? i.title : undefined}
+                        title={collapsed ? tItem(i.key) : undefined}
+                        aria-label={collapsed ? tItem(i.key) : undefined}
                         onClick={() => {
                           warmRoute(i.href, { data: true });
                           onNavigate?.();
@@ -387,7 +399,7 @@ export function SidebarNav({ onNavigate, collapsed = false, medicalEnabled = tru
                         )}
                       >
                         <Icon className={cn("shrink-0", collapsed ? "h-5 w-5" : "h-4 w-4")} />
-                        {!collapsed && <span>{i.title}</span>}
+                        {!collapsed && <span>{tItem(i.key)}</span>}
                       </Link>
                     </li>
                   );
@@ -402,9 +414,10 @@ export function SidebarNav({ onNavigate, collapsed = false, medicalEnabled = tru
 }
 
 export function SidebarFooter({ collapsed = false }: { collapsed?: boolean }) {
+  const t = useTranslations("brand");
   return (
     <div className={cn("shrink-0 border-t border-white/10 text-[10px] text-white/40", collapsed ? "px-2 py-4 text-center" : "p-4")}>
-      {collapsed ? "ERP" : <>艾琳 ERP · © {new Date().getFullYear()}</>}
+      {collapsed ? "ERP" : <>{t("system")} · © {new Date().getFullYear()}</>}
     </div>
   );
 }

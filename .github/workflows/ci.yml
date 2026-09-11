@@ -60,6 +60,10 @@ jobs:
       - name: Type check
         run: npx tsc --noEmit
 
+      # 不需資料庫，放在 build 前先跑，缺翻譯可以最快失敗
+      - name: i18n verification
+        run: npm run test:i18n
+
       - name: Lint (non-blocking)
         run: npm run lint || true
 

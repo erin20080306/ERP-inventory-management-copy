@@ -4,19 +4,22 @@ import { getSession } from "@/lib/api";
 import { canManageTenantStorefront } from "@/lib/storefront-access";
 import { prisma } from "@/lib/prisma";
 import { normalizeStoreSlug } from "@/lib/storefront-branding";
+import { getLocale, getTranslations } from "next-intl/server";
+import { localeAlternates } from "@/i18n/metadata";
 
 type StorePageProps = {
   params: Promise<{ tenant: string; view?: string[] }>;
 };
 
-const VIEW_TITLES: Record<string, string> = {
-  home: "首頁",
-  products: "商品",
-  campaigns: "最新活動",
-  cart: "購物車",
-  checkout: "安心結帳",
-  member: "會員中心",
-  orders: "訂單查詢",
+// 值為翻譯鍵；商城分頁標題會跟著訪客語言切換，網址則由 /en 前綴決定。
+const VIEW_TITLE_KEYS: Record<string, string> = {
+  home: "viewHome",
+  products: "viewProducts",
+  campaigns: "viewCampaigns",
+  cart: "viewCart",
+  checkout: "viewCheckout",
+  member: "viewMember",
+  orders: "viewOrders",
 };
 
 async function storefrontIdentity(rawKey: string) {
@@ -44,9 +47,14 @@ export async function generateMetadata({ params }: StorePageProps): Promise<Meta
   const currentView = view[0] || "home";
   const identity = await storefrontIdentity(tenant);
   const brand = identity?.companySettings[0]?.storeName || identity?.name || (tenant === "moon-form" ? "MOON FORM" : "ATELIER NOIR");
+  const [t, locale] = await Promise.all([getTranslations("storefront"), getLocale()]);
+  const viewKey = VIEW_TITLE_KEYS[currentView];
+  const viewTitle = viewKey ? t(viewKey) : t("fallbackTitle");
+  const basePath = `/store/${encodeURIComponent(tenant)}${view.length ? `/${view.map(encodeURIComponent).join("/")}` : ""}`;
   return {
-    title: `${VIEW_TITLES[currentView] || "線上商店"}｜${brand}`,
-    description: `${brand} 品牌商城，提供線上選購、付款、會員服務與訂單查詢。`,
+    title: `${viewTitle}｜${brand}`,
+    description: t("metaDescription", { brand }),
+    ...localeAlternates(basePath, locale),
   };
 }
 

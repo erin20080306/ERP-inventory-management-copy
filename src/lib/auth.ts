@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "./prisma";
 import { normalizeBusinessMode, type BusinessMode } from "./product-editions";
 import { ensureInternalAdminTenant } from "./internal-admin-tenant";
+import { normalizeLocale, type Locale } from "@/i18n/config";
 
 declare module "next-auth" {
   interface Session {
@@ -22,6 +23,8 @@ declare module "next-auth" {
       isInternalAdminTenant?: boolean;
       isTenantOwner?: boolean;
       revoked?: boolean;
+      /** 使用者自選的介面語言；未設定時由 Cookie 與瀏覽器語言決定。 */
+      locale?: Locale;
     };
   }
 }
@@ -40,6 +43,7 @@ declare module "next-auth/jwt" {
     isTenantOwner?: boolean;
     revoked?: boolean;
     activeCheckedAt?: number;
+    locale?: Locale;
   }
 }
 
@@ -177,6 +181,7 @@ export const authOptions: NextAuthOptions = {
           isSuperAdmin: (user as any).isSuperAdmin,
           isInternalAdminTenant,
           isTenantOwner: user.isTenantOwner,
+          locale: user.locale ? normalizeLocale(user.locale) : undefined,
         } as any;
       },
     }),
@@ -196,15 +201,18 @@ export const authOptions: NextAuthOptions = {
         token.isSuperAdmin = u.isSuperAdmin;
         token.isInternalAdminTenant = u.isInternalAdminTenant;
         token.isTenantOwner = u.isTenantOwner;
+        token.locale = u.locale;
         token.revoked = false;
         token.activeCheckedAt = Date.now();
       }
       if (token.uid && Date.now() - Number(token.activeCheckedAt ?? 0) > SESSION_REVALIDATE_MS) {
         const account = await prisma.user.findUnique({
           where: { id: token.uid },
-          select: { isActive: true },
+          select: { isActive: true, locale: true },
         });
         token.revoked = !account?.isActive;
+        // 同步資料庫語言設定，讓管理員替員工改語言後最多一分鐘內生效。
+        token.locale = account?.locale ? normalizeLocale(account.locale) : undefined;
         token.activeCheckedAt = Date.now();
       }
       if (token.uid && token.isTenantOwner === undefined) {
@@ -262,6 +270,7 @@ export const authOptions: NextAuthOptions = {
         isInternalAdminTenant: token.isInternalAdminTenant,
         isTenantOwner: token.isTenantOwner,
         revoked: token.revoked,
+        locale: token.locale,
       };
       return session;
     },

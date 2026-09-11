@@ -9,7 +9,10 @@ import { toast } from "sonner";
 import { formatMoney } from "@/lib/utils";
 import { Upload, FileDown } from "lucide-react";
 import { downloadCSV } from "@/lib/csv";
+import { useTranslations, useLocale } from "next-intl";
+import { accountDisplayName } from "@/lib/account-names-en";
 
+// 中文標籤保留給 CSV 匯出／匯入，維持既有檔案格式相容；畫面顯示另走翻譯。
 const typeLabel: Record<string, string> = { ASSET: "資產", LIABILITY: "負債", EQUITY: "權益", REVENUE: "收入", COST: "成本", EXPENSE: "費用" };
 const typeVariant: Record<string, any> = { ASSET: "info", LIABILITY: "warning", EQUITY: "default", REVENUE: "success", COST: "default", EXPENSE: "danger" };
 
@@ -110,6 +113,12 @@ function ImportBar({ onImported }: { onImported: () => void }) {
 }
 
 export function AccountClient() {
+  const t = useTranslations("accounts");
+  const locale = useLocale();
+  const typeText = (type: string) => {
+    const key = `type${type}` as const;
+    return t.has(key) ? t(key) : (typeLabel[type] ?? type);
+  };
   const [refreshKey, setRefreshKey] = useState(0);
   return (
     <div>
@@ -119,7 +128,7 @@ export function AccountClient() {
         endpoint="/api/accounting/accounts"
         moduleKey="accounts"
         exportName="accounts"
-        pdfTitle="會計科目"
+        pdfTitle={t("title")}
         enableDateFilter={true}
         FormDialog={AccountDialog}
         templateHeaders={["編號", "名稱", "類型", "期初餘額"]}
@@ -135,12 +144,13 @@ export function AccountClient() {
         }}
         inlineEdit={true}
         columns={[
-          { key: "code", title: "編號", render: (r: any) => <span className="font-mono text-xs">{r.code}</span>, editable: { type: "text" } },
-          { key: "name", title: "名稱", editable: { type: "text" } },
-          { key: "type", title: "類型", csv: (r: any) => typeLabel[r.type] ?? r.type, render: (r: any) => <Badge variant={typeVariant[r.type]}>{typeLabel[r.type] ?? r.type}</Badge> },
-          { key: "openingBalance", title: "期初餘額", render: (r: any) => formatMoney(r.openingBalance), editable: { type: "number" } },
-          { key: "isActive", title: "狀態", csv: (r: any) => (r.isActive ? "啟用" : "停用"), render: (r: any) => (r.isActive ? <Badge variant="success">啟用</Badge> : <Badge variant="danger">停用</Badge>) },
-          { key: "updatedBy", title: "操作人員", render: (r: any) => <span className="text-xs text-gray-500">{r.updatedBy || "-"}</span> },
+          { key: "code", title: t("colCode"), render: (r: any) => <span className="font-mono text-xs">{r.code}</span>, editable: { type: "text" } },
+          // 只改「顯示」：行內編輯與匯出仍使用資料庫原名，避免英文模式覆寫主檔。
+          { key: "name", title: t("colName"), render: (r: any) => accountDisplayName(locale, r.code, r.name), editable: { type: "text" } },
+          { key: "type", title: t("colType"), csv: (r: any) => typeLabel[r.type] ?? r.type, render: (r: any) => <Badge variant={typeVariant[r.type]}>{typeText(r.type)}</Badge> },
+          { key: "openingBalance", title: t("colOpeningBalance"), render: (r: any) => formatMoney(r.openingBalance), editable: { type: "number" } },
+          { key: "isActive", title: t("colStatus"), csv: (r: any) => (r.isActive ? "啟用" : "停用"), render: (r: any) => (r.isActive ? <Badge variant="success">{t("active")}</Badge> : <Badge variant="danger">{t("inactive")}</Badge>) },
+          { key: "updatedBy", title: t("colUpdatedBy"), render: (r: any) => <span className="text-xs text-gray-500">{r.updatedBy || "-"}</span> },
         ]}
       />
     </div>

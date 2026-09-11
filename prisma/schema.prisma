@@ -177,6 +177,8 @@ model User {
   createdByUserId   String? // 誰創建了這個用戶
   termsAcceptedAt   DateTime?
   privacyAcceptedAt DateTime?
+  // 介面語言偏好（zh-TW／en）；為空表示沿用瀏覽器語言與系統預設。
+  locale            String?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 

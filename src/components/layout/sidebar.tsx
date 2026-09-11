@@ -3,10 +3,12 @@
 import { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { SidebarBrand, SidebarNav, SidebarFooter } from "./sidebar-nav";
+import { useTranslations } from "next-intl";
 
 const SIDEBAR_COLLAPSED_KEY = "erin-sidebar-collapsed";
 
 export function Sidebar({ medicalEnabled = true }: { medicalEnabled?: boolean }) {
+  const t = useTranslations("header");
   const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
@@ -31,8 +33,8 @@ export function Sidebar({ medicalEnabled = true }: { medicalEnabled?: boolean })
       <button
         type="button"
         onClick={toggleCollapsed}
-        aria-label={collapsed ? "展開左側選單" : "向左收合選單"}
-        title={collapsed ? "展開左側選單" : "向左收合選單"}
+        aria-label={collapsed ? t("expandSidebar") : t("collapseSidebar")}
+        title={collapsed ? t("expandSidebar") : t("collapseSidebar")}
         className="absolute -right-3 top-20 z-30 flex h-7 w-7 items-center justify-center rounded-full border bg-background text-foreground shadow-md transition hover:scale-105 hover:bg-muted"
       >
         {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}

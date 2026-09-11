@@ -1,25 +1,32 @@
 import "./globals.css";
 import type { Metadata, Viewport } from "next";
+import { NextIntlClientProvider } from "next-intl";
+import { getLocale, getTranslations } from "next-intl/server";
 import { Providers } from "@/components/providers";
 import { SWRegister } from "@/components/sw-register";
 import { currentRuntimeVersion } from "@/lib/runtime-version";
+import { LOCALE_BCP47 } from "@/i18n/config";
+import { normalizeLocale } from "@/i18n/locale";
 
-export const metadata: Metadata = {
-  title: "專業 ERP 進銷存會計管理系統",
-  description: "雲端 ERP 系統，涵蓋商品、採購、銷售、庫存、會計、報表與權限管理。",
-  applicationName: "ERP 系統",
-  manifest: "/manifest.webmanifest",
-  appleWebApp: {
-    capable: true,
-    title: "ERP 系統",
-    statusBarStyle: "black-translucent",
-  },
-  icons: {
-    icon: [{ url: "/icon-192", sizes: "192x192", type: "image/png" }],
-    apple: [{ url: "/icon-192", sizes: "192x192", type: "image/png" }],
-  },
-  formatDetection: { telephone: false },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("meta");
+  return {
+    title: t("title"),
+    description: t("description"),
+    applicationName: t("appName"),
+    manifest: "/manifest.webmanifest",
+    appleWebApp: {
+      capable: true,
+      title: t("appName"),
+      statusBarStyle: "black-translucent",
+    },
+    icons: {
+      icon: [{ url: "/icon-192", sizes: "192x192", type: "image/png" }],
+      apple: [{ url: "/icon-192", sizes: "192x192", type: "image/png" }],
+    },
+    formatDetection: { telephone: false },
+  };
+}
 
 export const viewport: Viewport = {
   themeColor: [
@@ -31,11 +38,14 @@ export const viewport: Viewport = {
   maximumScale: 5,
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const locale = normalizeLocale(await getLocale());
   return (
-    <html lang="zh-TW" suppressHydrationWarning>
+    <html lang={LOCALE_BCP47[locale]} suppressHydrationWarning>
       <body>
-        <Providers>{children}</Providers>
+        <NextIntlClientProvider>
+          <Providers>{children}</Providers>
+        </NextIntlClientProvider>
         <SWRegister initialVersion={currentRuntimeVersion()} />
       </body>
     </html>
