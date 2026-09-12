@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { renderZh } from "./i18n-source-render";
+import { renderZh } from "./i18n-source-render.mjs";
 import { readFileSync } from "node:fs";
 import { createShiftOpeningCashJournal } from "../src/lib/pos-shift-accounting";
 import { attachPosShiftOperators, getLedgerCashBalance, getPosDailySummary, getPosShiftCashPosition } from "../src/lib/pos-daily-summary";

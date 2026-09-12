@@ -16,7 +16,7 @@ import {
 import { createFormatters, currencyFractionDigits } from "../src/i18n/format";
 import { ACCOUNT_NAME_EN, accountDisplayName } from "../src/lib/account-names-en";
 import { STANDARD_ACCOUNTS } from "../prisma/standard-accounts";
-import { renderZh } from "./i18n-source-render";
+import { renderZh } from "./i18n-source-render.mjs";
 
 const root = path.resolve(__dirname, "..");
 
@@ -230,28 +230,54 @@ function loadSource(relative: string): { raw: string; rendered: string } | null 
   if (!raw) return null;
   return { raw, rendered: renderedSourceCache.get(relative)! };
 }
-for (const file of readdirSync(path.join(root, "scripts")).filter((f) => /^verify-.*\.ts$/.test(f))) {
+// 同時掃描 .ts（assert.match(來源, /中文/)）與 .mjs（來源.includes("中文")）兩種斷言風格
+for (const file of readdirSync(path.join(root, "scripts")).filter((f) => /^verify-.*\.(ts|mjs)$/.test(f))) {
+  if (file === "verify-i18n.ts") continue;
   const scriptText = readFileSync(path.join(root, "scripts", file), "utf8");
   // 記錄每個來源變數對應的檔案，以及它是否用 renderZh 包住（決定比對 raw 或 rendered）
   const varInfo = new Map<string, { file: string; wrapped: boolean }>();
   for (const match of scriptText.matchAll(/const (\w+)\s*=\s*(renderZh\()?readFileSync\("([^"]+)"/g)) {
     varInfo.set(match[1], { file: match[3], wrapped: Boolean(match[2]) });
   }
-  for (const match of scriptText.matchAll(/assert\.match\((\w+),\s*\/((?:[^/\\]|\\.)*[一-鿿](?:[^/\\]|\\.)*)\//g)) {
-    const [, variable, pattern] = match;
+  // 只鎖定「i18n 造成」的回歸：字串已搬進字典（renderZh 後才出現），
+  // 但斷言比對的來源沒跟著改成 renderZh。刻意不管「原始碼與字典都找不到」的情況，
+  // 那多半是與 i18n 無關的既有陳舊斷言或正則誤判，不該讓本守則產生假陽性。
+  const flag = (
+    variable: string,
+    matches: (text: string) => boolean,
+    literalNeedle: string | null,
+    index: number,
+    label: string,
+  ) => {
     const info = varInfo.get(variable);
-    if (!info) continue;
+    if (!info) return;
     const loaded = loadSource(info.file);
-    if (!loaded) continue;
-    const needle = pattern.replace(/\\(.)/g, "$1");
-    // 完全比照測試執行時的語意：有包 renderZh 就比對還原後內容，否則比對原始碼
+    if (!loaded) return;
     const haystack = info.wrapped ? loaded.rendered : loaded.raw;
-    if (haystack.includes(needle)) continue;
-    const line = scriptText.slice(0, match.index).split("\n").length;
-    const hint = loaded.rendered.includes(needle)
-      ? "字串已搬進字典：請把該來源改成 renderZh(readFileSync(...))"
-      : "字串在原始碼與字典都找不到：請改寫斷言";
-    sourceAssertionProblems.push(`scripts/${file}:${line} 斷言 /${pattern.slice(0, 40)}/ 對 ${info.file} 會失敗（${hint}）`);
+    if (matches(haystack)) return;
+    // 只有「字典還原後才出現」才算 i18n 回歸；用字面 needle 判斷（正則無字面時略過）
+    if (literalNeedle === null || !loaded.rendered.includes(literalNeedle)) return;
+    const line = scriptText.slice(0, index).split("\n").length;
+    sourceAssertionProblems.push(
+      `scripts/${file}:${line} ${label} 對 ${info.file} 會失敗（字串已搬進字典：請把該來源改成 renderZh(readFileSync(...))）`,
+    );
+  };
+  // .ts 風格：assert.match(var, /中文/) —— 以真正的正則比對，避免把 [\s\S]* 等中繼字元當字面
+  for (const match of scriptText.matchAll(/assert\.match\((\w+),\s*\/((?:[^/\\]|\\.)*[一-鿿](?:[^/\\]|\\.)*)\//g)) {
+    const pattern = match[2];
+    let re: RegExp;
+    try { re = new RegExp(pattern); } catch { continue; }
+    // 若正則不含中繼字元，取其還原字面當作「搬進字典」判斷依據；含中繼字元則設為 null（不追蹤）
+    const literal = /^[^.*+?^${}()|[\]\\]*$/.test(pattern.replace(/\\(.)/g, "$1"))
+      ? pattern.replace(/\\(.)/g, "$1")
+      : null;
+    flag(match[1], (text) => re.test(text), literal, match.index!, `斷言 /${pattern.slice(0, 40)}/`);
+  }
+  // .mjs 風格：var.includes("中文")，排除否定（!var.includes(...) 是「應不存在」的檢查）
+  for (const match of scriptText.matchAll(/(!?)\s*(\w+)\.includes\("([^"]*[一-鿿][^"]*)"\)/g)) {
+    if (match[1] === "!") continue;
+    const needle = match[3];
+    flag(match[2], (text) => text.includes(needle), needle, match.index!, `.includes("${needle.slice(0, 24)}")`);
   }
 }
 assert.deepEqual(

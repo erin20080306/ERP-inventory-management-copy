@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
+import { renderZh } from "./i18n-source-render.mjs";
 import { readFileSync } from "node:fs";
 
-const sidebar = readFileSync("src/components/layout/sidebar-nav.tsx", "utf8");
+const sidebar = renderZh(readFileSync("src/components/layout/sidebar-nav.tsx", "utf8"));
 
 assert.match(sidebar, /useState<Record<string, boolean>>/);
 assert.match(sidebar, /erin-sidebar-sections:/);
