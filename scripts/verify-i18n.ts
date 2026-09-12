@@ -112,6 +112,12 @@ for (const file of walk(path.join(root, "src"))) {
     translatedImportKeys.push(`${relative}:${line} 匯入欄位名用了翻譯函式`);
   }
 
+  // 物件字面值的「鍵」若走翻譯，通常是 CSV 值對照表（中文 → 代碼），同樣不可翻譯
+  for (const match of source.matchAll(/[{,]\s*\w+\(\s*"[A-Za-z0-9_]+"\s*\)\s*:/g)) {
+    const line = source.slice(0, match.index).split("\n").length;
+    translatedImportKeys.push(`${relative}:${line} 物件鍵用了翻譯函式（多半是匯入對照表）`);
+  }
+
   // templateHeaders 陣列裡也不可以出現翻譯呼叫
   for (const match of source.matchAll(/templateHeaders=\{\[([^\]]*)\]/g)) {
     if (!/\w+\(\s*"/.test(match[1])) continue;
