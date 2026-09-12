@@ -12,6 +12,7 @@ import { Plus, Search, Loader2, TrendingDown, Trash2, Ban, FileSpreadsheet, Uplo
 import { formatDate, formatMoney } from "@/lib/utils";
 import { useCustomColumns, useCustomFieldValues, CustomColumnDialog, CustomColumnButton, CustomFieldGridCell } from "@/components/custom-columns";
 import { TableHint, useColumnDrag } from "@/components/table-helpers";
+import { useTranslations } from "next-intl";
 
 const STATUS_LABELS: Record<string, string> = {
   IN_USE: "使用中", IDLE: "閒置", DISPOSED: "已處分", IMPAIRED: "減損",
@@ -24,6 +25,10 @@ const METHOD_LABELS: Record<string, string> = {
 };
 
 export function FixedAssetsClient() {
+  const f = useTranslations("fields");
+  const fa = useTranslations("fixedAssets");
+  const tc = useTranslations("common");
+  const tt = useTranslations("table");
   const [rows, setRows] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -49,8 +54,8 @@ export function FixedAssetsClient() {
     setInlineSaving(r.id);
     try {
       const res = await fetch(`/api/accounting/fixed-assets/${r.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "update-header", ...draft }) });
-      if (!res.ok) throw new Error((await res.json()).error || "儲存失敗");
-      toast.success("已儲存"); setInlineRow((p) => { const n = { ...p }; delete n[r.id]; return n; }); load();
+      if (!res.ok) throw new Error((await res.json()).error || tc("saveFailed"));
+      toast.success(tc("saved")); setInlineRow((p) => { const n = { ...p }; delete n[r.id]; return n; }); load();
     } catch (e: any) { toast.error(e.message); } finally { setInlineSaving(null); }
   }
 
@@ -72,8 +77,8 @@ export function FixedAssetsClient() {
         headers: { "Content-Type": "application/json" },
         body: action === "delete" ? undefined : JSON.stringify({ action, ...(body ?? {}) }),
       });
-      if (!res.ok) throw new Error((await res.json()).error || "操作失敗");
-      toast.success("已處理"); load();
+      if (!res.ok) throw new Error((await res.json()).error || f("actionFailed"));
+      toast.success(f("settled")); load();
     } catch (e: any) { toast.error(e.message); }
   }
 
@@ -101,7 +106,7 @@ export function FixedAssetsClient() {
         };
         try {
           const res = await fetch("/api/accounting/fixed-assets?upsert=1", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-          if (!res.ok) errors.push(`第 ${i + 2} 列：${(await res.json()).error || "失敗"}`);
+          if (!res.ok) errors.push(`第 ${i + 2} 列：${(await res.json()).error || f("failed")}`);
           else success++;
         } catch (err: any) { errors.push(`第 ${i + 2} 列：${err.message}`); }
       }
@@ -118,16 +123,16 @@ export function FixedAssetsClient() {
     const d = await res.json();
     const { downloadExcel } = await import("@/lib/excel");
     downloadExcel("fixed-assets", "固定資產目錄", d.items, [
-      { key: "code", title: "編號" }, { key: "name", title: "名稱" },
+      { key: "code", title: f("code") }, { key: "name", title: f("name") },
       { key: "category", title: "分類" }, { key: "accountCode", title: "科目代碼" },
       { key: "acquireDate", title: "取得日", get: (r: any) => formatDate(r.acquireDate) },
       { key: "acquireCost", title: "取得成本", get: (r: any) => Number(r.acquireCost) },
       { key: "accumulatedDepreciation", title: "累計折舊", get: (r: any) => Number(r.accumulatedDepreciation) },
       { key: "bookValue", title: "帳面價值", get: (r: any) => Number(r.bookValue) },
       { key: "method", title: "折舊法", get: (r: any) => METHOD_LABELS[r.method] ?? r.method },
-      { key: "status", title: "狀態", get: (r: any) => STATUS_LABELS[r.status] ?? r.status },
+      { key: "status", title: tc("status"), get: (r: any) => STATUS_LABELS[r.status] ?? r.status },
     ]);
-    toast.success("已匯出 Excel");
+    toast.success(tt("exportedExcel"));
   }
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
@@ -153,7 +158,7 @@ export function FixedAssetsClient() {
             <Input placeholder="搜尋編號 / 名稱 / 序號" className="pl-9 w-72" value={q} onChange={(e) => { setPage(1); setQ(e.target.value); }} />
           </div>
           <select className="h-10 rounded-md border border-input bg-background px-3 text-sm" value={status} onChange={(e) => { setPage(1); setStatus(e.target.value); }}>
-            <option value="">全部</option>
+            <option value="">{tc("all")}</option>
             <option value="IN_USE">使用中</option>
             <option value="IDLE">閒置</option>
             <option value="DISPOSED">已處分</option>
@@ -166,7 +171,7 @@ export function FixedAssetsClient() {
           <Button variant="outline" onClick={exportExcel}><FileSpreadsheet className="h-4 w-4" />Excel</Button>
           <input id="import-fixed-assets" type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={importExcel} />
           <Button variant="outline" onClick={() => document.getElementById("import-fixed-assets")?.click()}>
-            <Upload className="h-4 w-4" />匯入
+            <Upload className="h-4 w-4" />{tc("import")}
           </Button>
           <Button onClick={() => { setEditing(null); setOpenNew(true); }}><Plus className="h-4 w-4" />新增資產</Button>
           <CustomColumnButton onClick={() => customCols.setOpen(true)} />
@@ -180,9 +185,9 @@ export function FixedAssetsClient() {
       <Table>
         <THead onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title="表頭按右鍵可新增／刪減自訂欄位">
           <TR>
-            <TH {...colDrag.thProps("code")}>編號</TH><TH {...colDrag.thProps("name")}>名稱</TH><TH {...colDrag.thProps("category")}>分類</TH><TH {...colDrag.thProps("acquireDate")}>取得日</TH>
+            <TH {...colDrag.thProps("code")}>{f("code")}</TH><TH {...colDrag.thProps("name")}>{f("name")}</TH><TH {...colDrag.thProps("category")}>分類</TH><TH {...colDrag.thProps("acquireDate")}>取得日</TH>
             <TH {...colDrag.thProps("acquireCost")} className="text-right">取得成本</TH><TH {...colDrag.thProps("accDep")} className="text-right">累計折舊</TH><TH {...colDrag.thProps("bookValue")} className="text-right">帳面價值</TH>
-            <TH {...colDrag.thProps("method")}>折舊法</TH><TH {...colDrag.thProps("status")}>狀態</TH><TH {...colDrag.thProps("updatedBy")}>操作人員</TH>{customCols.columns.map((cc) => <TH key={cc.id} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title="按右鍵管理自訂欄位">{cc.label}</TH>)}<TH className="w-48 text-right">操作</TH>
+            <TH {...colDrag.thProps("method")}>折舊法</TH><TH {...colDrag.thProps("status")}>{tc("status")}</TH><TH {...colDrag.thProps("updatedBy")}>{f("updatedBy")}</TH>{customCols.columns.map((cc) => <TH key={cc.id} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title={tt("rightClickColumns")}>{cc.label}</TH>)}<TH className="w-48 text-right">{tc("actions")}</TH>
           </TR>
         </THead>
         <TBody>
@@ -226,7 +231,7 @@ export function FixedAssetsClient() {
                           <Ban className="h-4 w-4 text-red-600" />
                         </Button>
                       )}
-                      <Button size="sm" variant="ghost" title="刪除" onClick={() => {
+                      <Button size="sm" variant="ghost" title={tc("delete")} onClick={() => {
                         if (confirm("確定刪除？")) act(r.id, "delete");
                       }}>
                         <Trash2 className="h-4 w-4 text-muted-foreground" />
@@ -243,9 +248,9 @@ export function FixedAssetsClient() {
       <div className="flex items-center justify-between text-sm text-muted-foreground">
         <div>共 {total} 筆</div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>上一頁</Button>
+          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>{tt("prevPage")}</Button>
           <span>{page} / {totalPages}</span>
-          <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>下一頁</Button>
+          <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>{tt("nextPage")}</Button>
         </div>
       </div>
       </>
@@ -266,13 +271,18 @@ export function FixedAssetsClient() {
   );
 }
 
-const DEPRECIATION_STATUS_LABELS: Record<string, string> = {
-  CONFIRMED: "已確認・待切傳票",
-  POSTED: "已過帳",
-  REVERSED: "已沖銷",
+// 值是 fixedAssets 命名空間的鍵；資料庫存的仍是 CONFIRMED／POSTED 等代碼。
+const DEPRECIATION_STATUS_LABEL_KEYS: Record<string, string> = {
+  CONFIRMED: "depConfirmed",
+  POSTED: "depPosted",
+  REVERSED: "depReversed",
 };
 
 function DepreciationLedger({ refreshToken, onChanged }: { refreshToken: number; onChanged: () => void }) {
+  const f = useTranslations("fields");
+  const fa = useTranslations("fixedAssets");
+  const tc = useTranslations("common");
+  const tt = useTranslations("table");
   const [rows, setRows] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -336,9 +346,9 @@ function DepreciationLedger({ refreshToken, onChanged }: { refreshToken: number;
       { key: "closingBookValue", title: "期末帳面價值", get: (row: any) => Number(row.closingBookValue) },
       { key: "expenseAccountCode", title: "折舊費用科目" },
       { key: "accumulatedAccountCode", title: "累計折舊科目" },
-      { key: "status", title: "狀態", get: (row: any) => DEPRECIATION_STATUS_LABELS[row.status] ?? row.status },
+      { key: "status", title: tc("status"), get: (row: any) => fa(DEPRECIATION_STATUS_LABEL_KEYS[row.status]) ?? row.status },
       { key: "journal", title: "傳票號碼", get: (row: any) => row.journalEntry?.number ?? "" },
-      { key: "note", title: "備註" },
+      { key: "note", title: tc("remark") },
     ]);
     toast.success("已匯出固定資產折舊表");
   }
@@ -353,9 +363,9 @@ function DepreciationLedger({ refreshToken, onChanged }: { refreshToken: number;
             <Input className="w-72 pl-9" placeholder="搜尋期間／資產／傳票" value={q} onChange={(event) => { setPage(1); setQ(event.target.value); }} />
           </div>
           <select className="h-10 rounded-md border border-input bg-background px-3 text-sm" value={status} onChange={(event) => { setPage(1); setStatus(event.target.value); }}>
-            <option value="">全部狀態</option>
+            <option value="">{f("allStatuses")}</option>
             <option value="CONFIRMED">已確認・待切傳票</option>
-            <option value="POSTED">已過帳</option>
+            <option value="POSTED">{f("posted")}</option>
             <option value="REVERSED">已沖銷</option>
           </select>
         </div>
@@ -368,7 +378,7 @@ function DepreciationLedger({ refreshToken, onChanged }: { refreshToken: number;
         <THead>
           <TR>
             <TH>期間</TH><TH>資產</TH><TH>折舊日期</TH><TH className="text-right">期初帳面價值</TH>
-            <TH className="text-right">本期折舊</TH><TH className="text-right">期末帳面價值</TH><TH>借／貸科目</TH><TH>狀態</TH><TH>傳票</TH><TH className="text-right">操作</TH>
+            <TH className="text-right">本期折舊</TH><TH className="text-right">期末帳面價值</TH><TH>借／貸科目</TH><TH>{tc("status")}</TH><TH>傳票</TH><TH className="text-right">{tc("actions")}</TH>
           </TR>
         </THead>
         <TBody>
@@ -383,7 +393,7 @@ function DepreciationLedger({ refreshToken, onChanged }: { refreshToken: number;
               <TD className="text-right font-semibold text-amber-700">{formatMoney(row.amount)}</TD>
               <TD className="text-right">{formatMoney(row.closingBookValue)}</TD>
               <TD className="text-xs"><div>借 {row.expenseAccountCode}</div><div>貸 {row.accumulatedAccountCode}</div></TD>
-              <TD><Badge variant={row.status === "POSTED" ? "success" : row.status === "REVERSED" ? "secondary" : "warning"}>{DEPRECIATION_STATUS_LABELS[row.status] ?? row.status}</Badge></TD>
+              <TD><Badge variant={row.status === "POSTED" ? "success" : row.status === "REVERSED" ? "secondary" : "warning"}>{fa(DEPRECIATION_STATUS_LABEL_KEYS[row.status]) ?? row.status}</Badge></TD>
               <TD>{row.journalEntry ? <Link className="font-mono text-xs text-blue-600 hover:underline" href={`/accounting/journals?q=${encodeURIComponent(row.journalEntry.number)}`}>{row.journalEntry.number}</Link> : "—"}</TD>
               <TD className="text-right">
                 {row.status === "CONFIRMED" && (
@@ -399,9 +409,9 @@ function DepreciationLedger({ refreshToken, onChanged }: { refreshToken: number;
       <div className="flex items-center justify-between text-sm text-muted-foreground">
         <div>共 {total} 筆折舊</div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((value) => value - 1)}>上一頁</Button>
+          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((value) => value - 1)}>{tt("prevPage")}</Button>
           <span>{page} / {totalPages}</span>
-          <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((value) => value + 1)}>下一頁</Button>
+          <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((value) => value + 1)}>{tt("nextPage")}</Button>
         </div>
       </div>
     </div>
@@ -409,6 +419,10 @@ function DepreciationLedger({ refreshToken, onChanged }: { refreshToken: number;
 }
 
 function DepreciationDialog({ asset, onClose, onChanged }: { asset: any; onClose: () => void; onChanged: () => void }) {
+  const f = useTranslations("fields");
+  const fa = useTranslations("fixedAssets");
+  const tc = useTranslations("common");
+  const tt = useTranslations("table");
   const [depreciationDate, setDepreciationDate] = useState(new Date().toISOString().slice(0, 10));
   const [preview, setPreview] = useState<any>(null);
   const [amount, setAmount] = useState("");
@@ -517,23 +531,23 @@ function DepreciationDialog({ asset, onClose, onChanged }: { asset: any; onClose
               <div className="space-y-1">
                 <Label>借方：折舊費用科目 *</Label>
                 <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={expenseAccountCode} onChange={(event) => setExpenseAccountCode(event.target.value)}>
-                  <option value="">請選擇</option>
+                  <option value="">{f("selectPlaceholder")}</option>
                   {preview.expenseAccounts.map((account: any) => <option key={account.code} value={account.code}>{account.code} {account.name}</option>)}
                 </select>
               </div>
               <div className="space-y-1">
                 <Label>貸方：累計折舊科目 *</Label>
                 <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={accumulatedAccountCode} onChange={(event) => setAccumulatedAccountCode(event.target.value)}>
-                  <option value="">請選擇</option>
+                  <option value="">{f("selectPlaceholder")}</option>
                   {preview.accumulatedAccounts.map((account: any) => <option key={account.code} value={account.code}>{account.code} {account.name}</option>)}
                 </select>
               </div>
-              <div className="space-y-1 sm:col-span-2"><Label>備註</Label><Input value={note} onChange={(event) => setNote(event.target.value)} placeholder="例如：2026 年 7 月月結折舊" /></div>
+              <div className="space-y-1 sm:col-span-2"><Label>{tc("remark")}</Label><Input value={note} onChange={(event) => setNote(event.target.value)} placeholder="例如：2026 年 7 月月結折舊" /></div>
             </div>
           </div>
         ) : null}
         <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={saving}>取消</Button>
+          <Button variant="outline" onClick={onClose} disabled={saving}>{tc("cancel")}</Button>
           <Button variant="outline" onClick={loadPreview} disabled={saving || loading}><RefreshCw className="h-4 w-4" />重新試算</Button>
           <Button onClick={confirmDepreciation} disabled={saving || loading || !preview || editedAmount <= 0 || editedAmount > Number(preview?.remaining ?? 0) || !expenseAccountCode || !accumulatedAccountCode}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <BookOpenCheck className="h-4 w-4" />}確認折舊
@@ -545,6 +559,10 @@ function DepreciationDialog({ asset, onClose, onChanged }: { asset: any; onClose
 }
 
 function NewAssetDialog({ onClose, onCreated }: any) {
+  const f = useTranslations("fields");
+  const fa = useTranslations("fixedAssets");
+  const tc = useTranslations("common");
+  const tt = useTranslations("table");
   const [form, setForm] = useState({
     code: "", name: "", category: "設備", accountCode: "1421",
     acquireDate: new Date().toISOString().slice(0, 10),
@@ -617,11 +635,11 @@ function NewAssetDialog({ onClose, onCreated }: any) {
           </div>
           <div className="space-y-1"><Label>存放位置</Label><Input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} /></div>
           <div className="space-y-1 col-span-2"><Label>序號</Label><Input value={form.serialNumber} onChange={(e) => setForm({ ...form, serialNumber: e.target.value })} /></div>
-          <div className="space-y-1 col-span-2"><Label>備註</Label><Input value={form.remark} onChange={(e) => setForm({ ...form, remark: e.target.value })} /></div>
+          <div className="space-y-1 col-span-2"><Label>{tc("remark")}</Label><Input value={form.remark} onChange={(e) => setForm({ ...form, remark: e.target.value })} /></div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>取消</Button>
-          <Button onClick={save} disabled={saving}>{saving ? "儲存中..." : "儲存"}</Button>
+          <Button variant="outline" onClick={onClose}>{tc("cancel")}</Button>
+          <Button onClick={save} disabled={saving}>{saving ? "儲存中..." : tc("save")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

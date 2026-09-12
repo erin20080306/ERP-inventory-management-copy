@@ -14,8 +14,12 @@ import { ConvertToJournalButton } from "@/components/convert-to-journal-button";
 import { useCustomColumns, useCustomFieldValues, CustomColumnDialog, CustomColumnButton, CustomFieldGridCell } from "@/components/custom-columns";
 import { TableHint, useColumnDrag } from "@/components/table-helpers";
 import { calculateInvoiceTotals, roundInvoiceAmount, roundInvoiceTax } from "@/lib/invoice-totals";
+import { useTranslations } from "next-intl";
 
 export function InvoiceClient() {
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
+  const tt = useTranslations("table");
   const [rows, setRows] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -64,8 +68,8 @@ export function InvoiceClient() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action }),
       });
-      if (!res.ok) throw new Error((await res.json()).error || "操作失敗");
-      toast.success("已處理");
+      if (!res.ok) throw new Error((await res.json()).error || f("actionFailed"));
+      toast.success(f("settled"));
       load();
     } catch (e: any) {
       toast.error(e.message);
@@ -151,9 +155,9 @@ export function InvoiceClient() {
     try {
       const payload = { ...(row as any), ...draft };
       const res = await fetch(`/api/accounting/invoices/${row.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-      if (!res.ok) throw new Error((await res.json()).error || "儲存失敗");
+      if (!res.ok) throw new Error((await res.json()).error || tc("saveFailed"));
       const saved = await res.json().catch(() => null);
-      toast.success("已儲存");
+      toast.success(tc("saved"));
       setInlineEditing((prev) => { const n = { ...prev }; delete n[row.id]; return n; });
       setRows((prev) => prev.map((r) => r.id === row.id ? (saved && saved.id ? saved : { ...r, ...draft }) : r));
     } catch (e: any) {
@@ -175,8 +179,8 @@ export function InvoiceClient() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "void" }),
     });
-    if (!res.ok) return toast.error((await res.json()).error || "操作失敗");
-    toast.success("已作廢");
+    if (!res.ok) return toast.error((await res.json()).error || f("actionFailed"));
+    toast.success(f("voided"));
     load();
   }
 
@@ -189,32 +193,32 @@ export function InvoiceClient() {
     const items = await fetchAllInvoices();
     const { downloadExcel } = await import("@/lib/excel");
     downloadExcel("invoices", "發票管理", items, [
-      { key: "invoiceDate", title: "日期", get: (r: any) => formatDate(r.invoiceDate) },
-      { key: "type", title: "類型", get: (r: any) => (r.type === "SALES" ? "銷項" : "進項") },
-      { key: "number", title: "發票號碼" },
-      { key: "party", title: "對象", get: (r: any) => (r.customer ?? r.supplier)?.companyName ?? "" },
+      { key: "invoiceDate", title: tc("date"), get: (r: any) => formatDate(r.invoiceDate) },
+      { key: "type", title: f("type"), get: (r: any) => (r.type === "SALES" ? f("outputTax") : f("inputTax")) },
+      { key: "number", title: f("invoiceNo") },
+      { key: "party", title: f("counterparty"), get: (r: any) => (r.customer ?? r.supplier)?.companyName ?? "" },
       { key: "amountExTax", title: "未稅金額", get: (r: any) => Number(r.amountExTax) },
-      { key: "taxAmount", title: "稅額", get: (r: any) => Number(r.taxAmount) },
+      { key: "taxAmount", title: tc("tax"), get: (r: any) => Number(r.taxAmount) },
       { key: "totalAmount", title: "含稅金額", get: (r: any) => Number(r.totalAmount) },
-      { key: "status", title: "狀態" },
-      { key: "remark", title: "備註" },
+      { key: "status", title: tc("status") },
+      { key: "remark", title: tc("remark") },
     ]);
-    toast.success("已匯出 Excel");
+    toast.success(tt("exportedExcel"));
   }
 
   async function exportCSV() {
     const res = await fetch(`/api/accounting/invoices?q=${encodeURIComponent(q)}&pageSize=10000`);
     const d = await res.json();
     const csv = toCSV(d.items, [
-      { key: "invoiceDate", title: "日期", get: (r: any) => formatDate(r.invoiceDate) },
-      { key: "type", title: "類型", get: (r: any) => (r.type === "SALES" ? "銷項" : "進項") },
-      { key: "number", title: "發票號碼" },
-      { key: "party", title: "對象", get: (r: any) => (r.customer ?? r.supplier)?.companyName ?? "" },
+      { key: "invoiceDate", title: tc("date"), get: (r: any) => formatDate(r.invoiceDate) },
+      { key: "type", title: f("type"), get: (r: any) => (r.type === "SALES" ? f("outputTax") : f("inputTax")) },
+      { key: "number", title: f("invoiceNo") },
+      { key: "party", title: f("counterparty"), get: (r: any) => (r.customer ?? r.supplier)?.companyName ?? "" },
       { key: "amountExTax", title: "未稅金額" },
-      { key: "taxAmount", title: "稅額" },
+      { key: "taxAmount", title: tc("tax") },
       { key: "totalAmount", title: "含稅金額" },
-      { key: "status", title: "狀態" },
-      { key: "remark", title: "備註" },
+      { key: "status", title: tc("status") },
+      { key: "remark", title: tc("remark") },
     ]);
     downloadCSV(`invoices-${new Date().toISOString().slice(0, 10)}.csv`, csv);
   }
@@ -239,7 +243,7 @@ export function InvoiceClient() {
             {pdfBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
             PDF
           </Button>
-          <Button variant="outline" onClick={() => window.print()}><Printer className="h-4 w-4" />列印</Button>
+          <Button variant="outline" onClick={() => window.print()}><Printer className="h-4 w-4" />{tc("print")}</Button>
           <Button variant="outline" onClick={exportExcel}><FileDown className="h-4 w-4" />Excel</Button>
           <Button variant="outline" onClick={exportCSV}><Download className="h-4 w-4" />CSV</Button>
           <Button variant="outline" onClick={() => window.location.href = "/accounting/invoices/tracks"}><FileText className="h-4 w-4" />字軌管理</Button>
@@ -255,7 +259,7 @@ export function InvoiceClient() {
       <Table>
         <THead onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title="表頭按右鍵可新增／刪減自訂欄位">
           <TR>
-            <TH {...colDrag.thProps("date")}>日期</TH><TH {...colDrag.thProps("type")}>類型</TH><TH {...colDrag.thProps("number")}>發票號碼</TH><TH {...colDrag.thProps("party")}>對象</TH><TH {...colDrag.thProps("amountExTax")}>未稅</TH><TH {...colDrag.thProps("taxAmount")}>稅額</TH><TH {...colDrag.thProps("totalAmount")}>含稅</TH><TH {...colDrag.thProps("status")}>狀態</TH><TH {...colDrag.thProps("remark")}>備註</TH>{customCols.columns.map((cc) => <TH key={cc.id} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title="按右鍵管理自訂欄位">{cc.label}</TH>)}<TH className="w-20 text-right">操作</TH>
+            <TH {...colDrag.thProps("date")}>{tc("date")}</TH><TH {...colDrag.thProps("type")}>{f("type")}</TH><TH {...colDrag.thProps("number")}>{f("invoiceNo")}</TH><TH {...colDrag.thProps("party")}>{f("counterparty")}</TH><TH {...colDrag.thProps("amountExTax")}>未稅</TH><TH {...colDrag.thProps("taxAmount")}>{tc("tax")}</TH><TH {...colDrag.thProps("totalAmount")}>含稅</TH><TH {...colDrag.thProps("status")}>{tc("status")}</TH><TH {...colDrag.thProps("remark")}>{tc("remark")}</TH>{customCols.columns.map((cc) => <TH key={cc.id} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title={tt("rightClickColumns")}>{cc.label}</TH>)}<TH className="w-20 text-right">{tc("actions")}</TH>
           </TR>
         </THead>
         <TBody>
@@ -267,7 +271,7 @@ export function InvoiceClient() {
             return (
             <TR key={i.id} className={isRowEditing ? "bg-accent/5" : ""}>
               <TD>{formatDate(i.invoiceDate)}</TD>
-              <TD><Badge variant={i.type === "SALES" ? "success" : "info"}>{i.type === "SALES" ? "銷項" : "進項"}</Badge></TD>
+              <TD><Badge variant={i.type === "SALES" ? "success" : "info"}>{i.type === "SALES" ? f("outputTax") : f("inputTax")}</Badge></TD>
               <TD className="font-mono text-xs">{i.number}</TD>
               <TD>{(i.customer ?? i.supplier)?.companyName ?? "—"}</TD>
               <TD>{formatMoney(i.amountExTax)}</TD>
@@ -294,17 +298,17 @@ export function InvoiceClient() {
               {customCols.columns.map((cc, columnIndex) => { const v = customFieldValues.getValues(i.id); return <TD key={cc.id}><CustomFieldGridCell gridId="invoices" rowId={i.id} rowIndex={rowIndex} column={cc} columnIndex={columnIndex} rowIds={rows.map((row) => row.id)} columns={customCols.columns} value={v[cc.id] ?? ""} saveValues={customFieldValues.saveValues} onManageColumns={() => customCols.setOpen(true)} /></TD>; })}
               <TD className="text-right">
                 <div className="flex items-center justify-end gap-1">
-                  <Button variant="ghost" size="icon" onClick={() => setEditId(i.id)} title="編輯">
+                  <Button variant="ghost" size="icon" onClick={() => setEditId(i.id)} title={tc("edit")}>
                     <Pencil className="h-4 w-4" />
                   </Button>
-                  {i.status === "DRAFT" && <Button size="sm" variant="outline" onClick={() => onAct(i.id, "submit")}>送出</Button>}
+                  {i.status === "DRAFT" && <Button size="sm" variant="outline" onClick={() => onAct(i.id, "submit")}>{tc("submit")}</Button>}
                   {i.status === "SUBMITTED" && (
                     <>
                       <Button size="sm" variant="outline" onClick={() => onAct(i.id, "approve")}>審核</Button>
-                      <Button size="sm" variant="destructive" onClick={() => onAct(i.id, "reject")}>駁回</Button>
+                      <Button size="sm" variant="destructive" onClick={() => onAct(i.id, "reject")}>{tc("reject")}</Button>
                     </>
                   )}
-                  {i.status === "APPROVED" && <Button size="sm" onClick={() => onAct(i.id, "post")}>過帳</Button>}
+                  {i.status === "APPROVED" && <Button size="sm" onClick={() => onAct(i.id, "post")}>{tc("post")}</Button>}
                   {i.status === "POSTED" && <ConvertToJournalButton sourceType="INVOICE" sourceId={i.id} size="sm" />}
                   {i.status !== "VOIDED" && (
                     <Button variant="ghost" size="icon" onClick={() => voidInvoice(i.id)}>
@@ -328,9 +332,9 @@ export function InvoiceClient() {
       <div className="flex items-center justify-between text-sm text-muted-foreground">
         <div>共 {total} 筆</div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>上一頁</Button>
+          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>{tt("prevPage")}</Button>
           <span>{page} / {totalPages}</span>
-          <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>下一頁</Button>
+          <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>{tt("nextPage")}</Button>
         </div>
       </div>
 
@@ -344,6 +348,9 @@ export function InvoiceClient() {
 }
 
 function NewInvoiceDialog({ open, onClose, onCreated, row, onSaved }: any) {
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
+  const tt = useTranslations("table");
   const [type, setType] = useState<"SALES" | "PURCHASE">("SALES");
   const [parties, setParties] = useState<any[]>([]);
   const [partyId, setPartyId] = useState("");
@@ -385,7 +392,7 @@ function NewInvoiceDialog({ open, onClose, onCreated, row, onSaved }: any) {
   function remove(idx: number) { setItems(items.filter((_, i) => i !== idx)); }
 
   async function save() {
-    if (!partyId) return toast.error(`請選擇${type === "SALES" ? "客戶" : "供應商"}`);
+    if (!partyId) return toast.error(`請選擇${type === "SALES" ? f("customer") : f("supplier")}`);
     if (items.some((i) => !i.description)) return toast.error("每項明細需填寫品名");
     setSaving(true);
     try {
@@ -403,9 +410,9 @@ function NewInvoiceDialog({ open, onClose, onCreated, row, onSaved }: any) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error((await res.json()).error || "儲存失敗");
+      if (!res.ok) throw new Error((await res.json()).error || tc("saveFailed"));
       const saved = await res.json();
-      toast.success(row ? "已更新" : "已建立");
+      toast.success(row ? f("updated") : "已建立");
       if (row) {
         onSaved?.(saved);
       } else {
@@ -420,16 +427,16 @@ function NewInvoiceDialog({ open, onClose, onCreated, row, onSaved }: any) {
         <DialogHeader><DialogTitle>{row ? "編輯發票" : "新增發票"}</DialogTitle></DialogHeader>
         <div className="grid grid-cols-4 gap-3">
           <div className="space-y-1">
-            <Label>類型</Label>
+            <Label>{f("type")}</Label>
             <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={type} onChange={(e) => setType(e.target.value as any)}>
-              <option value="SALES">銷項</option>
-              <option value="PURCHASE">進項</option>
+              <option value="SALES">{f("outputTax")}</option>
+              <option value="PURCHASE">{f("inputTax")}</option>
             </select>
           </div>
           <div className="space-y-1 col-span-2">
-            <Label>{type === "SALES" ? "客戶" : "供應商"} *</Label>
+            <Label>{type === "SALES" ? f("customer") : f("supplier")} *</Label>
             <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={partyId} onChange={(e) => setPartyId(e.target.value)}>
-              <option value="">請選擇</option>
+              <option value="">{f("selectPlaceholder")}</option>
               {parties.map((p) => (
                 <option key={p.id} value={p.id}>{p.code} - {p.companyName}</option>
               ))}
@@ -444,10 +451,10 @@ function NewInvoiceDialog({ open, onClose, onCreated, row, onSaved }: any) {
             <thead className="bg-muted/50 text-xs text-muted-foreground">
               <tr>
                 <th className="p-2 text-left">品名描述</th>
-                <th className="p-2 w-20">數量</th>
-                <th className="p-2 w-28">單價</th>
-                <th className="p-2 w-20">稅率</th>
-                <th className="p-2 w-28 text-right">小計</th>
+                <th className="p-2 w-20">{tc("quantity")}</th>
+                <th className="p-2 w-28">{tc("unitPrice")}</th>
+                <th className="p-2 w-20">{f("taxRate")}</th>
+                <th className="p-2 w-28 text-right">{tc("subtotal")}</th>
                 <th className="p-2 w-10"></th>
               </tr>
             </thead>
@@ -469,19 +476,22 @@ function NewInvoiceDialog({ open, onClose, onCreated, row, onSaved }: any) {
 
         <div className="grid grid-cols-3 gap-3 text-sm">
           <div><div className="text-muted-foreground">未稅</div><div className="font-medium">{formatMoney(amountExTax)}</div></div>
-          <div><div className="text-muted-foreground">稅額</div><div className="font-medium">{formatMoney(taxAmount)}</div></div>
+          <div><div className="text-muted-foreground">{tc("tax")}</div><div className="font-medium">{formatMoney(taxAmount)}</div></div>
           <div><div className="text-muted-foreground">含稅</div><div className="font-bold text-lg">{formatMoney(total)}</div></div>
         </div>
 
-        <Textarea placeholder="備註" value={remark} onChange={(e) => setRemark(e.target.value)} />
+        <Textarea placeholder={tc("remark")} value={remark} onChange={(e) => setRemark(e.target.value)} />
 
-        <DialogFooter><Button variant="outline" onClick={onClose}>取消</Button><Button onClick={save} disabled={saving}>{saving ? "儲存中..." : "儲存"}</Button></DialogFooter>
+        <DialogFooter><Button variant="outline" onClick={onClose}>{tc("cancel")}</Button><Button onClick={save} disabled={saving}>{saving ? "儲存中..." : tc("save")}</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   );
 }
 
 function FromOrderDialog({ kind, open, onClose, onDone }: any) {
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
+  const tt = useTranslations("table");
   const [orders, setOrders] = useState<any[]>([]);
   const [id, setId] = useState("");
   const [saving, setSaving] = useState(false);
@@ -509,7 +519,7 @@ function FromOrderDialog({ kind, open, onClose, onDone }: any) {
         <div className="space-y-2">
           <Label>選擇單據</Label>
           <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={id} onChange={(e) => setId(e.target.value)}>
-            <option value="">請選擇</option>
+            <option value="">{f("selectPlaceholder")}</option>
             {orders
               .filter((o: any) => o.status !== "DRAFT" && o.status !== "VOIDED")
               .map((o: any) => (
@@ -520,7 +530,7 @@ function FromOrderDialog({ kind, open, onClose, onDone }: any) {
           </select>
           <div className="text-xs text-muted-foreground">僅顯示草稿/已取消以外的單據</div>
         </div>
-        <DialogFooter><Button variant="outline" onClick={onClose}>取消</Button><Button onClick={doIssue} disabled={saving}>{saving ? "處理中..." : "開立"}</Button></DialogFooter>
+        <DialogFooter><Button variant="outline" onClick={onClose}>{tc("cancel")}</Button><Button onClick={doIssue} disabled={saving}>{saving ? "處理中..." : "開立"}</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   );

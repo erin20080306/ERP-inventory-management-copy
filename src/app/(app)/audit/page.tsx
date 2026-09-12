@@ -6,6 +6,7 @@ import { formatDateTime } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireTenantId } from "@/lib/api";
 import { getTranslations } from "next-intl/server";
+import { useTranslations } from "next-intl";
 
 export const dynamic = "force-dynamic";
 
@@ -35,30 +36,40 @@ const moduleNames: Record<string, string> = {
 };
 
 // 動作名稱中文映射
-const actionNames: Record<string, string> = {
-  create: "建立",
-  update: "修改",
-  delete: "刪除",
-  view: "查看",
-  edit: "編輯",
-  receive: "收款",
-  pay: "付款",
-  void: "作廢",
-  approve: "核准",
-  reject: "拒絕",
-  export: "匯出",
-  import: "匯入",
+// 值是 audit 命名空間的鍵；資料庫存的是 create／update 等代碼。
+const ACTION_NAME_KEYS: Record<string, string> = {
+  create: "actionCreate",
+  update: "actionUpdate",
+  delete: "actionDelete",
+  view: "actionView",
+  edit: "actionEdit",
+  receive: "actionReceive",
+  pay: "actionPay",
+  void: "actionVoid",
+  approve: "actionApprove",
+  reject: "actionReject",
+  export: "actionExport",
+  import: "actionImport",
 };
 
 function translateModule(module: string) {
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
+  const ta = useTranslations("audit");
   return moduleNames[module] || module;
 }
 
 function translateAction(action: string) {
-  return actionNames[action] || action;
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
+  const ta = useTranslations("audit");
+  return (ACTION_NAME_KEYS[action] ? ta(ACTION_NAME_KEYS[action]) : action) || action;
 }
 
 function formatRefId(detail: string | null, refId: string | null) {
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
+  const ta = useTranslations("audit");
   // 如果 detail 有內容，優先顯示 detail（通常包含有意義的資訊）
   if (detail && detail.trim()) {
     return detail;
@@ -68,6 +79,9 @@ function formatRefId(detail: string | null, refId: string | null) {
 }
 
 export default async function Page() {
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
+  const ta = useTranslations("audit");
   const t = await getTranslations("pages");
   const g = await requirePermissionOrForbidden("audit.view");
   if (g.forbidden) return g.element;
@@ -91,7 +105,7 @@ export default async function Page() {
         <CardHeader><CardTitle>操作紀錄 (最近 200 筆)</CardTitle></CardHeader>
         <CardContent>
           <Table>
-            <THead><TR><TH>時間</TH><TH>使用者</TH><TH>模組</TH><TH>動作</TH><TH>對象</TH><TH>IP</TH></TR></THead>
+            <THead><TR><TH>時間</TH><TH>使用者</TH><TH>模組</TH><TH>動作</TH><TH>{f("counterparty")}</TH><TH>IP</TH></TR></THead>
             <TBody>
               {logs.length === 0 && <TR><TD colSpan={6} className="text-center text-muted-foreground">尚無資料</TD></TR>}
               {logs.map((l: any) => (
@@ -120,7 +134,7 @@ export default async function Page() {
                 <TR key={l.id}>
                   <TD className="text-xs">{formatDateTime(l.createdAt)}</TD>
                   <TD className="font-mono text-xs">{l.username}</TD>
-                  <TD className={l.success ? "text-emerald-600" : "text-red-600"}>{l.success ? "成功" : "失敗"}</TD>
+                  <TD className={l.success ? "text-emerald-600" : "text-red-600"}>{l.success ? "成功" : f("failed")}</TD>
                   <TD className="text-xs">{l.ip ?? "—"}</TD>
                   <TD className="text-xs truncate max-w-xs">{l.userAgent ?? "—"}</TD>
                 </TR>

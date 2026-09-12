@@ -3,8 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import { Barcode, Cable, CheckCircle2, CreditCard, ExternalLink, Loader2, MonitorSmartphone, Printer, RefreshCw, Vault } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 
 export default function PosHardwareDiagnosticsPage() {
+  const tc = useTranslations("common");
   const [diagnostics, setDiagnostics] = useState<any>(null);
   const [result, setResult] = useState<any>(null);
   const [desktop, setDesktop] = useState<any>(null);
@@ -91,7 +93,7 @@ export default function PosHardwareDiagnosticsPage() {
         <button onClick={() => void load()} disabled={busy} className="inline-flex h-10 items-center gap-2 rounded-lg border px-4"><RefreshCw className="h-4 w-4" />重新偵測</button>
       </header>
 
-      <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950"><strong>測試邊界：</strong>{diagnostics?.warning || "載入中…"} 實機到貨後仍須逐台核對驅動、中文字、紙寬、切紙、錢櫃電壓與收單銀行端對端結果。</div>
+      <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950"><strong>測試邊界：</strong>{diagnostics?.warning || tc("loading")} 實機到貨後仍須逐台核對驅動、中文字、紙寬、切紙、錢櫃電壓與收單銀行端對端結果。</div>
 
       <section className="rounded-2xl border bg-card p-5">
         <div className="flex flex-wrap items-center justify-between gap-2"><div><div className="font-bold">桌面硬體橋接</div><div className="mt-1 text-sm text-muted-foreground">{desktop ? `艾琳 ERP App ${desktop.appVersion} · ${desktop.platform} · ${desktop.displayCount} 個螢幕` : "目前是一般瀏覽器，只能做協定模擬；安裝版才能偵測作業系統印表機與第二螢幕。"}</div></div><span className={`rounded-full px-3 py-1 text-xs font-bold ${desktop ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-700"}`}>{desktop ? "橋接已連線" : "瀏覽器模式"}</span></div>

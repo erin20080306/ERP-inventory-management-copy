@@ -1060,6 +1060,8 @@
     "docNo": "單號",
     "draft": "草稿",
     "dueDate": "到期日",
+    "einvoiceIssued": "已開立",
+    "einvoiceQueued": "待傳送",
     "employeeNo": "員工編號",
     "employerCost": "雇主負擔",
     "failed": "失敗",
@@ -1083,6 +1085,8 @@
     "payee": "抬頭",
     "paymentMethod": "付款方式",
     "paymentTerms": "付款條件",
+    "payrollApproved": "已確認",
+    "payrollPosted": "已發放",
     "phone": "電話",
     "posted": "已過帳",
     "product": "商品",
@@ -1498,5 +1502,32 @@
     "useSku": "使用 SKU",
     "webReserved": "商城保留",
     "webReservedBadge": "商城保留中"
+  },
+  "fixedAssets": {
+    "depConfirmed": "已確認・待切傳票",
+    "depPosted": "已過帳",
+    "depReversed": "已沖銷"
+  },
+  "audit": {
+    "actionApprove": "審核",
+    "actionCreate": "建立",
+    "actionDelete": "刪除",
+    "actionEdit": "編輯",
+    "actionExport": "匯出",
+    "actionImport": "匯入",
+    "actionPay": "付款",
+    "actionReceive": "收款",
+    "actionReject": "拒絕",
+    "actionUpdate": "修改",
+    "actionView": "查看",
+    "actionVoid": "作廢"
+  },
+  "medical": {
+    "payCard": "信用卡",
+    "payCash": "現金",
+    "payMixed": "混合付款",
+    "payMobile": "行動支付",
+    "payTransfer": "轉帳",
+    "payWallet": "會員儲值"
   }
 }

@@ -8,10 +8,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatMoney } from "@/lib/utils";
 import { toast } from "sonner";
 import { Plus, Edit, Trash2 } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 const typeLabel: Record<string, string> = { CHECKING: "甲存", SAVINGS: "乙存", TIME_DEPOSIT: "定存", FOREIGN: "外幣" };
 
 function BankAccountDialog({ open, onClose, row, onSaved }: any) {
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
   const [form, setForm] = useState<any>({ code: "", name: "", bankName: "", accountNumber: "", accountType: "SAVINGS", branchName: "", swift: "", balance: 0, isActive: true });
   useEffect(() => {
     setForm(row ?? { code: "", name: "", bankName: "", accountNumber: "", accountType: "SAVINGS", branchName: "", swift: "", balance: 0, isActive: true });
@@ -23,8 +26,8 @@ function BankAccountDialog({ open, onClose, row, onSaved }: any) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...form, balance: Number(form.balance) }),
       });
-      if (!res.ok) throw new Error((await res.json()).error || "儲存失敗");
-      toast.success("已儲存");
+      if (!res.ok) throw new Error((await res.json()).error || tc("saveFailed"));
+      toast.success(tc("saved"));
       onSaved();
       onClose();
     } catch (e: any) {
@@ -52,15 +55,17 @@ function BankAccountDialog({ open, onClose, row, onSaved }: any) {
           <div className="space-y-1"><Label>分行名稱</Label><Input value={form.branchName ?? ""} onChange={(e) => setForm({ ...form, branchName: e.target.value })} /></div>
           <div className="space-y-1"><Label>SWIFT 代碼</Label><Input value={form.swift ?? ""} onChange={(e) => setForm({ ...form, swift: e.target.value })} /></div>
           <div className="space-y-1"><Label>期初餘額</Label><Input type="number" step="0.01" value={form.balance ?? 0} onChange={(e) => setForm({ ...form, balance: e.target.value })} /></div>
-          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} />啟用</label>
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} />{f("active")}</label>
         </div>
-        <DialogFooter><Button variant="outline" onClick={onClose}>取消</Button><Button onClick={save}>儲存</Button></DialogFooter>
+        <DialogFooter><Button variant="outline" onClick={onClose}>{tc("cancel")}</Button><Button onClick={save}>{tc("save")}</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   );
 }
 
 export function CashBankClient() {
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
   const [cash, setCash] = useState<any[]>([]);
   const [bank, setBank] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -91,8 +96,8 @@ export function CashBankClient() {
     if (!confirm("確定刪除此銀行帳戶？")) return;
     try {
       const res = await fetch(`/api/accounting/bank-accounts/${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error((await res.json()).error || "刪除失敗");
-      toast.success("已刪除");
+      if (!res.ok) throw new Error((await res.json()).error || tc("deleteFailed"));
+      toast.success(tc("deleted"));
       setRefreshKey((k) => k + 1);
     } catch (e: any) {
       toast.error(e.message);
@@ -106,7 +111,7 @@ export function CashBankClient() {
           <CardHeader><CardTitle>現金帳戶</CardTitle></CardHeader>
           <CardContent>
             <Table>
-              <THead><TR><TH>編號</TH><TH>名稱</TH><TH>餘額</TH></TR></THead>
+              <THead><TR><TH>{f("code")}</TH><TH>{f("name")}</TH><TH>餘額</TH></TR></THead>
               <TBody>
                 {cash.map((c: any) => (
                   <TR key={c.id}>
@@ -125,13 +130,13 @@ export function CashBankClient() {
               <CardTitle>銀行帳戶</CardTitle>
               <Button size="sm" onClick={() => setEditBank({})}>
                 <Plus className="h-4 w-4" />
-                新增
+                {tc("create")}
               </Button>
             </div>
           </CardHeader>
           <CardContent>
             <Table>
-              <THead><TR><TH>編號</TH><TH>名稱</TH><TH>類型</TH><TH>銀行</TH><TH>帳號</TH><TH>餘額</TH><TH>操作</TH></TR></THead>
+              <THead><TR><TH>{f("code")}</TH><TH>{f("name")}</TH><TH>{f("type")}</TH><TH>銀行</TH><TH>帳號</TH><TH>餘額</TH><TH>{tc("actions")}</TH></TR></THead>
               <TBody>
                 {bank.map((b: any) => (
                   <TR key={b.id}>

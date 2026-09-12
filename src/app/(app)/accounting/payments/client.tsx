@@ -11,8 +11,12 @@ import { formatDate, formatMoney } from "@/lib/utils";
 import { downloadCSV, toCSV } from "@/lib/csv";
 import { useCustomColumns, useCustomFieldValues, CustomColumnDialog, CustomColumnButton, CustomFieldGridCell } from "@/components/custom-columns";
 import { readSessionCache, TableHint, TableSkeletonRows, useColumnDrag, useDebouncedValue, writeSessionCache } from "@/components/table-helpers";
+import { useTranslations } from "next-intl";
 
 export function PaymentHistoryClient() {
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
+  const tt = useTranslations("table");
   const [rows, setRows] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -60,9 +64,9 @@ export function PaymentHistoryClient() {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   const methodLabel = (m: string) => {
-    if (m === "CASH") return "現金";
+    if (m === "CASH") return f("cash");
     if (m === "BANK") return "銀行轉帳";
-    if (m === "CHEQUE") return "支票";
+    if (m === "CHEQUE") return f("cheque");
     return m;
   };
 
@@ -81,7 +85,7 @@ export function PaymentHistoryClient() {
             <Input placeholder="搜尋客戶/供應商" className="pl-9 w-64" value={q} onChange={(e) => { setPage(1); setQ(e.target.value); }} />
           </div>
           <select className="h-10 rounded-md border border-input bg-background px-3 text-sm" value={kind} onChange={(e) => { setPage(1); setKind(e.target.value); }}>
-            <option value="all">全部</option>
+            <option value="all">{tc("all")}</option>
             <option value="ar">收款（銷售）</option>
             <option value="ap">付款（採購）</option>
           </select>
@@ -94,16 +98,16 @@ export function PaymentHistoryClient() {
             const d = await res.json();
             const { downloadExcel } = await import("@/lib/excel");
             downloadExcel("payments", "沖帳記錄", d.items, [
-              { key: "type", title: "類型" },
-              { key: "number", title: "單號" },
-              { key: "party", title: "對象" },
-              { key: "relNumber", title: "關聯單號" },
-              { key: "amount", title: "金額", get: (r: any) => Number(r.amount) },
+              { key: "type", title: f("type") },
+              { key: "number", title: f("docNo") },
+              { key: "party", title: f("counterparty") },
+              { key: "relNumber", title: f("linkedDocNo") },
+              { key: "amount", title: tc("amount"), get: (r: any) => Number(r.amount) },
               { key: "method", title: "方式", get: (r: any) => methodLabel(r.method) },
-              { key: "date", title: "日期", get: (r: any) => formatDate(r.date) },
-              { key: "remark", title: "備註" },
+              { key: "date", title: tc("date"), get: (r: any) => formatDate(r.date) },
+              { key: "remark", title: tc("remark") },
             ]);
-            toast.success("已匯出 Excel");
+            toast.success(tt("exportedExcel"));
           }}>
             <FileDown className="h-4 w-4" />
             Excel
@@ -117,23 +121,23 @@ export function PaymentHistoryClient() {
           </Button>
           <Button variant="outline" onClick={() => window.print()}>
             <Printer className="h-4 w-4" />
-            列印
+            {tc("print")}
           </Button>
           <Button variant="outline" onClick={async () => {
             const res = await fetch(`/api/accounting/payments?kind=${kind}&q=${encodeURIComponent(q)}&pageSize=10000`);
             const d = await res.json();
             const csv = toCSV(d.items, [
-              { key: "type", title: "類型" },
-              { key: "number", title: "單號" },
-              { key: "party", title: "對象" },
-              { key: "relNumber", title: "關聯單號" },
-              { key: "amount", title: "金額" },
+              { key: "type", title: f("type") },
+              { key: "number", title: f("docNo") },
+              { key: "party", title: f("counterparty") },
+              { key: "relNumber", title: f("linkedDocNo") },
+              { key: "amount", title: tc("amount") },
               { key: "method", title: "方式", get: (r: any) => methodLabel(r.method) },
-              { key: "date", title: "日期", get: (r: any) => formatDate(r.date) },
-              { key: "remark", title: "備註" },
+              { key: "date", title: tc("date"), get: (r: any) => formatDate(r.date) },
+              { key: "remark", title: tc("remark") },
             ]);
             downloadCSV(`payments-${new Date().toISOString().slice(0, 10)}.csv`, csv);
-            toast.success("已匯出 CSV");
+            toast.success(tt("exportedCsv"));
           }}>
             <Download className="h-4 w-4" />
             CSV
@@ -146,15 +150,15 @@ export function PaymentHistoryClient() {
       <Table>
         <THead onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title="表頭按右鍵可新增／刪減自訂欄位">
           <TR>
-            <TH {...colDrag.thProps("type")}>類型</TH>
-            <TH {...colDrag.thProps("number")}>單號</TH>
-            <TH {...colDrag.thProps("party")}>對象</TH>
-            <TH {...colDrag.thProps("relNumber")}>關聯單號</TH>
-            <TH {...colDrag.thProps("amount")}>金額</TH>
+            <TH {...colDrag.thProps("type")}>{f("type")}</TH>
+            <TH {...colDrag.thProps("number")}>{f("docNo")}</TH>
+            <TH {...colDrag.thProps("party")}>{f("counterparty")}</TH>
+            <TH {...colDrag.thProps("relNumber")}>{f("linkedDocNo")}</TH>
+            <TH {...colDrag.thProps("amount")}>{tc("amount")}</TH>
             <TH {...colDrag.thProps("method")}>方式</TH>
-            <TH {...colDrag.thProps("date")}>日期</TH>
-            <TH {...colDrag.thProps("remark")}>備註</TH>
-            {customCols.columns.map((cc) => <TH key={cc.id} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title="按右鍵管理自訂欄位">{cc.label}</TH>)}
+            <TH {...colDrag.thProps("date")}>{tc("date")}</TH>
+            <TH {...colDrag.thProps("remark")}>{tc("remark")}</TH>
+            {customCols.columns.map((cc) => <TH key={cc.id} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title={tt("rightClickColumns")}>{cc.label}</TH>)}
           </TR>
         </THead>
         <TBody>
@@ -179,9 +183,9 @@ export function PaymentHistoryClient() {
       <div className="flex items-center justify-between text-sm text-muted-foreground">
         <div>共 {total} 筆</div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>上一頁</Button>
+          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>{tt("prevPage")}</Button>
           <span>{page} / {totalPages}</span>
-          <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>下一頁</Button>
+          <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>{tt("nextPage")}</Button>
         </div>
       </div>
       <CustomColumnDialog module="payments" columns={customCols.columns} open={customCols.open} onClose={() => customCols.setOpen(false)} onSave={customCols.save} />

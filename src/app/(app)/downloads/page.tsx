@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Building2, Database, Download, FileArchive, HardDrive, Info, KeyRound, Laptop, Loader2, ShieldCheck } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 type Installer = {
   name: string;
@@ -14,10 +15,12 @@ type Installer = {
 type Release = { version?: string; generatedAt?: string; prerelease?: boolean; readyForCustomers?: boolean } | null;
 
 function size(bytes: number) {
+  const tc = useTranslations("common");
   return bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(1)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
 function fileFlags(file: Installer) {
+  const tc = useTranslations("common");
   const name = file.name.toLowerCase();
   return {
     isWindows: name.includes("windows"),
@@ -29,6 +32,7 @@ function fileFlags(file: Installer) {
 }
 
 function downloadNote(file: Installer) {
+  const tc = useTranslations("common");
   const flags = fileFlags(file);
   if (file.kind === "company-host") {
     return flags.isWindows
@@ -42,6 +46,7 @@ function downloadNote(file: Installer) {
 }
 
 function InstallerCard({ file }: { file: Installer }) {
+  const tc = useTranslations("common");
   const flags = fileFlags(file);
   const recommended = file.kind === "workstation" && flags.isMac && flags.isDmg && flags.isArm64;
   const backup = file.kind === "workstation" && flags.isMac && flags.isZip && flags.isArm64;
@@ -72,6 +77,7 @@ function InstallerCard({ file }: { file: Installer }) {
 }
 
 export default function DownloadsPage() {
+  const tc = useTranslations("common");
   const [files, setFiles] = useState<Installer[]>([]);
   const [release, setRelease] = useState<Release>(null);
   const [message, setMessage] = useState("");
@@ -81,12 +87,12 @@ export default function DownloadsPage() {
     fetch("/api/installers", { cache: "no-store" })
       .then(async (response) => {
         const result = await response.json();
-        if (!response.ok) throw new Error(result.error || "載入失敗");
+        if (!response.ok) throw new Error(result.error || tc("loadFailed"));
         setFiles(result.files ?? []);
         setRelease(result.release ?? null);
         setMessage(result.message ?? "");
       })
-      .catch((error) => setMessage(error instanceof Error ? error.message : "載入失敗"))
+      .catch((error) => setMessage(error instanceof Error ? error.message : tc("loadFailed")))
       .finally(() => setLoading(false));
   }, []);
 

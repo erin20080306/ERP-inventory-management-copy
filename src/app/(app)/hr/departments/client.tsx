@@ -6,8 +6,11 @@ import { Input, Label } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 
 function DepartmentDialog({ open, onClose, row, onSaved }: any) {
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
   const [form, setForm] = useState<any>({});
   const [parents, setParents] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
@@ -27,8 +30,8 @@ function DepartmentDialog({ open, onClose, row, onSaved }: any) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
-      if (!res.ok) throw new Error((await res.json()).error || "儲存失敗");
-      toast.success("已儲存"); onSaved(); onClose();
+      if (!res.ok) throw new Error((await res.json()).error || tc("saveFailed"));
+      toast.success(tc("saved")); onSaved(); onClose();
     } catch (e: any) { toast.error(e.message); } finally { setSaving(false); }
   }
 
@@ -48,12 +51,12 @@ function DepartmentDialog({ open, onClose, row, onSaved }: any) {
           </div>
           <label className="col-span-2 flex items-center gap-2 text-sm">
             <input type="checkbox" checked={!!form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} />
-            啟用
+            {f("active")}
           </label>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>取消</Button>
-          <Button onClick={save} disabled={saving}>{saving ? "儲存中..." : "儲存"}</Button>
+          <Button variant="outline" onClick={onClose}>{tc("cancel")}</Button>
+          <Button onClick={save} disabled={saving}>{saving ? "儲存中..." : tc("save")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -61,6 +64,8 @@ function DepartmentDialog({ open, onClose, row, onSaved }: any) {
 }
 
 export function DepartmentsClient() {
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
   return (
     <CrudTable<any>
       endpoint="/api/hr/departments"
@@ -72,9 +77,9 @@ export function DepartmentsClient() {
       pdfTitle="部門管理"
       inlineEdit={true}
       columns={[
-        { key: "code", title: "編號", render: (r: any) => <span className="font-mono text-xs">{r.code}</span>, editable: { type: "text" } },
-        { key: "name", title: "名稱", editable: { type: "text" } },
-        { key: "isActive", title: "狀態", csv: (r: any) => (r.isActive ? "啟用" : "停用"), render: (r: any) => (r.isActive ? <Badge variant="success">啟用</Badge> : <Badge variant="danger">停用</Badge>) },
+        { key: "code", title: f("code"), render: (r: any) => <span className="font-mono text-xs">{r.code}</span>, editable: { type: "text" } },
+        { key: "name", title: f("name"), editable: { type: "text" } },
+        { key: "isActive", title: tc("status"), csv: (r: any) => (r.isActive ? f("active") : f("inactive")), render: (r: any) => (r.isActive ? <Badge variant="success">{f("active")}</Badge> : <Badge variant="danger">{f("inactive")}</Badge>) },
       ]}
     />
   );

@@ -8,12 +8,15 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/layout/page-shell";
 import { toast } from "sonner";
 import { Plus, Trash2, Loader2 } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 const periodLabel: Record<number, string> = {
   1: "1-2月", 2: "3-4月", 3: "5-6月", 4: "7-8月", 5: "9-10月", 6: "11-12月",
 };
 
 export function InvoiceTrackClient() {
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [openNew, setOpenNew] = useState(false);
@@ -40,8 +43,8 @@ export function InvoiceTrackClient() {
   async function remove(id: string) {
     if (!confirm("確定刪除此字軌？")) return;
     const res = await fetch(`/api/accounting/invoice-tracks/${id}`, { method: "DELETE" });
-    if (!res.ok) { toast.error((await res.json()).error || "刪除失敗"); return; }
-    toast.success("已刪除");
+    if (!res.ok) { toast.error((await res.json()).error || tc("deleteFailed")); return; }
+    toast.success(tc("deleted"));
     load();
   }
 
@@ -53,7 +56,7 @@ export function InvoiceTrackClient() {
       <Table>
         <THead>
           <TR>
-            <TH>年度</TH><TH>期別</TH><TH>字軌</TH><TH>類型</TH><TH>起始號</TH><TH>結束號</TH><TH>已用</TH><TH>剩餘</TH><TH>狀態</TH><TH className="text-right">操作</TH>
+            <TH>年度</TH><TH>期別</TH><TH>字軌</TH><TH>{f("type")}</TH><TH>起始號</TH><TH>結束號</TH><TH>已用</TH><TH>剩餘</TH><TH>{tc("status")}</TH><TH className="text-right">{tc("actions")}</TH>
           </TR>
         </THead>
         <TBody>
@@ -68,15 +71,15 @@ export function InvoiceTrackClient() {
                 <TD>{r.year}</TD>
                 <TD>{periodLabel[r.period] ?? r.period}</TD>
                 <TD className="font-mono font-bold">{r.trackCode}</TD>
-                <TD>{r.type === "SALES" ? "銷項" : "進項"}</TD>
+                <TD>{r.type === "SALES" ? f("outputTax") : f("inputTax")}</TD>
                 <TD className="font-mono">{r.trackCode}{String(r.startNumber).padStart(8, "0")}</TD>
                 <TD className="font-mono">{r.trackCode}{String(r.endNumber).padStart(8, "0")}</TD>
                 <TD>{used}</TD>
                 <TD className={full ? "text-red-600 font-medium" : ""}>{full ? "已用完" : remaining}</TD>
-                <TD>{r.isActive ? <Badge variant="success">啟用</Badge> : <Badge variant="danger">停用</Badge>}</TD>
+                <TD>{r.isActive ? <Badge variant="success">{f("active")}</Badge> : <Badge variant="danger">{f("inactive")}</Badge>}</TD>
                 <TD className="text-right space-x-1">
                   <Button variant="ghost" size="sm" onClick={() => toggleActive(r.id, !r.isActive)}>
-                    {r.isActive ? "停用" : "啟用"}
+                    {r.isActive ? f("inactive") : f("active")}
                   </Button>
                   <Button variant="ghost" size="icon" onClick={() => remove(r.id)}>
                     <Trash2 className="h-4 w-4 text-red-600" />
@@ -93,6 +96,8 @@ export function InvoiceTrackClient() {
 }
 
 function NewTrackDialog({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
   const now = new Date();
   const rocYear = now.getFullYear() - 1911;
   const currentPeriod = Math.ceil((now.getMonth() + 1) / 2);
@@ -150,7 +155,7 @@ function NewTrackDialog({ onClose, onCreated }: { onClose: () => void; onCreated
             </div>
           </div>
           <div className="space-y-1">
-            <Label>類型</Label>
+            <Label>{f("type")}</Label>
             <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={type} onChange={(e) => setType(e.target.value)}>
               <option value="SALES">銷項發票</option>
               <option value="PURCHASE">進項發票</option>
@@ -161,8 +166,8 @@ function NewTrackDialog({ onClose, onCreated }: { onClose: () => void; onCreated
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>取消</Button>
-          <Button onClick={save} disabled={saving || !trackCode}>{saving ? "儲存中..." : "儲存"}</Button>
+          <Button variant="outline" onClick={onClose}>{tc("cancel")}</Button>
+          <Button onClick={save} disabled={saving || !trackCode}>{saving ? "儲存中..." : tc("save")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

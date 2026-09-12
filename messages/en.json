@@ -1060,6 +1060,8 @@
     "docNo": "Document no.",
     "draft": "Draft",
     "dueDate": "Due date",
+    "einvoiceIssued": "Issued",
+    "einvoiceQueued": "Queued",
     "employeeNo": "Employee no.",
     "employerCost": "Employer cost",
     "failed": "Failed",
@@ -1083,6 +1085,8 @@
     "payee": "Payee",
     "paymentMethod": "Payment method",
     "paymentTerms": "Payment terms",
+    "payrollApproved": "Approved",
+    "payrollPosted": "Paid",
     "phone": "Phone",
     "posted": "Posted",
     "product": "Product",
@@ -1498,5 +1502,32 @@
     "useSku": "Use SKU",
     "webReserved": "Reserved online",
     "webReservedBadge": "Reserved online"
+  },
+  "fixedAssets": {
+    "depConfirmed": "Confirmed — journal pending",
+    "depPosted": "Posted",
+    "depReversed": "Reversed"
+  },
+  "audit": {
+    "actionApprove": "Approve",
+    "actionCreate": "Create",
+    "actionDelete": "Delete",
+    "actionEdit": "Edit",
+    "actionExport": "Export",
+    "actionImport": "Import",
+    "actionPay": "Pay",
+    "actionReceive": "Collect",
+    "actionReject": "Reject",
+    "actionUpdate": "Update",
+    "actionView": "View",
+    "actionVoid": "Void"
+  },
+  "medical": {
+    "payCard": "Credit card",
+    "payCash": "Cash",
+    "payMixed": "Mixed payment",
+    "payMobile": "Mobile payment",
+    "payTransfer": "Bank transfer",
+    "payWallet": "Stored value"
   }
 }

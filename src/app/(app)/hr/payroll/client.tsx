@@ -12,11 +12,16 @@ import { Plus, Loader2, Calculator, FileSpreadsheet, Printer, Eye, CheckCircle2,
 import { formatMoney, formatDate } from "@/lib/utils";
 import { useCustomColumns, useCustomFieldValues, CustomColumnDialog, CustomColumnButton, CustomFieldGridCell } from "@/components/custom-columns";
 import { TableHint, useColumnDrag } from "@/components/table-helpers";
+import { useTranslations } from "next-intl";
 
-const STATUS_LABELS: Record<string, string> = { DRAFT: "草稿", APPROVED: "已確認", POSTED: "已發放", VOIDED: "作廢" };
+// 值是 fields 命名空間的鍵；資料庫存的仍是 DRAFT／POSTED 等代碼。
+const STATUS_LABEL_KEYS: Record<string, string> = { DRAFT: "draft", APPROVED: "payrollApproved", POSTED: "payrollPosted", VOIDED: "voided" };
 const STATUS_VARIANTS: Record<string, any> = { DRAFT: "info", APPROVED: "warning", POSTED: "success", VOIDED: "danger" };
 
 export function PayrollClient() {
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
+  const tt = useTranslations("table");
   const [periods, setPeriods] = useState<any[]>([]);
   const [selectedPeriod, setSelectedPeriod] = useState<any>(null);
   const [payrolls, setPayrolls] = useState<any[]>([]);
@@ -50,7 +55,7 @@ export function PayrollClient() {
     if (!confirm(`為 ${selectedPeriod.year}/${selectedPeriod.month} 所有在職員工自動產生薪資草稿？`)) return;
     try {
       const res = await fetch(`/api/hr/payroll-periods/${selectedPeriod.id}/generate`, { method: "POST" });
-      if (!res.ok) throw new Error((await res.json()).error || "操作失敗");
+      if (!res.ok) throw new Error((await res.json()).error || f("actionFailed"));
       const r = await res.json();
       toast.success(`已建立 ${r.created} 筆 (略過 ${r.skipped})`);
       loadPayrolls();
@@ -64,8 +69,8 @@ export function PayrollClient() {
         headers: { "Content-Type": "application/json" },
         body: action === "delete" ? undefined : JSON.stringify({ action }),
       });
-      if (!res.ok) throw new Error((await res.json()).error || "操作失敗");
-      toast.success("已處理"); loadPayrolls();
+      if (!res.ok) throw new Error((await res.json()).error || f("actionFailed"));
+      toast.success(f("settled")); loadPayrolls();
     } catch (e: any) { toast.error(e.message); }
   }
 
@@ -73,17 +78,17 @@ export function PayrollClient() {
     if (!selectedPeriod) return;
     const { downloadExcel } = await import("@/lib/excel");
     downloadExcel(`payroll-${selectedPeriod.year}${String(selectedPeriod.month).padStart(2, "0")}`, "薪資清冊", payrolls, [
-      { key: "number", title: "單號" },
-      { key: "employee", title: "員工編號", get: (r: any) => r.employee.employeeNo },
-      { key: "name", title: "姓名", get: (r: any) => r.employee.name },
-      { key: "dept", title: "部門", get: (r: any) => r.employee.department?.name ?? "" },
-      { key: "earnings", title: "應發合計", get: (r: any) => Number(r.earnings) },
-      { key: "deductions", title: "應扣合計", get: (r: any) => Number(r.deductions) },
+      { key: "number", title: f("docNo") },
+      { key: "employee", title: f("employeeNo"), get: (r: any) => r.employee.employeeNo },
+      { key: "name", title: f("fullName"), get: (r: any) => r.employee.name },
+      { key: "dept", title: f("department"), get: (r: any) => r.employee.department?.name ?? "" },
+      { key: "earnings", title: f("grossPay"), get: (r: any) => Number(r.earnings) },
+      { key: "deductions", title: f("totalDeductions"), get: (r: any) => Number(r.deductions) },
       { key: "netPay", title: "實領金額", get: (r: any) => Number(r.netPay) },
-      { key: "employerCost", title: "雇主負擔", get: (r: any) => Number(r.employerCost) },
-      { key: "status", title: "狀態", get: (r: any) => STATUS_LABELS[r.status] ?? r.status },
+      { key: "employerCost", title: f("employerCost"), get: (r: any) => Number(r.employerCost) },
+      { key: "status", title: tc("status"), get: (r: any) => f(STATUS_LABEL_KEYS[r.status]) ?? r.status },
     ]);
-    toast.success("已匯出 Excel");
+    toast.success(tt("exportedExcel"));
   }
 
   const summary = {
@@ -124,17 +129,17 @@ export function PayrollClient() {
         <>
           {/* 摘要 */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <Card><CardContent className="pt-4"><div className="text-xs text-muted-foreground">應發合計</div><div className="text-xl font-bold">{formatMoney(summary.earnings)}</div></CardContent></Card>
-            <Card><CardContent className="pt-4"><div className="text-xs text-muted-foreground">應扣合計</div><div className="text-xl font-bold text-red-600">{formatMoney(summary.deductions)}</div></CardContent></Card>
+            <Card><CardContent className="pt-4"><div className="text-xs text-muted-foreground">{f("grossPay")}</div><div className="text-xl font-bold">{formatMoney(summary.earnings)}</div></CardContent></Card>
+            <Card><CardContent className="pt-4"><div className="text-xs text-muted-foreground">{f("totalDeductions")}</div><div className="text-xl font-bold text-red-600">{formatMoney(summary.deductions)}</div></CardContent></Card>
             <Card><CardContent className="pt-4"><div className="text-xs text-muted-foreground">實領合計</div><div className="text-xl font-bold text-emerald-600">{formatMoney(summary.netPay)}</div></CardContent></Card>
-            <Card><CardContent className="pt-4"><div className="text-xs text-muted-foreground">雇主負擔</div><div className="text-xl font-bold text-amber-600">{formatMoney(summary.employerCost)}</div></CardContent></Card>
+            <Card><CardContent className="pt-4"><div className="text-xs text-muted-foreground">{f("employerCost")}</div><div className="text-xl font-bold text-amber-600">{formatMoney(summary.employerCost)}</div></CardContent></Card>
           </div>
 
           {/* 操作列 */}
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-2 text-sm">
               <span className="font-medium">{selectedPeriod.year}/{String(selectedPeriod.month).padStart(2, "0")}</span>
-              <Badge variant={STATUS_VARIANTS[selectedPeriod.status]}>{STATUS_LABELS[selectedPeriod.status]}</Badge>
+              <Badge variant={STATUS_VARIANTS[selectedPeriod.status]}>{f(STATUS_LABEL_KEYS[selectedPeriod.status])}</Badge>
               {selectedPeriod.periodStart && selectedPeriod.periodEnd && (
                 <span className="text-muted-foreground">
                   期間：{formatDate(selectedPeriod.periodStart)} ~ {formatDate(selectedPeriod.periodEnd)}
@@ -144,7 +149,7 @@ export function PayrollClient() {
             </div>
             <div className="flex items-center gap-2 flex-wrap">
               <Button variant="outline" onClick={generate}><Calculator className="h-4 w-4" />自動產生薪資</Button>
-              <Button variant="outline" onClick={exportPayrolls}><FileSpreadsheet className="h-4 w-4" />匯出 Excel</Button>
+              <Button variant="outline" onClick={exportPayrolls}><FileSpreadsheet className="h-4 w-4" />{tt("exportExcel")}</Button>
               <Button variant="outline" onClick={() => window.print()}><Printer className="h-4 w-4" />列印清冊</Button>
               <Button variant="outline" onClick={async () => {
                 try {
@@ -168,14 +173,14 @@ export function PayrollClient() {
           <Table>
             <THead onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title="表頭按右鍵可新增／刪減自訂欄位">
               <TR>
-                <TH {...colDrag.thProps("number")}>單號</TH><TH {...colDrag.thProps("employee")}>員工</TH><TH {...colDrag.thProps("dept")}>部門</TH>
+                <TH {...colDrag.thProps("number")}>{f("docNo")}</TH><TH {...colDrag.thProps("employee")}>員工</TH><TH {...colDrag.thProps("dept")}>{f("department")}</TH>
                 <TH {...colDrag.thProps("earnings")} className="text-right">應發</TH>
                 <TH {...colDrag.thProps("deductions")} className="text-right">應扣</TH>
                 <TH {...colDrag.thProps("netPay")} className="text-right">實領</TH>
-                <TH {...colDrag.thProps("employerCost")} className="text-right">雇主負擔</TH>
-                <TH {...colDrag.thProps("status")}>狀態</TH>
-                {customCols.columns.map((cc) => <TH key={cc.id} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title="按右鍵管理自訂欄位">{cc.label}</TH>)}
-                <TH className="text-right w-40">操作</TH>
+                <TH {...colDrag.thProps("employerCost")} className="text-right">{f("employerCost")}</TH>
+                <TH {...colDrag.thProps("status")}>{tc("status")}</TH>
+                {customCols.columns.map((cc) => <TH key={cc.id} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title={tt("rightClickColumns")}>{cc.label}</TH>)}
+                <TH className="text-right w-40">{tc("actions")}</TH>
               </TR>
             </THead>
             <TBody>
@@ -190,15 +195,15 @@ export function PayrollClient() {
                   <TD className="text-right text-red-600">{formatMoney(p.deductions)}</TD>
                   <TD className="text-right font-bold">{formatMoney(p.netPay)}</TD>
                   <TD className="text-right text-amber-600">{formatMoney(p.employerCost)}</TD>
-                  <TD><Badge variant={STATUS_VARIANTS[p.status]}>{STATUS_LABELS[p.status]}</Badge></TD>
+                  <TD><Badge variant={STATUS_VARIANTS[p.status]}>{f(STATUS_LABEL_KEYS[p.status])}</Badge></TD>
                   <TD className="text-right">
                     <div className="flex items-center justify-end gap-1">
-                      <Button size="sm" variant="ghost" title="編輯" onClick={() => setViewPayroll(p)}><Edit className="h-4 w-4" /></Button>
+                      <Button size="sm" variant="ghost" title={tc("edit")} onClick={() => setViewPayroll(p)}><Edit className="h-4 w-4" /></Button>
                       <Button size="sm" variant="ghost" title="檢視" onClick={() => setViewPayroll(p)}><Eye className="h-4 w-4" /></Button>
                       <Button size="sm" variant="ghost" title="列印薪資單" onClick={() => window.open(`/print/payroll/${p.id}`, "_blank")}><Printer className="h-4 w-4" /></Button>
-                      {p.status === "DRAFT" && <Button size="sm" variant="ghost" title="確認" onClick={() => act(p.id, "confirm")}><CheckCircle2 className="h-4 w-4 text-emerald-600" /></Button>}
+                      {p.status === "DRAFT" && <Button size="sm" variant="ghost" title={tc("confirm")} onClick={() => act(p.id, "confirm")}><CheckCircle2 className="h-4 w-4 text-emerald-600" /></Button>}
                       {p.status === "APPROVED" && <Button size="sm" variant="ghost" title="發放" onClick={() => act(p.id, "pay")}><DollarSign className="h-4 w-4 text-emerald-600" /></Button>}
-                      {p.status !== "VOIDED" && p.status !== "POSTED" && <Button size="sm" variant="ghost" title="作廢" onClick={() => act(p.id, "void")}><Ban className="h-4 w-4 text-red-600" /></Button>}
+                      {p.status !== "VOIDED" && p.status !== "POSTED" && <Button size="sm" variant="ghost" title={tc("void")} onClick={() => act(p.id, "void")}><Ban className="h-4 w-4 text-red-600" /></Button>}
                     </div>
                   </TD>
                   {customCols.columns.map((cc, columnIndex) => { const vals = customFieldValues.getValues(p.id); return <TD key={cc.id}><CustomFieldGridCell gridId="payroll" rowId={p.id} rowIndex={rowIndex} column={cc} columnIndex={columnIndex} rowIds={payrolls.map((row) => row.id)} columns={customCols.columns} value={vals[cc.id] ?? ""} saveValues={customFieldValues.saveValues} onManageColumns={() => customCols.setOpen(true)} /></TD>; })}
@@ -217,6 +222,9 @@ export function PayrollClient() {
 }
 
 function NewPeriodDialog({ onClose, onCreated }: any) {
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
+  const tt = useTranslations("table");
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
@@ -248,7 +256,7 @@ function NewPeriodDialog({ onClose, onCreated }: any) {
           payDate: payDate || undefined 
         }),
       });
-      if (!res.ok) throw new Error((await res.json()).error || "失敗");
+      if (!res.ok) throw new Error((await res.json()).error || f("failed"));
       toast.success("已新增"); onCreated();
     } catch (e: any) { toast.error(e.message); } finally { setSaving(false); }
   }
@@ -265,7 +273,7 @@ function NewPeriodDialog({ onClose, onCreated }: any) {
           <div className="col-span-2"><Label>發薪日</Label><Input type="date" value={payDate} onChange={(e) => setPayDate(e.target.value)} /></div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>取消</Button>
+          <Button variant="outline" onClick={onClose}>{tc("cancel")}</Button>
           <Button onClick={save} disabled={saving}>{saving ? "儲存中..." : "建立"}</Button>
         </DialogFooter>
       </DialogContent>
@@ -274,6 +282,9 @@ function NewPeriodDialog({ onClose, onCreated }: any) {
 }
 
 function PayrollDetailDialog({ id, onClose, onChanged }: any) {
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
+  const tt = useTranslations("table");
   const [data, setData] = useState<any>(null);
   const [extra, setExtra] = useState({ overtimePay: 0, bonus: 0, leaveDeduction: 0, otherDeductions: 0 });
   const [saving, setSaving] = useState(false);
@@ -293,7 +304,7 @@ function PayrollDetailDialog({ id, onClose, onChanged }: any) {
         method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify(extra),
       });
-      if (!res.ok) throw new Error((await res.json()).error || "失敗");
+      if (!res.ok) throw new Error((await res.json()).error || f("failed"));
       const updated = await res.json();
       setData(updated);
       toast.success("已重新計算");
@@ -312,7 +323,7 @@ function PayrollDetailDialog({ id, onClose, onChanged }: any) {
         <DialogHeader>
           <DialogTitle>
             薪資單 {data.number} - {data.employee.name}
-            <Badge className="ml-2" variant={STATUS_VARIANTS[data.status]}>{STATUS_LABELS[data.status]}</Badge>
+            <Badge className="ml-2" variant={STATUS_VARIANTS[data.status]}>{f(STATUS_LABEL_KEYS[data.status])}</Badge>
           </DialogTitle>
         </DialogHeader>
         <div className="grid grid-cols-2 gap-3 text-sm">
@@ -346,7 +357,7 @@ function PayrollDetailDialog({ id, onClose, onChanged }: any) {
               </div>
             ))}
             <div className="border-t mt-2 pt-2 flex justify-between font-bold">
-              <span>合計</span><span>{formatMoney(data.earnings)}</span>
+              <span>{tc("total")}</span><span>{formatMoney(data.earnings)}</span>
             </div>
           </div>
           <div className="border rounded p-3">
@@ -357,18 +368,18 @@ function PayrollDetailDialog({ id, onClose, onChanged }: any) {
               </div>
             ))}
             <div className="border-t mt-2 pt-2 flex justify-between font-bold">
-              <span>合計</span><span>{formatMoney(data.deductions)}</span>
+              <span>{tc("total")}</span><span>{formatMoney(data.deductions)}</span>
             </div>
           </div>
           <div className="border rounded p-3">
-            <div className="font-semibold mb-2 text-amber-700">雇主負擔</div>
+            <div className="font-semibold mb-2 text-amber-700">{f("employerCost")}</div>
             {employer.map((i: any) => (
               <div key={i.id} className="flex justify-between text-sm py-1">
                 <span>{i.name}</span><span className="font-mono">{formatMoney(i.amount)}</span>
               </div>
             ))}
             <div className="border-t mt-2 pt-2 flex justify-between font-bold">
-              <span>合計</span><span>{formatMoney(data.employerCost)}</span>
+              <span>{tc("total")}</span><span>{formatMoney(data.employerCost)}</span>
             </div>
           </div>
         </div>
@@ -382,7 +393,7 @@ function PayrollDetailDialog({ id, onClose, onChanged }: any) {
           <Button variant="outline" onClick={() => window.open(`/print/payroll/${data.id}`, "_blank")}>
             <Printer className="h-4 w-4" />列印薪資單
           </Button>
-          <Button variant="ghost" onClick={onClose}>關閉</Button>
+          <Button variant="ghost" onClick={onClose}>{tc("close")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

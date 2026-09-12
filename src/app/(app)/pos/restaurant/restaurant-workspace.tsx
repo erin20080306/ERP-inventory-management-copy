@@ -32,6 +32,7 @@ import {
 import { toast } from "sonner";
 import { resolveDemoProductImage } from "@/lib/demo-product-media";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useTranslations } from "next-intl";
 
 type Product = {
   id: string;
@@ -119,6 +120,8 @@ const OPERATION_STATUS_LABELS: Record<string, string> = { PENDING: "待主管核
 const RESTAURANT_BOOTSTRAP_CACHE_TTL_MS = 15_000;
 
 function readRestaurantBootstrapCache(): Bootstrap | null {
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
   try {
     const raw = window.sessionStorage.getItem("erin-restaurant-front-bootstrap-v3");
     if (!raw) return null;
@@ -131,6 +134,8 @@ function readRestaurantBootstrapCache(): Bootstrap | null {
 }
 
 function writeRestaurantBootstrapCache(data: Bootstrap) {
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
   try {
     window.sessionStorage.setItem("erin-restaurant-front-bootstrap-v3", JSON.stringify({ savedAt: Date.now(), data }));
   } catch {}
@@ -141,6 +146,8 @@ export function RestaurantWorkspace({ kitchenOnly = false, canManageTables = fal
   kitchenOnly?: boolean;
   canManageTables?: boolean;
 }) {
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
   const { data: activeSession } = useSession();
   const [data, setData] = useState<Bootstrap | null>(null);
   const [loading, setLoading] = useState(true);
@@ -250,12 +257,12 @@ export function RestaurantWorkspace({ kitchenOnly = false, canManageTables = fal
         body: JSON.stringify(payload),
       });
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "操作失敗");
+      if (!response.ok) throw new Error(result.error || f("actionFailed"));
       if (success) toast.success(success);
       if (refresh) await load();
       return result;
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "操作失敗");
+      toast.error(error instanceof Error ? error.message : f("actionFailed"));
       return null;
     } finally {
       if (blocking) setBusy(false);
@@ -674,7 +681,7 @@ return <div className="grid min-h-[60vh] animate-pulse gap-4 xl:grid-cols-[280px
           <Link href="/pos/restaurant/kitchen" className="inline-flex h-10 items-center gap-2 rounded-lg bg-white px-4 text-sm font-bold text-slate-950"><ChefHat className="h-4 w-4" />廚房看板</Link>
           <button onClick={() => setCashPanelOpen(true)} className="inline-flex h-10 items-center gap-2 rounded-lg border border-white/20 px-3 text-sm text-white"><CircleDollarSign className="h-4 w-4" />錢櫃異動{data.cashMovements.some((movement) => movement.status === "PENDING") ? `（${data.cashMovements.filter((movement) => movement.status === "PENDING").length} 待核）` : ""}</button>
           <button onClick={() => void previewCloseShift()} disabled={busy} className="inline-flex h-10 items-center gap-2 rounded-lg border border-white/20 px-3 text-sm text-white disabled:opacity-50"><ReceiptText className="h-4 w-4" />預覽結班</button>
-          <button onClick={() => void load()} className="inline-flex h-10 items-center gap-2 rounded-lg border border-white/20 px-3 text-sm text-white"><RefreshCw className="h-4 w-4" />重新整理</button>
+          <button onClick={() => void load()} className="inline-flex h-10 items-center gap-2 rounded-lg border border-white/20 px-3 text-sm text-white"><RefreshCw className="h-4 w-4" />{tc("refresh")}</button>
         </div>
       </header>
 
@@ -700,8 +707,8 @@ return <div className="grid min-h-[60vh] animate-pulse gap-4 xl:grid-cols-[280px
               <button onClick={() => void requestCashMovement()} disabled={busy} className="h-10 rounded-lg bg-orange-600 px-4 font-semibold text-white disabled:opacity-40">送出申請</button>
             </div>
             <div className="max-h-[45vh] overflow-auto rounded-xl border">
-              <table className="w-full min-w-[760px] text-sm"><thead className="sticky top-0 bg-muted"><tr><th className="p-3 text-left">時間</th><th className="p-3 text-left">類型</th><th className="p-3 text-right">金額</th><th className="p-3 text-left">原因</th><th className="p-3 text-left">狀態</th><th className="p-3 text-right">主管操作</th></tr></thead><tbody>
-                {data.cashMovements.map((movement) => <tr key={movement.id} className="border-t"><td className="p-3">{new Date(movement.requestedAt).toLocaleString("zh-TW")}</td><td className="p-3">{CASH_MOVEMENT_LABELS[movement.type]}</td><td className="p-3 text-right font-semibold">{money(Number(movement.amount))}</td><td className="p-3">{movement.reason}</td><td className="p-3">{OPERATION_STATUS_LABELS[movement.status] || movement.status}</td><td className="p-3 text-right">{movement.status === "PENDING" && canManageOpeningCash ? <div className="inline-flex gap-2"><button onClick={() => void decideCashMovement(movement.id, "REJECT")} disabled={busy} className="h-8 rounded-lg border px-3">拒絕</button><button onClick={() => void decideCashMovement(movement.id, "APPROVE")} disabled={busy} className="inline-flex h-8 items-center gap-1 rounded-lg bg-emerald-600 px-3 text-white"><ShieldCheck className="h-4 w-4" />核准</button></div> : <span className="text-xs text-muted-foreground">{movement.status === "PENDING" ? "等待主管" : "—"}</span>}</td></tr>)}
+              <table className="w-full min-w-[760px] text-sm"><thead className="sticky top-0 bg-muted"><tr><th className="p-3 text-left">時間</th><th className="p-3 text-left">{f("type")}</th><th className="p-3 text-right">{tc("amount")}</th><th className="p-3 text-left">{f("reason")}</th><th className="p-3 text-left">{tc("status")}</th><th className="p-3 text-right">主管操作</th></tr></thead><tbody>
+                {data.cashMovements.map((movement) => <tr key={movement.id} className="border-t"><td className="p-3">{new Date(movement.requestedAt).toLocaleString("zh-TW")}</td><td className="p-3">{CASH_MOVEMENT_LABELS[movement.type]}</td><td className="p-3 text-right font-semibold">{money(Number(movement.amount))}</td><td className="p-3">{movement.reason}</td><td className="p-3">{OPERATION_STATUS_LABELS[movement.status] || movement.status}</td><td className="p-3 text-right">{movement.status === "PENDING" && canManageOpeningCash ? <div className="inline-flex gap-2"><button onClick={() => void decideCashMovement(movement.id, "REJECT")} disabled={busy} className="h-8 rounded-lg border px-3">拒絕</button><button onClick={() => void decideCashMovement(movement.id, "APPROVE")} disabled={busy} className="inline-flex h-8 items-center gap-1 rounded-lg bg-emerald-600 px-3 text-white"><ShieldCheck className="h-4 w-4" />{tc("approve")}</button></div> : <span className="text-xs text-muted-foreground">{movement.status === "PENDING" ? "等待主管" : "—"}</span>}</td></tr>)}
                 {data.cashMovements.length === 0 && <tr><td colSpan={6} className="p-8 text-center text-muted-foreground">本班次尚無錢櫃異動</td></tr>}
               </tbody></table>
             </div>
@@ -766,7 +773,7 @@ return <div className="grid min-h-[60vh] animate-pulse gap-4 xl:grid-cols-[280px
             <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜尋餐點／貨號（F2）" className="h-10 w-full rounded-lg border bg-background pl-9 pr-3" />
           </label>
           <div className="my-3 flex gap-2 overflow-x-auto pb-1">
-            <button onClick={() => setCategoryId("ALL")} className={`shrink-0 rounded-full px-3 py-1.5 text-xs ${categoryId === "ALL" ? "bg-orange-600 text-white" : "border"}`}>全部</button>
+            <button onClick={() => setCategoryId("ALL")} className={`shrink-0 rounded-full px-3 py-1.5 text-xs ${categoryId === "ALL" ? "bg-orange-600 text-white" : "border"}`}>{tc("all")}</button>
             {data.categories.map((category) => <button key={category.id} onClick={() => setCategoryId(category.id)} className={`shrink-0 rounded-full px-3 py-1.5 text-xs ${categoryId === category.id ? "bg-orange-600 text-white" : "border"}`}>{category.name}</button>)}
           </div>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 2xl:grid-cols-4">
@@ -812,7 +819,7 @@ return <div className="grid min-h-[60vh] animate-pulse gap-4 xl:grid-cols-[280px
                     <button disabled={item.status !== "PENDING" || busy} onClick={() => Number(item.quantity) <= 1 ? requestCancelItem(item) : void updateItem(item, Number(item.quantity) - 1)} className="h-7 w-7 rounded border disabled:opacity-30"><Minus className="mx-auto h-3 w-3" /></button>
                     <span className="w-8 text-center text-sm font-bold">{Number(item.quantity)}</span>
                     <button disabled={item.status !== "PENDING" || busy} onClick={() => void updateItem(item, Number(item.quantity) + 1)} className="h-7 w-7 rounded border disabled:opacity-30"><Plus className="mx-auto h-3 w-3" /></button>
-                    {item.status !== "CANCELLED" && ((["PENDING", "SENT"].includes(item.status) && canCancelUnprepared) || (!["PENDING", "SENT"].includes(item.status) && canCancelWaste)) && <button disabled={busy} onClick={() => requestCancelItem(item)} title="取消餐點並保留原因" className="ml-auto h-8 rounded-lg border border-rose-200 px-2 text-xs font-bold text-rose-700 hover:bg-rose-50"><Trash2 className="mr-1 inline h-3 w-3" />取消</button>}
+                    {item.status !== "CANCELLED" && ((["PENDING", "SENT"].includes(item.status) && canCancelUnprepared) || (!["PENDING", "SENT"].includes(item.status) && canCancelWaste)) && <button disabled={busy} onClick={() => requestCancelItem(item)} title="取消餐點並保留原因" className="ml-auto h-8 rounded-lg border border-rose-200 px-2 text-xs font-bold text-rose-700 hover:bg-rose-50"><Trash2 className="mr-1 inline h-3 w-3" />{tc("cancel")}</button>}
                   </div>
                 </div>)}
               </div>
@@ -859,6 +866,8 @@ function CancelRestaurantItemDialog({ item, busy, canWaste, onClose, onConfirm }
   onClose: () => void;
   onConfirm: (reason: string, disposition: "NOT_PREPARED" | "WASTE") => Promise<void>;
 }) {
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
   const [reason, setReason] = useState("");
   const [disposition, setDisposition] = useState<"NOT_PREPARED" | "WASTE">("NOT_PREPARED");
   const mustWaste = Boolean(item && !["PENDING", "SENT"].includes(item.status));
@@ -876,7 +885,7 @@ function CancelRestaurantItemDialog({ item, busy, canWaste, onClose, onConfirm }
         <label className="block text-sm font-medium">處理方式<select value={disposition} onChange={(event) => setDisposition(event.target.value as "NOT_PREPARED" | "WASTE")} disabled={mustWaste || busy} className="mt-1 h-10 w-full rounded-lg border bg-background px-3"><option value="NOT_PREPARED">尚未製作／不動庫存</option>{canWaste && <option value="WASTE">已製作報廢／扣庫存並入帳</option>}</select></label>
         {mustWaste && <div className="rounded-xl border border-rose-300 bg-rose-50 p-3 text-sm font-semibold text-rose-900">此餐點已開始製作或已完成，只能登錄為報廢；系統會扣除庫存並建立耗用傳票。</div>}
         <label className="block text-sm font-medium">取消原因（必填）<textarea value={reason} onChange={(event) => setReason(event.target.value)} disabled={busy} placeholder="例如：客人改點、重複測試單、餐點製作錯誤" className="mt-1 min-h-24 w-full rounded-xl border bg-background p-3" /></label>
-        <div className="flex justify-end gap-2"><button onClick={onClose} disabled={busy} className="h-10 rounded-lg border px-4">返回</button><button onClick={() => void onConfirm(reason.trim(), mustWaste ? "WASTE" : disposition)} disabled={busy || reason.trim().length < 2} className="inline-flex h-10 items-center gap-2 rounded-lg bg-rose-600 px-4 font-bold text-white disabled:opacity-40">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}確認取消</button></div>
+        <div className="flex justify-end gap-2"><button onClick={onClose} disabled={busy} className="h-10 rounded-lg border px-4">{tc("back")}</button><button onClick={() => void onConfirm(reason.trim(), mustWaste ? "WASTE" : disposition)} disabled={busy || reason.trim().length < 2} className="inline-flex h-10 items-center gap-2 rounded-lg bg-rose-600 px-4 font-bold text-white disabled:opacity-40">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}確認取消</button></div>
       </div>}
     </DialogContent>
   </Dialog>;
@@ -900,6 +909,8 @@ function RestaurantRefundHistory({ shift, canRefund, onRefunded }: {
   canRefund: boolean;
   onRefunded: () => Promise<void>;
 }) {
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
   const [query, setQuery] = useState("");
   const [sales, setSales] = useState<RecentRestaurantSale[]>([]);
   const [refundSale, setRefundSale] = useState<any>(null);
@@ -968,15 +979,15 @@ function RestaurantRefundHistory({ shift, canRefund, onRefunded }: {
 
   return <section id="restaurant-refunds" className="overflow-hidden rounded-2xl border bg-card shadow-sm">
     <div className="flex flex-col justify-between gap-3 border-b p-4 md:flex-row md:items-center"><div><div className="flex items-center gap-2 font-bold"><ReceiptText className="h-5 w-5" />餐飲歷史交易與退款</div><div className="mt-1 text-xs text-muted-foreground">退款引用原結帳交易並保留歷次紀錄；餐點預設為報廢不回庫，可依實際品況改為良品回庫。</div></div><div className="flex gap-2"><input value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void loadSales(); }} placeholder="交易單號／桌單／客戶" className="h-10 min-w-0 rounded-lg border bg-background px-3 text-sm" /><button onClick={() => void loadSales()} className="h-10 rounded-lg border px-4 text-sm">查詢</button></div></div>
-    <div className="overflow-x-auto"><table className="w-full min-w-[780px] text-sm"><thead className="bg-muted/50 text-xs"><tr><th className="p-3 text-left">交易／桌位</th><th className="p-3 text-left">時間</th><th className="p-3 text-right">原金額</th><th className="p-3 text-right">已退款</th><th className="p-3 text-left">狀態</th><th className="p-3 text-right">操作</th></tr></thead><tbody>{sales.map((sale) => {
+    <div className="overflow-x-auto"><table className="w-full min-w-[780px] text-sm"><thead className="bg-muted/50 text-xs"><tr><th className="p-3 text-left">交易／桌位</th><th className="p-3 text-left">時間</th><th className="p-3 text-right">原金額</th><th className="p-3 text-right">已退款</th><th className="p-3 text-left">{tc("status")}</th><th className="p-3 text-right">{tc("actions")}</th></tr></thead><tbody>{sales.map((sale) => {
       const refundable = ["COMPLETED", "PARTIALLY_REFUNDED"].includes(sale.status) && Number(sale.refundableQuantity ?? 0) > 0;
       return <tr key={sale.id} className="border-t"><td className="p-3"><div className="font-mono text-xs">{sale.number}</div><div className="text-xs text-muted-foreground">{sale.restaurantOrder?.table.name || "餐飲外帶"}・{sale.restaurantOrder?.number}</div></td><td className="p-3">{new Date(sale.createdAt).toLocaleString("zh-TW")}</td><td className="p-3 text-right">{money(Number(sale.total))}</td><td className="p-3 text-right text-rose-700">{money(Number(sale.refundedTotal ?? 0))}</td><td className="p-3">{sale.status === "COMPLETED" ? "已完成" : sale.status === "PARTIALLY_REFUNDED" ? "部分退款" : sale.status === "REFUNDED" ? "已全退" : sale.status}</td><td className="p-3 text-right"><button disabled={!refundable || busy || !canRefund} onClick={() => void openRefund(sale.id)} title={canRefund ? "依原交易退款" : "需要 POS 新增與退貨新增權限"} className="inline-flex h-9 items-center gap-1 rounded-lg border px-3 disabled:opacity-40"><RotateCcw className="h-4 w-4" />退款</button></td></tr>;
     })}{sales.length === 0 && <tr><td colSpan={6} className="p-10 text-center text-muted-foreground">目前沒有餐飲結帳交易</td></tr>}</tbody></table></div>
 
-    {refundSale && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"><div className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-2xl bg-background shadow-2xl"><div className="flex items-start justify-between border-b p-5"><div><div className="text-lg font-bold">餐飲原交易退款・{refundSale.number}</div><div className="mt-1 text-xs text-muted-foreground">退款後會依原付款方式沖現金／銀行並建立銷貨退回傳票</div></div><button onClick={() => setRefundSale(null)} disabled={busy} aria-label="關閉"><X className="h-5 w-5" /></button></div><div className="space-y-4 p-5"><div className="overflow-x-auto rounded-xl border"><table className="w-full min-w-[820px] text-sm"><thead className="bg-muted/50 text-xs"><tr><th className="p-3 text-left">餐點</th><th className="p-3 text-right">原數量</th><th className="p-3 text-right">已退</th><th className="p-3 text-right">可退</th><th className="p-3 text-right">本次</th><th className="p-3 text-left">品況</th></tr></thead><tbody>{refundSale.items.map((item: any) => {
+    {refundSale && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"><div className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-2xl bg-background shadow-2xl"><div className="flex items-start justify-between border-b p-5"><div><div className="text-lg font-bold">餐飲原交易退款・{refundSale.number}</div><div className="mt-1 text-xs text-muted-foreground">退款後會依原付款方式沖現金／銀行並建立銷貨退回傳票</div></div><button onClick={() => setRefundSale(null)} disabled={busy} aria-label={tc("close")}><X className="h-5 w-5" /></button></div><div className="space-y-4 p-5"><div className="overflow-x-auto rounded-xl border"><table className="w-full min-w-[820px] text-sm"><thead className="bg-muted/50 text-xs"><tr><th className="p-3 text-left">餐點</th><th className="p-3 text-right">原數量</th><th className="p-3 text-right">已退</th><th className="p-3 text-right">可退</th><th className="p-3 text-right">本次</th><th className="p-3 text-left">品況</th></tr></thead><tbody>{refundSale.items.map((item: any) => {
       const remaining = Math.max(0, Math.round((Number(item.quantity) - Number(item.returnedQty)) * 10_000) / 10_000);
       return <tr key={item.id} className="border-t"><td className="p-3"><div className="font-medium">{item.product?.name}</div><div className="font-mono text-xs text-muted-foreground">{item.product?.sku}</div></td><td className="p-3 text-right">{Number(item.quantity)}</td><td className="p-3 text-right">{Number(item.returnedQty)}</td><td className="p-3 text-right font-semibold">{remaining}</td><td className="p-3"><input type="number" min="0" max={remaining} step="0.0001" value={refundQty[item.id] ?? 0} onChange={(event) => setRefundQty((current) => ({ ...current, [item.id]: event.target.value }))} disabled={busy || remaining <= 0} className="ml-auto block h-9 w-28 rounded-lg border px-2 text-right" /></td><td className="p-3"><select value={dispositions[item.id] || "SCRAP"} onChange={(event) => setDispositions((current) => ({ ...current, [item.id]: event.target.value as any }))} disabled={busy || remaining <= 0} className="h-9 rounded-lg border bg-background px-2"><option value="SCRAP">已製作報廢／不回庫</option><option value="DAMAGED">瑕疵／不回庫</option><option value="SELLABLE">未拆良品／回可售庫存</option></select></td></tr>;
-    })}</tbody></table></div><label className="block text-sm font-medium">退款原因（必填）<textarea value={reason} onChange={(event) => setReason(event.target.value)} disabled={busy} placeholder="例如：餐點錯誤、客戶退餐" className="mt-1 min-h-20 w-full rounded-xl border p-3" /></label><div className="flex items-center justify-between border-t pt-4"><div><div className="text-xs text-muted-foreground">本次預估退款</div><div className="text-2xl font-black text-rose-700">{money(estimate)}</div></div><div className="flex gap-2"><button onClick={() => setRefundSale(null)} disabled={busy} className="h-11 rounded-xl border px-5">取消</button><button onClick={() => void submitRefund()} disabled={busy || estimate <= 0} className="inline-flex h-11 items-center gap-2 rounded-xl bg-rose-600 px-5 font-bold text-white disabled:opacity-40">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}確認退款</button></div></div></div></div></div>}
+    })}</tbody></table></div><label className="block text-sm font-medium">退款原因（必填）<textarea value={reason} onChange={(event) => setReason(event.target.value)} disabled={busy} placeholder="例如：餐點錯誤、客戶退餐" className="mt-1 min-h-20 w-full rounded-xl border p-3" /></label><div className="flex items-center justify-between border-t pt-4"><div><div className="text-xs text-muted-foreground">本次預估退款</div><div className="text-2xl font-black text-rose-700">{money(estimate)}</div></div><div className="flex gap-2"><button onClick={() => setRefundSale(null)} disabled={busy} className="h-11 rounded-xl border px-5">{tc("cancel")}</button><button onClick={() => void submitRefund()} disabled={busy || estimate <= 0} className="inline-flex h-11 items-center gap-2 rounded-xl bg-rose-600 px-5 font-bold text-white disabled:opacity-40">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}確認退款</button></div></div></div></div></div>}
   </section>;
 }
 type TableForm = { areaId: string; code: string; name: string; seats: number; sortOrder: number };
@@ -988,6 +999,8 @@ function TableManager({ open, onOpenChange, areas, busy, onAction }: {
   busy: boolean;
   onAction: (payload: Record<string, unknown>, success?: string) => Promise<any>;
 }) {
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
   const [editingId, setEditingId] = useState("");
   const [form, setForm] = useState<TableForm>({ areaId: "", code: "", name: "", seats: 4, sortOrder: 1 });
   const allTables = areas.flatMap((area) => area.tables);
@@ -1087,6 +1100,8 @@ function KitchenBoard({ tickets, busy, history, canCancelUnprepared, canCancelWa
   cancel: (item: OrderItem) => void;
   update: (itemId: string, status: "PREPARING" | "READY" | "SERVED") => Promise<any>;
 }) {
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
   const [pendingItemId, setPendingItemId] = useState("");
   const [optimisticStatuses, setOptimisticStatuses] = useState<Record<string, string>>({});
   const [feedback, setFeedback] = useState<{ tone: "progress" | "success" | "error"; text: string } | null>(null);
@@ -1145,7 +1160,7 @@ function KitchenBoard({ tickets, busy, history, canCancelUnprepared, canCancelWa
         <div className="mt-3 grid grid-cols-2 gap-2 rounded-xl border bg-white/80 p-3 text-xs">
           <div><span className="text-muted-foreground">送廚</span><strong className="ml-2">{clock(ticket.sentAt)}</strong></div>
           <div><span className="text-muted-foreground">開始</span><strong className="ml-2">{clock(ticket.startedAt)}</strong></div>
-          <div><span className="text-muted-foreground">完成</span><strong className="ml-2">{clock(ticket.readyAt)}</strong></div>
+          <div><span className="text-muted-foreground">{f("completed")}</span><strong className="ml-2">{clock(ticket.readyAt)}</strong></div>
           <div><span className="text-muted-foreground">出餐</span><strong className="ml-2">{clock(ticket.servedAt)}</strong></div>
           <div className="col-span-2 border-t pt-2"><span className="text-muted-foreground">目前總耗時</span><strong className="ml-2 text-sm">{duration(ticket.sentAt, ticket.servedAt)}</strong>{ticket.startedAt && ticket.readyAt && <span className="ml-3 text-muted-foreground">製作 {duration(ticket.startedAt, ticket.readyAt)}</span>}</div>
         </div>
@@ -1161,7 +1176,7 @@ function KitchenBoard({ tickets, busy, history, canCancelUnprepared, canCancelWa
               {!history && orderItem.status === "SENT" && <button disabled={busy || processing} onClick={() => void changeStatus(ticket, orderItem, "PREPARING")} className="h-12 flex-1 rounded-xl bg-orange-500 px-3 text-sm font-black text-white shadow-lg shadow-orange-200 disabled:opacity-50">{processing ? "處理中…" : "▶ 開始製作"}</button>}
               {!history && ["SENT", "PREPARING"].includes(orderItem.status) && <button disabled={busy || processing} onClick={() => void changeStatus(ticket, orderItem, "READY")} className="h-12 flex-1 rounded-xl bg-emerald-600 px-3 text-sm font-black text-white shadow-lg shadow-emerald-200 disabled:opacity-50">{processing ? "處理中…" : "✓ 完成待出"}</button>}
               {!history && orderItem.status === "READY" && <button disabled={busy || processing} onClick={() => void changeStatus(ticket, orderItem, "SERVED")} className="h-12 flex-1 rounded-xl bg-indigo-600 px-3 text-sm font-black text-white shadow-lg shadow-indigo-200 disabled:opacity-50">{processing ? "處理中…" : "↗ 確認已出餐"}</button>}
-              {!history && ((orderItem.status === "SENT" && canCancelUnprepared) || (["PREPARING", "READY"].includes(orderItem.status) && canCancelWaste)) && <button disabled={busy || processing} onClick={() => cancel(orderItem)} className="h-12 rounded-xl border-2 border-rose-300 bg-white px-3 text-sm font-black text-rose-700 disabled:opacity-50"><Trash2 className="mr-1 inline h-4 w-4" />取消</button>}
+              {!history && ((orderItem.status === "SENT" && canCancelUnprepared) || (["PREPARING", "READY"].includes(orderItem.status) && canCancelWaste)) && <button disabled={busy || processing} onClick={() => cancel(orderItem)} className="h-12 rounded-xl border-2 border-rose-300 bg-white px-3 text-sm font-black text-rose-700 disabled:opacity-50"><Trash2 className="mr-1 inline h-4 w-4" />{tc("cancel")}</button>}
               {orderItem.status === "SERVED" && <div className="flex h-12 flex-1 items-center justify-center rounded-xl border-2 border-indigo-400 bg-indigo-100 text-sm font-black text-indigo-900">✓ 已出餐完成</div>}
               {orderItem.status === "CANCELLED" && <div className="flex h-12 flex-1 items-center justify-center rounded-xl border-2 border-rose-300 bg-rose-100 text-sm font-black text-rose-900">✕ 已取消並封存</div>}
             </div>

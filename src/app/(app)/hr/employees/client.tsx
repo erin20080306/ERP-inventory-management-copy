@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { formatMoney } from "@/lib/utils";
+import { useTranslations } from "next-intl";
 
 const STATUS_LABELS: Record<string, string> = {
   ACTIVE: "在職", PROBATION: "試用期", ON_LEAVE: "留停", RESIGNED: "離職", RETIRED: "退休",
@@ -16,6 +17,8 @@ const STATUS_VARIANTS: Record<string, any> = {
 };
 
 function EmployeeDialog({ open, onClose, row, onSaved }: any) {
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
   const [form, setForm] = useState<any>({});
   const [depts, setDepts] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
@@ -51,8 +54,8 @@ function EmployeeDialog({ open, onClose, row, onSaved }: any) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
-      if (!res.ok) throw new Error((await res.json()).error || "儲存失敗");
-      toast.success("已儲存"); onSaved(); onClose();
+      if (!res.ok) throw new Error((await res.json()).error || tc("saveFailed"));
+      toast.success(tc("saved")); onSaved(); onClose();
     } catch (e: any) { toast.error(e.message); } finally { setSaving(false); }
   }
 
@@ -74,13 +77,13 @@ function EmployeeDialog({ open, onClose, row, onSaved }: any) {
                 <option value="">未設定</option>
                 <option value="MALE">男</option>
                 <option value="FEMALE">女</option>
-                <option value="OTHER">其他</option>
+                <option value="OTHER">{f("other")}</option>
               </select>
             </div>
             <div><Label>出生日期</Label><Input type="date" value={form.birthDate ?? ""} onChange={(e) => setForm({ ...form, birthDate: e.target.value })} /></div>
-            <div><Label>電話</Label><Input value={form.phone ?? ""} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
+            <div><Label>{f("phone")}</Label><Input value={form.phone ?? ""} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
             <div><Label>Email</Label><Input type="email" value={form.email ?? ""} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
-            <div className="col-span-2"><Label>地址</Label><Input value={form.address ?? ""} onChange={(e) => setForm({ ...form, address: e.target.value })} /></div>
+            <div className="col-span-2"><Label>{f("address")}</Label><Input value={form.address ?? ""} onChange={(e) => setForm({ ...form, address: e.target.value })} /></div>
             <div><Label>緊急聯絡人</Label><Input value={form.emergencyContact ?? ""} onChange={(e) => setForm({ ...form, emergencyContact: e.target.value })} /></div>
             <div><Label>緊急聯絡電話</Label><Input value={form.emergencyPhone ?? ""} onChange={(e) => setForm({ ...form, emergencyPhone: e.target.value })} /></div>
           </div>
@@ -89,9 +92,9 @@ function EmployeeDialog({ open, onClose, row, onSaved }: any) {
           <div className="text-sm font-semibold border-l-2 border-primary pl-2 mt-4">任職資訊</div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label>部門</Label>
+              <Label>{f("department")}</Label>
               <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={form.departmentId ?? ""} onChange={(e) => setForm({ ...form, departmentId: e.target.value || null })}>
-                <option value="">未指定</option>
+                <option value="">{f("unspecified")}</option>
                 {depts.map((d) => <option key={d.id} value={d.id}>{d.code} {d.name}</option>)}
               </select>
             </div>
@@ -99,7 +102,7 @@ function EmployeeDialog({ open, onClose, row, onSaved }: any) {
             <div><Label>到職日 *</Label><Input type="date" value={form.hireDate ?? ""} onChange={(e) => setForm({ ...form, hireDate: e.target.value })} /></div>
             <div><Label>離職日</Label><Input type="date" value={form.resignDate ?? ""} onChange={(e) => setForm({ ...form, resignDate: e.target.value })} /></div>
             <div className="col-span-2">
-              <Label>狀態</Label>
+              <Label>{tc("status")}</Label>
               <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={form.status ?? "ACTIVE"} onChange={(e) => setForm({ ...form, status: e.target.value })}>
                 <option value="ACTIVE">在職</option>
                 <option value="PROBATION">試用期</option>
@@ -113,7 +116,7 @@ function EmployeeDialog({ open, onClose, row, onSaved }: any) {
           {/* 薪資設定 */}
           <div className="text-sm font-semibold border-l-2 border-primary pl-2 mt-4">薪資設定</div>
           <div className="grid grid-cols-2 gap-3">
-            <div><Label>本薪</Label><Input type="number" step="1" value={form.baseSalary ?? 0} onChange={(e) => setForm({ ...form, baseSalary: e.target.value })} /></div>
+            <div><Label>{f("baseSalary")}</Label><Input type="number" step="1" value={form.baseSalary ?? 0} onChange={(e) => setForm({ ...form, baseSalary: e.target.value })} /></div>
             <div><Label>伙食津貼 (免稅 2400)</Label><Input type="number" step="1" value={form.mealAllowance ?? 2400} onChange={(e) => setForm({ ...form, mealAllowance: e.target.value })} /></div>
             <div><Label>交通津貼</Label><Input type="number" step="1" value={form.transportAllowance ?? 0} onChange={(e) => setForm({ ...form, transportAllowance: e.target.value })} /></div>
             <div><Label>職務加給</Label><Input type="number" step="1" value={form.positionAllowance ?? 0} onChange={(e) => setForm({ ...form, positionAllowance: e.target.value })} /></div>
@@ -128,12 +131,12 @@ function EmployeeDialog({ open, onClose, row, onSaved }: any) {
           <div className="grid grid-cols-2 gap-3">
             <div><Label>銀行名稱</Label><Input value={form.bankName ?? ""} onChange={(e) => setForm({ ...form, bankName: e.target.value })} /></div>
             <div><Label>銀行帳號</Label><Input value={form.bankAccountNo ?? ""} onChange={(e) => setForm({ ...form, bankAccountNo: e.target.value })} /></div>
-            <div className="col-span-2"><Label>備註</Label><Input value={form.remark ?? ""} onChange={(e) => setForm({ ...form, remark: e.target.value })} /></div>
+            <div className="col-span-2"><Label>{tc("remark")}</Label><Input value={form.remark ?? ""} onChange={(e) => setForm({ ...form, remark: e.target.value })} /></div>
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>取消</Button>
-          <Button onClick={save} disabled={saving}>{saving ? "儲存中..." : "儲存"}</Button>
+          <Button variant="outline" onClick={onClose}>{tc("cancel")}</Button>
+          <Button onClick={save} disabled={saving}>{saving ? "儲存中..." : tc("save")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -141,6 +144,8 @@ function EmployeeDialog({ open, onClose, row, onSaved }: any) {
 }
 
 export function EmployeesClient() {
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
   return (
     <CrudTable<any>
       endpoint="/api/hr/employees"
@@ -165,15 +170,15 @@ export function EmployeesClient() {
       })}
       inlineEdit={true}
       columns={[
-        { key: "employeeNo", title: "員工編號", render: (r: any) => <span className="font-mono text-xs">{r.employeeNo}</span>, editable: { type: "text" } },
-        { key: "name", title: "姓名", editable: { type: "text" } },
-        { key: "department", title: "部門", render: (r: any) => r.department?.name ?? "—" },
+        { key: "employeeNo", title: f("employeeNo"), render: (r: any) => <span className="font-mono text-xs">{r.employeeNo}</span>, editable: { type: "text" } },
+        { key: "name", title: f("fullName"), editable: { type: "text" } },
+        { key: "department", title: f("department"), render: (r: any) => r.department?.name ?? "—" },
         { key: "position", title: "職稱", editable: { type: "text" } },
-        { key: "phone", title: "電話", editable: { type: "text" } },
-        { key: "baseSalary", title: "本薪", render: (r: any) => formatMoney(r.baseSalary), editable: { type: "number" } },
+        { key: "phone", title: f("phone"), editable: { type: "text" } },
+        { key: "baseSalary", title: f("baseSalary"), render: (r: any) => formatMoney(r.baseSalary), editable: { type: "number" } },
         { key: "hireDate", title: "到職日", render: (r: any) => r.hireDate?.slice(0, 10) ?? "—" },
-        { key: "status", title: "狀態", csv: (r: any) => STATUS_LABELS[r.status] ?? r.status, render: (r: any) => <Badge variant={STATUS_VARIANTS[r.status]}>{STATUS_LABELS[r.status] ?? r.status}</Badge> },
-        { key: "updatedBy", title: "操作人員", render: (r: any) => <span className="text-xs text-gray-500">{r.updatedBy || "-"}</span> },
+        { key: "status", title: tc("status"), csv: (r: any) => STATUS_LABELS[r.status] ?? r.status, render: (r: any) => <Badge variant={STATUS_VARIANTS[r.status]}>{STATUS_LABELS[r.status] ?? r.status}</Badge> },
+        { key: "updatedBy", title: f("updatedBy"), render: (r: any) => <span className="text-xs text-gray-500">{r.updatedBy || "-"}</span> },
       ]}
     />
   );

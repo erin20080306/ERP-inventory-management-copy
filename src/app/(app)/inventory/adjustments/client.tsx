@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { Plus, Loader2, Trash2, Search, Download, FileDown, Printer } from "lucide-react";
 import { formatDate, formatMoney, formatNumber } from "@/lib/utils";
 import { downloadCSV, toCSV } from "@/lib/csv";
+import { useTranslations } from "next-intl";
 
 type Adjustment = {
   id: string;
@@ -28,6 +29,9 @@ type Adjustment = {
 };
 
 function AdjustmentDialog({ open, onClose, onSaved }: any) {
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
+  const tt = useTranslations("table");
   const [form, setForm] = useState<any>({ warehouseId: "", reason: "", status: "DRAFT", items: [] });
   const [warehouses, setWarehouses] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
@@ -82,8 +86,8 @@ function AdjustmentDialog({ open, onClose, onSaved }: any) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
-      if (!res.ok) throw new Error((await res.json()).error || "儲存失敗");
-      toast.success("已儲存");
+      if (!res.ok) throw new Error((await res.json()).error || tc("saveFailed"));
+      toast.success(tc("saved"));
       onSaved();
       onClose();
     } catch (e: any) {
@@ -107,14 +111,14 @@ function AdjustmentDialog({ open, onClose, onSaved }: any) {
               <div className="space-y-1">
                 <Label>倉庫 *</Label>
                 <select value={form.warehouseId} onChange={(e) => setForm({ ...form, warehouseId: e.target.value })} className="w-full px-3 py-2 border rounded">
-                  <option value="">請選擇</option>
+                  <option value="">{f("selectPlaceholder")}</option>
                   {warehouses.map((w: any) => <option key={w.id} value={w.id}>{w.name}</option>)}
                 </select>
               </div>
               <div className="space-y-1">
-                <Label>狀態</Label>
+                <Label>{tc("status")}</Label>
                 <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className="w-full px-3 py-2 border rounded">
-                  <option value="DRAFT">草稿</option>
+                  <option value="DRAFT">{f("draft")}</option>
                   <option value="APPROVED">確認（自動切傳票）</option>
                 </select>
               </div>
@@ -127,16 +131,16 @@ function AdjustmentDialog({ open, onClose, onSaved }: any) {
             <div>
               <div className="flex justify-between items-center mb-2">
                 <Label>商品明細</Label>
-                <Button size="sm" onClick={addItem}><Plus className="h-4 w-4 mr-1" />新增</Button>
+                <Button size="sm" onClick={addItem}><Plus className="h-4 w-4 mr-1" />{tc("create")}</Button>
               </div>
               <Table>
                 <THead>
                   <TR>
-                    <TH>商品</TH>
+                    <TH>{f("product")}</TH>
                     <TH>系統數量</TH>
                     <TH>實際數量</TH>
                     <TH>差異</TH>
-                    <TH>備註</TH>
+                    <TH>{tc("remark")}</TH>
                     <TH></TH>
                   </TR>
                 </THead>
@@ -145,7 +149,7 @@ function AdjustmentDialog({ open, onClose, onSaved }: any) {
                     <TR key={idx}>
                       <TD>
                         <select value={item.productId} onChange={(e) => updateItem(idx, "productId", e.target.value)} className="w-full px-2 py-1 border rounded">
-                          <option value="">請選擇</option>
+                          <option value="">{f("selectPlaceholder")}</option>
                           {products.map((p: any) => <option key={p.id} value={p.id}>{p.sku} - {p.name}</option>)}
                         </select>
                       </TD>
@@ -171,8 +175,8 @@ function AdjustmentDialog({ open, onClose, onSaved }: any) {
             </div>
 
             <DialogFooter>
-              <Button variant="outline" onClick={onClose}>取消</Button>
-              <Button onClick={save} disabled={saving}>{saving ? "儲存中..." : "儲存"}</Button>
+              <Button variant="outline" onClick={onClose}>{tc("cancel")}</Button>
+              <Button onClick={save} disabled={saving}>{saving ? "儲存中..." : tc("save")}</Button>
             </DialogFooter>
           </div>
         )}
@@ -182,6 +186,9 @@ function AdjustmentDialog({ open, onClose, onSaved }: any) {
 }
 
 export default function AdjustmentClient() {
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
+  const tt = useTranslations("table");
   const [items, setItems] = useState<Adjustment[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -218,14 +225,14 @@ export default function AdjustmentClient() {
     const res = await fetch(`/api/inventory/adjustments?${params.toString()}`);
     const d = await res.json();
     const csv = toCSV(d.items, [
-      { key: "number", title: "單號" },
-      { key: "warehouse", title: "倉庫", get: (r: any) => r.warehouse?.name ?? "" },
-      { key: "reason", title: "原因" },
-      { key: "status", title: "狀態" },
-      { key: "createdAt", title: "日期", get: (r: any) => formatDate(r.createdAt) },
+      { key: "number", title: f("docNo") },
+      { key: "warehouse", title: f("warehouse"), get: (r: any) => r.warehouse?.name ?? "" },
+      { key: "reason", title: f("reason") },
+      { key: "status", title: tc("status") },
+      { key: "createdAt", title: tc("date"), get: (r: any) => formatDate(r.createdAt) },
     ]);
     downloadCSV(`adjustments-${new Date().toISOString().slice(0, 10)}.csv`, csv);
-    toast.success("已匯出 CSV");
+    toast.success(tt("exportedCsv"));
   }
 
   async function exportExcel() {
@@ -236,13 +243,13 @@ export default function AdjustmentClient() {
     const d = await res.json();
     const { downloadExcel } = await import("@/lib/excel");
     downloadExcel("adjustments", "盤點調整", d.items, [
-      { key: "number", title: "單號" },
-      { key: "warehouse", title: "倉庫", get: (r: any) => r.warehouse?.name ?? "" },
-      { key: "reason", title: "原因" },
-      { key: "status", title: "狀態" },
-      { key: "createdAt", title: "日期", get: (r: any) => formatDate(r.createdAt) },
+      { key: "number", title: f("docNo") },
+      { key: "warehouse", title: f("warehouse"), get: (r: any) => r.warehouse?.name ?? "" },
+      { key: "reason", title: f("reason") },
+      { key: "status", title: tc("status") },
+      { key: "createdAt", title: tc("date"), get: (r: any) => formatDate(r.createdAt) },
     ]);
-    toast.success("已匯出 Excel");
+    toast.success(tt("exportedExcel"));
   }
 
   async function exportPDF() {
@@ -280,7 +287,7 @@ export default function AdjustmentClient() {
         <div className="overflow-x-auto">
           <Table>
           <THead>
-            <TR><TH>單號</TH><TH>倉庫</TH><TH>原因</TH><TH>狀態</TH><TH>日期</TH></TR>
+            <TR><TH>{f("docNo")}</TH><TH>{f("warehouse")}</TH><TH>{f("reason")}</TH><TH>{tc("status")}</TH><TH>{tc("date")}</TH></TR>
           </THead>
           <TBody>
             {items.map((adj) => (
@@ -299,9 +306,9 @@ export default function AdjustmentClient() {
 
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-2 py-2">
-          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>上一頁</Button>
+          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>{tt("prevPage")}</Button>
           <span className="text-sm">{page} / {totalPages}</span>
-          <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>下一頁</Button>
+          <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>{tt("nextPage")}</Button>
         </div>
       )}
 

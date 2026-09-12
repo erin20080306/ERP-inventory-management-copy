@@ -9,11 +9,16 @@ import { EmptyState } from "@/components/layout/page-shell";
 import { toast } from "sonner";
 import { Loader2, FileSpreadsheet, Printer, Download } from "lucide-react";
 import { formatMoney, formatDate } from "@/lib/utils";
+import { useTranslations } from "next-intl";
 
-const STATUS_LABELS: Record<string, string> = { DRAFT: "草稿", APPROVED: "已確認", POSTED: "已發放", VOIDED: "作廢" };
+// 值是 fields 命名空間的鍵；資料庫存的仍是 DRAFT／POSTED 等代碼。
+const STATUS_LABEL_KEYS: Record<string, string> = { DRAFT: "draft", APPROVED: "payrollApproved", POSTED: "payrollPosted", VOIDED: "voided" };
 const STATUS_VARIANTS: Record<string, any> = { DRAFT: "info", APPROVED: "warning", POSTED: "success", VOIDED: "danger" };
 
 export function PayrollSummaryClient() {
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
+  const tt = useTranslations("table");
   const [periods, setPeriods] = useState<any[]>([]);
   const [selectedPeriod, setSelectedPeriod] = useState<any>(null);
   const [payrolls, setPayrolls] = useState<any[]>([]);
@@ -50,22 +55,22 @@ export function PayrollSummaryClient() {
       "每月薪資發放明細總表",
       payrolls,
       [
-        { key: "number", title: "單號" },
-        { key: "employeeNo", title: "員工編號", get: (r: any) => r.employee.employeeNo },
-        { key: "name", title: "姓名", get: (r: any) => r.employee.name },
-        { key: "department", title: "部門", get: (r: any) => r.employee.department?.name ?? "" },
+        { key: "number", title: f("docNo") },
+        { key: "employeeNo", title: f("employeeNo"), get: (r: any) => r.employee.employeeNo },
+        { key: "name", title: f("fullName"), get: (r: any) => r.employee.name },
+        { key: "department", title: f("department"), get: (r: any) => r.employee.department?.name ?? "" },
         { key: "position", title: "職稱", get: (r: any) => r.employee.position ?? "" },
         { key: "workDays", title: "工作天數", get: (r: any) => Number(r.workDays) },
         { key: "overtimeHours", title: "加班時數", get: (r: any) => Number(r.overtimeHours) },
-        { key: "earnings", title: "應發合計", get: (r: any) => Number(r.earnings) },
-        { key: "deductions", title: "應扣合計", get: (r: any) => Number(r.deductions) },
+        { key: "earnings", title: f("grossPay"), get: (r: any) => Number(r.earnings) },
+        { key: "deductions", title: f("totalDeductions"), get: (r: any) => Number(r.deductions) },
         { key: "netPay", title: "實領金額", get: (r: any) => Number(r.netPay) },
-        { key: "employerCost", title: "雇主負擔", get: (r: any) => Number(r.employerCost) },
-        { key: "status", title: "狀態", get: (r: any) => STATUS_LABELS[r.status] ?? r.status },
+        { key: "employerCost", title: f("employerCost"), get: (r: any) => Number(r.employerCost) },
+        { key: "status", title: tc("status"), get: (r: any) => f(STATUS_LABEL_KEYS[r.status]) ?? r.status },
         { key: "paidAt", title: "發放日期", get: (r: any) => r.paidAt ? formatDate(r.paidAt) : "" },
       ]
     );
-    toast.success("已匯出 Excel");
+    toast.success(tt("exportedExcel"));
   }
 
   const summary = {
@@ -142,13 +147,13 @@ export function PayrollSummaryClient() {
             </Card>
             <Card>
               <CardContent className="pt-4">
-                <div className="text-xs text-muted-foreground">應發合計</div>
+                <div className="text-xs text-muted-foreground">{f("grossPay")}</div>
                 <div className="text-xl font-bold">{formatMoney(summary.totalEarnings)}</div>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="pt-4">
-                <div className="text-xs text-muted-foreground">應扣合計</div>
+                <div className="text-xs text-muted-foreground">{f("totalDeductions")}</div>
                 <div className="text-xl font-bold text-red-600">
                   {formatMoney(summary.totalDeductions)}
                 </div>
@@ -164,7 +169,7 @@ export function PayrollSummaryClient() {
             </Card>
             <Card>
               <CardContent className="pt-4">
-                <div className="text-xs text-muted-foreground">雇主負擔</div>
+                <div className="text-xs text-muted-foreground">{f("employerCost")}</div>
                 <div className="text-xl font-bold text-amber-600">
                   {formatMoney(summary.totalEmployerCost)}
                 </div>
@@ -201,7 +206,7 @@ export function PayrollSummaryClient() {
                 {selectedPeriod.year}/{String(selectedPeriod.month).padStart(2, "0")}
               </span>
               <Badge variant={STATUS_VARIANTS[selectedPeriod.status]}>
-                {STATUS_LABELS[selectedPeriod.status]}
+                {f(STATUS_LABEL_KEYS[selectedPeriod.status])}
               </Badge>
               {selectedPeriod.payDate && (
                 <span className="text-muted-foreground">
@@ -211,10 +216,10 @@ export function PayrollSummaryClient() {
             </div>
             <div className="flex items-center gap-2 flex-wrap">
               <Button variant="outline" onClick={exportSummary}>
-                <FileSpreadsheet className="h-4 w-4" />匯出 Excel
+                <FileSpreadsheet className="h-4 w-4" />{tt("exportExcel")}
               </Button>
               <Button variant="outline" onClick={() => window.print()}>
-                <Printer className="h-4 w-4" />列印
+                <Printer className="h-4 w-4" />{tc("print")}
               </Button>
             </div>
           </div>
@@ -223,18 +228,18 @@ export function PayrollSummaryClient() {
           <Table>
             <THead>
               <TR>
-                <TH>單號</TH>
-                <TH>員工編號</TH>
-                <TH>姓名</TH>
-                <TH>部門</TH>
+                <TH>{f("docNo")}</TH>
+                <TH>{f("employeeNo")}</TH>
+                <TH>{f("fullName")}</TH>
+                <TH>{f("department")}</TH>
                 <TH>職稱</TH>
                 <TH className="text-right">工作天數</TH>
                 <TH className="text-right">加班時數</TH>
-                <TH className="text-right">應發合計</TH>
-                <TH className="text-right">應扣合計</TH>
+                <TH className="text-right">{f("grossPay")}</TH>
+                <TH className="text-right">{f("totalDeductions")}</TH>
                 <TH className="text-right">實領金額</TH>
-                <TH className="text-right">雇主負擔</TH>
-                <TH>狀態</TH>
+                <TH className="text-right">{f("employerCost")}</TH>
+                <TH>{tc("status")}</TH>
                 <TH>發放日期</TH>
               </TR>
             </THead>
@@ -277,7 +282,7 @@ export function PayrollSummaryClient() {
                     </TD>
                     <TD>
                       <Badge variant={STATUS_VARIANTS[p.status]}>
-                        {STATUS_LABELS[p.status]}
+                        {f(STATUS_LABEL_KEYS[p.status])}
                       </Badge>
                     </TD>
                     <TD className="text-muted-foreground text-xs">
