@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { renderZh } from "./i18n-source-render";
 import { readFileSync } from "node:fs";
 import {
   computeSuggestedDepreciation,
@@ -44,7 +45,7 @@ assert.equal(preferredAccumulatedAccountCode({ accountCode: null, category: "運
 const api = readFileSync("src/app/api/accounting/fixed-assets/depreciation/route.ts", "utf8");
 const assetApi = readFileSync("src/app/api/accounting/fixed-assets/[id]/route.ts", "utf8");
 const journalApi = readFileSync("src/app/api/accounting/journals/[id]/route.ts", "utf8");
-const client = readFileSync("src/app/(app)/accounting/fixed-assets/client.tsx", "utf8");
+const client = renderZh(readFileSync("src/app/(app)/accounting/fixed-assets/client.tsx", "utf8"));
 const balanceSheet = readFileSync("src/app/print/balance-sheet/page.tsx", "utf8");
 
 assert.match(api, /pg_advisory_xact_lock/);
