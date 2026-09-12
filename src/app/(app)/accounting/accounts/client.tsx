@@ -18,8 +18,8 @@ const typeVariant: Record<string, any> = { ASSET: "info", LIABILITY: "warning", 
 
 function AccountDialog({ open, onClose, row, onSaved }: any) {
   const f = useTranslations("fields");
-  const tc = useTranslations("common");
   const tt = useTranslations("table");
+  const tc = useTranslations("common");
   const [form, setForm] = useState<any>({ code: "", name: "", type: "ASSET", openingBalance: 0, isActive: true });
   useEffect(() => {
     setForm(row ?? { code: "", name: "", type: "ASSET", openingBalance: 0, isActive: true });
@@ -62,8 +62,6 @@ function AccountDialog({ open, onClose, row, onSaved }: any) {
 }
 
 function ImportBar({ onImported }: { onImported: () => void }) {
-  const f = useTranslations("fields");
-  const tc = useTranslations("common");
   const tt = useTranslations("table");
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
@@ -119,9 +117,8 @@ function ImportBar({ onImported }: { onImported: () => void }) {
 }
 
 export function AccountClient() {
-  const f = useTranslations("fields");
-  const tc = useTranslations("common");
   const tt = useTranslations("table");
+  const f = useTranslations("fields");
   const t = useTranslations("accounts");
   const locale = useLocale();
   const typeText = (type: string) => {

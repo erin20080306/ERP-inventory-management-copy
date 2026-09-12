@@ -41,10 +41,6 @@ const LABEL_SIZES = {
 type LabelSize = keyof typeof LABEL_SIZES;
 
 function escapeHtml(value: unknown) {
-  const m = useTranslations("products");
-  const f = useTranslations("fields");
-  const tc = useTranslations("common");
-  const tt = useTranslations("table");
   const tPage = useTranslations("pages");
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -56,9 +52,6 @@ function escapeHtml(value: unknown) {
 
 function BarcodePreview({ value }: { value: string }) {
   const m = useTranslations("products");
-  const f = useTranslations("fields");
-  const tc = useTranslations("common");
-  const tt = useTranslations("table");
   const tPage = useTranslations("pages");
   try {
     return (
@@ -73,11 +66,10 @@ function BarcodePreview({ value }: { value: string }) {
 }
 
 function ProductDialog({ open, onClose, row, onSaved, isCommerce = false }: any) {
+  const tPage = useTranslations("pages");
   const m = useTranslations("products");
   const f = useTranslations("fields");
   const tc = useTranslations("common");
-  const tt = useTranslations("table");
-  const tPage = useTranslations("pages");
   const [form, setForm] = useState<any>({});
   const [saving, setSaving] = useState(false);
   const [autofillHint, setAutofillHint] = useState<string | null>(null);
@@ -306,11 +298,10 @@ function ProductDialog({ open, onClose, row, onSaved, isCommerce = false }: any)
 }
 
 export function ProductClient({ isCommerce = false }: { isCommerce?: boolean }) {
+  const tPage = useTranslations("pages");
   const m = useTranslations("products");
   const f = useTranslations("fields");
   const tc = useTranslations("common");
-  const tt = useTranslations("table");
-  const tPage = useTranslations("pages");
   const [publicationRevision, setPublicationRevision] = useState(0);
   const [enlargedImage, setEnlargedImage] = useState<string | null>(null);
   const [barcodeProduct, setBarcodeProduct] = useState<Product | null>(null);

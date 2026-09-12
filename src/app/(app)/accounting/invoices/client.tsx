@@ -350,7 +350,6 @@ export function InvoiceClient() {
 function NewInvoiceDialog({ open, onClose, onCreated, row, onSaved }: any) {
   const f = useTranslations("fields");
   const tc = useTranslations("common");
-  const tt = useTranslations("table");
   const [type, setType] = useState<"SALES" | "PURCHASE">("SALES");
   const [parties, setParties] = useState<any[]>([]);
   const [partyId, setPartyId] = useState("");
@@ -491,7 +490,6 @@ function NewInvoiceDialog({ open, onClose, onCreated, row, onSaved }: any) {
 function FromOrderDialog({ kind, open, onClose, onDone }: any) {
   const f = useTranslations("fields");
   const tc = useTranslations("common");
-  const tt = useTranslations("table");
   const [orders, setOrders] = useState<any[]>([]);
   const [id, setId] = useState("");
   const [saving, setSaving] = useState(false);

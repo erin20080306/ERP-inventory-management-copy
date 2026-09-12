@@ -144,8 +144,8 @@ function EmployeeDialog({ open, onClose, row, onSaved }: any) {
 }
 
 export function EmployeesClient() {
-  const f = useTranslations("fields");
   const tc = useTranslations("common");
+  const f = useTranslations("fields");
   return (
     <CrudTable<any>
       endpoint="/api/hr/employees"

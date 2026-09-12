@@ -224,7 +224,6 @@ export function PayrollClient() {
 function NewPeriodDialog({ onClose, onCreated }: any) {
   const f = useTranslations("fields");
   const tc = useTranslations("common");
-  const tt = useTranslations("table");
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
@@ -284,7 +283,6 @@ function NewPeriodDialog({ onClose, onCreated }: any) {
 function PayrollDetailDialog({ id, onClose, onChanged }: any) {
   const f = useTranslations("fields");
   const tc = useTranslations("common");
-  const tt = useTranslations("table");
   const [data, setData] = useState<any>(null);
   const [extra, setExtra] = useState({ overtimePay: 0, bonus: 0, leaveDeduction: 0, otherDeductions: 0 });
   const [saving, setSaving] = useState(false);

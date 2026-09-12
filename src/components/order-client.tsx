@@ -18,9 +18,8 @@ import { hasPermission } from "@/lib/permissions";
 import { useTranslations } from "next-intl";
 
 function PDFOrderBtn({ kind }: { kind: string }) {
-  const [busy, setBusy] = useState(false);
-  const t = useTranslations("order");
   const tPage = useTranslations("pages");
+  const [busy, setBusy] = useState(false);
   const title = tPage(kind === "purchase" ? "purchases.title" : "sales.title");
   return (
     <Button variant="outline" disabled={busy} onClick={async () => {
@@ -653,7 +652,6 @@ function CreateOrderDialog({ kind, open, onClose, onCreated }: { kind: Kind; ope
   const o = useTranslations("order");
   const f = useTranslations("fields");
   const tc = useTranslations("common");
-  const tt = useTranslations("table");
   const [parties, setParties] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
   const [partyId, setPartyId] = useState("");
@@ -971,7 +969,6 @@ function ViewOrderDialog({ kind, id, canApprove, canReject, canPost, canVoid, on
   const o = useTranslations("order");
   const f = useTranslations("fields");
   const tc = useTranslations("common");
-  const tt = useTranslations("table");
   const [data, setData] = useState<any>(null);
   const [warehouseId, setWarehouseId] = useState("");
   const [warehouses, setWarehouses] = useState<any[]>([]);
@@ -1320,7 +1317,6 @@ function EditOrderDialog({ kind, id, onClose, onSaved }: { kind: Kind; id: strin
   const o = useTranslations("order");
   const f = useTranslations("fields");
   const tc = useTranslations("common");
-  const tt = useTranslations("table");
   const endpoint = kind === "purchase" ? "/api/purchases" : "/api/sales";
   const partyLabel = kind === "purchase" ? f("supplier") : f("customer");
   const [parties, setParties] = useState<any[]>([]);

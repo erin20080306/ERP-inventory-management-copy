@@ -213,14 +213,11 @@ type UpdateModel = {
 };
 
 function displayVersion(value?: string | null) {
-  const f = useTranslations("fields");
-  const tc = useTranslations("common");
   if (!value) return "—";
   return /^[a-f0-9]{12,}$/i.test(value) ? value.slice(0, 12) : value;
 }
 
 function UpdateCenterCard() {
-  const f = useTranslations("fields");
   const tc = useTranslations("common");
   const [model, setModel] = useState<UpdateModel | null>(null);
   const [checking, setChecking] = useState(true);
@@ -437,7 +434,6 @@ function PosRegisterCard({ medicalEnabled = true }: { medicalEnabled?: boolean }
 }
 
 function BackupCard() {
-  const f = useTranslations("fields");
   const tc = useTranslations("common");
   type BackupFile = { name: string; size: number; createdAt: string; sha256: string | null };
   const [backing, setBacking] = useState(false);

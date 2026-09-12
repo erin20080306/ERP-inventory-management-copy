@@ -146,9 +146,6 @@ const MEDICAL_BOOTSTRAP_CACHE_PREFIX = "erin-medical-pos-bootstrap-v3";
 const MEDICAL_BOOTSTRAP_CACHE_TTL_MS = 15_000;
 
 function medicalBootstrapCacheKey(tenantCacheKey: string) {
-  const f = useTranslations("fields");
-  const tc = useTranslations("common");
-  const md = useTranslations("medical");
   return `${MEDICAL_BOOTSTRAP_CACHE_PREFIX}:${tenantCacheKey}`;
 }
 
@@ -165,9 +162,6 @@ function readMedicalBootstrapCache(tenantCacheKey: string): { medical: MedicalDa
 }
 
 function writeMedicalBootstrapCache(tenantCacheKey: string, medical: MedicalData, pos: PosData) {
-  const f = useTranslations("fields");
-  const tc = useTranslations("common");
-  const md = useTranslations("medical");
   try {
     window.sessionStorage.setItem(medicalBootstrapCacheKey(tenantCacheKey), JSON.stringify({ medical, pos, savedAt: Date.now() }));
   } catch {}
@@ -181,16 +175,11 @@ const tabs = [
 ] as const;
 
 function money(value: number) {
-  const f = useTranslations("fields");
-  const tc = useTranslations("common");
-  const md = useTranslations("medical");
   return new Intl.NumberFormat("zh-TW", { style: "currency", currency: "TWD", maximumFractionDigits: 0 }).format(value);
 }
 
 async function jsonFetch(url: string, init?: RequestInit) {
   const f = useTranslations("fields");
-  const tc = useTranslations("common");
-  const md = useTranslations("medical");
   const response = await fetch(url, init);
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.error || f("actionFailed"));
@@ -198,9 +187,9 @@ async function jsonFetch(url: string, init?: RequestInit) {
 }
 
 export function MedicalWorkspace({ publicSiteHref, tenantCacheKey }: { publicSiteHref: string; tenantCacheKey: string }) {
+  const md = useTranslations("medical");
   const f = useTranslations("fields");
   const tc = useTranslations("common");
-  const md = useTranslations("medical");
   const [medical, setMedical] = useState<MedicalData | null>(null);
   const [pos, setPos] = useState<PosData | null>(null);
   const [tab, setTab] = useState<(typeof tabs)[number][0]>("schedule");

@@ -6,7 +6,6 @@ import { formatDateTime } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireTenantId } from "@/lib/api";
 import { getTranslations } from "next-intl/server";
-import { useTranslations } from "next-intl";
 
 export const dynamic = "force-dynamic";
 
@@ -53,23 +52,16 @@ const ACTION_NAME_KEYS: Record<string, string> = {
 };
 
 function translateModule(module: string) {
-  const f = useTranslations("fields");
-  const tc = useTranslations("common");
-  const ta = useTranslations("audit");
   return moduleNames[module] || module;
 }
 
-function translateAction(action: string) {
-  const f = useTranslations("fields");
-  const tc = useTranslations("common");
-  const ta = useTranslations("audit");
-  return (ACTION_NAME_KEYS[action] ? ta(ACTION_NAME_KEYS[action]) : action) || action;
+// 模組層取不到 useTranslations，因此由呼叫端把翻譯函式傳進來。
+function translateAction(action: string, ta: (key: string) => string) {
+  const key = ACTION_NAME_KEYS[action];
+  return key ? ta(key) : action;
 }
 
 function formatRefId(detail: string | null, refId: string | null) {
-  const f = useTranslations("fields");
-  const tc = useTranslations("common");
-  const ta = useTranslations("audit");
   // 如果 detail 有內容，優先顯示 detail（通常包含有意義的資訊）
   if (detail && detail.trim()) {
     return detail;
@@ -79,9 +71,8 @@ function formatRefId(detail: string | null, refId: string | null) {
 }
 
 export default async function Page() {
-  const f = useTranslations("fields");
-  const tc = useTranslations("common");
-  const ta = useTranslations("audit");
+  const f = await getTranslations("fields");
+  const ta = await getTranslations("audit");
   const t = await getTranslations("pages");
   const g = await requirePermissionOrForbidden("audit.view");
   if (g.forbidden) return g.element;
@@ -113,7 +104,7 @@ export default async function Page() {
                   <TD className="text-xs">{formatDateTime(l.createdAt)}</TD>
                   <TD>{l.user?.name ?? "—"}</TD>
                   <TD>{translateModule(l.module)}</TD>
-                  <TD>{translateAction(l.action)}</TD>
+                  <TD>{translateAction(l.action, ta)}</TD>
                   <TD className="text-xs">{formatRefId(l.detail, l.refId)}</TD>
                   <TD className="text-xs">{l.ip ?? "—"}</TD>
                 </TR>

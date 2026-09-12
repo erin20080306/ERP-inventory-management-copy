@@ -195,8 +195,6 @@ export function InvoiceScanClient() {
 /*                       QR 掃描元件                              */
 /* ============================================================ */
 function QRScanner({ onParsed }: { onParsed: (p: ParsedInvoiceQR) => void }) {
-  const f = useTranslations("fields");
-  const tc = useTranslations("common");
   const ref = useRef<HTMLDivElement>(null);
   const scannerRef = useRef<any>(null);
   const [scanning, setScanning] = useState(false);
@@ -294,8 +292,6 @@ function PhotoCapture({ onCapture, photo, onOcrResult }: {
   photo: string | null;
   onOcrResult?: (r: OCRResult) => void;
 }) {
-  const f = useTranslations("fields");
-  const tc = useTranslations("common");
   const inputRef = useRef<HTMLInputElement>(null);
   const [ocrBusy, setOcrBusy] = useState(false);
   const [ocrProgress, setOcrProgress] = useState(0);
@@ -380,8 +376,6 @@ function PhotoCapture({ onCapture, photo, onOcrResult }: {
 
 /** 從 OCR 文字嘗試解析發票欄位 */
 function parseInvoiceText(text: string): OCRResult {
-  const f = useTranslations("fields");
-  const tc = useTranslations("common");
   const out: OCRResult = { rawText: text };
   // 發票號碼: 2 英文字母 + 8 數字 (e.g. AB-12345678 或 AB 12345678)
   const numMatch = text.match(/([A-Z]{2})[\s\-]?(\d{8})/);

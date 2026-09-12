@@ -44,7 +44,6 @@ const typeLabel: Record<string, string> = {
 };
 
 async function fetchReportData(url: string): Promise<ReportData> {
-  const f = useTranslations("fields");
   const res = await fetch(url);
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || "報表資料載入失敗");
@@ -52,12 +51,10 @@ async function fetchReportData(url: string): Promise<ReportData> {
 }
 
 function PulseBlock({ className = "" }: { className?: string }) {
-  const f = useTranslations("fields");
   return <div className={`animate-pulse rounded-md bg-muted ${className}`} />;
 }
 
 function ReportContentSkeleton() {
-  const f = useTranslations("fields");
   return (
     <>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

@@ -64,8 +64,8 @@ function DepartmentDialog({ open, onClose, row, onSaved }: any) {
 }
 
 export function DepartmentsClient() {
-  const f = useTranslations("fields");
   const tc = useTranslations("common");
+  const f = useTranslations("fields");
   return (
     <CrudTable<any>
       endpoint="/api/hr/departments"

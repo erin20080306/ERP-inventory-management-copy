@@ -16,12 +16,7 @@ import { useTranslations } from "next-intl";
 import { useFormatters } from "@/i18n/use-formatters";
 
 function currentMonthEnd() {
-  const m = useTranslations("journals");
-  const f = useTranslations("fields");
-  const tc = useTranslations("common");
-  const tt = useTranslations("table");
   const { dateTime } = useFormatters();
-  const tPage = useTranslations("pages");
   const now = new Date();
   return new Date(now.getFullYear(), now.getMonth() + 1, 0).toLocaleDateString("sv-SE");
 }
@@ -483,9 +478,7 @@ function CreateJournalDialog({ open, onClose, onCreated, prefillDraft }: { open:
   const m = useTranslations("journals");
   const f = useTranslations("fields");
   const tc = useTranslations("common");
-  const tt = useTranslations("table");
   const { dateTime } = useFormatters();
-  const tPage = useTranslations("pages");
   const [accounts, setAccounts] = useState<any[]>([]);
   const [summary, setSummary] = useState("");
   const [entryDate, setEntryDate] = useState(new Date().toISOString().slice(0, 10));
@@ -575,9 +568,7 @@ function ViewJournalDialog({ entry, onClose, onAct, onEdit }: any) {
   const m = useTranslations("journals");
   const f = useTranslations("fields");
   const tc = useTranslations("common");
-  const tt = useTranslations("table");
   const { dateTime } = useFormatters();
-  const tPage = useTranslations("pages");
   const totalDebit = entry.lines.reduce((s: number, l: any) => s + Number(l.debit), 0);
   const totalCredit = entry.lines.reduce((s: number, l: any) => s + Number(l.credit), 0);
   const [showReverse, setShowReverse] = useState(false);
@@ -637,9 +628,7 @@ function EditJournalDialog({ id, onClose, onSaved }: { id: string; onClose: () =
   const m = useTranslations("journals");
   const f = useTranslations("fields");
   const tc = useTranslations("common");
-  const tt = useTranslations("table");
   const { dateTime } = useFormatters();
-  const tPage = useTranslations("pages");
   const [accounts, setAccounts] = useState<any[]>([]);
   const [summary, setSummary] = useState("");
   const [entryDate, setEntryDate] = useState("");

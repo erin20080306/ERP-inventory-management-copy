@@ -191,7 +191,6 @@ export function BomClient() {
   const f = useTranslations("fields");
   const tc = useTranslations("common");
   const tt = useTranslations("table");
-  const tPage = useTranslations("pages");
   const [selectedModule, setSelectedModule] = useState<string>("products");
   const [rows, setRows] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
@@ -218,6 +217,7 @@ export function BomClient() {
     } catch (e: any) { toast.error(e.message); } finally { setInlineSaving(null); }
   }
 
+  const tPage = useTranslations("pages");
   const MODULES = useMemo(() => buildModules(f, tc, tPage), [f, tc, tPage]);
   const currentModule = MODULES.find((m) => m.key === selectedModule)!;
   const queryString = useMemo(() => {

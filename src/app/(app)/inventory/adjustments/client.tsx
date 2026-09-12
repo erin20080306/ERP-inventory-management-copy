@@ -31,7 +31,6 @@ type Adjustment = {
 function AdjustmentDialog({ open, onClose, onSaved }: any) {
   const f = useTranslations("fields");
   const tc = useTranslations("common");
-  const tt = useTranslations("table");
   const [form, setForm] = useState<any>({ warehouseId: "", reason: "", status: "DRAFT", items: [] });
   const [warehouses, setWarehouses] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);

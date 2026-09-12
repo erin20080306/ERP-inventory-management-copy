@@ -447,7 +447,6 @@ function NewNoteDialog({ kind, endpoint, partyLabel, partyEndpoint, onClose, onC
   const n = useTranslations("notes");
   const f = useTranslations("fields");
   const tc = useTranslations("common");
-  const tt = useTranslations("table");
   const [parties, setParties] = useState<any[]>([]);
   const [banks, setBanks] = useState<any[]>([]);
   const [form, setForm] = useState({

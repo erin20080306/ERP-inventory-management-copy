@@ -15,12 +15,10 @@ type Installer = {
 type Release = { version?: string; generatedAt?: string; prerelease?: boolean; readyForCustomers?: boolean } | null;
 
 function size(bytes: number) {
-  const tc = useTranslations("common");
   return bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(1)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
 function fileFlags(file: Installer) {
-  const tc = useTranslations("common");
   const name = file.name.toLowerCase();
   return {
     isWindows: name.includes("windows"),
@@ -32,7 +30,6 @@ function fileFlags(file: Installer) {
 }
 
 function downloadNote(file: Installer) {
-  const tc = useTranslations("common");
   const flags = fileFlags(file);
   if (file.kind === "company-host") {
     return flags.isWindows
@@ -46,7 +43,6 @@ function downloadNote(file: Installer) {
 }
 
 function InstallerCard({ file }: { file: Installer }) {
-  const tc = useTranslations("common");
   const flags = fileFlags(file);
   const recommended = file.kind === "workstation" && flags.isMac && flags.isDmg && flags.isArm64;
   const backup = file.kind === "workstation" && flags.isMac && flags.isZip && flags.isArm64;

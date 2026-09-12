@@ -26,7 +26,6 @@ const METHOD_LABELS: Record<string, string> = {
 
 export function FixedAssetsClient() {
   const f = useTranslations("fields");
-  const fa = useTranslations("fixedAssets");
   const tc = useTranslations("common");
   const tt = useTranslations("table");
   const [rows, setRows] = useState<any[]>([]);
@@ -420,9 +419,7 @@ function DepreciationLedger({ refreshToken, onChanged }: { refreshToken: number;
 
 function DepreciationDialog({ asset, onClose, onChanged }: { asset: any; onClose: () => void; onChanged: () => void }) {
   const f = useTranslations("fields");
-  const fa = useTranslations("fixedAssets");
   const tc = useTranslations("common");
-  const tt = useTranslations("table");
   const [depreciationDate, setDepreciationDate] = useState(new Date().toISOString().slice(0, 10));
   const [preview, setPreview] = useState<any>(null);
   const [amount, setAmount] = useState("");
@@ -559,10 +556,7 @@ function DepreciationDialog({ asset, onClose, onChanged }: { asset: any; onClose
 }
 
 function NewAssetDialog({ onClose, onCreated }: any) {
-  const f = useTranslations("fields");
-  const fa = useTranslations("fixedAssets");
   const tc = useTranslations("common");
-  const tt = useTranslations("table");
   const [form, setForm] = useState({
     code: "", name: "", category: "設備", accountCode: "1421",
     acquireDate: new Date().toISOString().slice(0, 10),
