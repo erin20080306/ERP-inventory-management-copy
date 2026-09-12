@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
+import { renderZh } from "./i18n-source-render.mjs";
 import { readFileSync } from "node:fs";
 
-const sidebar = readFileSync("src/components/layout/sidebar.tsx", "utf8");
-const nav = readFileSync("src/components/layout/sidebar-nav.tsx", "utf8");
+const sidebar = renderZh(readFileSync("src/components/layout/sidebar.tsx", "utf8"));
+const nav = renderZh(readFileSync("src/components/layout/sidebar-nav.tsx", "utf8"));
 
 assert.match(sidebar, /erin-sidebar-collapsed/);
 assert.match(sidebar, /collapsed \? "w-20" : "w-64"/);

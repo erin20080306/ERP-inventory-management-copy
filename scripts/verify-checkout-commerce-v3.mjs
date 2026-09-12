@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
+import { renderZh } from "./i18n-source-render.mjs";
 import { readFileSync } from "node:fs";
 
 const numbers = readFileSync("src/lib/number-sequence.ts", "utf8");
 const checkout = readFileSync("src/app/api/pos/checkout/route.ts", "utf8");
 const offers = readFileSync("src/lib/pos-offers.ts", "utf8");
-const workspace = readFileSync("src/app/(app)/workspace/page.tsx", "utf8");
+const workspace = renderZh(readFileSync("src/app/(app)/workspace/page.tsx", "utf8"));
 const access = readFileSync("src/lib/storefront-access.ts", "utf8");
 const storePage = readFileSync("src/app/store/[tenant]/[[...view]]/page.tsx", "utf8");
 const storeUi = readFileSync("src/app/store/[tenant]/[[...view]]/storefront.tsx", "utf8");

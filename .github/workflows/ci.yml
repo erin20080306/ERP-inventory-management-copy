@@ -68,6 +68,10 @@ jobs:
       - name: Test database guard verification
         run: npm run test:db-guard
 
+      # 不需資料庫、只讀原始碼的效能守門測試；直接執行以攔截 i18n 這類原始碼斷言回歸
+      - name: Speed safeguards verification
+        run: npm run test:speed
+
       - name: Lint (non-blocking)
         run: npm run lint || true
 

@@ -1,10 +1,11 @@
 import { readFileSync } from "node:fs";
+import { renderZh } from "./i18n-source-render.mjs";
 
 const checkout = readFileSync("src/app/api/pos/checkout/route.ts", "utf8");
 const fulfillment = readFileSync("src/lib/pos-fulfillment.ts", "utf8");
-const retail = readFileSync("src/app/(app)/pos/pos-workspace.tsx", "utf8");
-const restaurant = readFileSync("src/app/(app)/pos/restaurant/restaurant-workspace.tsx", "utf8");
-const workspace = readFileSync("src/app/(app)/workspace/page.tsx", "utf8");
+const retail = renderZh(readFileSync("src/app/(app)/pos/pos-workspace.tsx", "utf8"));
+const restaurant = renderZh(readFileSync("src/app/(app)/pos/restaurant/restaurant-workspace.tsx", "utf8"));
+const workspace = renderZh(readFileSync("src/app/(app)/workspace/page.tsx", "utf8"));
 const access = readFileSync("src/lib/storefront-access.ts", "utf8");
 
 function check(name, condition) {
