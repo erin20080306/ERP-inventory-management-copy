@@ -171,7 +171,7 @@ export function PayrollClient() {
 
           {/* 薪資清冊 */}
           <Table>
-            <THead onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title="表頭按右鍵可新增／刪減自訂欄位">
+            <THead onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title={tt("manageCustomColumns")}>
               <TR>
                 <TH {...colDrag.thProps("number")}>{f("docNo")}</TH><TH {...colDrag.thProps("employee")}>員工</TH><TH {...colDrag.thProps("dept")}>{f("department")}</TH>
                 <TH {...colDrag.thProps("earnings")} className="text-right">應發</TH>
@@ -273,7 +273,7 @@ function NewPeriodDialog({ onClose, onCreated }: any) {
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>{tc("cancel")}</Button>
-          <Button onClick={save} disabled={saving}>{saving ? "儲存中..." : "建立"}</Button>
+          <Button onClick={save} disabled={saving}>{saving ? tc("saving") : "建立"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

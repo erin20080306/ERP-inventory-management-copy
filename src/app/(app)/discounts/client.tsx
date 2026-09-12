@@ -107,7 +107,7 @@ function DiscountDialog({ open, onClose, onSaved }: any) {
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={onClose}>{tc("cancel")}</Button>
-              <Button onClick={save} disabled={saving}>{saving ? "儲存中..." : tc("save")}</Button>
+              <Button onClick={save} disabled={saving}>{saving ? tc("saving") : tc("save")}</Button>
             </DialogFooter>
           </div>
         )}
@@ -177,7 +177,7 @@ export default function DiscountClient() {
             <TR><TH>{f("docNo")}</TH><TH>{f("type")}</TH><TH>客戶/供應商</TH><TH>原單號</TH><TH>折讓金額</TH><TH>{f("reason")}</TH><TH>{tc("date")}</TH><TH className="text-right">{tc("actions")}</TH></TR>
           </THead>
           <TBody>
-            {items.length === 0 && <TR><TD colSpan={8} className="text-center text-muted-foreground">尚無資料</TD></TR>}
+            {items.length === 0 && <TR><TD colSpan={8} className="text-center text-muted-foreground">{tc("noData")}</TD></TR>}
             {items.map((item) => (
               <TR key={item.id}>
                 <TD className="font-mono text-xs">{item.number}</TD>

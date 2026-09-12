@@ -108,12 +108,12 @@ export function FixedAssetsClient() {
         };
         try {
           const res = await fetch("/api/accounting/fixed-assets?upsert=1", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-          if (!res.ok) errors.push(`第 ${i + 2} 列：${(await res.json()).error || f("failed")}`);
+          if (!res.ok) errors.push(tt("rowError", { row: i + 2, message: (await res.json()).error || f("failed") }));
           else success++;
-        } catch (err: any) { errors.push(`第 ${i + 2} 列：${err.message}`); }
+        } catch (err: any) { errors.push(tt("rowError", { row: i + 2, message: err.message })); }
       }
-      if (errors.length === 0) toast.success(`已匯入 ${success} 筆`);
-      else toast.error(`成功 ${success} / 失敗 ${errors.length}`);
+      if (errors.length === 0) toast.success(tt("importedCount", { count: success }));
+      else toast.error(tt("importPartial", { success: success, failed: errors.length }));
       load();
     } catch (err: any) { toast.error(err.message); }
     finally { e.target.value = ""; }
@@ -185,7 +185,7 @@ export function FixedAssetsClient() {
       <>
       <TableHint />
       <Table>
-        <THead onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title="表頭按右鍵可新增／刪減自訂欄位">
+        <THead onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title={tt("manageCustomColumns")}>
           <TR>
             <TH {...colDrag.thProps("code")}>{f("code")}</TH><TH {...colDrag.thProps("name")}>{f("name")}</TH><TH {...colDrag.thProps("category")}>{fa("category")}</TH><TH {...colDrag.thProps("acquireDate")}>{fa("acquisitionDate")}</TH>
             <TH {...colDrag.thProps("acquireCost")} className="text-right">{fa("acquisitionCost")}</TH><TH {...colDrag.thProps("accDep")} className="text-right">{fa("accumulatedDepreciation")}</TH><TH {...colDrag.thProps("bookValue")} className="text-right">{fa("bookValue")}</TH>
@@ -234,7 +234,7 @@ export function FixedAssetsClient() {
                         </Button>
                       )}
                       <Button size="sm" variant="ghost" title={tc("delete")} onClick={() => {
-                        if (confirm("確定刪除？")) act(r.id, "delete");
+                        if (confirm(tt("confirmDelete"))) act(r.id, "delete");
                       }}>
                         <Trash2 className="h-4 w-4 text-muted-foreground" />
                       </Button>
@@ -248,7 +248,7 @@ export function FixedAssetsClient() {
         </TBody>
       </Table>
       <div className="flex items-center justify-between text-sm text-muted-foreground">
-        <div>共 {total} 筆</div>
+        <div>{tt("totalRows", { total })}</div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>{tt("prevPage")}</Button>
           <span>{page} / {totalPages}</span>
@@ -641,7 +641,7 @@ function NewAssetDialog({ onClose, onCreated }: any) {
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>{tc("cancel")}</Button>
-          <Button onClick={save} disabled={saving}>{saving ? "儲存中..." : tc("save")}</Button>
+          <Button onClick={save} disabled={saving}>{saving ? tc("saving") : tc("save")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

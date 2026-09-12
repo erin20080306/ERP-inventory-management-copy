@@ -391,7 +391,7 @@ export function BomClient() {
       ) : (
         <div className="overflow-x-auto">
           <Table>
-            <THead onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title="表頭按右鍵可新增／刪減自訂欄位">
+            <THead onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title={tt("manageCustomColumns")}>
               <TR>
                 {currentModule.columns.map((col) => (
                   <TH key={col.key}>{col.title}</TH>

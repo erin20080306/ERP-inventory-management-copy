@@ -107,7 +107,7 @@ export function CostManagementClient() {
     }
     setSavingAll(false);
     if (fail === 0) toast.success(`已更新 ${ok} 筆`);
-    else toast.error(`成功 ${ok} / 失敗 ${fail}`);
+    else toast.error(tt("importPartial", { success: ok, failed: fail }));
     load();
   }
 
@@ -132,12 +132,12 @@ export function CostManagementClient() {
         };
         try {
           const res = await fetch(`/api/products/${product.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-          if (!res.ok) errors.push(`第 ${i + 2} 列：${(await res.json()).error || f("failed")}`);
+          if (!res.ok) errors.push(tt("rowError", { row: i + 2, message: (await res.json()).error || f("failed") }));
           else ok++;
-        } catch (err: any) { errors.push(`第 ${i + 2} 列：${err.message}`); }
+        } catch (err: any) { errors.push(tt("rowError", { row: i + 2, message: err.message })); }
       }
       if (errors.length === 0) toast.success(`已更新 ${ok} 筆`);
-      else toast.error(`成功 ${ok} / 失敗 ${errors.length}\n${errors.slice(0, 3).join("\n")}`);
+      else toast.error(`${tt("importPartial", { success: ok, failed: errors.length })}\n${errors.slice(0, 3).join("\n")}`);
       load();
     } catch (err: any) { toast.error(err.message); }
     finally { e.target.value = ""; }
@@ -265,7 +265,7 @@ export function CostManagementClient() {
       )}
 
       <Table>
-        <THead onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title="表頭按右鍵可新增／刪減自訂欄位">
+        <THead onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title={tt("manageCustomColumns")}>
           <TR>
             <TH>SKU</TH><TH>{f("productName")}</TH><TH>{f("spec")}</TH>
             <TH className="w-40">{f("cost")}</TH><TH className="w-40">{f("salePrice")}</TH>

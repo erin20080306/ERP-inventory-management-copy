@@ -72,6 +72,7 @@ function formatRefId(detail: string | null, refId: string | null) {
 
 export default async function Page() {
   const f = await getTranslations("fields");
+  const tc = await getTranslations("common");
   const ta = await getTranslations("audit");
   const t = await getTranslations("pages");
   const g = await requirePermissionOrForbidden("audit.view");
@@ -98,7 +99,7 @@ export default async function Page() {
           <Table>
             <THead><TR><TH>時間</TH><TH>使用者</TH><TH>模組</TH><TH>動作</TH><TH>{f("counterparty")}</TH><TH>IP</TH></TR></THead>
             <TBody>
-              {logs.length === 0 && <TR><TD colSpan={6} className="text-center text-muted-foreground">尚無資料</TD></TR>}
+              {logs.length === 0 && <TR><TD colSpan={6} className="text-center text-muted-foreground">{tc("noData")}</TD></TR>}
               {logs.map((l: any) => (
                 <TR key={l.id}>
                   <TD className="text-xs">{formatDateTime(l.createdAt)}</TD>
@@ -120,7 +121,7 @@ export default async function Page() {
           <Table>
             <THead><TR><TH>時間</TH><TH>帳號</TH><TH>結果</TH><TH>IP</TH><TH>User-Agent</TH></TR></THead>
             <TBody>
-              {logins.length === 0 && <TR><TD colSpan={5} className="text-center text-muted-foreground">尚無資料</TD></TR>}
+              {logins.length === 0 && <TR><TD colSpan={5} className="text-center text-muted-foreground">{tc("noData")}</TD></TR>}
               {logins.map((l: any) => (
                 <TR key={l.id}>
                   <TD className="text-xs">{formatDateTime(l.createdAt)}</TD>

@@ -257,7 +257,7 @@ export function InvoiceClient() {
 
       <TableHint />
       <Table>
-        <THead onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title="表頭按右鍵可新增／刪減自訂欄位">
+        <THead onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title={tt("manageCustomColumns")}>
           <TR>
             <TH {...colDrag.thProps("date")}>{tc("date")}</TH><TH {...colDrag.thProps("type")}>{f("type")}</TH><TH {...colDrag.thProps("number")}>{f("invoiceNo")}</TH><TH {...colDrag.thProps("party")}>{f("counterparty")}</TH><TH {...colDrag.thProps("amountExTax")}>未稅</TH><TH {...colDrag.thProps("taxAmount")}>{tc("tax")}</TH><TH {...colDrag.thProps("totalAmount")}>含稅</TH><TH {...colDrag.thProps("status")}>{tc("status")}</TH><TH {...colDrag.thProps("remark")}>{tc("remark")}</TH>{customCols.columns.map((cc) => <TH key={cc.id} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title={tt("rightClickColumns")}>{cc.label}</TH>)}<TH className="w-20 text-right">{tc("actions")}</TH>
           </TR>
@@ -304,7 +304,7 @@ export function InvoiceClient() {
                   {i.status === "DRAFT" && <Button size="sm" variant="outline" onClick={() => onAct(i.id, "submit")}>{tc("submit")}</Button>}
                   {i.status === "SUBMITTED" && (
                     <>
-                      <Button size="sm" variant="outline" onClick={() => onAct(i.id, "approve")}>審核</Button>
+                      <Button size="sm" variant="outline" onClick={() => onAct(i.id, "approve")}>{tc("approve")}</Button>
                       <Button size="sm" variant="destructive" onClick={() => onAct(i.id, "reject")}>{tc("reject")}</Button>
                     </>
                   )}
@@ -330,7 +330,7 @@ export function InvoiceClient() {
       </Table>
 
       <div className="flex items-center justify-between text-sm text-muted-foreground">
-        <div>共 {total} 筆</div>
+        <div>{tt("totalRows", { total })}</div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>{tt("prevPage")}</Button>
           <span>{page} / {totalPages}</span>
@@ -481,7 +481,7 @@ function NewInvoiceDialog({ open, onClose, onCreated, row, onSaved }: any) {
 
         <Textarea placeholder={tc("remark")} value={remark} onChange={(e) => setRemark(e.target.value)} />
 
-        <DialogFooter><Button variant="outline" onClick={onClose}>{tc("cancel")}</Button><Button onClick={save} disabled={saving}>{saving ? "儲存中..." : tc("save")}</Button></DialogFooter>
+        <DialogFooter><Button variant="outline" onClick={onClose}>{tc("cancel")}</Button><Button onClick={save} disabled={saving}>{saving ? tc("saving") : tc("save")}</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   );

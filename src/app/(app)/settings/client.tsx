@@ -65,7 +65,7 @@ export function SettingsClient({ medicalEnabled = true }: { medicalEnabled?: boo
           <div className="space-y-1 col-span-2"><Label>{f("address")}</Label><Input value={form.address ?? ""} onChange={(e) => setForm({ ...form, address: e.target.value })} /></div>
           <div className="space-y-1"><Label>幣別</Label><Input value={form.currency ?? "TWD"} onChange={(e) => setForm({ ...form, currency: e.target.value })} /></div>
           <div className="space-y-1"><Label>Logo 網址</Label><Input value={form.logoUrl ?? ""} onChange={(e) => setForm({ ...form, logoUrl: e.target.value })} /></div>
-          <div className="col-span-2"><Button onClick={save} disabled={saving}>{saving ? "儲存中..." : tc("save")}</Button></div>
+          <div className="col-span-2"><Button onClick={save} disabled={saving}>{saving ? tc("saving") : tc("save")}</Button></div>
         </CardContent>
       </Card>
       {showPublicWebsiteSettings && (
@@ -117,7 +117,7 @@ export function SettingsClient({ medicalEnabled = true }: { medicalEnabled?: boo
             {isEcommerceWebsite && <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs leading-5 text-rose-900">
               信用卡與行動支付目前只提供結帳與 ERP 接單流程體驗，不會實際扣款；正式收款需由客戶提供金流商帳號及串接資料後開通。
             </div>}
-            <Button onClick={save} disabled={saving}>{saving ? "儲存中..." : `儲存${websiteLabel}設定`}</Button>
+            <Button onClick={save} disabled={saving}>{saving ? tc("saving") : `儲存${websiteLabel}設定`}</Button>
           </CardContent>
         </Card>
       )}
@@ -189,7 +189,7 @@ export function SettingsClient({ medicalEnabled = true }: { medicalEnabled?: boo
               沒有設定 SMTP 時，AI 助手不會用共用 Gmail 代寄；每個租戶都需要設定自己的寄件信箱或應用程式密碼。
             </div>
           </div>
-          <div className="col-span-2"><Button onClick={save} disabled={saving}>{saving ? "儲存中..." : "儲存 SMTP 設定"}</Button></div>
+          <div className="col-span-2"><Button onClick={save} disabled={saving}>{saving ? tc("saving") : "儲存 SMTP 設定"}</Button></div>
         </CardContent>
       </Card>
       <PosRegisterCard medicalEnabled={medicalEnabled} />

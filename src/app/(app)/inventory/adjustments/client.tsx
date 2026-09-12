@@ -175,7 +175,7 @@ function AdjustmentDialog({ open, onClose, onSaved }: any) {
 
             <DialogFooter>
               <Button variant="outline" onClick={onClose}>{tc("cancel")}</Button>
-              <Button onClick={save} disabled={saving}>{saving ? "儲存中..." : tc("save")}</Button>
+              <Button onClick={save} disabled={saving}>{saving ? tc("saving") : tc("save")}</Button>
             </DialogFooter>
           </div>
         )}
