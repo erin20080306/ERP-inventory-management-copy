@@ -673,31 +673,31 @@ return <div className="grid min-h-[60vh] animate-pulse gap-4 xl:grid-cols-[280px
       <header className="flex flex-col justify-between gap-4 rounded-2xl bg-slate-950 p-5 text-white shadow-xl lg:flex-row lg:items-center">
         <div>
           <div className="text-[11px] font-black uppercase tracking-[.22em] text-orange-400">RESTAURANT POS / FRONT</div><h1 className="mt-1 flex items-center gap-2 text-2xl font-black"><UtensilsCrossed className="h-5 w-5 text-orange-400" />{rs("kitchenSubtitle")}</h1>
-          <p className="mt-1 text-sm text-slate-300">{data.openShift.register.name}・{rs("openedByLine", { name: data.openShift.openedBy.name })}・一個畫面完成開桌、加點、送廚與結帳</p>
+          <p className="mt-1 text-sm text-slate-300">{data.openShift.register.name}・{rs("openedByLine", { name: data.openShift.openedBy.name })}{rs("subtitle")}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           {allowTableManagement && <button onClick={() => setTableManagerOpen(true)} className="inline-flex h-10 items-center gap-2 rounded-lg border border-orange-200 bg-orange-50 px-3 text-sm font-bold text-orange-800 dark:border-orange-900 dark:bg-orange-950/30 dark:text-orange-200"><Settings2 className="h-4 w-4" />{rs("tableSetup")}</button>}
           <Link href="/pos/restaurant/kitchen" className="inline-flex h-10 items-center gap-2 rounded-lg bg-white px-4 text-sm font-bold text-slate-950"><ChefHat className="h-4 w-4" />{rs("kitchenBoard")}</Link>
-          <button onClick={() => setCashPanelOpen(true)} className="inline-flex h-10 items-center gap-2 rounded-lg border border-white/20 px-3 text-sm text-white"><CircleDollarSign className="h-4 w-4" />錢櫃異動{data.cashMovements.some((movement) => movement.status === "PENDING") ? `（${data.cashMovements.filter((movement) => movement.status === "PENDING").length} 待核）` : ""}</button>
+          <button onClick={() => setCashPanelOpen(true)} className="inline-flex h-10 items-center gap-2 rounded-lg border border-white/20 px-3 text-sm text-white"><CircleDollarSign className="h-4 w-4" />{rs("cashMovements")}{data.cashMovements.some((movement) => movement.status === "PENDING") ? rs("pendingSuffix", { count: data.cashMovements.filter((movement) => movement.status === "PENDING").length }) : ""}</button>
           <button onClick={() => void previewCloseShift()} disabled={busy} className="inline-flex h-10 items-center gap-2 rounded-lg border border-white/20 px-3 text-sm text-white disabled:opacity-50"><ReceiptText className="h-4 w-4" />{p("previewClose")}</button>
           <button onClick={() => void load()} className="inline-flex h-10 items-center gap-2 rounded-lg border border-white/20 px-3 text-sm text-white"><RefreshCw className="h-4 w-4" />{tc("refresh")}</button>
         </div>
       </header>
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-        <div className="rounded-xl border bg-card p-4"><div className="text-xs font-bold text-muted-foreground">{p("todayNetRevenue")}</div><div className="mt-2 text-xl font-black">{money(daily.amount)}</div><div className="mt-1 text-[11px] text-muted-foreground">退款 {money(daily.refundAmount)}</div></div>
-        <div className="rounded-xl border bg-card p-4"><div className="text-xs font-bold text-muted-foreground">{rs("todayNetDishes")}</div><div className="mt-2 text-xl font-black">{daily.netQuantity}</div><div className="mt-1 text-[11px] text-muted-foreground">售出 {daily.soldQuantity}／退回 {daily.refundedQuantity}</div></div>
-        <div className="rounded-xl border bg-card p-4"><div className="text-xs font-bold text-muted-foreground">{rs("todayCheckouts")}</div><div className="mt-2 text-xl font-black">{daily.sales}</div><div className="mt-1 text-[11px] text-muted-foreground">退款 {daily.refunds} 筆</div></div>
+        <div className="rounded-xl border bg-card p-4"><div className="text-xs font-bold text-muted-foreground">{p("todayNetRevenue")}</div><div className="mt-2 text-xl font-black">{money(daily.amount)}</div><div className="mt-1 text-[11px] text-muted-foreground">{rs("refundAmount", { amount: money(daily.refundAmount) })}</div></div>
+        <div className="rounded-xl border bg-card p-4"><div className="text-xs font-bold text-muted-foreground">{rs("todayNetDishes")}</div><div className="mt-2 text-xl font-black">{daily.netQuantity}</div><div className="mt-1 text-[11px] text-muted-foreground">{rs("soldReturned", { sold: daily.soldQuantity, returned: daily.refundedQuantity })}</div></div>
+        <div className="rounded-xl border bg-card p-4"><div className="text-xs font-bold text-muted-foreground">{rs("todayCheckouts")}</div><div className="mt-2 text-xl font-black">{daily.sales}</div><div className="mt-1 text-[11px] text-muted-foreground">{rs("refundCount", { count: daily.refunds })}</div></div>
         <div className="rounded-xl border bg-card p-4"><div className="text-xs font-bold text-muted-foreground">{p("openingFloat")}</div><div className="mt-2 text-xl font-black">{money(data.shiftCash?.openingCash ?? data.openShift.openingCash)}</div><div className="mt-1 text-[11px] text-emerald-700">{p("postedToJournal")}</div></div>
         <div className="rounded-xl border bg-card p-4"><div className="text-xs font-bold text-muted-foreground">{p("expectedCashNow")}</div><div className="mt-2 text-xl font-black">{money(data.shiftCash?.expectedCash ?? data.openShift.openingCash)}</div><div className="mt-1 text-[11px] text-muted-foreground">{rs("cashIncludesNote")}</div></div>
-        <div className="rounded-xl border bg-card p-4"><div className="text-xs font-bold text-muted-foreground">{rs("companyLedger")}</div><div className="mt-2 text-xl font-black">{money(data.ledgerCashBalance)}</div><div className="mt-1 text-[11px] text-muted-foreground">跨系統會計數字，不計入本餐飲錢櫃</div></div>
+        <div className="rounded-xl border bg-card p-4"><div className="text-xs font-bold text-muted-foreground">{rs("companyLedger")}</div><div className="mt-2 text-xl font-black">{money(data.ledgerCashBalance)}</div><div className="mt-1 text-[11px] text-muted-foreground">{rs("crossSystemNote")}</div></div>
       </section>
 
       {allowTableManagement && <TableManager open={tableManagerOpen} onOpenChange={setTableManagerOpen} areas={data.tableSettings ?? []} busy={busy} onAction={action} />}
 
       <Dialog open={cashPanelOpen} onOpenChange={(open) => { if (!busy) setCashPanelOpen(open); }}>
         <DialogContent className="max-w-3xl">
-          <DialogHeader><DialogTitle className="flex items-center gap-2"><CircleDollarSign className="h-5 w-5" />{p("cashMovementsTitle")}</DialogTitle><DialogDescription>輸入金額與原因後送出申請；主管核准後才計入目前應有現金及結班差額。</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle className="flex items-center gap-2"><CircleDollarSign className="h-5 w-5" />{p("cashMovementsTitle")}</DialogTitle><DialogDescription>{rs("cashRequestNote")}</DialogDescription></DialogHeader>
           <div className="space-y-5">
             <div className="grid gap-3 rounded-xl border bg-muted/30 p-4 md:grid-cols-[180px_160px_1fr_auto]">
               <select value={cashMovementType} onChange={(event) => setCashMovementType(event.target.value as "PAID_IN" | "PAID_OUT" | "SAFE_DROP")} className="h-10 rounded-lg border bg-background px-3 text-sm"><option value="PAID_IN">{p("cashPayIn")}</option><option value="PAID_OUT">{p("cashPayOut")}</option><option value="SAFE_DROP">{p("safeDropToSafe")}</option></select>
@@ -733,15 +733,15 @@ return <div className="grid min-h-[60vh] animate-pulse gap-4 xl:grid-cols-[280px
 
       <Dialog open={paymentDialog !== null} onOpenChange={(open) => { if (!open && !busy) setPaymentDialog(null); }}>
         <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>{paymentDialog === "CASH" ? rs("cashCollected") : rs("cardConfirm")}</DialogTitle><DialogDescription>桌單金額 {money(orderTotal)}。收款完成後前台立即結帳，ERP 與帳務在背景同步。</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle>{paymentDialog === "CASH" ? rs("cashCollected") : rs("cardConfirm")}</DialogTitle><DialogDescription>{rs("ticketAmountNote", { amount: money(orderTotal) })}</DialogDescription></DialogHeader>
           {paymentDialog === "CASH" ? <div className="space-y-4">
-            <label className="block text-sm font-bold">{rs("cashReceived")}<input autoFocus value={cashReceived} onChange={(event) => setCashReceived(event.target.value.replace(/[^\d]/g, ""))} inputMode="numeric" placeholder="請輸入整數交付金額" className="mt-2 h-12 w-full rounded-xl border bg-background px-3 text-right text-xl font-black" /></label>
+            <label className="block text-sm font-bold">{rs("cashReceived")}<input autoFocus value={cashReceived} onChange={(event) => setCashReceived(event.target.value.replace(/[^\d]/g, ""))} inputMode="numeric" placeholder={rs("integerAmountRequired")} className="mt-2 h-12 w-full rounded-xl border bg-background px-3 text-right text-xl font-black" /></label>
             <div className="grid grid-cols-4 gap-2">{[orderTotal, Math.ceil(orderTotal / 100) * 100, Math.ceil(orderTotal / 500) * 500, Math.ceil(orderTotal / 1000) * 1000].filter((value, index, values) => values.indexOf(value) === index).map((value) => <button key={value} onClick={() => setCashReceived(String(value))} className="h-9 rounded-lg border text-xs">{value === orderTotal ? rs("exact") : money(value)}</button>)}</div>
             <div className="flex items-center justify-between rounded-xl bg-emerald-50 p-4"><span className="text-sm text-emerald-800">{p("change")}</span><strong className="text-2xl text-emerald-800">{money(Math.max(0, Number(cashReceived || 0) - orderTotal))}</strong></div>
             <button disabled={busy || Number(cashReceived || 0) < orderTotal} onClick={() => void checkout("CASH", Number(cashReceived || 0))} className="h-12 w-full rounded-xl bg-emerald-600 font-bold text-white disabled:opacity-40">{rs("confirmCashAndPay")}</button>
           </div> : paymentDialog === "CARD" ? <div className="space-y-4">
-            <ol className="list-decimal space-y-2 rounded-xl bg-indigo-50 p-4 pl-8 text-sm text-indigo-900"><li>{rs("tapInsertSwipe")}</li><li>{rs("waitingTerminal")}</li><li>輸入授權碼或卡號末四碼</li></ol>
-            <input autoFocus value={cardReference} onChange={(event) => setCardReference(event.target.value.toUpperCase())} placeholder="授權碼／卡號末四碼" className="h-11 w-full rounded-xl border bg-background px-3 font-mono uppercase" />
+            <ol className="list-decimal space-y-2 rounded-xl bg-indigo-50 p-4 pl-8 text-sm text-indigo-900"><li>{rs("tapInsertSwipe")}</li><li>{rs("waitingTerminal")}</li><li>{rs("enterAuthCode")}</li></ol>
+            <input autoFocus value={cardReference} onChange={(event) => setCardReference(event.target.value.toUpperCase())} placeholder={rs("authCodeLabel")} className="h-11 w-full rounded-xl border bg-background px-3 font-mono uppercase" />
             <label className="flex items-start gap-3 rounded-xl border p-3 text-sm"><input type="checkbox" checked={cardApproved} onChange={(event) => setCardApproved(event.target.checked)} className="mt-1" /><span><strong>{rs("terminalApproved")}</strong><span className="mt-1 block text-xs text-muted-foreground">{rs("cardApprovalRequired")}</span></span></label>
             <button disabled={busy || !cardApproved || cardReference.trim().length < 4} onClick={() => void checkout("CARD", orderTotal, cardReference)} className="h-12 w-full rounded-xl bg-indigo-600 font-bold text-white disabled:opacity-40">{rs("confirmCardAndPay")}</button>
           </div> : null}
@@ -750,7 +750,7 @@ return <div className="grid min-h-[60vh] animate-pulse gap-4 xl:grid-cols-[280px
 
       <div className="grid gap-4 xl:grid-cols-[220px_minmax(0,1fr)_350px]">
         <section className="rounded-2xl border bg-card p-4">
-          <div className="mb-1 flex items-center justify-between font-bold"><span>{rs("tableStatus")}</span><span className="text-[10px] font-normal text-muted-foreground"><i className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-orange-500" />即時同步</span></div><div className="mb-3 text-[11px] text-muted-foreground">點選桌位立即切換訂單</div>
+          <div className="mb-1 flex items-center justify-between font-bold"><span>{rs("tableStatus")}</span><span className="text-[10px] font-normal text-muted-foreground"><i className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-orange-500" />{p("realtimeSync")}</span></div><div className="mb-3 text-[11px] text-muted-foreground">{rs("tapTableToSwitch")}</div>
           <div className="space-y-5">
             {data.areas.map((area) => <div key={area.id}>
               <div className="mb-2 text-xs font-semibold text-muted-foreground">{area.name}</div>
@@ -759,7 +759,7 @@ return <div className="grid min-h-[60vh] animate-pulse gap-4 xl:grid-cols-[280px
                 const occupied = table.orders.some((order) => ACTIVE.has(order.status));
                 return <button key={table.id} onClick={() => setSelectedTableId(table.id)} className={`min-h-20 rounded-xl border p-2 text-left transition ${active ? "border-orange-500 ring-2 ring-orange-200" : occupied ? "border-rose-200 bg-rose-50 dark:bg-rose-950/20" : "hover:border-emerald-400"}`}>
                   <div className="font-bold">{table.name}</div>
-                  <div className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground"><Users className="h-3 w-3" />{table.seats} 位・{occupied ? rs("tableOccupied") : rs("tableFree")}</div>
+                  <div className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground"><Users className="h-3 w-3" />{rs("seatsAndStatus", { seats: table.seats, status: occupied ? rs("tableOccupied") : rs("tableFree") })}</div>
                 </button>;
               })}</div>
             </div>)}
@@ -782,7 +782,7 @@ return <div className="grid min-h-[60vh] animate-pulse gap-4 xl:grid-cols-[280px
               </div>
               <div className="p-3">
                 <div className="line-clamp-2 min-h-10 text-sm font-bold">{product.name}</div>
-                <div className="mt-1 flex justify-between text-xs"><span className="font-semibold text-orange-600">{money(product.salePrice)}</span><span className="text-muted-foreground">庫 {product.stockTotal}</span></div>
+                <div className="mt-1 flex justify-between text-xs"><span className="font-semibold text-orange-600">{money(product.salePrice)}</span><span className="text-muted-foreground">{rs("stockShort", { count: product.stockTotal })}</span></div>
               </div>
             </button>)}
           </div>
@@ -792,7 +792,7 @@ return <div className="grid min-h-[60vh] animate-pulse gap-4 xl:grid-cols-[280px
           {!selectedTable ? (
             <div className="flex min-h-[480px] flex-col items-center justify-center text-center text-muted-foreground">
               <UtensilsCrossed className="h-12 w-12 opacity-30" />
-              <div className="mt-3 font-bold">請先選擇桌位</div>
+              <div className="mt-3 font-bold">{rs("selectTableFirst")}</div>
               <div className="mt-1 text-xs">{rs("tableHint")}</div>
             </div>
           ) : !selectedOrder ? (
@@ -800,12 +800,12 @@ return <div className="grid min-h-[60vh] animate-pulse gap-4 xl:grid-cols-[280px
               <div className="text-lg font-black">{selectedTable.name}</div>
               <p className="mt-1 text-sm text-muted-foreground">{rs("currentlyFree")}</p>
               <label className="mt-5 text-sm">{rs("partySize")}<input type="number" min={1} max={99} value={guests} onChange={(event) => setGuests(Number(event.target.value))} className="ml-2 h-10 w-20 rounded-lg border px-2" /></label>
-              <button disabled={busy} data-shortcut="new" onClick={() => void openTable(selectedTable)} className="mt-4 h-11 rounded-xl bg-orange-600 px-8 font-bold text-white">開桌點餐</button>
+              <button disabled={busy} data-shortcut="new" onClick={() => void openTable(selectedTable)} className="mt-4 h-11 rounded-xl bg-orange-600 px-8 font-bold text-white">{rs("openAndOrder")}</button>
             </div>
           ) : (
             <div className="flex min-h-[540px] flex-col">
               <div className="flex items-center justify-between border-b pb-3">
-                <div><div className="font-black">{selectedTable.name}・{selectedOrder.number}</div><div className="mt-1 text-xs text-muted-foreground">{selectedOrder.guests} 位・{selectedOrder.status}</div></div>
+                <div><div className="font-black">{selectedTable.name}・{selectedOrder.number}</div><div className="mt-1 text-xs text-muted-foreground">{rs("seatsAndStatus", { seats: selectedOrder.guests, status: selectedOrder.status })}</div></div>
                 <Clock3 className="h-5 w-5 text-muted-foreground" />
               </div>
               <div className="flex-1 space-y-2 overflow-y-auto py-3">
@@ -824,14 +824,14 @@ return <div className="grid min-h-[60vh] animate-pulse gap-4 xl:grid-cols-[280px
               </div>
               <div className="space-y-3 border-t pt-3">
                 <div className="flex items-end justify-between"><span className="text-sm text-muted-foreground">{rs("ticketTotal")}</span><span className="text-2xl font-black">{money(orderTotal)}</span></div>
-                <button disabled={busy || !selectedOrder.items.some((item) => item.status === "PENDING")} onClick={() => void sendKitchen()} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 font-bold text-white disabled:opacity-40"><Send className="h-4 w-4" />送廚房</button>
+                <button disabled={busy || !selectedOrder.items.some((item) => item.status === "PENDING")} onClick={() => void sendKitchen()} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 font-bold text-white disabled:opacity-40"><Send className="h-4 w-4" />{rs("sendToKitchenBtn")}</button>
                 <label className="flex items-center justify-between rounded-lg border px-3 py-2 text-xs">
-                  <span className="inline-flex items-center gap-2"><Printer className="h-4 w-4" />送廚後自動列印 80mm 廚房單</span>
+                  <span className="inline-flex items-center gap-2"><Printer className="h-4 w-4" />{rs("autoPrintTicket")}</span>
                   <input type="checkbox" checked={autoPrintKitchen} onChange={(event) => changeAutoPrint(event.target.checked)} className="h-4 w-4 accent-orange-600" />
                 </label>
                 {lastKitchenTicketId && <button onClick={() => window.open(`/print/kitchen/${lastKitchenTicketId}`, "_blank", "noopener,noreferrer")} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border text-sm"><Printer className="h-4 w-4" />{rs("printLastKitchenTicket")}</button>}
                 <div className="space-y-2 rounded-xl border bg-muted/30 p-3">
-                  <label className="text-xs font-bold">電子發票／收據
+                  <label className="text-xs font-bold">{rs("eInvoiceOrReceipt")}
                     <select value={invoiceMode} onChange={(event) => setInvoiceMode(event.target.value as InvoiceMode)} className="mt-1 h-9 w-full rounded-lg border bg-background px-2 text-sm">
                       <option value="NONE">{rs("noEInvoice")}</option><option value="PAPER">{rs("eInvoicePrinted")}</option><option value="MOBILE_CARRIER">{p("mobileBarcodeCarrier")}</option><option value="CITIZEN_CERT">{p("citizenCertCarrier")}</option><option value="DONATION">{rs("donationCode")}</option><option value="BUSINESS">{rs("companyTaxId")}</option>
                     </select>
@@ -845,7 +845,7 @@ return <div className="grid min-h-[60vh] animate-pulse gap-4 xl:grid-cols-[280px
                   <button disabled={busy || orderTotal <= 0} onClick={() => openPaymentDialog("CASH")} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-emerald-600 font-bold text-white"><Banknote className="h-4 w-4" />{rs("payCash")}</button>
                   <button disabled={busy || orderTotal <= 0} onClick={() => openPaymentDialog("CARD")} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-indigo-600 font-bold text-white"><CreditCard className="h-4 w-4" />{rs("payCard")}</button>
                 </div>
-                {lastPayment && <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900"><div className="flex items-center gap-2 font-bold"><CheckCircle2 className="h-4 w-4" />{lastPayment.number} 收款完成</div><div className="mt-1">{lastPayment.method === "CASH" ? `實收 ${money(lastPayment.paidAmount)}・找零 ${money(lastPayment.changeDue)}` : `刷卡核准 ${lastPayment.reference}`}</div><div className="mt-1">進銷存、庫存流水與會計傳票背景同步中</div></div>}
+                {lastPayment && <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900"><div className="flex items-center gap-2 font-bold"><CheckCircle2 className="h-4 w-4" />{rs("paidDone", { number: lastPayment.number })}</div><div className="mt-1">{lastPayment.method === "CASH" ? rs("cashChangeLine", { paid: money(lastPayment.paidAmount), change: money(lastPayment.changeDue) }) : rs("cardApprovedLine", { reference: lastPayment.reference ?? "" })}</div><div className="mt-1">{rs("syncingNote")}</div></div>}
                 {lastSaleId && <button onClick={() => window.open(`/print/pos/${lastSaleId}?print=1`, "_blank", "noopener,noreferrer")} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border text-sm"><ReceiptText className="h-4 w-4" />{p("printReceipt")}</button>}
               </div>
             </div>
@@ -880,11 +880,11 @@ function CancelRestaurantItemDialog({ item, busy, canWaste, onClose, onConfirm }
     <DialogContent className="max-w-lg">
       <DialogHeader><DialogTitle>{rs("cancelDish")}</DialogTitle><DialogDescription>{rs("cancelNote")}</DialogDescription></DialogHeader>
       {item && <div className="space-y-4">
-        <div className="rounded-xl border bg-muted/40 p-4"><div className="font-black">{Number(item.quantity)} × {item.product.name}</div><div className="mt-1 text-xs text-muted-foreground">目前狀態：{item.status}</div></div>
+        <div className="rounded-xl border bg-muted/40 p-4"><div className="font-black">{Number(item.quantity)} × {item.product.name}</div><div className="mt-1 text-xs text-muted-foreground">{rs("currentStatus", { status: item.status })}</div></div>
         <label className="block text-sm font-medium">{rs("disposition")}<select value={disposition} onChange={(event) => setDisposition(event.target.value as "NOT_PREPARED" | "WASTE")} disabled={mustWaste || busy} className="mt-1 h-10 w-full rounded-lg border bg-background px-3"><option value="NOT_PREPARED">{rs("notCookedNoStock")}</option>{canWaste && <option value="WASTE">{rs("cookedWasted")}</option>}</select></label>
         {mustWaste && <div className="rounded-xl border border-rose-300 bg-rose-50 p-3 text-sm font-semibold text-rose-900">{rs("cookedOnlyWaste")}</div>}
         <label className="block text-sm font-medium">{rs("cancelReason")}<textarea value={reason} onChange={(event) => setReason(event.target.value)} disabled={busy} placeholder={rs("cancelReasonExampleLong")} className="mt-1 min-h-24 w-full rounded-xl border bg-background p-3" /></label>
-        <div className="flex justify-end gap-2"><button onClick={onClose} disabled={busy} className="h-10 rounded-lg border px-4">{tc("back")}</button><button onClick={() => void onConfirm(reason.trim(), mustWaste ? "WASTE" : disposition)} disabled={busy || reason.trim().length < 2} className="inline-flex h-10 items-center gap-2 rounded-lg bg-rose-600 px-4 font-bold text-white disabled:opacity-40">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}確認取消</button></div>
+        <div className="flex justify-end gap-2"><button onClick={onClose} disabled={busy} className="h-10 rounded-lg border px-4">{tc("back")}</button><button onClick={() => void onConfirm(reason.trim(), mustWaste ? "WASTE" : disposition)} disabled={busy || reason.trim().length < 2} className="inline-flex h-10 items-center gap-2 rounded-lg bg-rose-600 px-4 font-bold text-white disabled:opacity-40">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}{rs("confirmCancel")}</button></div>
       </div>}
     </DialogContent>
   </Dialog>;
@@ -960,7 +960,7 @@ function RestaurantRefundHistory({ shift, canRefund, onRefunded }: {
   async function submitRefund() {
     if (!shift || !refundSale) return;
     const items = refundSale.items.map((item: any) => ({ saleItemId: item.id, quantity: Number(refundQty[item.id] ?? 0), disposition: dispositions[item.id] || "SCRAP" })).filter((item: any) => Number.isFinite(item.quantity) && item.quantity > 0);
-    if (!items.length) return toast.error("請至少輸入一筆退款數量");
+    if (!items.length) return toast.error(rs("refundQtyRequired"));
     if (reason.trim().length < 2) return toast.error(p("refundReasonRequired"));
     setBusy(true);
     try {
@@ -984,10 +984,10 @@ function RestaurantRefundHistory({ shift, canRefund, onRefunded }: {
       return <tr key={sale.id} className="border-t"><td className="p-3"><div className="font-mono text-xs">{sale.number}</div><div className="text-xs text-muted-foreground">{sale.restaurantOrder?.table.name || rs("takeaway")}・{sale.restaurantOrder?.number}</div></td><td className="p-3">{new Date(sale.createdAt).toLocaleString("zh-TW")}</td><td className="p-3 text-right">{money(Number(sale.total))}</td><td className="p-3 text-right text-rose-700">{money(Number(sale.refundedTotal ?? 0))}</td><td className="p-3">{sale.status === "COMPLETED" ? p("statusDone") : sale.status === "PARTIALLY_REFUNDED" ? p("partialRefund") : sale.status === "REFUNDED" ? p("fullyRefunded") : sale.status}</td><td className="p-3 text-right"><button disabled={!refundable || busy || !canRefund} onClick={() => void openRefund(sale.id)} title={canRefund ? rs("refundByOriginal") : rs("needPosReturnRights")} className="inline-flex h-9 items-center gap-1 rounded-lg border px-3 disabled:opacity-40"><RotateCcw className="h-4 w-4" />{p("refund")}</button></td></tr>;
     })}{sales.length === 0 && <tr><td colSpan={6} className="p-10 text-center text-muted-foreground">{rs("noRestaurantTxns")}</td></tr>}</tbody></table></div>
 
-    {refundSale && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"><div className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-2xl bg-background shadow-2xl"><div className="flex items-start justify-between border-b p-5"><div><div className="text-lg font-bold">餐飲原交易退款・{refundSale.number}</div><div className="mt-1 text-xs text-muted-foreground">{rs("refundPostingNote")}</div></div><button onClick={() => setRefundSale(null)} disabled={busy} aria-label={tc("close")}><X className="h-5 w-5" /></button></div><div className="space-y-4 p-5"><div className="overflow-x-auto rounded-xl border"><table className="w-full min-w-[820px] text-sm"><thead className="bg-muted/50 text-xs"><tr><th className="p-3 text-left">{rs("dish")}</th><th className="p-3 text-right">{p("originalQty")}</th><th className="p-3 text-right">{p("alreadyRefunded")}</th><th className="p-3 text-right">{p("refundable")}</th><th className="p-3 text-right">本次</th><th className="p-3 text-left">品況</th></tr></thead><tbody>{refundSale.items.map((item: any) => {
+    {refundSale && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"><div className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-2xl bg-background shadow-2xl"><div className="flex items-start justify-between border-b p-5"><div><div className="text-lg font-bold">{rs("refundDocLine", { number: refundSale.number })}</div><div className="mt-1 text-xs text-muted-foreground">{rs("refundPostingNote")}</div></div><button onClick={() => setRefundSale(null)} disabled={busy} aria-label={tc("close")}><X className="h-5 w-5" /></button></div><div className="space-y-4 p-5"><div className="overflow-x-auto rounded-xl border"><table className="w-full min-w-[820px] text-sm"><thead className="bg-muted/50 text-xs"><tr><th className="p-3 text-left">{rs("dish")}</th><th className="p-3 text-right">{p("originalQty")}</th><th className="p-3 text-right">{p("alreadyRefunded")}</th><th className="p-3 text-right">{p("refundable")}</th><th className="p-3 text-right">{p("thisTime")}</th><th className="p-3 text-left">{p("condition")}</th></tr></thead><tbody>{refundSale.items.map((item: any) => {
       const remaining = Math.max(0, Math.round((Number(item.quantity) - Number(item.returnedQty)) * 10_000) / 10_000);
       return <tr key={item.id} className="border-t"><td className="p-3"><div className="font-medium">{item.product?.name}</div><div className="font-mono text-xs text-muted-foreground">{item.product?.sku}</div></td><td className="p-3 text-right">{Number(item.quantity)}</td><td className="p-3 text-right">{Number(item.returnedQty)}</td><td className="p-3 text-right font-semibold">{remaining}</td><td className="p-3"><input type="number" min="0" max={remaining} step="0.0001" value={refundQty[item.id] ?? 0} onChange={(event) => setRefundQty((current) => ({ ...current, [item.id]: event.target.value }))} disabled={busy || remaining <= 0} className="ml-auto block h-9 w-28 rounded-lg border px-2 text-right" /></td><td className="p-3"><select value={dispositions[item.id] || "SCRAP"} onChange={(event) => setDispositions((current) => ({ ...current, [item.id]: event.target.value as any }))} disabled={busy || remaining <= 0} className="h-9 rounded-lg border bg-background px-2"><option value="SCRAP">{rs("cookedWastedNoReturn")}</option><option value="DAMAGED">{p("conditionDefective")}</option><option value="SELLABLE">{rs("unopenedGood")}</option></select></td></tr>;
-    })}</tbody></table></div><label className="block text-sm font-medium">{p("refundReason")}<textarea value={reason} onChange={(event) => setReason(event.target.value)} disabled={busy} placeholder={rs("cancelReasonExample")} className="mt-1 min-h-20 w-full rounded-xl border p-3" /></label><div className="flex items-center justify-between border-t pt-4"><div><div className="text-xs text-muted-foreground">本次預估退款</div><div className="text-2xl font-black text-rose-700">{money(estimate)}</div></div><div className="flex gap-2"><button onClick={() => setRefundSale(null)} disabled={busy} className="h-11 rounded-xl border px-5">{tc("cancel")}</button><button onClick={() => void submitRefund()} disabled={busy || estimate <= 0} className="inline-flex h-11 items-center gap-2 rounded-xl bg-rose-600 px-5 font-bold text-white disabled:opacity-40">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}確認退款</button></div></div></div></div></div>}
+    })}</tbody></table></div><label className="block text-sm font-medium">{p("refundReason")}<textarea value={reason} onChange={(event) => setReason(event.target.value)} disabled={busy} placeholder={rs("cancelReasonExample")} className="mt-1 min-h-20 w-full rounded-xl border p-3" /></label><div className="flex items-center justify-between border-t pt-4"><div><div className="text-xs text-muted-foreground">{rs("estimatedRefund")}</div><div className="text-2xl font-black text-rose-700">{money(estimate)}</div></div><div className="flex gap-2"><button onClick={() => setRefundSale(null)} disabled={busy} className="h-11 rounded-xl border px-5">{tc("cancel")}</button><button onClick={() => void submitRefund()} disabled={busy || estimate <= 0} className="inline-flex h-11 items-center gap-2 rounded-xl bg-rose-600 px-5 font-bold text-white disabled:opacity-40">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}{p("confirmRefund")}</button></div></div></div></div></div>}
   </section>;
 }
 type TableForm = { areaId: string; code: string; name: string; seats: number; sortOrder: number };
@@ -1016,7 +1016,7 @@ function TableManager({ open, onOpenChange, areas, busy, onAction }: {
     setForm({
       areaId: areas.find((area) => area.isActive)?.id ?? areas[0]?.id ?? "",
       code: `T${String(number).padStart(2, "0")}`,
-      name: `${number} 號桌`,
+      name: rs("tableNumber", { code: number }),
       seats: 4,
       sortOrder: Math.max(0, ...allTables.map((table) => table.sortOrder)) + 1,
     });
@@ -1049,8 +1049,8 @@ function TableManager({ open, onOpenChange, areas, busy, onAction }: {
 
   async function removeTable(table: ManagedTable) {
     const message = table._count.orders > 0
-      ? `${table.name} 已有歷史交易，刪除後將改為停用並保留所有單據。確定繼續？`
-      : `確定刪除尚未使用的桌位「${table.name}」？`;
+      ? rs("confirmDisableTable", { name: table.name })
+      : rs("confirmDeleteTable", { name: table.name });
     if (!window.confirm(message)) return;
     const result = await onAction({ action: "DELETE_TABLE", tableId: table.id });
     if (result) toast.success(result.mode === "ARCHIVED" ? rs("tableHasHistory") : rs("tableDeleted"));
@@ -1060,7 +1060,7 @@ function TableManager({ open, onOpenChange, areas, busy, onAction }: {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl">
         <DialogHeader>
-          <DialogTitle>餐飲桌位設定</DialogTitle>
+          <DialogTitle>{rs("tableSettings")}</DialogTitle>
           <DialogDescription>{rs("tableSetupNote")}</DialogDescription>
         </DialogHeader>
 
@@ -1070,14 +1070,14 @@ function TableManager({ open, onOpenChange, areas, busy, onAction }: {
           <label className="text-xs font-bold md:col-span-2">{rs("displayName")}<input required maxLength={40} value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className="mt-1 h-10 w-full rounded-lg border bg-background px-3 text-sm" /></label>
           <label className="text-xs font-bold">{rs("seatCount")}<input required type="number" min={1} max={99} value={form.seats} onChange={(event) => setForm({ ...form, seats: Number(event.target.value) })} className="mt-1 h-10 w-full rounded-lg border bg-background px-3 text-sm" /></label>
           <label className="text-xs font-bold md:col-span-2">{rs("sortOrder")}<input required type="number" min={0} max={9999} value={form.sortOrder} onChange={(event) => setForm({ ...form, sortOrder: Number(event.target.value) })} className="mt-1 h-10 w-full rounded-lg border bg-background px-3 text-sm" /></label>
-          <div className="flex items-end gap-2 md:col-span-4"><button type="submit" disabled={busy || !form.areaId || !form.code.trim() || !form.name.trim()} className="h-10 rounded-lg bg-orange-600 px-5 text-sm font-bold text-white disabled:opacity-40">{editingId ? "儲存修改" : rs("addTable")}</button><button type="button" disabled={busy} onClick={startCreate} className="h-10 rounded-lg border px-4 text-sm">{rs("clearOrAddTable")}</button></div>
+          <div className="flex items-end gap-2 md:col-span-4"><button type="submit" disabled={busy || !form.areaId || !form.code.trim() || !form.name.trim()} className="h-10 rounded-lg bg-orange-600 px-5 text-sm font-bold text-white disabled:opacity-40">{editingId ? rs("saveChanges") : rs("addTable")}</button><button type="button" disabled={busy} onClick={startCreate} className="h-10 rounded-lg border px-4 text-sm">{rs("clearOrAddTable")}</button></div>
         </form>
 
         <div className="max-h-[48vh] space-y-5 overflow-y-auto pr-1">
           {areas.map((area) => <section key={area.id}>
-            <div className="mb-2 flex items-center justify-between"><div className="font-bold">{area.name}</div><div className="text-xs text-muted-foreground">{area.tables.filter((table) => table.isActive).length} 張啟用</div></div>
+            <div className="mb-2 flex items-center justify-between"><div className="font-bold">{area.name}</div><div className="text-xs text-muted-foreground">{rs("enabledCount", { count: area.tables.filter((table) => table.isActive).length })}</div></div>
             <div className="grid gap-2 sm:grid-cols-2">{area.tables.map((table) => <div key={table.id} className={`flex items-center justify-between gap-3 rounded-xl border p-3 ${table.isActive ? "bg-background" : "bg-muted/40 opacity-70"}`}>
-              <div className="min-w-0"><div className="truncate font-bold">{table.name} <span className="font-mono text-xs font-normal text-muted-foreground">{table.code}</span></div><div className="mt-1 text-xs text-muted-foreground">{table.seats} 位・順序 {table.sortOrder}・{table.status === "OCCUPIED" ? rs("tableOccupied") : table.isActive ? rs("inUse") : rs("disabled")}{table._count.orders > 0 ? `・${table._count.orders} 筆歷史桌單` : rs("noTxnYet")}</div></div>
+              <div className="min-w-0"><div className="truncate font-bold">{table.name} <span className="font-mono text-xs font-normal text-muted-foreground">{table.code}</span></div><div className="mt-1 text-xs text-muted-foreground">{rs("seatsOrderStatus", { seats: table.seats, order: table.sortOrder, status: table.status === "OCCUPIED" ? rs("tableOccupied") : table.isActive ? rs("inUse") : rs("disabled") })}{table._count.orders > 0 ? rs("ticketHistoryCount", { count: table._count.orders }) : rs("noTxnYet")}</div></div>
               <div className="flex shrink-0 gap-1"><button type="button" disabled={busy} title={rs("editTable")} onClick={() => startEdit(table)} className="h-9 w-9 rounded-lg border hover:bg-muted"><Pencil className="mx-auto h-4 w-4" /></button><button type="button" disabled={busy || table.status === "OCCUPIED"} title={table.isActive ? rs("disableTable") : rs("restoreTable")} onClick={() => void toggleTable(table)} className="h-9 w-9 rounded-lg border hover:bg-muted"><ArchiveRestore className="mx-auto h-4 w-4" /></button><button type="button" disabled={busy || table.status === "OCCUPIED"} title={rs("safeDeleteTable")} onClick={() => void removeTable(table)} className="h-9 w-9 rounded-lg border text-rose-600 hover:bg-rose-50"><Trash2 className="mx-auto h-4 w-4" /></button></div>
             </div>)}</div>
           </section>)}
@@ -1125,24 +1125,24 @@ function KitchenBoard({ tickets, busy, history, canCancelUnprepared, canCancelWa
     if (!from) return "—";
     const seconds = Math.max(0, Math.round(((to ? new Date(to) : new Date()).getTime() - new Date(from).getTime()) / 1000));
     const minutes = Math.floor(seconds / 60);
-    return minutes > 0 ? `${minutes} 分 ${seconds % 60} 秒` : `${seconds} 秒`;
+    return minutes > 0 ? rs("elapsedMinSec", { min: minutes, sec: seconds % 60 }) : rs("elapsedSec", { sec: seconds });
   };
 
   async function changeStatus(ticket: KitchenTicket, orderItem: OrderItem, status: "PREPARING" | "READY" | "SERVED") {
     const actionLabel = status === "PREPARING" ? rs("beginCooking") : status === "READY" ? rs("readyToServe") : rs("confirmServe");
     setPendingItemId(orderItem.id);
     setOptimisticStatuses((current) => ({ ...current, [orderItem.id]: status }));
-    setFeedback({ tone: "progress", text: `${ticket.order.table.name}・${orderItem.product.name}：${actionLabel}處理中…` });
+    setFeedback({ tone: "progress", text: `${ticket.order.table.name}・${orderItem.product.name}：${actionLabel}${rs("processingEllipsis")}` });
     const result = await update(orderItem.id, status);
     if (result) {
-      setFeedback({ tone: "success", text: `✓ ${ticket.order.table.name}・${orderItem.product.name}：${statusLabel(status)}，時間 ${clock(result.changedAt ?? new Date().toISOString())}` });
+      setFeedback({ tone: "success", text: `✓ ${ticket.order.table.name}・${orderItem.product.name}：${statusLabel(status)}${rs("atTime", { time: clock(result.changedAt ?? new Date().toISOString()) })}` });
     } else {
       setOptimisticStatuses((current) => {
         const next = { ...current };
         delete next[orderItem.id];
         return next;
       });
-      setFeedback({ tone: "error", text: `✕ ${ticket.order.table.name}・${orderItem.product.name}：狀態更新失敗，請再試一次` });
+      setFeedback({ tone: "error", text: `✕ ${ticket.order.table.name}・${orderItem.product.name}：${rs("updateFailedSuffix")}` });
     }
     setPendingItemId("");
   }
@@ -1163,20 +1163,20 @@ function KitchenBoard({ tickets, busy, history, canCancelUnprepared, canCancelWa
           <div><span className="text-muted-foreground">{rs("started")}</span><strong className="ml-2">{clock(ticket.startedAt)}</strong></div>
           <div><span className="text-muted-foreground">{f("completed")}</span><strong className="ml-2">{clock(ticket.readyAt)}</strong></div>
           <div><span className="text-muted-foreground">{rs("serve")}</span><strong className="ml-2">{clock(ticket.servedAt)}</strong></div>
-          <div className="col-span-2 border-t pt-2"><span className="text-muted-foreground">{rs("elapsedTotal")}</span><strong className="ml-2 text-sm">{duration(ticket.sentAt, ticket.servedAt)}</strong>{ticket.startedAt && ticket.readyAt && <span className="ml-3 text-muted-foreground">製作 {duration(ticket.startedAt, ticket.readyAt)}</span>}</div>
+          <div className="col-span-2 border-t pt-2"><span className="text-muted-foreground">{rs("elapsedTotal")}</span><strong className="ml-2 text-sm">{duration(ticket.sentAt, ticket.servedAt)}</strong>{ticket.startedAt && ticket.readyAt && <span className="ml-3 text-muted-foreground">{rs("madeCount", { count: duration(ticket.startedAt, ticket.readyAt) })}</span>}</div>
         </div>
         <div className="mt-4 space-y-3">{ticket.items.map(({ orderItem }) => {
           const displayStatus = optimisticStatuses[orderItem.id] ?? orderItem.status;
           const processing = pendingItemId === orderItem.id;
           const itemTone = displayStatus === "CANCELLED" ? "border-rose-300 bg-rose-50" : displayStatus === "SERVED" ? "border-indigo-400 bg-indigo-100/70" : displayStatus === "READY" ? "border-emerald-500 bg-emerald-100/80 ring-2 ring-emerald-200" : displayStatus === "PREPARING" ? "border-orange-500 bg-orange-100/80" : "border-slate-200 bg-white";
           return <div key={orderItem.id} className={`rounded-xl border-2 p-3 transition-all ${itemTone} ${processing ? "animate-pulse" : ""}`}>
-            <div className="flex justify-between gap-2"><div className="text-base font-black">{Number(orderItem.quantity)} × {orderItem.product.name}</div><span className={`rounded-full px-2 py-1 text-xs font-black ${displayStatus === "CANCELLED" ? "bg-rose-600 text-white" : displayStatus === "SERVED" ? "bg-indigo-600 text-white" : displayStatus === "READY" ? "bg-emerald-600 text-white" : displayStatus === "PREPARING" ? "bg-orange-500 text-white" : "bg-slate-200 text-slate-800"}`}>{processing ? "更新中…" : statusLabel(displayStatus)}</span></div>
-            {orderItem.note && <div className="mt-2 rounded-lg bg-rose-100 p-2 text-sm font-black text-rose-700">備註：{orderItem.note}</div>}
-            {orderItem.cancelReason && <div className="mt-2 rounded-lg border border-rose-200 bg-white p-2 text-sm text-rose-800">取消原因：{orderItem.cancelReason}・{orderItem.cancelDisposition === "WASTE" ? rs("wasteRecorded") : rs("cancelNotCooked")}</div>}
+            <div className="flex justify-between gap-2"><div className="text-base font-black">{Number(orderItem.quantity)} × {orderItem.product.name}</div><span className={`rounded-full px-2 py-1 text-xs font-black ${displayStatus === "CANCELLED" ? "bg-rose-600 text-white" : displayStatus === "SERVED" ? "bg-indigo-600 text-white" : displayStatus === "READY" ? "bg-emerald-600 text-white" : displayStatus === "PREPARING" ? "bg-orange-500 text-white" : "bg-slate-200 text-slate-800"}`}>{processing ? rs("updating") : statusLabel(displayStatus)}</span></div>
+            {orderItem.note && <div className="mt-2 rounded-lg bg-rose-100 p-2 text-sm font-black text-rose-700">{rs("remarkLabel")}{orderItem.note}</div>}
+            {orderItem.cancelReason && <div className="mt-2 rounded-lg border border-rose-200 bg-white p-2 text-sm text-rose-800">{rs("cancelReasonPrefix")}{orderItem.cancelReason}・{orderItem.cancelDisposition === "WASTE" ? rs("wasteRecorded") : rs("cancelNotCooked")}</div>}
             <div className="mt-3 flex gap-2">
-              {!history && orderItem.status === "SENT" && <button disabled={busy || processing} onClick={() => void changeStatus(ticket, orderItem, "PREPARING")} className="h-12 flex-1 rounded-xl bg-orange-500 px-3 text-sm font-black text-white shadow-lg shadow-orange-200 disabled:opacity-50">{processing ? "處理中…" : rs("startCooking")}</button>}
-              {!history && ["SENT", "PREPARING"].includes(orderItem.status) && <button disabled={busy || processing} onClick={() => void changeStatus(ticket, orderItem, "READY")} className="h-12 flex-1 rounded-xl bg-emerald-600 px-3 text-sm font-black text-white shadow-lg shadow-emerald-200 disabled:opacity-50">{processing ? "處理中…" : rs("markReady")}</button>}
-              {!history && orderItem.status === "READY" && <button disabled={busy || processing} onClick={() => void changeStatus(ticket, orderItem, "SERVED")} className="h-12 flex-1 rounded-xl bg-indigo-600 px-3 text-sm font-black text-white shadow-lg shadow-indigo-200 disabled:opacity-50">{processing ? "處理中…" : rs("markServed")}</button>}
+              {!history && orderItem.status === "SENT" && <button disabled={busy || processing} onClick={() => void changeStatus(ticket, orderItem, "PREPARING")} className="h-12 flex-1 rounded-xl bg-orange-500 px-3 text-sm font-black text-white shadow-lg shadow-orange-200 disabled:opacity-50">{processing ? rs("processingEllipsis") : rs("startCooking")}</button>}
+              {!history && ["SENT", "PREPARING"].includes(orderItem.status) && <button disabled={busy || processing} onClick={() => void changeStatus(ticket, orderItem, "READY")} className="h-12 flex-1 rounded-xl bg-emerald-600 px-3 text-sm font-black text-white shadow-lg shadow-emerald-200 disabled:opacity-50">{processing ? rs("processingEllipsis") : rs("markReady")}</button>}
+              {!history && orderItem.status === "READY" && <button disabled={busy || processing} onClick={() => void changeStatus(ticket, orderItem, "SERVED")} className="h-12 flex-1 rounded-xl bg-indigo-600 px-3 text-sm font-black text-white shadow-lg shadow-indigo-200 disabled:opacity-50">{processing ? rs("processingEllipsis") : rs("markServed")}</button>}
               {!history && ((orderItem.status === "SENT" && canCancelUnprepared) || (["PREPARING", "READY"].includes(orderItem.status) && canCancelWaste)) && <button disabled={busy || processing} onClick={() => cancel(orderItem)} className="h-12 rounded-xl border-2 border-rose-300 bg-white px-3 text-sm font-black text-rose-700 disabled:opacity-50"><Trash2 className="mr-1 inline h-4 w-4" />{tc("cancel")}</button>}
               {orderItem.status === "SERVED" && <div className="flex h-12 flex-1 items-center justify-center rounded-xl border-2 border-indigo-400 bg-indigo-100 text-sm font-black text-indigo-900">{rs("servedDone")}</div>}
               {orderItem.status === "CANCELLED" && <div className="flex h-12 flex-1 items-center justify-center rounded-xl border-2 border-rose-300 bg-rose-100 text-sm font-black text-rose-900">{rs("cancelledArchived")}</div>}
