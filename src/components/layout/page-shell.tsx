@@ -1,3 +1,4 @@
+import { getTranslations } from "next-intl/server";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
@@ -28,23 +29,17 @@ export function PageShell({
   );
 }
 
-export function EmptyState({ title = "目前沒有資料", description, action }: { title?: string; description?: string; action?: React.ReactNode }) {
-  return (
-    <div className="border border-dashed rounded-xl p-12 text-center">
-      <div className="text-lg font-medium">{title}</div>
-      {description && <div className="text-sm text-muted-foreground mt-1">{description}</div>}
-      {action && <div className="mt-4 flex justify-center">{action}</div>}
-    </div>
-  );
-}
+// 預設標題需要翻譯，因此實作放在 client 檔；這裡 re-export 維持既有 import 路徑不變。
+export { EmptyState } from "./empty-state";
 
-export function ForbiddenPage() {
+export async function ForbiddenPage() {
+  const t = await getTranslations("table");
   return (
     <div className="flex items-center justify-center min-h-[400px]">
       <div className="text-center">
         <div className="text-4xl font-bold text-muted-foreground">403</div>
-        <div className="mt-2 text-lg font-medium">權限不足</div>
-        <div className="text-sm text-muted-foreground mt-1">您沒有瀏覽此頁面的權限，請聯絡管理員。</div>
+        <div className="mt-2 text-lg font-medium">{t("forbidden")}</div>
+        <div className="text-sm text-muted-foreground mt-1">{t("forbiddenBody")}</div>
       </div>
     </div>
   );

@@ -6,8 +6,10 @@ import { ThemeProvider } from "next-themes";
 import { SWRConfig } from "swr";
 import { CheckCircle2, Loader2 } from "lucide-react";
 import { Toaster, toast } from "sonner";
+import { useTranslations } from "next-intl";
 
 function CheckoutFeedback() {
+  const t = useTranslations("pos");
   const [state, setState] = useState<"processing" | "success" | null>(null);
   const hideTimerRef = useRef<number | null>(null);
 
@@ -28,21 +30,21 @@ function CheckoutFeedback() {
 
       if (hideTimerRef.current) window.clearTimeout(hideTimerRef.current);
       setState("processing");
-      const toastId = toast.loading("結帳處理中，請勿重複點擊或再次收款", { duration: Infinity });
+      const toastId = toast.loading(t("checkoutProcessingToast"), { duration: Infinity });
       try {
         const response = await originalFetch(...args);
         if (response.ok) {
           setState("success");
-          toast.success("結帳完成，庫存、付款與帳務已寫入", { id: toastId, duration: 6000 });
+          toast.success(t("checkoutDoneToast"), { id: toastId, duration: 6000 });
           hideTimerRef.current = window.setTimeout(() => setState(null), 2600);
         } else {
           setState(null);
-          toast.error("結帳未完成，請查看畫面上的錯誤訊息", { id: toastId, duration: 6000 });
+          toast.error(t("checkoutFailedToast"), { id: toastId, duration: 6000 });
         }
         return response;
       } catch (error) {
         setState(null);
-        toast.error("結帳連線中斷，請勿再次收款；請依原購物車重新確認交易結果", { id: toastId, duration: 8000 });
+        toast.error(t("checkoutAbortedToast"), { id: toastId, duration: 8000 });
         throw error;
       }
     };
@@ -56,11 +58,11 @@ function CheckoutFeedback() {
 
   if (!state) return null;
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/55 p-5 backdrop-blur-[2px]" role="status" aria-live="assertive" aria-label={state === "processing" ? "結帳處理中" : "結帳完成"}>
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/55 p-5 backdrop-blur-[2px]" role="status" aria-live="assertive" aria-label={state === "processing" ? t("checkoutProcessing") : t("checkoutDone")}>
       <div className={`w-full max-w-md rounded-3xl border p-7 text-center shadow-2xl ${state === "processing" ? "border-indigo-200 bg-white text-slate-950 dark:border-indigo-800 dark:bg-slate-900 dark:text-white" : "border-emerald-200 bg-emerald-50 text-emerald-950 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-50"}`}>
         {state === "processing" ? <Loader2 className="mx-auto h-12 w-12 animate-spin text-indigo-600" /> : <CheckCircle2 className="mx-auto h-14 w-14 text-emerald-600" />}
-        <div className="mt-4 text-2xl font-black">{state === "processing" ? "結帳處理中" : "結帳完成"}</div>
-        <p className="mt-2 text-sm leading-6 opacity-80">{state === "processing" ? "正在確認庫存、付款、傳票與收據，請勿重複點擊或再次收款。" : "交易已成功寫入，可列印收據或進行下一筆交易。"}</p>
+        <div className="mt-4 text-2xl font-black">{state === "processing" ? t("checkoutProcessing") : t("checkoutDone")}</div>
+        <p className="mt-2 text-sm leading-6 opacity-80">{state === "processing" ? t("checkoutProcessingHint") : t("checkoutDoneHint")}</p>
       </div>
     </div>
   );

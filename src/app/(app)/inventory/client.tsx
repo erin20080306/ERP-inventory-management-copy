@@ -10,8 +10,14 @@ import { PrintListButton, PDFExportButton } from "@/components/print-list-button
 import { Search } from "lucide-react";
 import { useCustomColumns, useCustomFieldValues, CustomColumnDialog, CustomColumnButton, CustomFieldGridCell } from "@/components/custom-columns";
 import { readSessionCache, TableHint, TableSkeletonRows, useColumnDrag, useDebouncedValue, writeSessionCache } from "@/components/table-helpers";
+import { useTranslations } from "next-intl";
 
 export default function InventoryClient() {
+  const m = useTranslations("inventory");
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
+  const tt = useTranslations("table");
+  const tPage = useTranslations("pages");
   const [stocks, setStocks] = useState<any[]>([]);
   const [txns, setTxns] = useState<any[]>([]);
   const [stocksLoading, setStocksLoading] = useState(true);
@@ -76,15 +82,15 @@ export default function InventoryClient() {
   useEffect(() => { loadStocks(); loadTxns(); }, [debouncedQ, fromDate, toDate]);
 
   const txnLabel: Record<string, string> = {
-    PURCHASE_IN: "採購入庫",
-    SALES_OUT: "銷售出庫",
-    SALES_RETURN_IN: "銷售退貨入庫",
-    PURCHASE_RETURN_OUT: "採購退貨出庫",
-    ADJUST_IN: "盤盈",
-    ADJUST_OUT: "盤虧",
-    TRANSFER_IN: "調撥入庫",
-    TRANSFER_OUT: "調撥出庫",
-    MANUAL: "手動調整",
+    PURCHASE_IN: m("purchaseIn"),
+    SALES_OUT: m("salesOut"),
+    SALES_RETURN_IN: m("salesReturnIn"),
+    PURCHASE_RETURN_OUT: m("purchaseReturnOut"),
+    ADJUST_IN: m("countSurplus"),
+    ADJUST_OUT: m("countShortage"),
+    TRANSFER_IN: m("transferIn"),
+    TRANSFER_OUT: m("transferOut"),
+    MANUAL: m("manualAdjust"),
   };
 
   return (
@@ -92,11 +98,11 @@ export default function InventoryClient() {
       <div className="flex items-center gap-2 flex-wrap">
         <div className="relative">
           <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="搜尋 SKU / 商品名稱" className="pl-9 w-72" value={q} onChange={(e) => setQ(e.target.value)} />
+          <Input placeholder={m("searchPlaceholder")} className="pl-9 w-72" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
         <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-36" />
         <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-36" />
-        <PDFExportButton title="庫存管理" filename="inventory" />
+        <PDFExportButton title={tPage("inventory.title")} filename="inventory" />
         <PrintListButton />
         <CustomColumnButton onClick={() => customCols.setOpen(true)} />
       </div>
@@ -105,7 +111,7 @@ export default function InventoryClient() {
 
       <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0">
-              <CardTitle>即時庫存</CardTitle>
+              <CardTitle>{m("liveStock")}</CardTitle>
               <ExportButton
                 filename="inventory-stocks"
                 rows={stocks.map((s: any) => ({
@@ -120,15 +126,15 @@ export default function InventoryClient() {
                   value: Number(s.quantity) * Number(s.product.costPrice),
                 }))}
                 columns={[
-                  { key: "warehouse", title: "倉庫" },
+                  { key: "warehouse", title: f("warehouse") },
                   { key: "sku", title: "SKU" },
-                  { key: "name", title: "商品名稱" },
-                  { key: "quantity", title: "實體庫存" },
-                  { key: "reservedQuantity", title: "商城保留" },
-                  { key: "availableQuantity", title: "可售量" },
-                  { key: "safetyStock", title: "安全庫存" },
-                  { key: "costPrice", title: "成本" },
-                  { key: "value", title: "庫存價值" },
+                  { key: "name", title: f("productName") },
+                  { key: "quantity", title: m("physicalStock") },
+                  { key: "reservedQuantity", title: m("webReserved") },
+                  { key: "availableQuantity", title: m("available") },
+                  { key: "safetyStock", title: f("safetyStock") },
+                  { key: "costPrice", title: f("cost") },
+                  { key: "value", title: m("stockValue") },
                 ]}
               />
             </CardHeader>
@@ -136,24 +142,24 @@ export default function InventoryClient() {
               <Table>
                 <THead>
                   <TR>
-                    <TH {...colDrag.thProps("warehouse")} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }}>倉庫</TH>
+                    <TH {...colDrag.thProps("warehouse")} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }}>{f("warehouse")}</TH>
                     <TH {...colDrag.thProps("sku")} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }}>SKU</TH>
-                    <TH {...colDrag.thProps("product")} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }}>商品</TH>
-                    <TH {...colDrag.thProps("quantity")} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }}>實體庫存</TH>
-                    <TH {...colDrag.thProps("reserved")} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }}>商城保留</TH>
-                    <TH {...colDrag.thProps("available")} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }}>可售量</TH>
-                    <TH {...colDrag.thProps("safetyStock")} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }}>安全庫存</TH>
-                    <TH {...colDrag.thProps("cost")} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }}>成本</TH>
-                    <TH {...colDrag.thProps("value")} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }}>庫存價值</TH>
-                    <TH {...colDrag.thProps("stockStatus")} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }}>狀態</TH>
-                    {customCols.columns.map((cc) => <TH key={cc.id} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title="按右鍵管理自訂欄位">{cc.label}</TH>)}
+                    <TH {...colDrag.thProps("product")} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }}>{f("product")}</TH>
+                    <TH {...colDrag.thProps("quantity")} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }}>{m("physicalStock")}</TH>
+                    <TH {...colDrag.thProps("reserved")} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }}>{m("webReserved")}</TH>
+                    <TH {...colDrag.thProps("available")} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }}>{m("available")}</TH>
+                    <TH {...colDrag.thProps("safetyStock")} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }}>{f("safetyStock")}</TH>
+                    <TH {...colDrag.thProps("cost")} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }}>{f("cost")}</TH>
+                    <TH {...colDrag.thProps("value")} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }}>{m("stockValue")}</TH>
+                    <TH {...colDrag.thProps("stockStatus")} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }}>{tc("status")}</TH>
+                    {customCols.columns.map((cc) => <TH key={cc.id} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title={tt("rightClickColumns")}>{cc.label}</TH>)}
                   </TR>
                 </THead>
                 <TBody>
                   {stocksLoading && stocks.length === 0 && <TableSkeletonRows columns={10 + customCols.columns.length} />}
                   {!stocksLoading && stocks.length === 0 && (
                     <TR>
-                      <TD colSpan={10 + customCols.columns.length} className="text-center text-muted-foreground">尚無庫存</TD>
+                      <TD colSpan={10 + customCols.columns.length} className="text-center text-muted-foreground">{m("noStock")}</TD>
                     </TR>
                   )}
                   {stocks.map((s: any, rowIndex: number) => {
@@ -172,7 +178,7 @@ export default function InventoryClient() {
                         <TD>{formatNumber(safe)}</TD>
                         <TD>{formatUnitPrice(s.product.costPrice)}</TD>
                         <TD>{formatMoney(qty * Number(s.product.costPrice))}</TD>
-                        <TD>{available < safe ? <Badge variant="warning">低庫存</Badge> : reserved > 0 ? <Badge variant="info">商城保留中</Badge> : <Badge variant="success">正常</Badge>}</TD>
+                        <TD>{available < safe ? <Badge variant="warning">{m("lowStock")}</Badge> : reserved > 0 ? <Badge variant="info">{m("webReservedBadge")}</Badge> : <Badge variant="success">{m("normal")}</Badge>}</TD>
                         {customCols.columns.map((cc, columnIndex) => { const v = customFieldValues.getValues(s.id); return <TD key={cc.id}><CustomFieldGridCell gridId="inventory-stocks" rowId={s.id} rowIndex={rowIndex} column={cc} columnIndex={columnIndex} rowIds={stocks.map((stock) => stock.id)} columns={customCols.columns} value={v[cc.id] ?? ""} saveValues={customFieldValues.saveValues} onManageColumns={() => customCols.setOpen(true)} /></TD>; })}
                       </TR>
                     );
@@ -184,26 +190,26 @@ export default function InventoryClient() {
 
           <Card>
             <CardHeader>
-              <CardTitle>近期庫存異動</CardTitle>
+              <CardTitle>{m("recentMovements")}</CardTitle>
             </CardHeader>
             <CardContent>
               <Table>
                 <THead>
                   <TR>
-                    <TH>時間</TH>
-                    <TH>倉庫</TH>
+                    <TH>{m("time")}</TH>
+                    <TH>{f("warehouse")}</TH>
                     <TH>SKU</TH>
-                    <TH>商品</TH>
-                    <TH>類型</TH>
-                    <TH>數量</TH>
-                    <TH>備註</TH>
+                    <TH>{f("product")}</TH>
+                    <TH>{f("type")}</TH>
+                    <TH>{tc("quantity")}</TH>
+                    <TH>{tc("remark")}</TH>
                   </TR>
                 </THead>
                 <TBody>
                   {txnsLoading && txns.length === 0 && <TableSkeletonRows columns={7} />}
                   {!txnsLoading && txns.length === 0 && (
                     <TR>
-                      <TD colSpan={7} className="text-center text-muted-foreground">尚無資料</TD>
+                      <TD colSpan={7} className="text-center text-muted-foreground">{tc("noData")}</TD>
                     </TR>
                   )}
                   {txns.map((t: any) => (

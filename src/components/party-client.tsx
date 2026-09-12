@@ -6,6 +6,7 @@ import { Input, Label, Textarea } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 
 type Party = {
   id: string;
@@ -23,6 +24,9 @@ type Party = {
 };
 
 function PartyDialog({ open, onClose, row, onSaved, endpoint, kind }: any) {
+  const t = useTranslations("common");
+  const f = useTranslations("fields");
+  const tParty = useTranslations("party");
   const [form, setForm] = useState<any>({});
   const [saving, setSaving] = useState(false);
   useEffect(() => {
@@ -36,8 +40,8 @@ function PartyDialog({ open, onClose, row, onSaved, endpoint, kind }: any) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
-      if (!res.ok) throw new Error((await res.json()).error || "儲存失敗");
-      toast.success("已儲存");
+      if (!res.ok) throw new Error((await res.json()).error || t("saveFailed"));
+      toast.success(t("saved"));
       onSaved();
       onClose();
     } catch (e: any) {
@@ -51,29 +55,29 @@ function PartyDialog({ open, onClose, row, onSaved, endpoint, kind }: any) {
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>
-            {row ? "編輯" : "新增"}
-            {kind === "customer" ? "客戶" : "供應商"}
+            {row ? t("edit") : t("create")}
+            {f(kind === "customer" ? "customer" : "supplier")}
           </DialogTitle>
         </DialogHeader>
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
-            <Label>編號 *</Label>
+            <Label>{f("code")} *</Label>
             <Input value={form.code ?? ""} onChange={(e) => setForm({ ...form, code: e.target.value })} />
           </div>
           <div className="space-y-1">
-            <Label>統一編號</Label>
+            <Label>{f("taxIdFull")}</Label>
             <Input value={form.taxId ?? ""} onChange={(e) => setForm({ ...form, taxId: e.target.value })} />
           </div>
           <div className="space-y-1 col-span-2">
-            <Label>公司名稱 *</Label>
+            <Label>{f("companyName")} *</Label>
             <Input value={form.companyName ?? ""} onChange={(e) => setForm({ ...form, companyName: e.target.value })} />
           </div>
           <div className="space-y-1">
-            <Label>聯絡人</Label>
+            <Label>{f("contact")}</Label>
             <Input value={form.contactName ?? ""} onChange={(e) => setForm({ ...form, contactName: e.target.value })} />
           </div>
           <div className="space-y-1">
-            <Label>電話</Label>
+            <Label>{f("phone")}</Label>
             <Input value={form.phone ?? ""} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
           </div>
           <div className="space-y-1 col-span-2">
@@ -81,34 +85,34 @@ function PartyDialog({ open, onClose, row, onSaved, endpoint, kind }: any) {
             <Input value={form.email ?? ""} onChange={(e) => setForm({ ...form, email: e.target.value })} />
           </div>
           <div className="space-y-1 col-span-2">
-            <Label>地址</Label>
+            <Label>{f("address")}</Label>
             <Input value={form.address ?? ""} onChange={(e) => setForm({ ...form, address: e.target.value })} />
           </div>
           <div className="space-y-1">
-            <Label>{kind === "customer" ? "收款條件" : "付款條件"}</Label>
-            <Input value={form.paymentTerms ?? ""} onChange={(e) => setForm({ ...form, paymentTerms: e.target.value })} placeholder="例: 月結 30 天" />
+            <Label>{f(kind === "customer" ? "collectionTerms" : "paymentTerms")}</Label>
+            <Input value={form.paymentTerms ?? ""} onChange={(e) => setForm({ ...form, paymentTerms: e.target.value })} placeholder={tParty("paymentTermsExample")} />
           </div>
           {kind === "customer" && (
             <div className="space-y-1">
-              <Label>信用額度</Label>
+              <Label>{f("creditLimit")}</Label>
               <Input type="number" value={form.creditLimit ?? 0} onChange={(e) => setForm({ ...form, creditLimit: e.target.value })} />
             </div>
           )}
           <div className="space-y-1 col-span-2">
-            <Label>備註</Label>
+            <Label>{t("remark")}</Label>
             <Textarea value={form.remark ?? ""} onChange={(e) => setForm({ ...form, remark: e.target.value })} />
           </div>
           <label className="flex items-center gap-2 text-sm col-span-2">
             <input type="checkbox" checked={!!form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} />
-            啟用
+            {f("active")}
           </label>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
-            取消
+            {t("cancel")}
           </Button>
           <Button onClick={save} disabled={saving}>
-            {saving ? "儲存中..." : "儲存"}
+            {saving ? t("saving") : t("save")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -117,14 +121,18 @@ function PartyDialog({ open, onClose, row, onSaved, endpoint, kind }: any) {
 }
 
 export function PartyClient({ kind }: { kind: "customer" | "supplier" }) {
+  const t = useTranslations("common");
+  const f = useTranslations("fields");
+  const tPage = useTranslations("pages");
+  const tParty = useTranslations("party");
   const endpoint = kind === "customer" ? "/api/customers" : "/api/suppliers";
   return (
     <CrudTable<Party>
       endpoint={endpoint}
       moduleKey={kind === "customer" ? "customers" : "suppliers"}
-      searchPlaceholder="搜尋編號 / 公司名稱 / 統編 / 電話"
+      searchPlaceholder={tParty("searchPlaceholder")}
       FormDialog={(props) => <PartyDialog {...props} endpoint={endpoint} kind={kind} />}
-      pdfTitle={kind === "customer" ? "客戶管理" : "供應商管理"}
+      pdfTitle={tPage(kind === "customer" ? "customers.title" : "suppliers.title")}
       exportName={kind === "customer" ? "customers" : "suppliers"}
       templateHeaders={["編號", "公司名稱", "統編", "聯絡人", "電話", "Email", "地址"]}
       enableDateFilter={true}
@@ -139,18 +147,18 @@ export function PartyClient({ kind }: { kind: "customer" | "supplier" }) {
         address: String(r["地址"] ?? r.address ?? "").trim() || undefined,
       })}
       columns={[
-        { key: "code", title: "編號", render: (r) => <span className="font-mono text-xs">{r.code}</span>, editable: { type: "text" } },
-        { key: "companyName", title: "公司名稱", editable: { type: "text" } },
-        { key: "taxId", title: "統編", editable: { type: "text" } },
-        { key: "contactName", title: "聯絡人", editable: { type: "text" } },
-        { key: "phone", title: "電話", editable: { type: "text" } },
+        { key: "code", title: f("code"), render: (r) => <span className="font-mono text-xs">{r.code}</span>, editable: { type: "text" } },
+        { key: "companyName", title: f("companyName"), editable: { type: "text" } },
+        { key: "taxId", title: f("taxId"), editable: { type: "text" } },
+        { key: "contactName", title: f("contact"), editable: { type: "text" } },
+        { key: "phone", title: f("phone"), editable: { type: "text" } },
         { key: "email", title: "Email", editable: { type: "text" } },
         {
           key: "isActive",
-          title: "狀態",
-          render: (r) => (r.isActive ? <Badge variant="success">啟用</Badge> : <Badge variant="danger">停用</Badge>),
+          title: t("status"),
+          render: (r) => (r.isActive ? <Badge variant="success">{f("active")}</Badge> : <Badge variant="danger">{f("inactive")}</Badge>),
         },
-        { key: "updatedBy", title: "操作人員", render: (r) => <span className="text-xs text-gray-500">{r.updatedBy || "-"}</span> },
+        { key: "updatedBy", title: f("updatedBy"), render: (r) => <span className="text-xs text-gray-500">{r.updatedBy || "-"}</span> },
       ]}
     />
   );

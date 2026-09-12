@@ -9,11 +9,17 @@ import { toast } from "sonner";
 import { formatMoney } from "@/lib/utils";
 import { Upload, FileDown } from "lucide-react";
 import { downloadCSV } from "@/lib/csv";
+import { useTranslations, useLocale } from "next-intl";
+import { accountDisplayName } from "@/lib/account-names-en";
 
+// 中文標籤保留給 CSV 匯出／匯入，維持既有檔案格式相容；畫面顯示另走翻譯。
 const typeLabel: Record<string, string> = { ASSET: "資產", LIABILITY: "負債", EQUITY: "權益", REVENUE: "收入", COST: "成本", EXPENSE: "費用" };
 const typeVariant: Record<string, any> = { ASSET: "info", LIABILITY: "warning", EQUITY: "default", REVENUE: "success", COST: "default", EXPENSE: "danger" };
 
 function AccountDialog({ open, onClose, row, onSaved }: any) {
+  const f = useTranslations("fields");
+  const tt = useTranslations("table");
+  const tc = useTranslations("common");
   const [form, setForm] = useState<any>({ code: "", name: "", type: "ASSET", openingBalance: 0, isActive: true });
   useEffect(() => {
     setForm(row ?? { code: "", name: "", type: "ASSET", openingBalance: 0, isActive: true });
@@ -25,8 +31,8 @@ function AccountDialog({ open, onClose, row, onSaved }: any) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...form, openingBalance: Number(form.openingBalance) }),
       });
-      if (!res.ok) throw new Error((await res.json()).error || "儲存失敗");
-      toast.success("已儲存");
+      if (!res.ok) throw new Error((await res.json()).error || tc("saveFailed"));
+      toast.success(tc("saved"));
       onSaved();
       onClose();
     } catch (e: any) {
@@ -47,15 +53,16 @@ function AccountDialog({ open, onClose, row, onSaved }: any) {
             </select>
           </div>
           <div className="space-y-1"><Label>期初餘額</Label><Input type="number" step="0.01" value={form.openingBalance ?? 0} onChange={(e) => setForm({ ...form, openingBalance: e.target.value })} /></div>
-          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} />啟用</label>
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} />{f("active")}</label>
         </div>
-        <DialogFooter><Button variant="outline" onClick={onClose}>取消</Button><Button onClick={save}>儲存</Button></DialogFooter>
+        <DialogFooter><Button variant="outline" onClick={onClose}>{tc("cancel")}</Button><Button onClick={save}>{tc("save")}</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   );
 }
 
 function ImportBar({ onImported }: { onImported: () => void }) {
+  const tt = useTranslations("table");
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
 
@@ -83,7 +90,7 @@ function ImportBar({ onImported }: { onImported: () => void }) {
         body: JSON.stringify({ csv: text }),
       });
       const d = await res.json();
-      if (!res.ok) throw new Error(d.error || "匯入失敗");
+      if (!res.ok) throw new Error(d.error || tt("importFailed"));
       toast.success(`匯入完成：新增 ${d.created}、更新 ${d.updated}` + (d.errors?.length ? `，${d.errors.length} 筆略過` : ""));
       if (d.errors?.length) console.warn(d.errors);
       onImported();
@@ -110,6 +117,14 @@ function ImportBar({ onImported }: { onImported: () => void }) {
 }
 
 export function AccountClient() {
+  const tt = useTranslations("table");
+  const f = useTranslations("fields");
+  const t = useTranslations("accounts");
+  const locale = useLocale();
+  const typeText = (type: string) => {
+    const key = `type${type}` as const;
+    return t.has(key) ? t(key) : (typeLabel[type] ?? type);
+  };
   const [refreshKey, setRefreshKey] = useState(0);
   return (
     <div>
@@ -119,7 +134,7 @@ export function AccountClient() {
         endpoint="/api/accounting/accounts"
         moduleKey="accounts"
         exportName="accounts"
-        pdfTitle="會計科目"
+        pdfTitle={t("title")}
         enableDateFilter={true}
         FormDialog={AccountDialog}
         templateHeaders={["編號", "名稱", "類型", "期初餘額"]}
@@ -135,12 +150,13 @@ export function AccountClient() {
         }}
         inlineEdit={true}
         columns={[
-          { key: "code", title: "編號", render: (r: any) => <span className="font-mono text-xs">{r.code}</span>, editable: { type: "text" } },
-          { key: "name", title: "名稱", editable: { type: "text" } },
-          { key: "type", title: "類型", csv: (r: any) => typeLabel[r.type] ?? r.type, render: (r: any) => <Badge variant={typeVariant[r.type]}>{typeLabel[r.type] ?? r.type}</Badge> },
-          { key: "openingBalance", title: "期初餘額", render: (r: any) => formatMoney(r.openingBalance), editable: { type: "number" } },
-          { key: "isActive", title: "狀態", csv: (r: any) => (r.isActive ? "啟用" : "停用"), render: (r: any) => (r.isActive ? <Badge variant="success">啟用</Badge> : <Badge variant="danger">停用</Badge>) },
-          { key: "updatedBy", title: "操作人員", render: (r: any) => <span className="text-xs text-gray-500">{r.updatedBy || "-"}</span> },
+          { key: "code", title: t("colCode"), render: (r: any) => <span className="font-mono text-xs">{r.code}</span>, editable: { type: "text" } },
+          // 只改「顯示」：行內編輯與匯出仍使用資料庫原名，避免英文模式覆寫主檔。
+          { key: "name", title: t("colName"), render: (r: any) => accountDisplayName(locale, r.code, r.name), editable: { type: "text" } },
+          { key: "type", title: t("colType"), csv: (r: any) => typeLabel[r.type] ?? r.type, render: (r: any) => <Badge variant={typeVariant[r.type]}>{typeText(r.type)}</Badge> },
+          { key: "openingBalance", title: t("colOpeningBalance"), render: (r: any) => formatMoney(r.openingBalance), editable: { type: "number" } },
+          { key: "isActive", title: t("colStatus"), csv: (r: any) => (r.isActive ? f("active") : f("inactive")), render: (r: any) => (r.isActive ? <Badge variant="success">{t("active")}</Badge> : <Badge variant="danger">{t("inactive")}</Badge>) },
+          { key: "updatedBy", title: t("colUpdatedBy"), render: (r: any) => <span className="text-xs text-gray-500">{r.updatedBy || "-"}</span> },
         ]}
       />
     </div>

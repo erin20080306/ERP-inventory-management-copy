@@ -5,6 +5,7 @@ import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { formatDateTime } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireTenantId } from "@/lib/api";
+import { getTranslations } from "next-intl/server";
 
 export const dynamic = "force-dynamic";
 
@@ -34,27 +35,30 @@ const moduleNames: Record<string, string> = {
 };
 
 // 動作名稱中文映射
-const actionNames: Record<string, string> = {
-  create: "建立",
-  update: "修改",
-  delete: "刪除",
-  view: "查看",
-  edit: "編輯",
-  receive: "收款",
-  pay: "付款",
-  void: "作廢",
-  approve: "核准",
-  reject: "拒絕",
-  export: "匯出",
-  import: "匯入",
+// 值是 audit 命名空間的鍵；資料庫存的是 create／update 等代碼。
+const ACTION_NAME_KEYS: Record<string, string> = {
+  create: "actionCreate",
+  update: "actionUpdate",
+  delete: "actionDelete",
+  view: "actionView",
+  edit: "actionEdit",
+  receive: "actionReceive",
+  pay: "actionPay",
+  void: "actionVoid",
+  approve: "actionApprove",
+  reject: "actionReject",
+  export: "actionExport",
+  import: "actionImport",
 };
 
 function translateModule(module: string) {
   return moduleNames[module] || module;
 }
 
-function translateAction(action: string) {
-  return actionNames[action] || action;
+// 模組層取不到 useTranslations，因此由呼叫端把翻譯函式傳進來。
+function translateAction(action: string, ta: (key: string) => string) {
+  const key = ACTION_NAME_KEYS[action];
+  return key ? ta(key) : action;
 }
 
 function formatRefId(detail: string | null, refId: string | null) {
@@ -67,6 +71,10 @@ function formatRefId(detail: string | null, refId: string | null) {
 }
 
 export default async function Page() {
+  const f = await getTranslations("fields");
+  const tc = await getTranslations("common");
+  const ta = await getTranslations("audit");
+  const t = await getTranslations("pages");
   const g = await requirePermissionOrForbidden("audit.view");
   if (g.forbidden) return g.element;
   const tenantId = await requireTenantId();
@@ -84,20 +92,20 @@ export default async function Page() {
     }),
   ]);
   return (
-    <PageShell title="稽核紀錄" description="追蹤系統操作與登入紀錄，確保資訊安全">
+    <PageShell title={t("audit.title")} description={t("audit.description")}>
       <Card>
         <CardHeader><CardTitle>操作紀錄 (最近 200 筆)</CardTitle></CardHeader>
         <CardContent>
           <Table>
-            <THead><TR><TH>時間</TH><TH>使用者</TH><TH>模組</TH><TH>動作</TH><TH>對象</TH><TH>IP</TH></TR></THead>
+            <THead><TR><TH>時間</TH><TH>使用者</TH><TH>模組</TH><TH>動作</TH><TH>{f("counterparty")}</TH><TH>IP</TH></TR></THead>
             <TBody>
-              {logs.length === 0 && <TR><TD colSpan={6} className="text-center text-muted-foreground">尚無資料</TD></TR>}
+              {logs.length === 0 && <TR><TD colSpan={6} className="text-center text-muted-foreground">{tc("noData")}</TD></TR>}
               {logs.map((l: any) => (
                 <TR key={l.id}>
                   <TD className="text-xs">{formatDateTime(l.createdAt)}</TD>
                   <TD>{l.user?.name ?? "—"}</TD>
                   <TD>{translateModule(l.module)}</TD>
-                  <TD>{translateAction(l.action)}</TD>
+                  <TD>{translateAction(l.action, ta)}</TD>
                   <TD className="text-xs">{formatRefId(l.detail, l.refId)}</TD>
                   <TD className="text-xs">{l.ip ?? "—"}</TD>
                 </TR>
@@ -113,12 +121,12 @@ export default async function Page() {
           <Table>
             <THead><TR><TH>時間</TH><TH>帳號</TH><TH>結果</TH><TH>IP</TH><TH>User-Agent</TH></TR></THead>
             <TBody>
-              {logins.length === 0 && <TR><TD colSpan={5} className="text-center text-muted-foreground">尚無資料</TD></TR>}
+              {logins.length === 0 && <TR><TD colSpan={5} className="text-center text-muted-foreground">{tc("noData")}</TD></TR>}
               {logins.map((l: any) => (
                 <TR key={l.id}>
                   <TD className="text-xs">{formatDateTime(l.createdAt)}</TD>
                   <TD className="font-mono text-xs">{l.username}</TD>
-                  <TD className={l.success ? "text-emerald-600" : "text-red-600"}>{l.success ? "成功" : "失敗"}</TD>
+                  <TD className={l.success ? "text-emerald-600" : "text-red-600"}>{l.success ? "成功" : f("failed")}</TD>
                   <TD className="text-xs">{l.ip ?? "—"}</TD>
                   <TD className="text-xs truncate max-w-xs">{l.userAgent ?? "—"}</TD>
                 </TR>

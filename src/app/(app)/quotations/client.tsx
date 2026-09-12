@@ -12,6 +12,7 @@ import { formatDate, formatMoney } from "@/lib/utils";
 import { downloadCSV, toCSV } from "@/lib/csv";
 import { useCustomColumns, useCustomFieldValues, CustomColumnDialog, CustomColumnButton, CustomFieldGridCell } from "@/components/custom-columns";
 import { readSessionCache, TableHint, useColumnDrag, useDebouncedValue, writeSessionCache } from "@/components/table-helpers";
+import { useTranslations } from "next-intl";
 
 type QuotationItem = {
   productId: string;
@@ -25,11 +26,16 @@ type QuotationItem = {
 async function fetchQuotationList(url: string) {
   const res = await fetch(url);
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "報價單載入失敗");
+  // 這裡在元件外，拿不到翻譯；API 沒給訊息時留空，由呼叫端顯示已翻譯的預設文案。
+  if (!res.ok) throw new Error(data.error || "");
   return data;
 }
 
 function TableSkeletonRows({ columns, rows = 6 }: { columns: number; rows?: number }) {
+  const m = useTranslations("quotations");
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
+  const tt = useTranslations("table");
   return (
     <>
       {Array.from({ length: rows }).map((_, rowIndex) => (
@@ -46,6 +52,10 @@ function TableSkeletonRows({ columns, rows = 6 }: { columns: number; rows?: numb
 }
 
 function QuotationDialog({ open, onClose, row, onSaved }: any) {
+  const m = useTranslations("quotations");
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
+  const tt = useTranslations("table");
   const [form, setForm] = useState<any>({});
   const [items, setItems] = useState<QuotationItem[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
@@ -96,8 +106,8 @@ function QuotationDialog({ open, onClose, row, onSaved }: any) {
   };
 
   async function save() {
-    if (!form.customerId) return toast.error("請選擇客戶");
-    if (items.length === 0) return toast.error("請至少新增一項商品");
+    if (!form.customerId) return toast.error(m("customerRequired"));
+    if (items.length === 0) return toast.error(m("itemsRequired"));
     setSaving(true);
     try {
       const res = await fetch(row ? `/api/quotations/${row.id}` : "/api/quotations", {
@@ -105,9 +115,9 @@ function QuotationDialog({ open, onClose, row, onSaved }: any) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...form, id: row?.id, items }),
       });
-      if (!res.ok) throw new Error((await res.json()).error || "儲存失敗");
+      if (!res.ok) throw new Error((await res.json()).error || tc("saveFailed"));
       const saved = await res.json();
-      toast.success("已儲存");
+      toast.success(tc("saved"));
       onSaved(saved);
       onClose();
     } catch (e: any) {
@@ -121,7 +131,7 @@ function QuotationDialog({ open, onClose, row, onSaved }: any) {
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-[95vw] md:max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>報價單</DialogTitle>
+          <DialogTitle>{m("title")}</DialogTitle>
         </DialogHeader>
         {loading ? (
           <div className="flex justify-center py-8"><Loader2 className="h-8 w-8 animate-spin" /></div>
@@ -129,48 +139,48 @@ function QuotationDialog({ open, onClose, row, onSaved }: any) {
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label>客戶 *</Label>
+                <Label>{f("customer")} *</Label>
                 <select value={form.customerId || ""} onChange={(e) => setForm({ ...form, customerId: e.target.value })} className="w-full px-3 py-2 border rounded">
-                  <option value="">請選擇</option>
+                  <option value="">{f("selectPlaceholder")}</option>
                   {customers.map((c: any) => <option key={c.id} value={c.id}>{c.companyName}</option>)}
                 </select>
               </div>
               <div className="space-y-1">
-                <Label>報價日期</Label>
+                <Label>{m("quoteDate")}</Label>
                 <Input type="date" value={form.quoteDate?.slice(0, 10) || ""} onChange={(e) => setForm({ ...form, quoteDate: e.target.value })} />
               </div>
               <div className="space-y-1">
-                <Label>有效期限</Label>
+                <Label>{m("validUntil")}</Label>
                 <Input type="date" value={form.validUntil?.slice(0, 10) || ""} onChange={(e) => setForm({ ...form, validUntil: e.target.value })} />
               </div>
               <div className="space-y-1">
-                <Label>狀態</Label>
+                <Label>{tc("status")}</Label>
                 <select value={form.status || "DRAFT"} onChange={(e) => setForm({ ...form, status: e.target.value })} className="w-full px-3 py-2 border rounded">
-                  <option value="DRAFT">草稿</option>
-                  <option value="SUBMITTED">已送審</option>
-                  <option value="APPROVED">已審核</option>
-                  <option value="POSTED">已過帳</option>
-                  <option value="VOIDED">已作廢</option>
-                  <option value="REJECTED">已駁回</option>
+                  <option value="DRAFT">{f("draft")}</option>
+                  <option value="SUBMITTED">{f("submitted")}</option>
+                  <option value="APPROVED">{f("approvedState")}</option>
+                  <option value="POSTED">{f("posted")}</option>
+                  <option value="VOIDED">{f("voided")}</option>
+                  <option value="REJECTED">{f("rejectedState")}</option>
                 </select>
               </div>
             </div>
 
             <div>
               <div className="flex justify-between items-center mb-2">
-                <Label>商品明細</Label>
-                <Button size="sm" onClick={addItem}><Plus className="h-4 w-4 mr-1" />新增</Button>
+                <Label>{m("items")}</Label>
+                <Button size="sm" onClick={addItem}><Plus className="h-4 w-4 mr-1" />{tc("create")}</Button>
               </div>
               <Table>
                 <THead>
                   <TR>
-                    <TH>圖片</TH>
-                    <TH>商品</TH>
-                    <TH>數量</TH>
-                    <TH>單價</TH>
-                    <TH>折扣</TH>
-                    <TH>稅率%</TH>
-                    <TH>小計</TH>
+                    <TH>{f("image")}</TH>
+                    <TH>{f("product")}</TH>
+                    <TH>{tc("quantity")}</TH>
+                    <TH>{tc("unitPrice")}</TH>
+                    <TH>{tc("discount")}</TH>
+                    <TH>{m("taxRatePct")}</TH>
+                    <TH>{tc("subtotal")}</TH>
                     <TH></TH>
                   </TR>
                 </THead>
@@ -188,7 +198,7 @@ function QuotationDialog({ open, onClose, row, onSaved }: any) {
                       </TD>
                       <TD>
                         <select value={item.productId} onChange={(e) => updateItem(idx, "productId", e.target.value)} className="w-full px-2 py-1 border rounded">
-                          <option value="">請選擇</option>
+                          <option value="">{f("selectPlaceholder")}</option>
                           {products.map((p: any) => <option key={p.id} value={p.id}>{p.sku} - {p.name}</option>)}
                         </select>
                       </TD>
@@ -206,8 +216,8 @@ function QuotationDialog({ open, onClose, row, onSaved }: any) {
             </div>
 
             <DialogFooter>
-              <Button variant="outline" onClick={onClose}>取消</Button>
-              <Button onClick={save} disabled={saving}>{saving ? "儲存中..." : "儲存"}</Button>
+              <Button variant="outline" onClick={onClose}>{tc("cancel")}</Button>
+              <Button onClick={save} disabled={saving}>{saving ? tc("saving") : tc("save")}</Button>
             </DialogFooter>
           </div>
         )}
@@ -217,6 +227,10 @@ function QuotationDialog({ open, onClose, row, onSaved }: any) {
 }
 
 export default function QuotationClient() {
+  const m = useTranslations("quotations");
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
+  const tt = useTranslations("table");
   const [q, setQ] = useState("");
   const debouncedQ = useDebouncedValue(q);
   const [fromDate, setFromDate] = useState("");
@@ -265,8 +279,8 @@ export default function QuotationClient() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id, action }),
       });
-      if (!res.ok) throw new Error((await res.json()).error || "操作失敗");
-      toast.success("已處理");
+      if (!res.ok) throw new Error((await res.json()).error || f("actionFailed"));
+      toast.success(f("settled"));
       load();
     } catch (e: any) {
       toast.error(e.message);
@@ -352,9 +366,9 @@ export default function QuotationClient() {
     try {
       const payload = { ...(row as any), ...draft };
       const res = await fetch(`/api/quotations/${row.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-      if (!res.ok) throw new Error((await res.json()).error || "儲存失敗");
+      if (!res.ok) throw new Error((await res.json()).error || tc("saveFailed"));
       const saved = await res.json().catch(() => null);
-      toast.success("已儲存");
+      toast.success(tc("saved"));
       setInlineEditing((prev) => { const n = { ...prev }; delete n[row.id]; return n; });
       mutateList((current: any) => {
         if (!current?.items) return current;
@@ -381,24 +395,24 @@ export default function QuotationClient() {
       <div className="flex items-center gap-2 flex-wrap">
         <div className="relative">
           <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="搜尋單號 / 客戶" className="pl-9 w-72" value={q} onChange={(e) => setQ(e.target.value)} />
+          <Input placeholder={m("searchPlaceholder")} className="pl-9 w-72" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
         <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-36" />
         <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-36" />
-        <Button onClick={() => setOpenNew(true)}><Plus className="h-4 w-4 mr-1" />新增報價單</Button>
+        <Button onClick={() => setOpenNew(true)}><Plus className="h-4 w-4 mr-1" />{m("create")}</Button>
         <Button variant="outline" onClick={async () => {
           const res = await fetch(`/api/quotations?q=${encodeURIComponent(q)}&pageSize=10000`);
           const d = await res.json();
           const csv = toCSV(d.items, [
-            { key: "number", title: "單號" },
-            { key: "customer", title: "客戶", get: (r: any) => r.customer?.companyName ?? "" },
-            { key: "quoteDate", title: "報價日期", get: (r: any) => formatDate(r.quoteDate) },
-            { key: "validUntil", title: "有效期限", get: (r: any) => formatDate(r.validUntil) },
-            { key: "total", title: "總計" },
-            { key: "status", title: "狀態" },
+            { key: "number", title: f("docNo") },
+            { key: "customer", title: f("customer"), get: (r: any) => r.customer?.companyName ?? "" },
+            { key: "quoteDate", title: m("quoteDate"), get: (r: any) => formatDate(r.quoteDate) },
+            { key: "validUntil", title: m("validUntil"), get: (r: any) => formatDate(r.validUntil) },
+            { key: "total", title: tc("grandTotal") },
+            { key: "status", title: tc("status") },
           ]);
           downloadCSV(`quotations-${new Date().toISOString().slice(0, 10)}.csv`, csv);
-          toast.success("已匯出 CSV");
+          toast.success(tt("exportedCsv"));
         }}><Download className="h-4 w-4" />CSV</Button>
         <Button variant="outline" onClick={async () => {
           const res = await fetch(`/api/quotations?q=${encodeURIComponent(q)}&pageSize=10000`);
@@ -411,22 +425,22 @@ export default function QuotationClient() {
             }));
           });
           const { downloadExcel } = await import("@/lib/excel");
-          downloadExcel("quotations", "報價單", flat, [
-            { key: "number", title: "單號" },
-            { key: "customer", title: "客戶" },
-            { key: "date", title: "報價日期" },
-            { key: "valid", title: "有效期限" },
-            { key: "product", title: "商品" },
-            { key: "qty", title: "數量" },
-            { key: "price", title: "單價" },
-            { key: "subtotal", title: "小計" },
-            { key: "status", title: "狀態" },
+          downloadExcel("quotations", m("title"), flat, [
+            { key: "number", title: f("docNo") },
+            { key: "customer", title: f("customer") },
+            { key: "date", title: m("quoteDate") },
+            { key: "valid", title: m("validUntil") },
+            { key: "product", title: f("product") },
+            { key: "qty", title: tc("quantity") },
+            { key: "price", title: tc("unitPrice") },
+            { key: "subtotal", title: tc("subtotal") },
+            { key: "status", title: tc("status") },
           ]);
-          toast.success("已匯出 Excel");
+          toast.success(tt("exportedExcel"));
         }}><FileDown className="h-4 w-4" />Excel</Button>
         <Button variant="outline" disabled={pdfBusy} onClick={async () => {
           setPdfBusy(true);
-          try { const { exportPageToPDF } = await import("@/lib/export-pdf"); await exportPageToPDF("報價單", "quotations"); } finally { setPdfBusy(false); }
+          try { const { exportPageToPDF } = await import("@/lib/export-pdf"); await exportPageToPDF(m("title"), "quotations"); } finally { setPdfBusy(false); }
         }}>
           {pdfBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
           PDF
@@ -437,13 +451,13 @@ export default function QuotationClient() {
       <TableHint />
 
       <Table>
-        <THead onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title="表頭按右鍵可新增／刪減自訂欄位">
-          <TR><TH>圖片</TH><TH {...colDrag.thProps("number")}>單號</TH><TH {...colDrag.thProps("customer")}>客戶</TH><TH {...colDrag.thProps("date")}>日期</TH><TH {...colDrag.thProps("validUntil")}>有效期限</TH><TH {...colDrag.thProps("total")}>總計</TH><TH {...colDrag.thProps("status")}>狀態</TH><TH {...colDrag.thProps("updatedBy")}>操作人員</TH>{customCols.columns.map((cc) => <TH key={cc.id} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title="按右鍵管理自訂欄位">{cc.label}</TH>)}<TH className="text-right">操作</TH></TR>
+        <THead onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title={tt("manageCustomColumns")}>
+          <TR><TH>{f("image")}</TH><TH {...colDrag.thProps("number")}>{f("docNo")}</TH><TH {...colDrag.thProps("customer")}>{f("customer")}</TH><TH {...colDrag.thProps("date")}>{tc("date")}</TH><TH {...colDrag.thProps("validUntil")}>{m("validUntil")}</TH><TH {...colDrag.thProps("total")}>{tc("grandTotal")}</TH><TH {...colDrag.thProps("status")}>{tc("status")}</TH><TH {...colDrag.thProps("updatedBy")}>{f("updatedBy")}</TH>{customCols.columns.map((cc) => <TH key={cc.id} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title={tt("rightClickColumns")}>{cc.label}</TH>)}<TH className="text-right">{tc("actions")}</TH></TR>
         </THead>
         <TBody>
             {showInitialLoading && <TableSkeletonRows columns={tableColumnCount} />}
-            {error && !showInitialLoading && items.length === 0 && <TR><TD colSpan={tableColumnCount} className="py-8 text-center text-sm text-destructive">{error.message || "資料載入失敗"}</TD></TR>}
-            {!showInitialLoading && !error && items.length === 0 && <TR><TD colSpan={tableColumnCount} className="text-center text-muted-foreground">尚無報價單</TD></TR>}
+            {error && !showInitialLoading && items.length === 0 && <TR><TD colSpan={tableColumnCount} className="py-8 text-center text-sm text-destructive">{error.message || tt("dataLoadFailed")}</TD></TR>}
+            {!showInitialLoading && !error && items.length === 0 && <TR><TD colSpan={tableColumnCount} className="text-center text-muted-foreground">{m("empty")}</TD></TR>}
             {!showInitialLoading && items.map((q, rowIndex) => {
               const draft = inlineEditing[q.id];
               const isRowEditing = !!draft;
@@ -499,23 +513,23 @@ export default function QuotationClient() {
                 <TD className="text-xs text-gray-500">{q.updatedBy || "-"}</TD>
                 {customCols.columns.map((cc, columnIndex) => { const vals = customFieldValues.getValues(q.id); return <TD key={cc.id}><CustomFieldGridCell gridId="quotations" rowId={q.id} rowIndex={rowIndex} column={cc} columnIndex={columnIndex} rowIds={items.map((item) => item.id)} columns={customCols.columns} value={vals[cc.id] ?? ""} saveValues={customFieldValues.saveValues} onManageColumns={() => customCols.setOpen(true)} /></TD>; })}
                 <TD className="text-right">
-                  {q.status === "DRAFT" && <Button size="sm" variant="outline" onClick={() => onAct(q.id, "submit")}>送出</Button>}
+                  {q.status === "DRAFT" && <Button size="sm" variant="outline" onClick={() => onAct(q.id, "submit")}>{tc("submit")}</Button>}
                   {q.status === "SUBMITTED" && (
                     <>
-                      <Button size="sm" variant="outline" onClick={() => onAct(q.id, "approve")}>審核</Button>
-                      <Button size="sm" variant="destructive" onClick={() => onAct(q.id, "reject")}>駁回</Button>
+                      <Button size="sm" variant="outline" onClick={() => onAct(q.id, "approve")}>{tc("approve")}</Button>
+                      <Button size="sm" variant="destructive" onClick={() => onAct(q.id, "reject")}>{tc("reject")}</Button>
                     </>
                   )}
-                  {q.status === "APPROVED" && <Button size="sm" onClick={() => onAct(q.id, "post")}>過帳</Button>}
-                  {q.status !== "VOIDED" && q.status !== "POSTED" && <Button size="sm" variant="destructive" onClick={() => onAct(q.id, "void")}>作廢</Button>}
-                  <Button variant="ghost" size="icon" onClick={() => setEditId(q.id)} title="編輯">
+                  {q.status === "APPROVED" && <Button size="sm" onClick={() => onAct(q.id, "post")}>{tc("post")}</Button>}
+                  {q.status !== "VOIDED" && q.status !== "POSTED" && <Button size="sm" variant="destructive" onClick={() => onAct(q.id, "void")}>{tc("void")}</Button>}
+                  <Button variant="ghost" size="icon" onClick={() => setEditId(q.id)} title={tc("edit")}>
                     <Pencil className="h-4 w-4" />
                   </Button>
-                  <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-700" title="刪除" onClick={async () => {
-                    if (!confirm(`確定刪除 ${q.number}？`)) return;
+                  <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-700" title={tc("delete")} onClick={async () => {
+                    if (!confirm(tt("confirmDeleteNamed", { number: q.number }))) return;
                     const res = await fetch(`/api/quotations/${q.id}`, { method: "DELETE" });
-                    if (!res.ok) { const e = await res.json(); toast.error(e.error || "刪除失敗"); return; }
-                    toast.success("已刪除");
+                    if (!res.ok) { const e = await res.json(); toast.error(e.error || tc("deleteFailed")); return; }
+                    toast.success(tc("deleted"));
                     load();
                   }}>
                     <Trash2 className="h-4 w-4" />
@@ -529,8 +543,8 @@ export default function QuotationClient() {
 
       <div className="flex items-center justify-between text-sm text-muted-foreground">
         <div>
-          共 {total} 筆
-          {showRefreshing && <span className="ml-2 text-xs text-muted-foreground">更新中...</span>}
+          {tt("totalRows", { total })}
+          {showRefreshing && <span className="ml-2 text-xs text-muted-foreground">{tt("updating")}</span>}
         </div>
       </div>
 

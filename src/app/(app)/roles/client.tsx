@@ -8,10 +8,15 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/layout/page-shell";
 import { toast } from "sonner";
 import { Plus, Edit2, Trash2 } from "lucide-react";
-import { MODULE_LABELS, ACTION_LABELS } from "@/lib/permissions";
+import { useTranslations } from "next-intl";
+import { useModuleLabel, useActionLabel, useRoleLabel } from "@/i18n/labels";
 import { useSession } from "next-auth/react";
 
 export function RolesClient() {
+  const t = useTranslations("rolesPage");
+  const moduleLabel = useModuleLabel();
+  const actionLabel = useActionLabel();
+  const roleLabel = useRoleLabel();
   const { data: session } = useSession();
   const isTenantOwner = Boolean(session?.user?.isTenantOwner && !session.user.isSuperAdmin);
   const [roles, setRoles] = useState<any[]>([]);
@@ -28,17 +33,17 @@ export function RolesClient() {
   useEffect(() => { load(); }, []);
 
   async function onDelete(r: any) {
-    if (!confirm("確定刪除？")) return;
+    if (!confirm(t("confirmDelete"))) return;
     const res = await fetch(`/api/roles/${r.id}`, { method: "DELETE" });
-    if (!res.ok) return toast.error((await res.json()).error || "刪除失敗");
-    toast.success("已刪除");
+    if (!res.ok) return toast.error((await res.json()).error || t("deleteFailed"));
+    toast.success(t("deleted"));
     load();
   }
 
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
-        {isTenantOwner && <Button onClick={() => { setEditing(null); setOpen(true); }}><Plus className="h-4 w-4" />新增租戶角色</Button>}
+        {isTenantOwner && <Button onClick={() => { setEditing(null); setOpen(true); }}><Plus className="h-4 w-4" />{t("newTenantRole")}</Button>}
       </div>
       <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
         {roles.length === 0 && <EmptyState />}
@@ -46,11 +51,11 @@ export function RolesClient() {
           <Card key={r.id}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0">
               <div>
-                <CardTitle>{r.name}</CardTitle>
+                <CardTitle>{roleLabel(r.name)}</CardTitle>
                 <div className="text-xs text-muted-foreground mt-1">{r.description}</div>
               </div>
               <div className="flex items-center gap-1">
-                {r.tenantId === null && <Badge variant="outline">系統範本</Badge>}
+                {r.tenantId === null && <Badge variant="outline">{t("systemTemplate")}</Badge>}
                 {isTenantOwner && r.tenantId !== null && (
                   <>
                     <Button variant="ghost" size="icon" onClick={() => { setEditing(r); setOpen(true); }}><Edit2 className="h-4 w-4" /></Button>
@@ -60,12 +65,12 @@ export function RolesClient() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="text-xs text-muted-foreground mb-2">共 {r.permissions.length} 項權限</div>
+              <div className="text-xs text-muted-foreground mb-2">{t("permissionCount", { count: r.permissions.length })}</div>
               <div className="flex flex-wrap gap-1 max-h-32 overflow-y-auto">
                 {r.permissions.slice(0, 15).map((rp: any) => {
                   const p = permissions.find((x) => x.id === rp.permissionId);
                   if (!p) return null;
-                  const label = `${(MODULE_LABELS as any)[p.module] ?? p.module}·${(ACTION_LABELS as any)[p.action] ?? p.action}`;
+                  const label = `${moduleLabel(p.module)}·${actionLabel(p.action)}`;
                   return <Badge key={rp.permissionId} variant="outline">{label}</Badge>;
                 })}
                 {r.permissions.length > 15 && <Badge>+{r.permissions.length - 15}</Badge>}
@@ -81,6 +86,10 @@ export function RolesClient() {
 }
 
 function RoleDialog({ open, onClose, role, permissions, onSaved }: any) {
+  const t = useTranslations("rolesPage");
+  const tCommon = useTranslations("common");
+  const moduleLabel = useModuleLabel();
+  const actionLabel = useActionLabel();
   const [form, setForm] = useState<any>({ name: "", description: "", permissionIds: [] });
   useEffect(() => {
     setForm(role
@@ -115,8 +124,8 @@ function RoleDialog({ open, onClose, role, permissions, onSaved }: any) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
-      if (!res.ok) throw new Error((await res.json()).error || "儲存失敗");
-      toast.success("已儲存");
+      if (!res.ok) throw new Error((await res.json()).error || t("saveFailed"));
+      toast.success(t("saved"));
       onSaved();
     } catch (e: any) { toast.error(e.message); }
   }
@@ -124,30 +133,30 @@ function RoleDialog({ open, onClose, role, permissions, onSaved }: any) {
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-3xl">
-        <DialogHeader><DialogTitle>{role ? "編輯角色" : "新增角色"}</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{role ? t("editRole") : t("createRole")}</DialogTitle></DialogHeader>
         <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1"><Label>角色名稱 *</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
-          <div className="space-y-1 col-span-1"><Label>描述</Label><Input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
+          <div className="space-y-1"><Label>{t("roleName")} *</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
+          <div className="space-y-1 col-span-1"><Label>{t("description")}</Label><Input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
         </div>
         <div className="border rounded-md p-3 max-h-[360px] overflow-y-auto space-y-3">
           {Object.keys(byModule).sort().map((mod) => (
             <div key={mod}>
               <div className="flex items-center justify-between mb-1">
-                <div className="text-sm font-medium">{(MODULE_LABELS as any)[mod] ?? mod}</div>
-                <button className="text-xs text-accent hover:underline" onClick={() => toggleAll(mod)}>全選/取消</button>
+                <div className="text-sm font-medium">{moduleLabel(mod)}</div>
+                <button className="text-xs text-accent hover:underline" onClick={() => toggleAll(mod)}>{t("toggleAll")}</button>
               </div>
               <div className="grid grid-cols-4 gap-1 text-sm">
                 {byModule[mod].map((p: any) => (
                   <label key={p.id} className="flex items-center gap-1 text-xs">
                     <input type="checkbox" checked={form.permissionIds.includes(p.id)} onChange={() => toggle(p.id)} />
-                    {(ACTION_LABELS as any)[p.action] ?? p.action}
+                    {actionLabel(p.action)}
                   </label>
                 ))}
               </div>
             </div>
           ))}
         </div>
-        <DialogFooter><Button variant="outline" onClick={onClose}>取消</Button><Button onClick={save}>儲存</Button></DialogFooter>
+        <DialogFooter><Button variant="outline" onClick={onClose}>{tCommon("cancel")}</Button><Button onClick={save}>{tCommon("save")}</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   );

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Building2, Database, Download, FileArchive, HardDrive, Info, KeyRound, Laptop, Loader2, ShieldCheck } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 type Installer = {
   name: string;
@@ -72,6 +73,7 @@ function InstallerCard({ file }: { file: Installer }) {
 }
 
 export default function DownloadsPage() {
+  const tc = useTranslations("common");
   const [files, setFiles] = useState<Installer[]>([]);
   const [release, setRelease] = useState<Release>(null);
   const [message, setMessage] = useState("");
@@ -81,12 +83,12 @@ export default function DownloadsPage() {
     fetch("/api/installers", { cache: "no-store" })
       .then(async (response) => {
         const result = await response.json();
-        if (!response.ok) throw new Error(result.error || "載入失敗");
+        if (!response.ok) throw new Error(result.error || tc("loadFailed"));
         setFiles(result.files ?? []);
         setRelease(result.release ?? null);
         setMessage(result.message ?? "");
       })
-      .catch((error) => setMessage(error instanceof Error ? error.message : "載入失敗"))
+      .catch((error) => setMessage(error instanceof Error ? error.message : tc("loadFailed")))
       .finally(() => setLoading(false));
   }, []);
 

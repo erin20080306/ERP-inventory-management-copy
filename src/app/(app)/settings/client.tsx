@@ -5,8 +5,11 @@ import { Input, Label } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Download, Database, AlertTriangle, Loader2, Mail, MonitorCog, Plus, Store, RefreshCw, ShieldCheck, Copy, ExternalLink, Globe2 } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 export function SettingsClient({ medicalEnabled = true }: { medicalEnabled?: boolean }) {
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
   const [form, setForm] = useState<any>({ name: "", currency: "TWD", smtpSecure: true, smtpPort: 465 });
   const [businessMode, setBusinessMode] = useState("");
   const [isInternal, setIsInternal] = useState(false);
@@ -34,11 +37,11 @@ export function SettingsClient({ medicalEnabled = true }: { medicalEnabled?: boo
     try {
       const res = await fetch("/api/settings", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
       const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "儲存失敗");
+      if (!res.ok) throw new Error(result.error || tc("saveFailed"));
       if (result.company) setForm((current: any) => ({ ...current, ...result.company, smtpPassword: "" }));
       if (result.storefrontUrl) setStorefrontUrl(result.storefrontUrl);
       if (result.medicalSiteUrl) setMedicalSiteUrl(result.medicalSiteUrl);
-      toast.success("已儲存");
+      toast.success(tc("saved"));
     } catch (e: any) { toast.error(e.message); } finally { setSaving(false); }
   }
   const isMedicalWebsite = medicalEnabled && !isInternal && businessMode === "POS_MEDICAL";
@@ -56,13 +59,13 @@ export function SettingsClient({ medicalEnabled = true }: { medicalEnabled?: boo
         </CardHeader>
         <CardContent className="grid grid-cols-2 gap-4 max-w-3xl">
           <div className="space-y-1 col-span-2"><Label>公司名稱 *</Label><Input value={form.name ?? ""} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
-          <div className="space-y-1"><Label>統一編號</Label><Input value={form.taxId ?? ""} onChange={(e) => setForm({ ...form, taxId: e.target.value })} /></div>
-          <div className="space-y-1"><Label>電話</Label><Input value={form.phone ?? ""} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
+          <div className="space-y-1"><Label>{f("taxIdFull")}</Label><Input value={form.taxId ?? ""} onChange={(e) => setForm({ ...form, taxId: e.target.value })} /></div>
+          <div className="space-y-1"><Label>{f("phone")}</Label><Input value={form.phone ?? ""} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
           <div className="space-y-1 col-span-2"><Label>Email</Label><Input value={form.email ?? ""} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
-          <div className="space-y-1 col-span-2"><Label>地址</Label><Input value={form.address ?? ""} onChange={(e) => setForm({ ...form, address: e.target.value })} /></div>
+          <div className="space-y-1 col-span-2"><Label>{f("address")}</Label><Input value={form.address ?? ""} onChange={(e) => setForm({ ...form, address: e.target.value })} /></div>
           <div className="space-y-1"><Label>幣別</Label><Input value={form.currency ?? "TWD"} onChange={(e) => setForm({ ...form, currency: e.target.value })} /></div>
           <div className="space-y-1"><Label>Logo 網址</Label><Input value={form.logoUrl ?? ""} onChange={(e) => setForm({ ...form, logoUrl: e.target.value })} /></div>
-          <div className="col-span-2"><Button onClick={save} disabled={saving}>{saving ? "儲存中..." : "儲存"}</Button></div>
+          <div className="col-span-2"><Button onClick={save} disabled={saving}>{saving ? tc("saving") : tc("save")}</Button></div>
         </CardContent>
       </Card>
       {showPublicWebsiteSettings && (
@@ -114,7 +117,7 @@ export function SettingsClient({ medicalEnabled = true }: { medicalEnabled?: boo
             {isEcommerceWebsite && <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs leading-5 text-rose-900">
               信用卡與行動支付目前只提供結帳與 ERP 接單流程體驗，不會實際扣款；正式收款需由客戶提供金流商帳號及串接資料後開通。
             </div>}
-            <Button onClick={save} disabled={saving}>{saving ? "儲存中..." : `儲存${websiteLabel}設定`}</Button>
+            <Button onClick={save} disabled={saving}>{saving ? tc("saving") : `儲存${websiteLabel}設定`}</Button>
           </CardContent>
         </Card>
       )}
@@ -186,7 +189,7 @@ export function SettingsClient({ medicalEnabled = true }: { medicalEnabled?: boo
               沒有設定 SMTP 時，AI 助手不會用共用 Gmail 代寄；每個租戶都需要設定自己的寄件信箱或應用程式密碼。
             </div>
           </div>
-          <div className="col-span-2"><Button onClick={save} disabled={saving}>{saving ? "儲存中..." : "儲存 SMTP 設定"}</Button></div>
+          <div className="col-span-2"><Button onClick={save} disabled={saving}>{saving ? tc("saving") : "儲存 SMTP 設定"}</Button></div>
         </CardContent>
       </Card>
       <PosRegisterCard medicalEnabled={medicalEnabled} />
@@ -215,6 +218,7 @@ function displayVersion(value?: string | null) {
 }
 
 function UpdateCenterCard() {
+  const tc = useTranslations("common");
   const [model, setModel] = useState<UpdateModel | null>(null);
   const [checking, setChecking] = useState(true);
   const [updating, setUpdating] = useState(false);
@@ -317,7 +321,7 @@ function UpdateCenterCard() {
           <div className="grid gap-3 md:grid-cols-3">
             <div className="rounded-lg border bg-muted/20 p-4"><div className="text-xs text-muted-foreground">目前公司主機版本</div><div className="mt-1 font-mono font-semibold">{displayVersion(model.currentVersion)}</div></div>
             <div className="rounded-lg border bg-muted/20 p-4"><div className="text-xs text-muted-foreground">中央最新版本</div><div className="mt-1 font-mono font-semibold">{displayVersion(model.latestVersion)}</div></div>
-            <div className="rounded-lg border bg-muted/20 p-4"><div className="text-xs text-muted-foreground">狀態</div><div className="mt-1 font-semibold">{model.updateAvailable ? "有新版可更新" : model.checkError ? "中央版本暫時無法查詢" : "已是最新版本"}</div></div>
+            <div className="rounded-lg border bg-muted/20 p-4"><div className="text-xs text-muted-foreground">{tc("status")}</div><div className="mt-1 font-semibold">{model.updateAvailable ? "有新版可更新" : model.checkError ? "中央版本暫時無法查詢" : "已是最新版本"}</div></div>
           </div>
           {model.status?.message && model.status.state !== "idle" && (
             <div className={`rounded-md border p-3 text-sm ${model.status.state === "rolled_back" || model.status.state === "failed" ? "border-amber-300 bg-amber-50 text-amber-900 dark:bg-amber-950/30 dark:text-amber-100" : "bg-muted/30"}`}>
@@ -352,6 +356,8 @@ type RegisterRow = {
 };
 
 function PosRegisterCard({ medicalEnabled = true }: { medicalEnabled?: boolean }) {
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
   const [registers, setRegisters] = useState<RegisterRow[]>([]);
   const [warehouses, setWarehouses] = useState<Array<{ id: string; code: string; name: string }>>([]);
   const [form, setForm] = useState({ id: "", code: "", name: "", mode: "POS_RETAIL" as RegisterRow["mode"], warehouseId: "", isActive: true });
@@ -409,16 +415,16 @@ function PosRegisterCard({ medicalEnabled = true }: { medicalEnabled?: boolean }
           <div className="space-y-1"><Label>顯示名稱</Label><Input placeholder="第一收銀台" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></div>
           <div className="space-y-1"><Label>所屬工作區</Label><select value={form.mode} onChange={(event) => setForm({ ...form, mode: event.target.value as RegisterRow["mode"] })} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"><option value="POS_RETAIL">零售 POS</option><option value="POS_RESTAURANT">餐飲 POS</option>{medicalEnabled && <option value="POS_MEDICAL">醫美 POS</option>}</select></div>
           <div className="space-y-1"><Label>門市／出貨倉庫</Label><select value={form.warehouseId} onChange={(event) => setForm({ ...form, warehouseId: event.target.value })} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">{warehouses.map((warehouse) => <option key={warehouse.id} value={warehouse.id}>{warehouse.code} · {warehouse.name}</option>)}</select></div>
-          <div className="flex items-end gap-2"><Button onClick={() => void saveRegister()} disabled={saving || warehouses.length === 0}><Plus className="h-4 w-4" />{form.id ? "儲存修改" : "新增收銀台"}</Button>{form.id && <Button variant="outline" onClick={resetForm}>取消</Button>}</div>
+          <div className="flex items-end gap-2"><Button onClick={() => void saveRegister()} disabled={saving || warehouses.length === 0}><Plus className="h-4 w-4" />{form.id ? "儲存修改" : "新增收銀台"}</Button>{form.id && <Button variant="outline" onClick={resetForm}>{tc("cancel")}</Button>}</div>
         </div>
         {warehouses.length === 0 && <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">請先在「倉庫／門市」建立至少一個有效倉庫。</div>}
         <div className="overflow-x-auto rounded-lg border">
           <table className="w-full min-w-[720px] text-sm">
-            <thead className="bg-muted/50"><tr><th className="p-3 text-left">代碼</th><th className="p-3 text-left">收銀台</th><th className="p-3 text-left">工作區</th><th className="p-3 text-left">出貨倉庫</th><th className="p-3 text-right">班次／交易</th><th className="p-3 text-left">狀態</th><th className="p-3 text-right">操作</th></tr></thead>
+            <thead className="bg-muted/50"><tr><th className="p-3 text-left">代碼</th><th className="p-3 text-left">收銀台</th><th className="p-3 text-left">工作區</th><th className="p-3 text-left">出貨倉庫</th><th className="p-3 text-right">班次／交易</th><th className="p-3 text-left">{tc("status")}</th><th className="p-3 text-right">{tc("actions")}</th></tr></thead>
             <tbody>
-              {registers.map((register) => <tr key={register.id} className="border-t"><td className="p-3 font-mono">{register.code}</td><td className="p-3"><span className="inline-flex items-center gap-2"><Store className="h-4 w-4 text-muted-foreground" />{register.name}</span></td><td className="p-3">{register.mode === "POS_RETAIL" ? "零售" : register.mode === "POS_RESTAURANT" ? "餐飲" : "醫美"}</td><td className="p-3">{register.warehouse.code} · {register.warehouse.name}</td><td className="p-3 text-right">{register._count.shifts}／{register._count.sales}</td><td className="p-3">{register.isActive ? "啟用" : "停用"}</td><td className="p-3 text-right space-x-2"><Button size="sm" variant="outline" onClick={() => setForm({ id: register.id, code: register.code, name: register.name, mode: register.mode, warehouseId: register.warehouseId, isActive: register.isActive })}>編輯</Button><Button size="sm" variant="outline" disabled={saving} onClick={() => void saveRegister({ id: register.id, code: register.code, name: register.name, mode: register.mode, warehouseId: register.warehouseId, isActive: !register.isActive })}>{register.isActive ? "停用" : "啟用"}</Button></td></tr>)}
+              {registers.map((register) => <tr key={register.id} className="border-t"><td className="p-3 font-mono">{register.code}</td><td className="p-3"><span className="inline-flex items-center gap-2"><Store className="h-4 w-4 text-muted-foreground" />{register.name}</span></td><td className="p-3">{register.mode === "POS_RETAIL" ? "零售" : register.mode === "POS_RESTAURANT" ? "餐飲" : "醫美"}</td><td className="p-3">{register.warehouse.code} · {register.warehouse.name}</td><td className="p-3 text-right">{register._count.shifts}／{register._count.sales}</td><td className="p-3">{register.isActive ? f("active") : f("inactive")}</td><td className="p-3 text-right space-x-2"><Button size="sm" variant="outline" onClick={() => setForm({ id: register.id, code: register.code, name: register.name, mode: register.mode, warehouseId: register.warehouseId, isActive: register.isActive })}>{tc("edit")}</Button><Button size="sm" variant="outline" disabled={saving} onClick={() => void saveRegister({ id: register.id, code: register.code, name: register.name, mode: register.mode, warehouseId: register.warehouseId, isActive: !register.isActive })}>{register.isActive ? f("inactive") : f("active")}</Button></td></tr>)}
               {!loading && registers.length === 0 && <tr><td colSpan={7} className="p-8 text-center text-muted-foreground">尚未建立收銀台</td></tr>}
-              {loading && <tr><td colSpan={7} className="p-8 text-center text-muted-foreground">載入中…</td></tr>}
+              {loading && <tr><td colSpan={7} className="p-8 text-center text-muted-foreground">{tc("loading")}</td></tr>}
             </tbody>
           </table>
         </div>
@@ -428,6 +434,7 @@ function PosRegisterCard({ medicalEnabled = true }: { medicalEnabled?: boolean }
 }
 
 function BackupCard() {
+  const tc = useTranslations("common");
   type BackupFile = { name: string; size: number; createdAt: string; sha256: string | null };
   const [backing, setBacking] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -498,7 +505,7 @@ function BackupCard() {
         {!unavailable && (
           <div className="overflow-x-auto rounded-md border">
             <table className="w-full min-w-[720px] text-sm">
-              <thead className="bg-muted/50"><tr><th className="p-3 text-left">建立時間</th><th className="p-3 text-left">備份檔</th><th className="p-3 text-right">大小</th><th className="p-3 text-left">SHA-256</th><th className="p-3 text-right">操作</th></tr></thead>
+              <thead className="bg-muted/50"><tr><th className="p-3 text-left">建立時間</th><th className="p-3 text-left">備份檔</th><th className="p-3 text-right">大小</th><th className="p-3 text-left">SHA-256</th><th className="p-3 text-right">{tc("actions")}</th></tr></thead>
               <tbody>
                 {files.map((file) => (
                   <tr key={file.name} className="border-t">
@@ -510,7 +517,7 @@ function BackupCard() {
                   </tr>
                 ))}
                 {!loading && files.length === 0 && <tr><td colSpan={5} className="p-8 text-center text-muted-foreground">尚無加密備份</td></tr>}
-                {loading && <tr><td colSpan={5} className="p-8 text-center text-muted-foreground">載入中…</td></tr>}
+                {loading && <tr><td colSpan={5} className="p-8 text-center text-muted-foreground">{tc("loading")}</td></tr>}
               </tbody>
             </table>
           </div>

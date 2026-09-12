@@ -6,8 +6,13 @@ import { Input, Label } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 
 function WarehouseDialog({ open, onClose, row, onSaved }: any) {
+  const m = useTranslations("warehouses");
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
+  const tt = useTranslations("table");
   const [form, setForm] = useState<any>({ code: "", name: "", address: "", isActive: true });
   useEffect(() => {
     setForm(row ?? { code: "", name: "", address: "", isActive: true });
@@ -20,8 +25,8 @@ function WarehouseDialog({ open, onClose, row, onSaved }: any) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
-      if (!res.ok) throw new Error((await res.json()).error || "儲存失敗");
-      toast.success("已儲存");
+      if (!res.ok) throw new Error((await res.json()).error || tc("saveFailed"));
+      toast.success(tc("saved"));
       onSaved();
       onClose();
     } catch (e: any) {
@@ -32,29 +37,29 @@ function WarehouseDialog({ open, onClose, row, onSaved }: any) {
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{row ? "編輯倉庫" : "新增倉庫"}</DialogTitle>
+          <DialogTitle>{row ? m("edit") : m("create")}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
           <div className="space-y-1">
-            <Label>編號 *</Label>
+            <Label>{f("code")} *</Label>
             <Input value={form.code ?? ""} onChange={(e) => setForm({ ...form, code: e.target.value })} />
           </div>
           <div className="space-y-1">
-            <Label>名稱 *</Label>
+            <Label>{f("name")} *</Label>
             <Input value={form.name ?? ""} onChange={(e) => setForm({ ...form, name: e.target.value })} />
           </div>
           <div className="space-y-1">
-            <Label>地址</Label>
+            <Label>{f("address")}</Label>
             <Input value={form.address ?? ""} onChange={(e) => setForm({ ...form, address: e.target.value })} />
           </div>
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={!!form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} />
-            啟用
+            {f("active")}
           </label>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>取消</Button>
-          <Button onClick={save}>儲存</Button>
+          <Button variant="outline" onClick={onClose}>{tc("cancel")}</Button>
+          <Button onClick={save}>{tc("save")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -62,6 +67,10 @@ function WarehouseDialog({ open, onClose, row, onSaved }: any) {
 }
 
 export function WarehouseClient() {
+  const m = useTranslations("warehouses");
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
+  const tt = useTranslations("table");
   return (
     <CrudTable
       endpoint="/api/warehouses"
@@ -69,10 +78,10 @@ export function WarehouseClient() {
       FormDialog={WarehouseDialog}
       inlineEdit={true}
       columns={[
-        { key: "code", title: "編號", render: (r: any) => <span className="font-mono text-xs">{r.code}</span>, editable: { type: "text" } },
-        { key: "name", title: "名稱", editable: { type: "text" } },
-        { key: "address", title: "地址", editable: { type: "text" } },
-        { key: "isActive", title: "狀態", render: (r: any) => (r.isActive ? <Badge variant="success">啟用</Badge> : <Badge variant="danger">停用</Badge>) },
+        { key: "code", title: f("code"), render: (r: any) => <span className="font-mono text-xs">{r.code}</span>, editable: { type: "text" } },
+        { key: "name", title: f("name"), editable: { type: "text" } },
+        { key: "address", title: f("address"), editable: { type: "text" } },
+        { key: "isActive", title: tc("status"), render: (r: any) => (r.isActive ? <Badge variant="success">{f("active")}</Badge> : <Badge variant="danger">{f("inactive")}</Badge>) },
       ]}
     />
   );

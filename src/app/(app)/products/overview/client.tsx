@@ -7,8 +7,11 @@ import { formatMoney, formatNumber, formatUnitPrice, formatDate } from "@/lib/ut
 import { Loader2, Search, Download, FileDown, Printer } from "lucide-react";
 import { downloadCSV, toCSV } from "@/lib/csv";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 
 export default function OverviewClient() {
+  const f = useTranslations("fields");
+  const tt = useTranslations("table");
   const [items, setItems] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -51,7 +54,7 @@ export default function OverviewClient() {
           const d = await res.json();
           const csv = toCSV(d.items, [
             { key: "sku", title: "SKU" },
-            { key: "name", title: "商品名稱" },
+            { key: "name", title: f("productName") },
             { key: "category", title: "類別" },
             { key: "totalStock", title: "總庫存" },
             { key: "salesQuantity", title: "銷售數量" },
@@ -60,7 +63,7 @@ export default function OverviewClient() {
             { key: "grossMargin", title: "毛利率", get: (r: any) => r.grossMargin.toFixed(1) + "%" },
           ]);
           downloadCSV(`product-overview-${new Date().toISOString().slice(0, 10)}.csv`, csv);
-          toast.success("已匯出 CSV");
+          toast.success(tt("exportedCsv"));
         }}><Download className="h-4 w-4" />CSV</Button>
         <Button variant="outline" onClick={async () => {
           const params = new URLSearchParams({ q, pageSize: "10000" });
@@ -71,10 +74,10 @@ export default function OverviewClient() {
           const { downloadExcel } = await import("@/lib/excel");
           downloadExcel("product-overview", "商品總覽", d.items, [
             { key: "sku", title: "SKU" },
-            { key: "name", title: "商品名稱" },
+            { key: "name", title: f("productName") },
             { key: "category", title: "類別" },
-            { key: "costPrice", title: "成本" },
-            { key: "salePrice", title: "售價" },
+            { key: "costPrice", title: f("cost") },
+            { key: "salePrice", title: f("salePrice") },
             { key: "totalStock", title: "總庫存" },
             { key: "salesQuantity", title: "銷售數量" },
             { key: "salesAmount", title: "銷售金額" },
@@ -83,7 +86,7 @@ export default function OverviewClient() {
             { key: "grossProfit", title: "毛利" },
             { key: "grossMargin", title: "毛利率", get: (r: any) => r.grossMargin.toFixed(1) + "%" },
           ]);
-          toast.success("已匯出 Excel");
+          toast.success(tt("exportedExcel"));
         }}><FileDown className="h-4 w-4" />Excel</Button>
         <Button variant="outline" onClick={async () => {
           const { exportPageToPDF } = await import("@/lib/export-pdf");
@@ -99,12 +102,12 @@ export default function OverviewClient() {
             <THead>
               <TR>
                 <TH>SKU</TH>
-                <TH>商品名稱</TH>
-                <TH>規格</TH>
+                <TH>{f("productName")}</TH>
+                <TH>{f("spec")}</TH>
                 <TH>類別</TH>
                 <TH>單位</TH>
-                <TH>成本</TH>
-                <TH>售價</TH>
+                <TH>{f("cost")}</TH>
+                <TH>{f("salePrice")}</TH>
                 <TH>總庫存</TH>
                 <TH>銷售數量</TH>
                 <TH>銷售金額</TH>
@@ -140,9 +143,9 @@ export default function OverviewClient() {
 
       {Math.ceil(total / pageSize) > 1 && (
         <div className="flex items-center justify-center gap-2 py-2">
-          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>上一頁</Button>
+          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>{tt("prevPage")}</Button>
           <span className="text-sm">{page} / {Math.ceil(total / pageSize)}</span>
-          <Button variant="outline" size="sm" disabled={page >= Math.ceil(total / pageSize)} onClick={() => setPage((p) => p + 1)}>下一頁</Button>
+          <Button variant="outline" size="sm" disabled={page >= Math.ceil(total / pageSize)} onClick={() => setPage((p) => p + 1)}>{tt("nextPage")}</Button>
         </div>
       )}
     </div>

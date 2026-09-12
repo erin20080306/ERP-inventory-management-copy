@@ -11,20 +11,22 @@ import { Plus, Search, Loader2, CheckCircle2, XCircle, Ban, Trash2, FileSpreadsh
 import { formatDate, formatMoney } from "@/lib/utils";
 import { useCustomColumns, useCustomFieldValues, CustomColumnDialog, CustomColumnButton, CustomFieldGridCell } from "@/components/custom-columns";
 import { readSessionCache, TableHint, TableSkeletonRows, useColumnDrag, useDebouncedValue, writeSessionCache } from "@/components/table-helpers";
+import { useTranslations } from "next-intl";
 
-const NOTE_TYPE_LABELS: Record<string, string> = {
-  CHECK: "支票",
-  PROMISSORY: "本票",
-  DRAFT: "匯票",
-  OTHER: "其他",
+// 值是 fields 命名空間的翻譯鍵；資料庫存的是 CHECK / DRAFT 等代碼，不受語言影響。
+const NOTE_TYPE_LABEL_KEYS: Record<string, string> = {
+  CHECK: "cheque",
+  PROMISSORY: "promissoryNote",
+  DRAFT: "billOfExchange",
+  OTHER: "other",
 };
-const STATUS_LABELS: Record<string, string> = {
-  DRAFT: "草稿",
-  SUBMITTED: "已送審",
-  APPROVED: "已審核",
-  POSTED: "已過帳",
-  VOIDED: "已作廢",
-  REJECTED: "已駁回",
+const STATUS_LABEL_KEYS: Record<string, string> = {
+  DRAFT: "draft",
+  SUBMITTED: "submitted",
+  APPROVED: "approvedState",
+  POSTED: "posted",
+  VOIDED: "voided",
+  REJECTED: "rejectedState",
 };
 const STATUS_VARIANTS: Record<string, any> = {
   DRAFT: "outline",
@@ -36,8 +38,12 @@ const STATUS_VARIANTS: Record<string, any> = {
 };
 
 export function NotesClient({ kind }: { kind: "receivable" | "payable" }) {
+  const n = useTranslations("notes");
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
+  const tt = useTranslations("table");
   const endpoint = kind === "receivable" ? "/api/accounting/notes-receivable" : "/api/accounting/notes-payable";
-  const partyLabel = kind === "receivable" ? "客戶" : "供應商";
+  const partyLabel = kind === "receivable" ? f("customer") : f("supplier");
   const partyEndpoint = kind === "receivable" ? "/api/customers" : "/api/suppliers";
   const [rows, setRows] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
@@ -166,7 +172,7 @@ export function NotesClient({ kind }: { kind: "receivable" | "payable" }) {
     // 連貫性確認：如果狀態改為 VOIDED（作廢）
     if (draft.status === "VOIDED" && row.status !== "VOIDED") {
       if (typeof window !== "undefined") {
-        const confirmed = confirm("注意：將票據狀態改為「已作廢」會影響相關的應收應付記錄。\n\n確定要繼續嗎？");
+        const confirmed = confirm(n("confirmVoid"));
         if (!confirmed) {
           cancelInlineEdit(row.id);
           return;
@@ -177,7 +183,7 @@ export function NotesClient({ kind }: { kind: "receivable" | "payable" }) {
     // 連貫性確認：如果狀態改為 POSTED（過帳）
     if (draft.status === "POSTED" && row.status !== "POSTED") {
       if (typeof window !== "undefined") {
-        const confirmed = confirm("注意：將票據狀態改為「已過帳」會影響相關的應收應付記錄。\n\n確定要繼續嗎？");
+        const confirmed = confirm(n("confirmPost"));
         if (!confirmed) {
           cancelInlineEdit(row.id);
           return;
@@ -189,9 +195,9 @@ export function NotesClient({ kind }: { kind: "receivable" | "payable" }) {
     try {
       const payload = { ...(row as any), ...draft };
       const res = await fetch(`${endpoint}/${row.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-      if (!res.ok) throw new Error((await res.json()).error || "儲存失敗");
+      if (!res.ok) throw new Error((await res.json()).error || tc("saveFailed"));
       const saved = await res.json().catch(() => null);
-      toast.success("已儲存");
+      toast.success(tc("saved"));
       setInlineEditing((prev) => { const n = { ...prev }; delete n[row.id]; return n; });
       setRows((prev) => prev.map((r) => r.id === row.id ? (saved && saved.id ? saved : { ...r, ...draft }) : r));
     } catch (e: any) {
@@ -213,8 +219,8 @@ export function NotesClient({ kind }: { kind: "receivable" | "payable" }) {
         headers: { "Content-Type": "application/json" },
         body: action === "delete" ? undefined : JSON.stringify({ action }),
       });
-      if (!res.ok) throw new Error((await res.json()).error || "操作失敗");
-      toast.success("已處理");
+      if (!res.ok) throw new Error((await res.json()).error || f("actionFailed"));
+      toast.success(f("settled"));
       load();
     } catch (e: any) {
       toast.error(e.message);
@@ -233,9 +239,10 @@ export function NotesClient({ kind }: { kind: "receivable" | "payable" }) {
       let success = 0; const errors: string[] = [];
       for (let i = 0; i < rows.length; i++) {
         const r = rows[i] as any;
+        // 匯入讀取的欄位名是既有客戶檔案的格式契約，一律用中文字面值，不可走翻譯。
         const partyName = String(r[partyLabel] ?? r["公司名稱"] ?? "").trim();
         const partyId = byName.get(partyName);
-        if (!partyId) { errors.push(`第 ${i + 2} 列：找不到${partyLabel} ${partyName}`); continue; }
+        if (!partyId) { errors.push(n("partyNotFound", { row: i + 2, party: partyLabel, name: partyName })); continue; }
         const noteTypeRaw = String(r["種類"] ?? "支票").trim();
         const noteTypeMap: Record<string, string> = { 支票: "CHECK", 本票: "PROMISSORY", 匯票: "DRAFT", 其他: "OTHER" };
         const payload: any = {
@@ -254,12 +261,12 @@ export function NotesClient({ kind }: { kind: "receivable" | "payable" }) {
         }
         try {
           const res = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-          if (!res.ok) errors.push(`第 ${i + 2} 列：${(await res.json()).error || "失敗"}`);
+          if (!res.ok) errors.push(tt("rowError", { row: i + 2, message: (await res.json()).error || f("failed") }));
           else success++;
-        } catch (err: any) { errors.push(`第 ${i + 2} 列：${err.message}`); }
+        } catch (err: any) { errors.push(tt("rowError", { row: i + 2, message: err.message })); }
       }
-      if (errors.length === 0) toast.success(`已匯入 ${success} 筆`);
-      else toast.error(`成功 ${success} / 失敗 ${errors.length}`);
+      if (errors.length === 0) toast.success(tt("importedCount", { count: success }));
+      else toast.error(tt("importPartial", { success, failed: errors.length }));
       load();
     } catch (err: any) { toast.error(err.message); }
     finally { e.target.value = ""; }
@@ -270,17 +277,17 @@ export function NotesClient({ kind }: { kind: "receivable" | "payable" }) {
     const res = await fetch(`${endpoint}?${sp}`);
     const d = await res.json();
     const { downloadExcel } = await import("@/lib/excel");
-    downloadExcel(`notes-${kind}`, kind === "receivable" ? "應收票據" : "應付票據", d.items, [
-      { key: "noteNumber", title: "票號" },
-      { key: "noteType", title: "種類", get: (r: any) => NOTE_TYPE_LABELS[r.noteType] ?? r.noteType },
+    downloadExcel(`notes-${kind}`, kind === "receivable" ? n("receivableNotes") : n("payableNotes"), d.items, [
+      { key: "noteNumber", title: f("noteNo") },
+      { key: "noteType", title: f("category"), get: (r: any) => f(NOTE_TYPE_LABEL_KEYS[r.noteType]) ?? r.noteType },
       { key: "party", title: partyLabel, get: (r: any) => (kind === "receivable" ? r.customer : r.supplier)?.companyName ?? "" },
-      { key: "issueDate", title: "票面日期", get: (r: any) => formatDate(r.issueDate) },
-      { key: "dueDate", title: "到期日", get: (r: any) => formatDate(r.dueDate) },
-      { key: "amount", title: "金額", get: (r: any) => Number(r.amount) },
-      { key: "status", title: "狀態", get: (r: any) => STATUS_LABELS[r.status] ?? r.status },
-      { key: "remark", title: "備註" },
+      { key: "issueDate", title: n("issueDate"), get: (r: any) => formatDate(r.issueDate) },
+      { key: "dueDate", title: f("dueDate"), get: (r: any) => formatDate(r.dueDate) },
+      { key: "amount", title: tc("amount"), get: (r: any) => Number(r.amount) },
+      { key: "status", title: tc("status"), get: (r: any) => f(STATUS_LABEL_KEYS[r.status]) ?? r.status },
+      { key: "remark", title: tc("remark") },
     ]);
-    toast.success("已匯出 Excel");
+    toast.success(tt("exportedExcel"));
   }
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
@@ -291,16 +298,16 @@ export function NotesClient({ kind }: { kind: "receivable" | "payable" }) {
         <div className="flex items-center gap-2 flex-wrap">
           <div className="relative">
             <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-            <Input placeholder={`搜尋票號 / ${partyLabel} / 銀行`} className="pl-9 w-72" value={q} onChange={(e) => { setPage(1); setQ(e.target.value); }} />
+            <Input placeholder={n("searchPlaceholder", { party: partyLabel })} className="pl-9 w-72" value={q} onChange={(e) => { setPage(1); setQ(e.target.value); }} />
           </div>
           <select className="h-10 rounded-md border border-input bg-background px-3 text-sm" value={status} onChange={(e) => { setPage(1); setStatus(e.target.value); }}>
-            <option value="">全部狀態</option>
-            <option value="DRAFT">草稿</option>
-            <option value="SUBMITTED">已送審</option>
-            <option value="APPROVED">已審核</option>
-            <option value="POSTED">已過帳</option>
-            <option value="VOIDED">已作廢</option>
-            <option value="REJECTED">已駁回</option>
+            <option value="">{f("allStatuses")}</option>
+            <option value="DRAFT">{f("draft")}</option>
+            <option value="SUBMITTED">{f("submitted")}</option>
+            <option value="APPROVED">{f("approvedState")}</option>
+            <option value="POSTED">{f("posted")}</option>
+            <option value="VOIDED">{f("voided")}</option>
+            <option value="REJECTED">{f("rejectedState")}</option>
           </select>
           <Input type="date" value={fromDate} onChange={(e) => { setPage(1); setFromDate(e.target.value); }} className="w-36" />
           <Input type="date" value={toDate} onChange={(e) => { setPage(1); setToDate(e.target.value); }} className="w-36" />
@@ -311,10 +318,10 @@ export function NotesClient({ kind }: { kind: "receivable" | "payable" }) {
           </Button>
           <input id={`import-notes-${kind}`} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={importExcel} />
           <Button variant="outline" onClick={() => document.getElementById(`import-notes-${kind}`)?.click()}>
-            <Upload className="h-4 w-4" />匯入
+            <Upload className="h-4 w-4" />{tc("import")}
           </Button>
           <Button onClick={() => setOpenNew(true)}>
-            <Plus className="h-4 w-4" />新增票據
+            <Plus className="h-4 w-4" />{n("createNote")}
           </Button>
           <CustomColumnButton onClick={() => customCols.setOpen(true)} />
         </div>
@@ -322,14 +329,14 @@ export function NotesClient({ kind }: { kind: "receivable" | "payable" }) {
 
       <TableHint />
       <Table>
-        <THead onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title="表頭按右鍵可新增／刪減自訂欄位">
+        <THead onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title={tt("manageCustomColumns")}>
           <TR>
-            <TH {...colDrag.thProps("noteNumber")}>票號</TH><TH {...colDrag.thProps("noteType")}>種類</TH><TH {...colDrag.thProps("party")}>{partyLabel}</TH>
-            {kind === "receivable" && <TH {...colDrag.thProps("bank")}>付款銀行</TH>}
-            {kind === "payable" && <TH {...colDrag.thProps("bank")}>開票銀行</TH>}
-            <TH {...colDrag.thProps("issueDate")}>票面日期</TH><TH {...colDrag.thProps("dueDate")}>到期日</TH><TH {...colDrag.thProps("amount")} className="text-right">金額</TH><TH {...colDrag.thProps("status")}>狀態</TH><TH {...colDrag.thProps("updatedBy")}>操作人員</TH>
-            {customCols.columns.map((cc) => <TH key={cc.id} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title="按右鍵管理自訂欄位">{cc.label}</TH>)}
-            <TH className="text-right w-40">操作</TH>
+            <TH {...colDrag.thProps("noteNumber")}>{f("noteNo")}</TH><TH {...colDrag.thProps("noteType")}>{f("category")}</TH><TH {...colDrag.thProps("party")}>{partyLabel}</TH>
+            {kind === "receivable" && <TH {...colDrag.thProps("bank")}>{n("payingBank")}</TH>}
+            {kind === "payable" && <TH {...colDrag.thProps("bank")}>{n("issuingBank")}</TH>}
+            <TH {...colDrag.thProps("issueDate")}>{n("issueDate")}</TH><TH {...colDrag.thProps("dueDate")}>{f("dueDate")}</TH><TH {...colDrag.thProps("amount")} className="text-right">{tc("amount")}</TH><TH {...colDrag.thProps("status")}>{tc("status")}</TH><TH {...colDrag.thProps("updatedBy")}>{f("updatedBy")}</TH>
+            {customCols.columns.map((cc) => <TH key={cc.id} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title={tt("rightClickColumns")}>{cc.label}</TH>)}
+            <TH className="text-right w-40">{tc("actions")}</TH>
           </TR>
         </THead>
         <TBody>
@@ -341,7 +348,7 @@ export function NotesClient({ kind }: { kind: "receivable" | "payable" }) {
             return (
             <TR key={r.id} className={isRowEditing ? "bg-accent/5" : ""}>
               <TD className="font-mono text-xs">{r.noteNumber}</TD>
-              <TD>{NOTE_TYPE_LABELS[r.noteType] ?? r.noteType}</TD>
+              <TD>{f(NOTE_TYPE_LABEL_KEYS[r.noteType]) ?? r.noteType}</TD>
               <TD>{(kind === "receivable" ? r.customer : r.supplier)?.companyName ?? "—"}</TD>
               <TD
                 className={editableFields.includes("bank") ? "cursor-cell hover:bg-muted/60 transition-colors" : ""}
@@ -397,22 +404,22 @@ export function NotesClient({ kind }: { kind: "receivable" | "payable" }) {
                 )}
               </TD>
               <TD className="text-right font-medium">{formatMoney(r.amount)}</TD>
-              <TD><Badge variant={STATUS_VARIANTS[r.status]}>{STATUS_LABELS[r.status] ?? r.status}</Badge></TD>
+              <TD><Badge variant={STATUS_VARIANTS[r.status]}>{f(STATUS_LABEL_KEYS[r.status]) ?? r.status}</Badge></TD>
               <TD className="text-xs text-gray-500">{r.updatedBy || "-"}</TD>
               <TD className="text-right">
                 <div className="flex items-center justify-end gap-1">
-                  <Button size="sm" variant="ghost" title="編輯" onClick={() => setEditId(r.id)}>
+                  <Button size="sm" variant="ghost" title={tc("edit")} onClick={() => setEditId(r.id)}>
                     <Pencil className="h-4 w-4" />
                   </Button>
-                  {r.status === "DRAFT" && <Button size="sm" variant="outline" onClick={() => act(r.id, "submit")}>送出</Button>}
+                  {r.status === "DRAFT" && <Button size="sm" variant="outline" onClick={() => act(r.id, "submit")}>{tc("submit")}</Button>}
                   {r.status === "SUBMITTED" && (
                     <>
-                      <Button size="sm" variant="outline" onClick={() => act(r.id, "approve")}>審核</Button>
-                      <Button size="sm" variant="destructive" onClick={() => act(r.id, "reject")}>駁回</Button>
+                      <Button size="sm" variant="outline" onClick={() => act(r.id, "approve")}>{tc("approve")}</Button>
+                      <Button size="sm" variant="destructive" onClick={() => act(r.id, "reject")}>{tc("reject")}</Button>
                     </>
                   )}
-                  {r.status === "APPROVED" && <Button size="sm" onClick={() => act(r.id, "post")}>過帳</Button>}
-                  {r.status === "POSTED" && <Button size="sm" variant="destructive" onClick={() => act(r.id, "void")}>作廢</Button>}
+                  {r.status === "APPROVED" && <Button size="sm" onClick={() => act(r.id, "post")}>{tc("post")}</Button>}
+                  {r.status === "POSTED" && <Button size="sm" variant="destructive" onClick={() => act(r.id, "void")}>{tc("void")}</Button>}
                 </div>
               </TD>
               {customCols.columns.map((cc, columnIndex) => { const vals = customFieldValues.getValues(r.id); return <TD key={cc.id}><CustomFieldGridCell gridId={`notes-${kind}`} rowId={r.id} rowIndex={rowIndex} column={cc} columnIndex={columnIndex} rowIds={rows.map((row) => row.id)} columns={customCols.columns} value={vals[cc.id] ?? ""} saveValues={customFieldValues.saveValues} onManageColumns={() => customCols.setOpen(true)} /></TD>; })}
@@ -422,11 +429,11 @@ export function NotesClient({ kind }: { kind: "receivable" | "payable" }) {
         </TBody>
       </Table>
       <div className="flex items-center justify-between text-sm text-muted-foreground">
-        <div>共 {total} 筆</div>
+        <div>{tt("totalRows", { total })}</div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>上一頁</Button>
+          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>{tt("prevPage")}</Button>
           <span>{page} / {totalPages}</span>
-          <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>下一頁</Button>
+          <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>{tt("nextPage")}</Button>
         </div>
       </div>
       {openNew && <NewNoteDialog kind={kind} endpoint={endpoint} partyLabel={partyLabel} partyEndpoint={partyEndpoint} onClose={() => setOpenNew(false)} onCreated={(saved: any) => { setOpenNew(false); if (saved) { setRows((prev) => prev.map((r) => r.id === saved.id ? saved : r)); } else { load(); } }} />}
@@ -437,6 +444,9 @@ export function NotesClient({ kind }: { kind: "receivable" | "payable" }) {
 }
 
 function NewNoteDialog({ kind, endpoint, partyLabel, partyEndpoint, onClose, onCreated, row }: any) {
+  const n = useTranslations("notes");
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
   const [parties, setParties] = useState<any[]>([]);
   const [banks, setBanks] = useState<any[]>([]);
   const [form, setForm] = useState({
@@ -479,9 +489,9 @@ function NewNoteDialog({ kind, endpoint, partyLabel, partyEndpoint, onClose, onC
   }, [row, kind, partyEndpoint]);
 
   async function save() {
-    if (!form.partyId) return toast.error(`請選擇${partyLabel}`);
-    if (!form.amount || Number(form.amount) <= 0) return toast.error("金額必須大於 0");
-    if (!form.dueDate) return toast.error("請選擇到期日");
+    if (!form.partyId) return toast.error(n("selectParty", { party: partyLabel }));
+    if (!form.amount || Number(form.amount) <= 0) return toast.error(n("amountPositive"));
+    if (!form.dueDate) return toast.error(n("dueDateRequired"));
     setSaving(true);
     try {
       const payload: any = {
@@ -507,9 +517,9 @@ function NewNoteDialog({ kind, endpoint, partyLabel, partyEndpoint, onClose, onC
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...payload, id: row?.id }),
       });
-      if (!res.ok) throw new Error((await res.json()).error || "儲存失敗");
+      if (!res.ok) throw new Error((await res.json()).error || tc("saveFailed"));
       const saved = await res.json();
-      toast.success("已儲存");
+      toast.success(tc("saved"));
       onCreated(saved);
     } catch (e: any) { toast.error(e.message); } finally { setSaving(false); }
   }
@@ -517,57 +527,57 @@ function NewNoteDialog({ kind, endpoint, partyLabel, partyEndpoint, onClose, onC
   return (
     <Dialog open onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-2xl">
-        <DialogHeader><DialogTitle>{row ? "編輯" : "新增"}{kind === "receivable" ? "應收" : "應付"}票據</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{n("noteDialogTitle", { action: row ? tc("edit") : tc("create"), kind: kind === "receivable" ? n("receivable") : n("payable") })}</DialogTitle></DialogHeader>
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
-            <Label>票據種類</Label>
+            <Label>{n("noteType")}</Label>
             <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={form.noteType} onChange={(e) => setForm({ ...form, noteType: e.target.value })}>
-              <option value="CHECK">支票</option>
-              <option value="PROMISSORY">本票</option>
-              <option value="DRAFT">匯票</option>
-              <option value="OTHER">其他</option>
+              <option value="CHECK">{f("cheque")}</option>
+              <option value="PROMISSORY">{f("promissoryNote")}</option>
+              <option value="DRAFT">{f("billOfExchange")}</option>
+              <option value="OTHER">{f("other")}</option>
             </select>
           </div>
           <div className="space-y-1">
-            <Label>票號 *</Label>
-            <Input value={form.noteNumber} onChange={(e) => setForm({ ...form, noteNumber: e.target.value })} placeholder="留空自動編號" />
+            <Label>{f("noteNo")} *</Label>
+            <Input value={form.noteNumber} onChange={(e) => setForm({ ...form, noteNumber: e.target.value })} placeholder={n("autoNumberHint")} />
           </div>
           <div className="space-y-1 col-span-2">
             <Label>{partyLabel} *</Label>
             <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={form.partyId} onChange={(e) => setForm({ ...form, partyId: e.target.value })}>
-              <option value="">請選擇</option>
+              <option value="">{f("selectPlaceholder")}</option>
               {parties.map((p) => <option key={p.id} value={p.id}>{p.code} {p.companyName}</option>)}
             </select>
           </div>
           {kind === "receivable" && (
             <>
-              <div className="space-y-1"><Label>付款銀行</Label><Input value={form.bankName} onChange={(e) => setForm({ ...form, bankName: e.target.value })} /></div>
-              <div className="space-y-1"><Label>分行</Label><Input value={form.branchName} onChange={(e) => setForm({ ...form, branchName: e.target.value })} /></div>
-              <div className="space-y-1 col-span-2"><Label>發票人</Label><Input value={form.drawerName} onChange={(e) => setForm({ ...form, drawerName: e.target.value })} /></div>
+              <div className="space-y-1"><Label>{n("payingBank")}</Label><Input value={form.bankName} onChange={(e) => setForm({ ...form, bankName: e.target.value })} /></div>
+              <div className="space-y-1"><Label>{f("branch")}</Label><Input value={form.branchName} onChange={(e) => setForm({ ...form, branchName: e.target.value })} /></div>
+              <div className="space-y-1 col-span-2"><Label>{n("drawer")}</Label><Input value={form.drawerName} onChange={(e) => setForm({ ...form, drawerName: e.target.value })} /></div>
             </>
           )}
           {kind === "payable" && (
             <>
               <div className="space-y-1 col-span-2">
-                <Label>開立銀行帳戶 (甲存)</Label>
+                <Label>{n("issuingAccount")}</Label>
                 <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={form.bankAccountId} onChange={(e) => setForm({ ...form, bankAccountId: e.target.value })}>
-                  <option value="">未指定</option>
+                  <option value="">{f("unspecified")}</option>
                   {banks.filter((b: any) => b.accountType === "CHECKING").map((b: any) => (
                     <option key={b.id} value={b.id}>{b.code} {b.name} ({b.bankName ?? ""})</option>
                   ))}
                 </select>
               </div>
-              <div className="space-y-1 col-span-2"><Label>抬頭</Label><Input value={form.payeeName} onChange={(e) => setForm({ ...form, payeeName: e.target.value })} /></div>
+              <div className="space-y-1 col-span-2"><Label>{f("payee")}</Label><Input value={form.payeeName} onChange={(e) => setForm({ ...form, payeeName: e.target.value })} /></div>
             </>
           )}
-          <div className="space-y-1"><Label>金額 *</Label><Input type="number" step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></div>
-          <div className="space-y-1"><Label>票面日期</Label><Input type="date" value={form.issueDate} onChange={(e) => setForm({ ...form, issueDate: e.target.value })} /></div>
-          <div className="space-y-1 col-span-2"><Label>到期日 *</Label><Input type="date" value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} /></div>
-          <div className="space-y-1 col-span-2"><Label>備註</Label><Input value={form.remark} onChange={(e) => setForm({ ...form, remark: e.target.value })} /></div>
+          <div className="space-y-1"><Label>{tc("amount")} *</Label><Input type="number" step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></div>
+          <div className="space-y-1"><Label>{n("issueDate")}</Label><Input type="date" value={form.issueDate} onChange={(e) => setForm({ ...form, issueDate: e.target.value })} /></div>
+          <div className="space-y-1 col-span-2"><Label>{f("dueDate")} *</Label><Input type="date" value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} /></div>
+          <div className="space-y-1 col-span-2"><Label>{tc("remark")}</Label><Input value={form.remark} onChange={(e) => setForm({ ...form, remark: e.target.value })} /></div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>取消</Button>
-          <Button onClick={save} disabled={saving}>{saving ? "儲存中..." : "儲存"}</Button>
+          <Button variant="outline" onClick={onClose}>{tc("cancel")}</Button>
+          <Button onClick={save} disabled={saving}>{saving ? tc("saving") : tc("save")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

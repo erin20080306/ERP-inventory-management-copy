@@ -7,6 +7,7 @@ import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { EmptyState } from "@/components/layout/page-shell";
 import { Plus, Search, Loader2, Trash2, Download, Printer, FileDown, FileSpreadsheet, Upload, Settings2, Save, X, Pencil, Copy, ClipboardPaste, EyeOff, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 import { downloadCSV, toCSV } from "@/lib/csv";
 import { readSessionCache, TableHint, useDebouncedValue, writeSessionCache } from "@/components/table-helpers";
 import {
@@ -30,6 +31,7 @@ function ImportBtn({
   templateName?: string;
   onDone: () => void;
 }) {
+  const t = useTranslations("table");
   const [busy, setBusy] = useState(false);
   const inputId = useState(() => `xlsx-import-${Math.random().toString(36).slice(2)}`)[0];
 
@@ -54,17 +56,17 @@ function ImportBtn({
           });
           if (!r.ok) {
             const j = await r.json().catch(() => ({}));
-            errors.push(`第 ${i + 2} 列：${j.error || r.statusText}`);
+            errors.push(t("rowError", { row: i + 2, message: j.error || r.statusText }));
           } else success++;
         } catch (err: any) {
-          errors.push(`第 ${i + 2} 列：${err.message}`);
+          errors.push(t("rowError", { row: i + 2, message: err.message }));
         }
       }
-      if (errors.length === 0) toast.success(`已匯入 ${success} 筆`);
-      else toast.error(`成功 ${success} / 失敗 ${errors.length}\n${errors.slice(0, 3).join("\n")}`);
+      if (errors.length === 0) toast.success(t("importedCount", { count: success }));
+      else toast.error(`${t("importPartial", { success, failed: errors.length })}\n${errors.slice(0, 3).join("\n")}`);
       onDone();
     } catch (err: any) {
-      toast.error(err.message || "匯入失敗");
+      toast.error(err.message || t("importFailed"));
     } finally {
       setBusy(false);
       e.target.value = "";
@@ -74,7 +76,7 @@ function ImportBtn({
   async function downloadTpl() {
     if (!templateHeaders) return;
     const { downloadExcelTemplate } = await import("@/lib/excel");
-    downloadExcelTemplate(templateName ?? "template", "資料", templateHeaders);
+    downloadExcelTemplate(templateName ?? "template", t("sheetName"), templateHeaders);
   }
 
   return (
@@ -82,11 +84,11 @@ function ImportBtn({
       <input id={inputId} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleFile} />
       <Button variant="outline" disabled={busy} onClick={() => document.getElementById(inputId)?.click()}>
         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-        匯入
+        {t("import")}
       </Button>
       {templateHeaders && (
         <Button variant="ghost" size="sm" onClick={downloadTpl}>
-          範本
+          {t("template")}
         </Button>
       )}
     </>
@@ -94,6 +96,7 @@ function ImportBtn({
 }
 
 function PDFBtn({ title, filename }: { title: string; filename: string }) {
+  const t = useTranslations("table");
   const [busy, setBusy] = useState(false);
   return (
     <Button
@@ -146,7 +149,7 @@ function TableSkeletonRows({ columns, rows = 6 }: { columns: number; rows?: numb
 export function CrudTable<T extends { id: string }>({
   endpoint,
   columns,
-  searchPlaceholder = "搜尋...",
+  searchPlaceholder,
   canCreate = true,
   canEdit = true,
   canDelete = true,
@@ -193,6 +196,7 @@ export function CrudTable<T extends { id: string }>({
   /** 若提供，Excel 匯出改用此 server 端 endpoint（可真正嵌入圖片）。會帶上 q/from/to 查詢參數 */
   serverExcelExport?: string;
 }) {
+  const t = useTranslations("table");
   const [page, setPage] = useState(1);
   const pageSize = 20;
   const [q, setQ] = useState("");
@@ -286,7 +290,7 @@ export function CrudTable<T extends { id: string }>({
   // SWR fetcher
   const fetcher = useCallback(async (url: string) => {
     const res = await fetch(url);
-    if (!res.ok) throw new Error((await res.json()).error || "載入失敗");
+    if (!res.ok) throw new Error((await res.json()).error || t("loadFailed"));
     return res.json();
   }, []);
 
@@ -319,11 +323,11 @@ export function CrudTable<T extends { id: string }>({
 
   async function onDelete(row: T) {
     if (canDeleteRow && !canDeleteRow(row)) return;
-    if (!confirm("確定要刪除？")) return;
+    if (!confirm(t("confirmDelete"))) return;
     try {
       const res = await fetch(`${endpoint}/${row.id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error((await res.json()).error || "刪除失敗");
-      toast.success("已刪除");
+      if (!res.ok) throw new Error((await res.json()).error || t("deleteFailed"));
+      toast.success(t("deleted"));
       mutate(swrKey());
     } catch (e: any) {
       toast.error(e.message);
@@ -368,12 +372,12 @@ export function CrudTable<T extends { id: string }>({
     const column = visibleColumns.find((candidate) => candidate.key === colKey);
     if (!column) return;
     await navigator.clipboard.writeText(clipboardValue(column, row));
-    toast.success("已複製儲存格");
+    toast.success(t("cellCopied"));
   }
 
   async function copyRow(row: T) {
     await navigator.clipboard.writeText(visibleColumns.map((column) => clipboardValue(column, row)).join("\t"));
-    toast.success("已複製整列，可貼到 Excel");
+    toast.success(t("rowCopied"));
   }
 
   async function pasteGrid(startRow: T, startColKey: string, text: string) {
@@ -414,13 +418,13 @@ export function CrudTable<T extends { id: string }>({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ ...(update.row as any), ...update.values }),
         });
-        if (!response.ok) throw new Error((await response.json()).error || "貼上失敗");
+        if (!response.ok) throw new Error((await response.json()).error || t("pasteFailed"));
       }));
       void mutate(swrKey());
-      toast.success(`已貼上 ${affected.size} 列資料`);
+      toast.success(t("pastedRows", { count: affected.size }));
     } catch (error: any) {
       void mutate(swrKey());
-      toast.error(error.message || "貼上失敗");
+      toast.error(error.message || t("pasteFailed"));
     } finally {
       setInlineSaving(null);
     }
@@ -517,9 +521,9 @@ export function CrudTable<T extends { id: string }>({
     try {
       const payload = { ...(row as any), ...draft };
       const res = await fetch(`${endpoint}/${row.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-      if (!res.ok) throw new Error((await res.json()).error || "儲存失敗");
+      if (!res.ok) throw new Error((await res.json()).error || t("saveFailed"));
       const saved = await res.json().catch(() => null);
-      if (!options.silent) toast.success("已儲存");
+      if (!options.silent) toast.success(t("saved"));
       setInlineEditing((prev) => {
         if (prev[row.id] !== draft) return prev;
         const next = { ...prev };
@@ -555,7 +559,7 @@ export function CrudTable<T extends { id: string }>({
           <div className="relative">
             <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder={searchPlaceholder}
+              placeholder={searchPlaceholder ?? t("searchPlaceholder")}
               className="pl-9 w-72"
               value={q}
               onChange={(e) => {
@@ -575,7 +579,7 @@ export function CrudTable<T extends { id: string }>({
           <PDFBtn title={pdfTitle || exportName} filename={exportName} />
           <Button variant="outline" onClick={() => window.print()}>
             <Printer className="h-4 w-4" />
-            列印
+            {t("print")}
           </Button>
           {exportable && (
             <>
@@ -590,7 +594,7 @@ export function CrudTable<T extends { id: string }>({
                       if (enableDateFilter && fromDate) params.set("from", fromDate);
                       if (enableDateFilter && toDate) params.set("to", toDate);
                       const res = await fetch(`${serverExcelExport}?${params.toString()}`);
-                      if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.error || "匯出失敗");
+                      if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.error || t("exportFailed"));
                       const blob = await res.blob();
                       const cd = res.headers.get("Content-Disposition") || "";
                       const m = cd.match(/filename\*=UTF-8''([^;]+)/);
@@ -603,7 +607,7 @@ export function CrudTable<T extends { id: string }>({
                       a.click();
                       a.remove();
                       URL.revokeObjectURL(url);
-                      toast.success("已匯出 Excel");
+                      toast.success(t("exportedExcel"));
                       return;
                     }
                     const params = new URLSearchParams({ q, page: "1", pageSize: "10000", ...(initialQuery ?? {}) });
@@ -618,9 +622,9 @@ export function CrudTable<T extends { id: string }>({
                       data.items,
                       visibleColumns.map((c) => ({ key: c.key, title: c.title, get: c.csv, isImage: c.isImage, isUrl: c.isUrl })) as any
                     );
-                    toast.success("已匯出 Excel");
+                    toast.success(t("exportedExcel"));
                   } catch (e: any) {
-                    toast.error(e.message || "匯出失敗");
+                    toast.error(e.message || t("exportFailed"));
                   }
                 }}
               >
@@ -641,9 +645,9 @@ export function CrudTable<T extends { id: string }>({
                       visibleColumns.map((c) => ({ key: c.key, title: c.title, get: c.csv })) as any
                     );
                     downloadCSV(`${exportName}-${new Date().toISOString().slice(0, 10)}.csv`, csv);
-                    toast.success("已匯出 CSV");
+                    toast.success(t("exportedCsv"));
                   } catch (e: any) {
-                    toast.error(e.message || "匯出失敗");
+                    toast.error(e.message || t("exportFailed"));
                   }
                 }}
               >
@@ -664,7 +668,7 @@ export function CrudTable<T extends { id: string }>({
           {moduleKey && (
             <Button variant="outline" onClick={() => customCols.setOpen(true)}>
               <Settings2 className="h-4 w-4" />
-              欄位
+              {t("columns")}
             </Button>
           )}
           {canCreate && (
@@ -675,7 +679,7 @@ export function CrudTable<T extends { id: string }>({
               }}
             >
               <Plus className="h-4 w-4" />
-              新增
+              {t("create")}
             </Button>
           )}
         </div>
@@ -703,7 +707,7 @@ export function CrudTable<T extends { id: string }>({
                   setContextMenu(null);
                   setColumnMenu({ x: Math.min(event.clientX, window.innerWidth - 230), y: Math.min(event.clientY, window.innerHeight - 190), colKey: c.key });
                 }}
-                title="拖曳調整欄位順序"
+                title={t("dragToReorder")}
               >
                 {c.title}
               </TH>
@@ -716,12 +720,12 @@ export function CrudTable<T extends { id: string }>({
                   setContextMenu(null);
                   customCols.setOpen(true);
                 }}
-                title="按右鍵管理自訂欄位"
+                title={t("rightClickColumns")}
               >
                 {cc.label}
               </TH>
             ))}
-            {(canEdit || canDelete) && <TH className="w-28 text-right">操作</TH>}
+            {(canEdit || canDelete) && <TH className="w-28 text-right">{t("actions")}</TH>}
           </TR>
         </THead>
         <TBody>
@@ -729,7 +733,7 @@ export function CrudTable<T extends { id: string }>({
           {error && !showInitialLoading && rows.length === 0 && (
             <TR>
               <TD colSpan={tableColumnCount} className="py-8 text-center text-sm text-destructive">
-                {error.message || "資料載入失敗"}
+                {error.message || t("dataLoadFailed")}
               </TD>
             </TR>
           )}
@@ -831,17 +835,17 @@ export function CrudTable<T extends { id: string }>({
                     <div className="flex items-center justify-end gap-1">
                       {isRowEditing ? (
                         <>
-                          <Button variant="ghost" size="icon" onClick={() => { saveInlineEdit(row); setActiveCell(null); }} disabled={inlineSaving === row.id} title="儲存 (Enter)">
+                          <Button variant="ghost" size="icon" onClick={() => { saveInlineEdit(row); setActiveCell(null); }} disabled={inlineSaving === row.id} title={t("saveHint")}>
                             {inlineSaving === row.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4 text-emerald-600" />}
                           </Button>
-                          <Button variant="ghost" size="icon" onClick={() => cancelInlineEdit(row.id)} title="取消 (Esc)">
+                          <Button variant="ghost" size="icon" onClick={() => cancelInlineEdit(row.id)} title={t("cancelHint")}>
                             <X className="h-4 w-4 text-muted-foreground" />
                           </Button>
                         </>
                       ) : (
                         <>
                           {canEdit && (
-                            <Button variant="ghost" size="icon" onClick={() => { setEditing(row); setOpen(true); }} title="編輯">
+                            <Button variant="ghost" size="icon" onClick={() => { setEditing(row); setOpen(true); }} title={t("edit")}>
                               <Pencil className="h-4 w-4 text-blue-600" />
                             </Button>
                           )}
@@ -864,42 +868,42 @@ export function CrudTable<T extends { id: string }>({
       {contextMenu && (() => {
         const column = visibleColumns.find((candidate) => candidate.key === contextMenu.colKey);
         const editable = Boolean(canEdit && column?.editable);
-        return <div role="menu" aria-label="表格右鍵選單" className="fixed z-[100] w-52 rounded-lg border bg-popover p-1 text-sm shadow-xl" style={{ left: contextMenu.x, top: contextMenu.y }} onClick={(event) => event.stopPropagation()}>
-          <button type="button" className="flex w-full items-center gap-2 rounded px-3 py-2 text-left hover:bg-muted" onClick={() => { void copyCell(contextMenu.row, contextMenu.colKey); setContextMenu(null); }}><Copy className="h-4 w-4" />複製儲存格</button>
-          <button type="button" className="flex w-full items-center gap-2 rounded px-3 py-2 text-left hover:bg-muted" onClick={() => { void copyRow(contextMenu.row); setContextMenu(null); }}><Copy className="h-4 w-4" />複製整列</button>
-          <button type="button" disabled={!editable} className="flex w-full items-center gap-2 rounded px-3 py-2 text-left hover:bg-muted disabled:opacity-40" onClick={async () => { const text = await navigator.clipboard.readText(); await pasteGrid(contextMenu.row, contextMenu.colKey, text); setContextMenu(null); }}><ClipboardPaste className="h-4 w-4" />從此格貼上</button>
-          {canEdit && <button type="button" className="flex w-full items-center gap-2 rounded px-3 py-2 text-left hover:bg-muted" onClick={() => { setEditing(contextMenu.row); setOpen(true); setContextMenu(null); }}><Pencil className="h-4 w-4" />編輯此筆</button>}
-          {moduleKey && <button type="button" className="flex w-full items-center gap-2 rounded px-3 py-2 text-left hover:bg-muted" onClick={() => { customCols.setOpen(true); setContextMenu(null); }}><Settings2 className="h-4 w-4" />新增／刪減自訂欄位</button>}
-          {visibleColumns.length > 1 && <button type="button" className="flex w-full items-center gap-2 rounded px-3 py-2 text-left hover:bg-muted" onClick={() => { hideColumn(contextMenu.colKey); setContextMenu(null); }}><EyeOff className="h-4 w-4" />隱藏此欄</button>}
-          {hiddenColumns.length > 0 && <button type="button" className="flex w-full items-center gap-2 rounded px-3 py-2 text-left hover:bg-muted" onClick={() => { restoreColumns(); setContextMenu(null); }}><RotateCcw className="h-4 w-4" />恢復隱藏欄位</button>}
-          {canDelete && (!canDeleteRow || canDeleteRow(contextMenu.row)) && <><div className="my-1 border-t" /><button type="button" className="flex w-full items-center gap-2 rounded px-3 py-2 text-left text-destructive hover:bg-destructive/10" onClick={() => { const row = contextMenu.row; setContextMenu(null); void onDelete(row); }}><Trash2 className="h-4 w-4" />刪除此筆</button></>}
+        return <div role="menu" aria-label={t("rowContextMenu")} className="fixed z-[100] w-52 rounded-lg border bg-popover p-1 text-sm shadow-xl" style={{ left: contextMenu.x, top: contextMenu.y }} onClick={(event) => event.stopPropagation()}>
+          <button type="button" className="flex w-full items-center gap-2 rounded px-3 py-2 text-left hover:bg-muted" onClick={() => { void copyCell(contextMenu.row, contextMenu.colKey); setContextMenu(null); }}><Copy className="h-4 w-4" />{t("copyCell")}</button>
+          <button type="button" className="flex w-full items-center gap-2 rounded px-3 py-2 text-left hover:bg-muted" onClick={() => { void copyRow(contextMenu.row); setContextMenu(null); }}><Copy className="h-4 w-4" />{t("copyRow")}</button>
+          <button type="button" disabled={!editable} className="flex w-full items-center gap-2 rounded px-3 py-2 text-left hover:bg-muted disabled:opacity-40" onClick={async () => { const text = await navigator.clipboard.readText(); await pasteGrid(contextMenu.row, contextMenu.colKey, text); setContextMenu(null); }}><ClipboardPaste className="h-4 w-4" />{t("pasteFromHere")}</button>
+          {canEdit && <button type="button" className="flex w-full items-center gap-2 rounded px-3 py-2 text-left hover:bg-muted" onClick={() => { setEditing(contextMenu.row); setOpen(true); setContextMenu(null); }}><Pencil className="h-4 w-4" />{t("editRow")}</button>}
+          {moduleKey && <button type="button" className="flex w-full items-center gap-2 rounded px-3 py-2 text-left hover:bg-muted" onClick={() => { customCols.setOpen(true); setContextMenu(null); }}><Settings2 className="h-4 w-4" />{t("manageCustomColumns")}</button>}
+          {visibleColumns.length > 1 && <button type="button" className="flex w-full items-center gap-2 rounded px-3 py-2 text-left hover:bg-muted" onClick={() => { hideColumn(contextMenu.colKey); setContextMenu(null); }}><EyeOff className="h-4 w-4" />{t("hideColumn")}</button>}
+          {hiddenColumns.length > 0 && <button type="button" className="flex w-full items-center gap-2 rounded px-3 py-2 text-left hover:bg-muted" onClick={() => { restoreColumns(); setContextMenu(null); }}><RotateCcw className="h-4 w-4" />{t("restoreHidden")}</button>}
+          {canDelete && (!canDeleteRow || canDeleteRow(contextMenu.row)) && <><div className="my-1 border-t" /><button type="button" className="flex w-full items-center gap-2 rounded px-3 py-2 text-left text-destructive hover:bg-destructive/10" onClick={() => { const row = contextMenu.row; setContextMenu(null); void onDelete(row); }}><Trash2 className="h-4 w-4" />{t("deleteRow")}</button></>}
         </div>;
       })()}
 
       {columnMenu && (() => {
         const column = visibleColumns.find((candidate) => candidate.key === columnMenu.colKey);
         if (!column) return null;
-        return <div role="menu" aria-label="欄位右鍵選單" className="fixed z-[100] w-56 rounded-lg border bg-popover p-1 text-sm shadow-xl" style={{ left: columnMenu.x, top: columnMenu.y }} onClick={(event) => event.stopPropagation()}>
-          {moduleKey && <button type="button" className="flex w-full items-center gap-2 rounded px-3 py-2 text-left hover:bg-muted" onClick={() => { customCols.setOpen(true); setColumnMenu(null); }}><Settings2 className="h-4 w-4" />新增／刪減自訂欄位</button>}
-          {visibleColumns.length > 1 && <button type="button" className="flex w-full items-center gap-2 rounded px-3 py-2 text-left hover:bg-muted" onClick={() => { hideColumn(column.key); setColumnMenu(null); }}><EyeOff className="h-4 w-4" />隱藏「{column.title}」</button>}
-          {hiddenColumns.length > 0 && <button type="button" className="flex w-full items-center gap-2 rounded px-3 py-2 text-left hover:bg-muted" onClick={() => { restoreColumns(); setColumnMenu(null); }}><RotateCcw className="h-4 w-4" />恢復所有隱藏欄位</button>}
+        return <div role="menu" aria-label={t("columnContextMenu")} className="fixed z-[100] w-56 rounded-lg border bg-popover p-1 text-sm shadow-xl" style={{ left: columnMenu.x, top: columnMenu.y }} onClick={(event) => event.stopPropagation()}>
+          {moduleKey && <button type="button" className="flex w-full items-center gap-2 rounded px-3 py-2 text-left hover:bg-muted" onClick={() => { customCols.setOpen(true); setColumnMenu(null); }}><Settings2 className="h-4 w-4" />{t("manageCustomColumns")}</button>}
+          {visibleColumns.length > 1 && <button type="button" className="flex w-full items-center gap-2 rounded px-3 py-2 text-left hover:bg-muted" onClick={() => { hideColumn(column.key); setColumnMenu(null); }}><EyeOff className="h-4 w-4" />{t("hideNamedColumn", { name: String(column.title) })}</button>}
+          {hiddenColumns.length > 0 && <button type="button" className="flex w-full items-center gap-2 rounded px-3 py-2 text-left hover:bg-muted" onClick={() => { restoreColumns(); setColumnMenu(null); }}><RotateCcw className="h-4 w-4" />{t("restoreAllHidden")}</button>}
         </div>;
       })()}
 
       <div className="flex items-center justify-between text-sm text-muted-foreground">
         <div>
-          共 {total} 筆
-          {showRefreshing && <span className="ml-2 text-xs text-muted-foreground">更新中...</span>}
+          {t("totalRows", { total })}
+          {showRefreshing && <span className="ml-2 text-xs text-muted-foreground">{t("updating")}</span>}
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-            上一頁
+            {t("prevPage")}
           </Button>
           <span>
             {page} / {totalPages}
           </span>
           <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
-            下一頁
+            {t("nextPage")}
           </Button>
         </div>
       </div>

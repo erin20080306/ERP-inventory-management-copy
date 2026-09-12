@@ -13,6 +13,7 @@ import { downloadCSV, toCSV } from "@/lib/csv";
 import { ConvertToJournalButton } from "@/components/convert-to-journal-button";
 import { useCustomColumns, useCustomFieldValues, CustomColumnDialog, CustomColumnButton, CustomFieldGridCell } from "@/components/custom-columns";
 import { readSessionCache, TableHint, TableSkeletonRows, useColumnDrag, useDebouncedValue, writeSessionCache } from "@/components/table-helpers";
+import { useTranslations } from "next-intl";
 
 function LedgerSummarySkeleton() {
   return (
@@ -28,8 +29,12 @@ function LedgerSummarySkeleton() {
 }
 
 export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
+  const l = useTranslations("ledger");
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
+  const tt = useTranslations("table");
   const endpoint = kind === "ar" ? "/api/accounting/receivables" : "/api/accounting/payables";
-  const partyLabel = kind === "ar" ? "客戶" : "供應商";
+  const partyLabel = kind === "ar" ? f("customer") : f("supplier");
   const [rows, setRows] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -107,7 +112,7 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   const fmtNum = (n: number) => formatMoney(n);
-  const actionLabel = kind === "ar" ? "收" : "付";
+  const actionLabel = kind === "ar" ? l("collectShort") : l("payShort");
 
   async function onAct(id: string, action: string) {
     try {
@@ -116,8 +121,8 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action }),
       });
-      if (!res.ok) throw new Error((await res.json()).error || "操作失敗");
-      toast.success("已處理");
+      if (!res.ok) throw new Error((await res.json()).error || f("actionFailed"));
+      toast.success(f("settled"));
       load();
       loadSummary();
     } catch (e: any) {
@@ -204,7 +209,7 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
     // 連貫性確認：如果狀態改為 OPEN 且已有收款/付款記錄
     if (draft.status === "OPEN" && row.status !== "OPEN" && Number(row.paidAmount) > 0) {
       if (typeof window !== "undefined") {
-        const confirmed = confirm("注意：將狀態改為「未收」會重置已收款金額並刪除相關收款紀錄。\n\n確定要繼續嗎？");
+        const confirmed = confirm(l("confirmResetUnpaid"));
         if (!confirmed) {
           cancelInlineEdit(row.id);
           return;
@@ -216,9 +221,9 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
     try {
       const payload = { ...(row as any), ...draft };
       const res = await fetch(`${endpoint}/${row.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-      if (!res.ok) throw new Error((await res.json()).error || "儲存失敗");
+      if (!res.ok) throw new Error((await res.json()).error || tc("saveFailed"));
       const saved = await res.json().catch(() => null);
-      toast.success("已儲存");
+      toast.success(tc("saved"));
       setInlineEditing((prev) => { const n = { ...prev }; delete n[row.id]; return n; });
       setRows((prev) => prev.map((r) => r.id === row.id ? (saved && saved.id ? saved : { ...r, ...draft }) : r));
       loadSummary();
@@ -241,27 +246,27 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
       {summary && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           <div className="rounded-lg border bg-card p-3 shadow-sm">
-            <div className="text-xs text-muted-foreground">現金{actionLabel}款</div>
+            <div className="text-xs text-muted-foreground">{l("cashLine", { action: actionLabel })}</div>
             <div className="text-lg font-bold mt-1">{fmtNum(summary.cash)}</div>
           </div>
           <div className="rounded-lg border bg-card p-3 shadow-sm">
-            <div className="text-xs text-muted-foreground">票據{actionLabel}款</div>
+            <div className="text-xs text-muted-foreground">{l("noteLine", { action: actionLabel })}</div>
             <div className="text-lg font-bold mt-1">{fmtNum(summary.check)}</div>
           </div>
           <div className="rounded-lg border bg-card p-3 shadow-sm">
-            <div className="text-xs text-muted-foreground">銀行{actionLabel}款</div>
+            <div className="text-xs text-muted-foreground">{l("bankLine", { action: actionLabel })}</div>
             <div className="text-lg font-bold mt-1">{fmtNum(summary.bank)}</div>
           </div>
           <div className="rounded-lg border bg-card p-3 shadow-sm">
-            <div className="text-xs text-muted-foreground">其他</div>
+            <div className="text-xs text-muted-foreground">{f("other")}</div>
             <div className="text-lg font-bold mt-1">{fmtNum(summary.other)}</div>
           </div>
           <div className="rounded-lg border bg-card p-3 shadow-sm">
-            <div className="text-xs text-muted-foreground">折讓</div>
+            <div className="text-xs text-muted-foreground">{f("allowance")}</div>
             <div className="text-lg font-bold mt-1">{fmtNum(summary.discountTotal)}</div>
           </div>
           <div className="rounded-lg border bg-primary/10 p-3 shadow-sm">
-            <div className="text-xs text-primary font-medium">{actionLabel}款合計</div>
+            <div className="text-xs text-primary font-medium">{l("totalLine", { action: actionLabel })}</div>
             <div className="text-lg font-bold mt-1 text-primary">{fmtNum(summary.grandTotal)}</div>
           </div>
         </div>
@@ -271,7 +276,7 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
         <div className="flex items-center gap-2 flex-wrap">
           <div className="relative">
             <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-            <Input placeholder={`搜尋${partyLabel}`} className="pl-9 w-72" value={q} onChange={(e) => { setPage(1); setQ(e.target.value); }} />
+            <Input placeholder={l("searchParty", { party: partyLabel })} className="pl-9 w-72" value={q} onChange={(e) => { setPage(1); setQ(e.target.value); }} />
           </div>
           <Input type="date" value={fromDate} onChange={(e) => { setPage(1); setFromDate(e.target.value); }} className="w-36" />
           <Input type="date" value={toDate} onChange={(e) => { setPage(1); setToDate(e.target.value); }} className="w-36" />
@@ -279,36 +284,36 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
         <div className="flex items-center gap-2">
         <Button onClick={() => setBatchOpen(true)}>
           <ListChecks className="h-4 w-4" />
-          批次沖帳
+          {l("batchSettle")}
         </Button>
         <Button variant="outline" onClick={async () => {
           const res = await fetch(`${endpoint}?q=${encodeURIComponent(q)}&pageSize=10000`);
           const d = await res.json();
           const { downloadExcel } = await import("@/lib/excel");
-          downloadExcel(kind === "ar" ? "receivables" : "payables", kind === "ar" ? "應收帳款" : "應付帳款", d.items, [
+          downloadExcel(kind === "ar" ? "receivables" : "payables", kind === "ar" ? f("receivables") : f("payables"), d.items, [
             { key: "party", title: partyLabel, get: (r: any) => (kind === "ar" ? r.customer : r.supplier)?.companyName ?? "" },
-            { key: "relNumber", title: "關聯單號", get: (r: any) => (kind === "ar" ? r.salesOrder : r.purchaseOrder)?.number ?? "" },
-            { key: "createdAt", title: "日期", get: (r: any) => formatDate(r.createdAt) },
-            { key: "amount", title: "金額", get: (r: any) => Number(r.amount) },
-            { key: "paidAmount", title: kind === "ar" ? "已收" : "已付", get: (r: any) => Number(r.paidAmount) },
-            { key: "balance", title: "未結", get: (r: any) => Number(r.amount) - Number(r.paidAmount) },
-            { key: "status", title: "狀態" },
+            { key: "relNumber", title: f("linkedDocNo"), get: (r: any) => (kind === "ar" ? r.salesOrder : r.purchaseOrder)?.number ?? "" },
+            { key: "createdAt", title: tc("date"), get: (r: any) => formatDate(r.createdAt) },
+            { key: "amount", title: tc("amount"), get: (r: any) => Number(r.amount) },
+            { key: "paidAmount", title: l("paidCol", { action: kind === "ar" ? l("collectShort") : l("payShort") }), get: (r: any) => Number(r.paidAmount) },
+            { key: "balance", title: f("outstanding"), get: (r: any) => Number(r.amount) - Number(r.paidAmount) },
+            { key: "status", title: tc("status") },
           ]);
-          toast.success("已匯出 Excel");
+          toast.success(tt("exportedExcel"));
         }}>
           <FileDown className="h-4 w-4" />
           Excel
         </Button>
         <Button variant="outline" disabled={pdfBusy} onClick={async () => {
           setPdfBusy(true);
-          try { const { exportPageToPDF } = await import("@/lib/export-pdf"); await exportPageToPDF(kind === "ar" ? "應收帳款" : "應付帳款", kind === "ar" ? "receivables" : "payables"); } finally { setPdfBusy(false); }
+          try { const { exportPageToPDF } = await import("@/lib/export-pdf"); await exportPageToPDF(kind === "ar" ? f("receivables") : f("payables"), kind === "ar" ? "receivables" : "payables"); } finally { setPdfBusy(false); }
         }}>
           {pdfBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
           PDF
         </Button>
         <Button variant="outline" onClick={() => window.print()}>
           <Printer className="h-4 w-4" />
-          列印
+          {tc("print")}
         </Button>
         <Button
           variant="outline"
@@ -317,19 +322,19 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
             const d = await res.json();
             const csv = toCSV(d.items, [
               { key: "party", title: partyLabel, get: (r: any) => (kind === "ar" ? r.customer : r.supplier)?.companyName ?? "" },
-              { key: "relNumber", title: "關聯單號", get: (r: any) => (kind === "ar" ? r.salesOrder : r.purchaseOrder)?.number ?? "" },
-              { key: "createdAt", title: "日期", get: (r: any) => formatDate(r.createdAt) },
-              { key: "amount", title: "金額" },
-              { key: "paidAmount", title: kind === "ar" ? "已收金額" : "已付金額" },
-              { key: "balance", title: "未結", get: (r: any) => Number(r.amount) - Number(r.paidAmount) },
-              { key: "status", title: "狀態" },
+              { key: "relNumber", title: f("linkedDocNo"), get: (r: any) => (kind === "ar" ? r.salesOrder : r.purchaseOrder)?.number ?? "" },
+              { key: "createdAt", title: tc("date"), get: (r: any) => formatDate(r.createdAt) },
+              { key: "amount", title: tc("amount") },
+              { key: "paidAmount", title: kind === "ar" ? l("collectedTotal") : l("paidTotal") },
+              { key: "balance", title: f("outstanding"), get: (r: any) => Number(r.amount) - Number(r.paidAmount) },
+              { key: "status", title: tc("status") },
             ]);
             downloadCSV(`${kind === "ar" ? "receivables" : "payables"}-${new Date().toISOString().slice(0, 10)}.csv`, csv);
-            toast.success("已匯出 CSV");
+            toast.success(tt("exportedCsv"));
           }}
         >
           <Download className="h-4 w-4" />
-          匯出 CSV
+          {tt("exportCsv")}
         </Button>
         <CustomColumnButton onClick={() => customCols.setOpen(true)} />
         </div>
@@ -337,9 +342,9 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
 
       <TableHint />
       <Table>
-        <THead onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title="表頭按右鍵可新增／刪減自訂欄位">
+        <THead onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title={tt("manageCustomColumns")}>
           <TR>
-            <TH {...colDrag.thProps("party")}>{partyLabel}</TH><TH {...colDrag.thProps("relNumber")}>關聯單號</TH><TH {...colDrag.thProps("date")}>日期</TH><TH {...colDrag.thProps("dueDate")}>到期日</TH><TH {...colDrag.thProps("amount")}>金額</TH><TH {...colDrag.thProps("paid")}>已{kind === "ar" ? "收" : "付"}</TH><TH {...colDrag.thProps("balance")}>未結</TH><TH {...colDrag.thProps("status")}>狀態</TH><TH {...colDrag.thProps("updatedBy")}>操作人員</TH>{customCols.columns.map((cc) => <TH key={cc.id} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title="按右鍵管理自訂欄位">{cc.label}</TH>)}<TH className="w-24 text-right">操作</TH>
+            <TH {...colDrag.thProps("party")}>{partyLabel}</TH><TH {...colDrag.thProps("relNumber")}>{f("linkedDocNo")}</TH><TH {...colDrag.thProps("date")}>{tc("date")}</TH><TH {...colDrag.thProps("dueDate")}>{f("dueDate")}</TH><TH {...colDrag.thProps("amount")}>{tc("amount")}</TH><TH {...colDrag.thProps("paid")}>{l("paidCol", { action: kind === "ar" ? l("collectShort") : l("payShort") })}</TH><TH {...colDrag.thProps("balance")}>{f("outstanding")}</TH><TH {...colDrag.thProps("status")}>{tc("status")}</TH><TH {...colDrag.thProps("updatedBy")}>{f("updatedBy")}</TH>{customCols.columns.map((cc) => <TH key={cc.id} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title={tt("rightClickColumns")}>{cc.label}</TH>)}<TH className="w-24 text-right">{tc("actions")}</TH>
           </TR>
         </THead>
         <TBody>
@@ -390,10 +395,10 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
                       onKeyDown={(e) => handleCellKeyDown(e, r, "status")}
                       ref={(el) => { if (el) el.focus(); }}
                     >
-                      <option value="OPEN">未收</option>
-                      <option value="PARTIAL">部分收款</option>
-                      <option value="PAID">已收</option>
-                      <option value="OVERDUE">逾期</option>
+                      <option value="OPEN">{f("unpaid")}</option>
+                      <option value="PARTIAL">{f("partiallyPaid")}</option>
+                      <option value="PAID">{f("received")}</option>
+                      <option value="OVERDUE">{f("overdue")}</option>
                     </select>
                   ) : (
                     <StatusBadge status={r.status} />
@@ -403,10 +408,10 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
                 <TD className="text-right flex items-center justify-end gap-1">
                   {isRowEditing ? (
                     <>
-                      <Button variant="ghost" size="icon" onClick={() => { saveInlineEdit(r); setActiveCell(null); }} disabled={inlineSaving === r.id} title="儲存 (Enter)">
+                      <Button variant="ghost" size="icon" onClick={() => { saveInlineEdit(r); setActiveCell(null); }} disabled={inlineSaving === r.id} title={tt("saveHint")}>
                         {inlineSaving === r.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4 text-emerald-600" />}
                       </Button>
-                      <Button variant="ghost" size="icon" onClick={() => cancelInlineEdit(r.id)} title="取消 (Esc)">
+                      <Button variant="ghost" size="icon" onClick={() => cancelInlineEdit(r.id)} title={tt("cancelHint")}>
                         <X className="h-4 w-4 text-muted-foreground" />
                       </Button>
                     </>
@@ -415,29 +420,29 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
                       {balance > 0 && (
                         <Button size="sm" variant="outline" onClick={() => setPay(r)}>
                           <CreditCard className="h-4 w-4" />
-                          {kind === "ar" ? "收款" : "付款"}
+                          {kind === "ar" ? l("collect") : l("pay")}
                         </Button>
                       )}
-                      {r.status === "DRAFT" && <Button size="sm" variant="outline" onClick={() => onAct(r.id, "submit")}>送出</Button>}
+                      {r.status === "DRAFT" && <Button size="sm" variant="outline" onClick={() => onAct(r.id, "submit")}>{tc("submit")}</Button>}
                       {r.status === "SUBMITTED" && (
                         <>
-                          <Button size="sm" variant="outline" onClick={() => onAct(r.id, "approve")}>審核</Button>
-                          <Button size="sm" variant="destructive" onClick={() => onAct(r.id, "reject")}>駁回</Button>
+                          <Button size="sm" variant="outline" onClick={() => onAct(r.id, "approve")}>{tc("approve")}</Button>
+                          <Button size="sm" variant="destructive" onClick={() => onAct(r.id, "reject")}>{tc("reject")}</Button>
                         </>
                       )}
-                      {r.status === "APPROVED" && <Button size="sm" onClick={() => onAct(r.id, "post")}>過帳</Button>}
-                      {r.status === "POSTED" && <Button size="sm" variant="destructive" onClick={() => onAct(r.id, "void")}>作廢</Button>}
+                      {r.status === "APPROVED" && <Button size="sm" onClick={() => onAct(r.id, "post")}>{tc("post")}</Button>}
+                      {r.status === "POSTED" && <Button size="sm" variant="destructive" onClick={() => onAct(r.id, "void")}>{tc("void")}</Button>}
                       <Button size="sm" variant="ghost" onClick={() => setEditRow(r)}>
-                        編輯
+                        {tc("edit")}
                       </Button>
                       <Button size="sm" variant="ghost" className="text-red-500 hover:text-red-700" onClick={async () => {
                         const warning = Number(r.paidAmount) > 0 
-                          ? "此筆帳款已有收款紀錄，刪除將同時刪除相關收款紀錄和票據。確定要刪除嗎？"
-                          : "確定刪除此筆帳款？";
+                          ? l("confirmDeleteWithPayments")
+                          : l("confirmDeleteBill");
                         if (!confirm(warning)) return;
                         const res = await fetch(`${endpoint}/${r.id}`, { method: "DELETE" });
-                        if (!res.ok) { const e = await res.json(); toast.error(e.error || "刪除失敗"); return; }
-                        toast.success("已刪除");
+                        if (!res.ok) { const e = await res.json(); toast.error(e.error || tc("deleteFailed")); return; }
+                        toast.success(tc("deleted"));
                         load(); loadSummary();
                       }}>
                         <Trash2 className="h-4 w-4" />
@@ -452,11 +457,11 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
         </TBody>
       </Table>
       <div className="flex items-center justify-between text-sm text-muted-foreground">
-        <div>共 {total} 筆</div>
+        <div>{tt("totalRows", { total })}</div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>上一頁</Button>
+          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>{tt("prevPage")}</Button>
           <span>{page} / {totalPages}</span>
-          <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>下一頁</Button>
+          <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>{tt("nextPage")}</Button>
         </div>
       </div>
       {pay && <PayDialog row={pay} kind={kind} onClose={() => setPay(null)} onDone={(updated: any) => { setPay(null); if (updated) { setRows((prev) => prev.map((r) => r.id === updated.id ? updated : r)); loadSummary(); } else { load(); loadSummary(); } }} />}
@@ -468,6 +473,9 @@ export function LedgerClient({ kind }: { kind: "ar" | "ap" }) {
 }
 
 function PayDialog({ row, kind, onClose, onDone }: any) {
+  const l = useTranslations("ledger");
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
   const balance = Math.round(Number(row.amount) - Number(row.paidAmount));
   const [amount, setAmount] = useState(balance);
   const [discount, setDiscount] = useState(0);
@@ -490,10 +498,10 @@ function PayDialog({ row, kind, onClose, onDone }: any) {
   }, [kind]);
 
   async function save() {
-    if (Number(amount) <= 0 && Number(discount) <= 0) return toast.error("收款金額或折讓金額至少填一項");
-    if (totalWriteOff > balance) return toast.error("收款 + 折讓不可大於未結款項");
-    if (method === "CHEQUE" && !selectedNoteId) return toast.error("請選擇票據");
-    if (method === "BANK" && !selectedBankId) return toast.error("請選擇銀行帳戶");
+    if (Number(amount) <= 0 && Number(discount) <= 0) return toast.error(l("amountOrAllowanceRequired"));
+    if (totalWriteOff > balance) return toast.error(l("overSettle"));
+    if (method === "CHEQUE" && !selectedNoteId) return toast.error(l("noteRequired"));
+    if (method === "BANK" && !selectedBankId) return toast.error(l("bankAccountRequired"));
     setSaving(true);
     try {
       const res = await fetch(endpoint, {
@@ -510,9 +518,9 @@ function PayDialog({ row, kind, onClose, onDone }: any) {
           ...(method === "BANK" ? { bankAccountId: selectedBankId } : {}),
         }),
       });
-      if (!res.ok) throw new Error((await res.json()).error || "操作失敗");
+      if (!res.ok) throw new Error((await res.json()).error || f("actionFailed"));
       const result = await res.json();
-      toast.success("已處理");
+      toast.success(f("settled"));
       if (result.paymentId || result.discountId) {
         setSavedPayment({ paymentId: result.paymentId, discountId: result.discountId });
       } else {
@@ -523,76 +531,76 @@ function PayDialog({ row, kind, onClose, onDone }: any) {
   return (
     <Dialog open onOpenChange={(v) => !v && onClose()}>
       <DialogContent>
-        <DialogHeader><DialogTitle>{kind === "ar" ? "沖應收帳款" : "沖應付帳款"}</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{kind === "ar" ? l("settleReceivable") : l("settlePayable")}</DialogTitle></DialogHeader>
         <div className="space-y-3">
-          <div className="text-sm">未結金額：<span className="font-bold text-red-600">{formatMoney(balance)}</span></div>
-          <div className="space-y-1"><Label>{kind === "ar" ? "收款金額" : "付款金額"}</Label><Input inputMode="numeric" className="[appearance:textfield]" value={amount || ""} onChange={(e) => setAmount(Number(e.target.value.replace(/\D/g, "")))} placeholder="0" /></div>
+          <div className="text-sm">{l("outstandingLabel")}<span className="font-bold text-red-600">{formatMoney(balance)}</span></div>
+          <div className="space-y-1"><Label>{kind === "ar" ? l("collectAmount") : l("payAmount")}</Label><Input inputMode="numeric" className="[appearance:textfield]" value={amount || ""} onChange={(e) => setAmount(Number(e.target.value.replace(/\D/g, "")))} placeholder="0" /></div>
           <div className="space-y-1">
-            <Label>方式</Label>
+            <Label>{l("method")}</Label>
             <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={method} onChange={(e) => { setMethod(e.target.value); setSelectedNoteId(""); setSelectedBankId(""); }}>
-              <option value="CASH">現金</option>
-              <option value="BANK">銀行存款</option>
-              <option value="CHEQUE">支票/票據</option>
+              <option value="CASH">{f("cash")}</option>
+              <option value="BANK">{f("bankDeposit")}</option>
+              <option value="CHEQUE">{l("chequeOrNote")}</option>
             </select>
           </div>
           {method === "CHEQUE" && (
             <div className="space-y-1">
-              <Label>選擇票據</Label>
+              <Label>{l("selectNote")}</Label>
               <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={selectedNoteId} onChange={(e) => {
                 setSelectedNoteId(e.target.value);
                 const note = notes.find(n => n.id === e.target.value);
                 if (note) setAmount(Math.min(Math.round(Number(note.amount)), balance));
               }}>
-                <option value="">-- 請選擇票據 --</option>
+                <option value="">{l("selectNotePlaceholder")}</option>
                 {notes.map((n) => (
                   <option key={n.id} value={n.id}>
-                    {n.noteNumber} — {n.customer?.companyName || n.supplier?.companyName || ""} — {formatMoney(n.amount)} — 到期 {formatDate(n.dueDate)}
+                    {l("noteOption", { number: n.noteNumber, party: n.customer?.companyName || n.supplier?.companyName || "", amount: formatMoney(n.amount), due: formatDate(n.dueDate) })}
                   </option>
                 ))}
               </select>
-              {notes.length === 0 && <div className="text-xs text-amber-600">目前無未兌現票據，請先至票據管理新增</div>}
+              {notes.length === 0 && <div className="text-xs text-amber-600">{l("noOpenNotesHint")}</div>}
             </div>
           )}
           {method === "BANK" && (
             <div className="space-y-1">
-              <Label>選擇銀行帳戶</Label>
+              <Label>{l("selectBankAccount")}</Label>
               <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={selectedBankId} onChange={(e) => setSelectedBankId(e.target.value)}>
-                <option value="">-- 請選擇銀行帳戶 --</option>
+                <option value="">{l("selectBankPlaceholder")}</option>
                 {banks.map((b) => (
                   <option key={b.id} value={b.id}>
-                    {b.bankName || b.name} — {b.accountNumber || b.code} — 餘額 {formatMoney(b.balance)}
+                    {l("bankOption", { bank: b.bankName || b.name, account: b.accountNumber || b.code, balance: formatMoney(b.balance) })}
                   </option>
                 ))}
               </select>
-              {banks.length === 0 && <div className="text-xs text-amber-600">目前無銀行帳戶，請先至銀行管理新增</div>}
+              {banks.length === 0 && <div className="text-xs text-amber-600">{l("noBankAccountsHint")}</div>}
             </div>
           )}
           <hr className="border-dashed" />
-          <div className="space-y-1"><Label>折讓金額（差額部分）</Label><Input inputMode="numeric" className="[appearance:textfield]" value={discount || ""} onChange={(e) => setDiscount(Number(e.target.value.replace(/\D/g, "")))} placeholder="0" /></div>
-          <div className="space-y-1"><Label>折讓原因</Label><Input value={discountNote} onChange={(e) => setDiscountNote(e.target.value)} placeholder="例: 數量短少 / 品質折讓" /></div>
+          <div className="space-y-1"><Label>{l("allowanceAmount")}</Label><Input inputMode="numeric" className="[appearance:textfield]" value={discount || ""} onChange={(e) => setDiscount(Number(e.target.value.replace(/\D/g, "")))} placeholder="0" /></div>
+          <div className="space-y-1"><Label>{l("allowanceReason")}</Label><Input value={discountNote} onChange={(e) => setDiscountNote(e.target.value)} placeholder={l("allowanceReasonExampleShort")} /></div>
           <hr className="border-dashed" />
-          <div className="space-y-1"><Label>備註</Label><Input value={remark} onChange={(e) => setRemark(e.target.value)} /></div>
-          <div className="text-sm text-muted-foreground">沖帳合計：{formatMoney(totalWriteOff)}（收款 {formatMoney(amount)} + 折讓 {formatMoney(discount)}）</div>
+          <div className="space-y-1"><Label>{tc("remark")}</Label><Input value={remark} onChange={(e) => setRemark(e.target.value)} /></div>
+          <div className="text-sm text-muted-foreground">{l("settleSummary", { total: formatMoney(totalWriteOff), amount: formatMoney(amount), allowance: formatMoney(discount) })}</div>
         </div>
         <DialogFooter>
           {savedPayment ? (
             <div className="flex items-center gap-2 flex-wrap w-full justify-end">
               {savedPayment.discountId && (
                 <Button variant="outline" size="sm" onClick={() => window.open(`/print/discount/${savedPayment.discountId}`, "_blank")}>
-                  列印折讓單
+                  {l("printAllowanceNote")}
                 </Button>
               )}
               <ConvertToJournalButton
                 sourceType={kind === "ar" ? "RECEIVE_PAYMENT" : "SUPPLIER_PAYMENT"}
                 sourceId={savedPayment.paymentId}
-                label="轉傳票"
+                label={l("toJournal")}
               />
-              <Button variant="ghost" onClick={onDone}>完成</Button>
+              <Button variant="ghost" onClick={onDone}>{f("completed")}</Button>
             </div>
           ) : (
             <>
-              <Button variant="outline" onClick={onClose}>取消</Button>
-              <Button onClick={save} disabled={saving}>{saving ? "處理中..." : "確認沖帳"}</Button>
+              <Button variant="outline" onClick={onClose}>{tc("cancel")}</Button>
+              <Button onClick={save} disabled={saving}>{saving ? l("processing") : l("confirmSettlement")}</Button>
             </>
           )}
         </DialogFooter>
@@ -603,10 +611,13 @@ function PayDialog({ row, kind, onClose, onDone }: any) {
 
 // ─── 批次沖帳（先輸入實收/實付金額 → 選帳單 → 差額=折讓）───
 function BatchPayDialog({ kind, onClose, onDone }: { kind: "ar" | "ap"; onClose: () => void; onDone: () => void }) {
+  const l = useTranslations("ledger");
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
   const endpoint = kind === "ar" ? "/api/accounting/receivables" : "/api/accounting/payables";
-  const partyLabel = kind === "ar" ? "客戶" : "供應商";
+  const partyLabel = kind === "ar" ? f("customer") : f("supplier");
   const partyIdKey = kind === "ar" ? "customerId" : "supplierId";
-  const payLabel = kind === "ar" ? "實收金額" : "實付金額";
+  const payLabel = kind === "ar" ? l("actualCollected") : l("actualPaid");
 
   const [parties, setParties] = useState<any[]>([]);
   const [partyId, setPartyId] = useState("");
@@ -681,10 +692,10 @@ function BatchPayDialog({ kind, onClose, onDone }: { kind: "ar" | "ap"; onClose:
   }
 
   async function save() {
-    if (selectedItems.length === 0) return toast.error("請至少勾選一筆帳單");
-    if (totalPay < 0) return toast.error("金額不可為負");
-    if (totalPay > totalBalance) return toast.error(`${payLabel}不可大於未結總額`);
-    if (hasDiff && !discountAsWriteOff) return toast.error("有差額未處理，請勾選「差額以折讓沖銷」或調整金額");
+    if (selectedItems.length === 0) return toast.error(l("selectAtLeastOneBill"));
+    if (totalPay < 0) return toast.error(l("negativeAmount"));
+    if (totalPay > totalBalance) return toast.error(l("overPayLimit", { label: payLabel }));
+    if (hasDiff && !discountAsWriteOff) return toast.error(l("unhandledDifference"));
     setSaving(true);
     const batchResults: any[] = [];
     try {
@@ -715,7 +726,7 @@ function BatchPayDialog({ kind, onClose, onDone }: { kind: "ar" | "ap"; onClose:
             [kind === "ar" ? "receivableId" : "payableId"]: item.id,
             amount: itemPay,
             discount: itemDiscount > 0 ? itemDiscount : 0,
-            discountNote: itemDiscount > 0 ? (discountReason || "批次沖帳差額折讓") : "",
+            discountNote: itemDiscount > 0 ? (discountReason || l("batchAllowance")) : "",
             method,
             remark,
           }),
@@ -731,8 +742,8 @@ function BatchPayDialog({ kind, onClose, onDone }: { kind: "ar" | "ap"; onClose:
       setResults(batchResults);
       const okCount = batchResults.filter((r) => r.ok).length;
       const failCount = batchResults.filter((r) => !r.ok).length;
-      if (failCount === 0) toast.success(`已完成 ${okCount} 筆沖帳`);
-      else toast.error(`成功 ${okCount} 筆，失敗 ${failCount} 筆`);
+      if (failCount === 0) toast.success(l("settledCount", { count: okCount }));
+      else toast.error(l("settledPartial", { ok: okCount, failed: failCount }));
     } catch (e: any) {
       toast.error(e.message);
     } finally {
@@ -743,11 +754,11 @@ function BatchPayDialog({ kind, onClose, onDone }: { kind: "ar" | "ap"; onClose:
   return (
     <Dialog open onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
-        <DialogHeader><DialogTitle>批次沖帳 — {kind === "ar" ? "應收帳款" : "應付帳款"}</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{l("batchSettleTitle", { kind: kind === "ar" ? f("receivables") : f("payables") })}</DialogTitle></DialogHeader>
 
         {results ? (
           <div className="space-y-3">
-            <div className="text-sm font-medium">沖帳結果</div>
+            <div className="text-sm font-medium">{l("settlementResult")}</div>
             <div className="space-y-1 text-sm">
               {results.map((r, i) => {
                 const item = items.find((it) => it.id === r.id);
@@ -756,91 +767,91 @@ function BatchPayDialog({ kind, onClose, onDone }: { kind: "ar" | "ap"; onClose:
                   <div key={i} className={`flex items-center gap-2 ${r.ok ? "text-emerald-700" : "text-red-600"}`}>
                     <span>{r.ok ? "✓" : "✗"}</span>
                     <span className="font-mono">{rel?.number ?? "—"}</span>
-                    <span>{r.ok ? `單號 ${r.number}` : r.error}</span>
+                    <span>{r.ok ? l("docNoLine", { number: r.number }) : r.error}</span>
                   </div>
                 );
               })}
             </div>
-            <DialogFooter><Button onClick={onDone}>完成</Button></DialogFooter>
+            <DialogFooter><Button onClick={onDone}>{f("completed")}</Button></DialogFooter>
           </div>
         ) : (
           <div className="space-y-4">
             {/* Step 1: 選廠商/客戶 + 輸入實收金額 */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label>選擇{partyLabel}</Label>
+                <Label>{l("selectPartyLabel", { party: partyLabel })}</Label>
                 <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={partyId} onChange={(e) => setPartyId(e.target.value)}>
-                  <option value="">-- 請選擇（僅顯示有未結帳款者）--</option>
-                  {parties.map((p) => <option key={p.id} value={p.id}>{p.companyName}（未結 ${Number(p.balance).toLocaleString()}）</option>)}
+                  <option value="">{l("selectPartyPlaceholder")}</option>
+                  {parties.map((p) => <option key={p.id} value={p.id}>{l("partyOption", { name: p.companyName, balance: Number(p.balance).toLocaleString() })}</option>)}
                 </select>
               </div>
               <div className="space-y-1">
                 <Label>{payLabel}</Label>
-                <Input inputMode="numeric" className="[appearance:textfield] text-lg font-bold" value={totalPay || ""} onChange={(e) => setTotalPay(Number(e.target.value.replace(/\D/g, "")))} placeholder="例: 30000" />
+                <Input inputMode="numeric" className="[appearance:textfield] text-lg font-bold" value={totalPay || ""} onChange={(e) => setTotalPay(Number(e.target.value.replace(/\D/g, "")))} placeholder={l("amountExample")} />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label>付款方式</Label>
+                <Label>{f("paymentMethod")}</Label>
                 <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={method} onChange={(e) => { setMethod(e.target.value); setBatchSelectedNoteId(""); setBatchSelectedBankId(""); }}>
-                  <option value="CASH">現金</option>
-                  <option value="BANK">銀行存款</option>
-                  <option value="CHEQUE">支票/票據</option>
+                  <option value="CASH">{f("cash")}</option>
+                  <option value="BANK">{f("bankDeposit")}</option>
+                  <option value="CHEQUE">{l("chequeOrNote")}</option>
                 </select>
               </div>
               <div className="space-y-1">
-                <Label>備註</Label>
+                <Label>{tc("remark")}</Label>
                 <Input value={remark} onChange={(e) => setRemark(e.target.value)} />
               </div>
             </div>
             {method === "CHEQUE" && (
               <div className="space-y-1">
-                <Label>選擇票據</Label>
+                <Label>{l("selectNote")}</Label>
                 <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={batchSelectedNoteId} onChange={(e) => setBatchSelectedNoteId(e.target.value)}>
-                  <option value="">-- 請選擇票據 --</option>
+                  <option value="">{l("selectNotePlaceholder")}</option>
                   {batchNotes.map((n) => (
                     <option key={n.id} value={n.id}>
-                      {n.noteNumber} — {n.customer?.companyName || n.supplier?.companyName || ""} — {formatMoney(n.amount)} — 到期 {formatDate(n.dueDate)}
+                      {l("noteOption", { number: n.noteNumber, party: n.customer?.companyName || n.supplier?.companyName || "", amount: formatMoney(n.amount), due: formatDate(n.dueDate) })}
                     </option>
                   ))}
                 </select>
-                {batchNotes.length === 0 && <div className="text-xs text-amber-600">目前無未兌現票據</div>}
+                {batchNotes.length === 0 && <div className="text-xs text-amber-600">{l("noOpenNotes")}</div>}
               </div>
             )}
             {method === "BANK" && (
               <div className="space-y-1">
-                <Label>選擇銀行帳戶</Label>
+                <Label>{l("selectBankAccount")}</Label>
                 <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={batchSelectedBankId} onChange={(e) => setBatchSelectedBankId(e.target.value)}>
-                  <option value="">-- 請選擇銀行帳戶 --</option>
+                  <option value="">{l("selectBankPlaceholder")}</option>
                   {batchBanks.map((b) => (
                     <option key={b.id} value={b.id}>
-                      {b.bankName || b.name} — {b.accountNumber || b.code} — 餘額 {formatMoney(b.balance)}
+                      {l("bankOption", { bank: b.bankName || b.name, account: b.accountNumber || b.code, balance: formatMoney(b.balance) })}
                     </option>
                   ))}
                 </select>
-                {batchBanks.length === 0 && <div className="text-xs text-amber-600">目前無銀行帳戶</div>}
+                {batchBanks.length === 0 && <div className="text-xs text-amber-600">{l("noBankAccounts")}</div>}
               </div>
             )}
 
             {/* Step 2: 勾選帳單 */}
             {partyId && (
               <>
-                <div className="text-sm font-medium border-t pt-3">勾選要沖銷的帳單</div>
+                <div className="text-sm font-medium border-t pt-3">{l("selectBillsToSettle")}</div>
                 {loadingItems ? (
                   <div className="text-center py-6"><Loader2 className="inline h-5 w-5 animate-spin" /></div>
                 ) : items.length === 0 ? (
-                  <div className="text-center py-6 text-muted-foreground text-sm">此{partyLabel}沒有未結帳單</div>
+                  <div className="text-center py-6 text-muted-foreground text-sm">{l("noOpenBills", { party: partyLabel })}</div>
                 ) : (
                   <div className="border rounded-md overflow-hidden max-h-[280px] overflow-y-auto">
                     <table className="w-full text-sm">
                       <thead className="bg-muted/50 text-xs text-muted-foreground sticky top-0">
                         <tr>
                           <th className="p-2 w-8"><input type="checkbox" checked={selected.size === items.length && items.length > 0} onChange={toggleAll} /></th>
-                          <th className="p-2 text-left">關聯單號</th>
-                          <th className="p-2 text-left">日期</th>
-                          <th className="p-2 text-right">金額</th>
-                          <th className="p-2 text-right">已{kind === "ar" ? "收" : "付"}</th>
-                          <th className="p-2 text-right">未結</th>
+                          <th className="p-2 text-left">{f("linkedDocNo")}</th>
+                          <th className="p-2 text-left">{tc("date")}</th>
+                          <th className="p-2 text-right">{tc("amount")}</th>
+                          <th className="p-2 text-right">{l("paidCol", { action: kind === "ar" ? l("collectShort") : l("payShort") })}</th>
+                          <th className="p-2 text-right">{f("outstanding")}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -867,16 +878,16 @@ function BatchPayDialog({ kind, onClose, onDone }: { kind: "ar" | "ap"; onClose:
                 {selectedItems.length > 0 && (
                   <div className="space-y-3">
                     <div className="text-sm bg-muted/50 rounded-md p-3 space-y-1">
-                      <div className="flex justify-between"><span>已勾選 {selectedItems.length} 筆，未結總額</span><span className="font-bold">{formatMoney(totalBalance)}</span></div>
+                      <div className="flex justify-between"><span>{l("selectedSummary", { count: selectedItems.length })}</span><span className="font-bold">{formatMoney(totalBalance)}</span></div>
                       <div className="flex justify-between"><span>{payLabel}</span><span className="font-bold">{formatMoney(totalPay)}</span></div>
                       {hasDiff && (
                         <div className="flex justify-between text-amber-600 font-medium border-t pt-1 mt-1">
-                          <span>差額</span><span>{formatMoney(difference)}</span>
+                          <span>{f("difference")}</span><span>{formatMoney(difference)}</span>
                         </div>
                       )}
                       {!hasDiff && totalPay > 0 && (
                         <div className="flex justify-between text-emerald-600 font-medium border-t pt-1 mt-1">
-                          <span>狀態</span><span>金額剛好</span>
+                          <span>{tc("status")}</span><span>{l("exactAmount")}</span>
                         </div>
                       )}
                     </div>
@@ -885,12 +896,12 @@ function BatchPayDialog({ kind, onClose, onDone }: { kind: "ar" | "ap"; onClose:
                       <div className="space-y-2 border border-amber-200 bg-amber-50 rounded-md p-3">
                         <label className="flex items-center gap-2 text-sm cursor-pointer">
                           <input type="checkbox" checked={discountAsWriteOff} onChange={(e) => setDiscountAsWriteOff(e.target.checked)} />
-                          <span>差額 <span className="font-bold">{formatMoney(difference)}</span> 以<span className="font-bold text-amber-700">折讓</span>沖銷</span>
+                          <span>{f("difference")} <span className="font-bold">{formatMoney(difference)}</span> {l("payWith")}<span className="font-bold text-amber-700">{f("allowance")}</span>{l("settle")}</span>
                         </label>
                         {discountAsWriteOff && (
                           <div className="space-y-1">
-                            <Label>折讓原因</Label>
-                            <Input value={discountReason} onChange={(e) => setDiscountReason(e.target.value)} placeholder="例: 尾數差異 / 品質折讓 / 數量短少" />
+                            <Label>{l("allowanceReason")}</Label>
+                            <Input value={discountReason} onChange={(e) => setDiscountReason(e.target.value)} placeholder={l("allowanceReasonExample")} />
                           </div>
                         )}
                       </div>
@@ -901,9 +912,9 @@ function BatchPayDialog({ kind, onClose, onDone }: { kind: "ar" | "ap"; onClose:
             )}
 
             <DialogFooter>
-              <Button variant="outline" onClick={onClose}>取消</Button>
+              <Button variant="outline" onClick={onClose}>{tc("cancel")}</Button>
               <Button onClick={save} disabled={saving || selectedItems.length === 0 || totalPay <= 0}>
-                {saving ? "處理中..." : `確認沖帳 (${selectedItems.length} 筆)`}
+                {saving ? l("processing") : l("confirmSettlementCount", { count: selectedItems.length })}
               </Button>
             </DialogFooter>
           </div>
@@ -914,6 +925,9 @@ function BatchPayDialog({ kind, onClose, onDone }: { kind: "ar" | "ap"; onClose:
 }
 
 function EditDialog({ row, kind, onClose, onDone }: any) {
+  const l = useTranslations("ledger");
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
   const [amount, setAmount] = useState(row.amount);
   const [dueDate, setDueDate] = useState(row.dueDate ? row.dueDate.slice(0, 10) : "");
   const [status, setStatus] = useState(row.status);
@@ -932,9 +946,9 @@ function EditDialog({ row, kind, onClose, onDone }: any) {
           status,
         }),
       });
-      if (!res.ok) throw new Error((await res.json()).error || "更新失敗");
+      if (!res.ok) throw new Error((await res.json()).error || l("updateFailed"));
       const updated = await res.json();
-      toast.success("已更新");
+      toast.success(f("updated"));
       onDone(updated);
     } catch (e: any) { toast.error(e.message); } finally { setSaving(false); }
   }
@@ -942,28 +956,28 @@ function EditDialog({ row, kind, onClose, onDone }: any) {
   return (
     <Dialog open onOpenChange={(v) => !v && onClose()}>
       <DialogContent>
-        <DialogHeader><DialogTitle>{kind === "ar" ? "編輯應收帳款" : "編輯應付帳款"}</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{kind === "ar" ? l("editReceivable") : l("editPayable")}</DialogTitle></DialogHeader>
         <div className="space-y-3">
-          <div className="space-y-1"><Label>金額</Label><Input type="number" step="1" value={amount} onChange={(e) => setAmount(Math.round(Number(e.target.value)))} /></div>
-          <div className="space-y-1"><Label>到期日</Label><Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} /></div>
+          <div className="space-y-1"><Label>{tc("amount")}</Label><Input type="number" step="1" value={amount} onChange={(e) => setAmount(Math.round(Number(e.target.value)))} /></div>
+          <div className="space-y-1"><Label>{f("dueDate")}</Label><Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} /></div>
           <div className="space-y-1">
-            <Label>狀態</Label>
+            <Label>{tc("status")}</Label>
             <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={status} onChange={(e) => setStatus(e.target.value)}>
-              <option value="OPEN">未收</option>
-              <option value="PARTIAL">部分收款</option>
-              <option value="PAID">已收</option>
-              <option value="OVERDUE">逾期</option>
+              <option value="OPEN">{f("unpaid")}</option>
+              <option value="PARTIAL">{f("partiallyPaid")}</option>
+              <option value="PAID">{f("received")}</option>
+              <option value="OVERDUE">{f("overdue")}</option>
             </select>
           </div>
           {status === "OPEN" && Number(row.paidAmount) > 0 && (
             <div className="text-sm text-amber-600 bg-amber-50 p-2 rounded">
-              注意：將狀態改為「未收」會重置已收款金額並刪除相關收款紀錄。
+              {l("resetUnpaidNote")}
             </div>
           )}
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>取消</Button>
-          <Button onClick={save} disabled={saving}>{saving ? "儲存中..." : "儲存"}</Button>
+          <Button variant="outline" onClick={onClose}>{tc("cancel")}</Button>
+          <Button onClick={save} disabled={saving}>{saving ? tc("saving") : tc("save")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

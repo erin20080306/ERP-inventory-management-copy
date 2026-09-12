@@ -11,6 +11,7 @@ import { formatDate, formatMoney } from "@/lib/utils";
 import { ConvertToJournalButton } from "@/components/convert-to-journal-button";
 import { useCustomColumns, useCustomFieldValues, CustomColumnDialog, CustomColumnButton, CustomFieldGridCell } from "@/components/custom-columns";
 import { readSessionCache, TableHint, TableSkeletonRows, useColumnDrag, useDebouncedValue, writeSessionCache } from "@/components/table-helpers";
+import { useTranslations } from "next-intl";
 
 type ReturnItem = {
   productId: string;
@@ -22,6 +23,11 @@ type ReturnItem = {
 };
 
 function ReturnDialog({ open, onClose, row, onSaved, type }: any) {
+  const m = useTranslations("returns");
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
+  const tt = useTranslations("table");
+  const tPage = useTranslations("pages");
   const [form, setForm] = useState<any>({});
   const [items, setItems] = useState<ReturnItem[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
@@ -78,9 +84,9 @@ function ReturnDialog({ open, onClose, row, onSaved, type }: any) {
   };
 
   async function save() {
-    if (type === "sales" && !form.customerId) return toast.error("請選擇客戶");
-    if (type === "purchase" && !form.supplierId) return toast.error("請選擇供應商");
-    if (items.length === 0) return toast.error("請至少新增一項商品");
+    if (type === "sales" && !form.customerId) return toast.error(m("customerRequired"));
+    if (type === "purchase" && !form.supplierId) return toast.error(m("supplierRequired"));
+    if (items.length === 0) return toast.error(m("itemsRequired"));
     setSaving(true);
     try {
       const endpoint = type === "sales" ? "/api/returns/sales" : "/api/returns/purchases";
@@ -89,9 +95,9 @@ function ReturnDialog({ open, onClose, row, onSaved, type }: any) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...form, id: row?.id, items }),
       });
-      if (!res.ok) throw new Error((await res.json()).error || "儲存失敗");
+      if (!res.ok) throw new Error((await res.json()).error || tc("saveFailed"));
       const saved = await res.json();
-      toast.success("已儲存");
+      toast.success(tc("saved"));
       onSaved(saved);
       onClose();
     } catch (e: any) {
@@ -105,7 +111,7 @@ function ReturnDialog({ open, onClose, row, onSaved, type }: any) {
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-[95vw] md:max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{type === "sales" ? "銷售退貨" : "採購退貨"}</DialogTitle>
+          <DialogTitle>{type === "sales" ? m("salesReturn") : m("purchaseReturn")}</DialogTitle>
         </DialogHeader>
         {loading ? (
           <div className="flex justify-center py-8"><Loader2 className="h-8 w-8 animate-spin" /></div>
@@ -114,52 +120,52 @@ function ReturnDialog({ open, onClose, row, onSaved, type }: any) {
             <div className="grid grid-cols-2 gap-3">
               {type === "sales" ? (
                 <div className="space-y-1">
-                  <Label>客戶 *</Label>
+                  <Label>{f("customer")} *</Label>
                   <select value={form.customerId || ""} onChange={(e) => setForm({ ...form, customerId: e.target.value })} className="w-full px-3 py-2 border rounded">
-                    <option value="">請選擇</option>
+                    <option value="">{f("selectPlaceholder")}</option>
                     {customers.map((c: any) => <option key={c.id} value={c.id}>{c.companyName}</option>)}
                   </select>
                 </div>
               ) : (
                 <div className="space-y-1">
-                  <Label>供應商 *</Label>
+                  <Label>{f("supplier")} *</Label>
                   <select value={form.supplierId || ""} onChange={(e) => setForm({ ...form, supplierId: e.target.value })} className="w-full px-3 py-2 border rounded">
-                    <option value="">請選擇</option>
+                    <option value="">{f("selectPlaceholder")}</option>
                     {suppliers.map((s: any) => <option key={s.id} value={s.id}>{s.companyName}</option>)}
                   </select>
                 </div>
               )}
               <div className="space-y-1">
-                <Label>狀態</Label>
+                <Label>{tc("status")}</Label>
                 <select value={form.status || "DRAFT"} onChange={(e) => setForm({ ...form, status: e.target.value })} className="w-full px-3 py-2 border rounded">
-                  <option value="DRAFT">草稿</option>
-                  <option value="SUBMITTED">已送審</option>
-                  <option value="APPROVED">已審核</option>
-                  <option value="POSTED">已過帳</option>
-                  <option value="VOIDED">已作廢</option>
-                  <option value="REJECTED">已駁回</option>
+                  <option value="DRAFT">{f("draft")}</option>
+                  <option value="SUBMITTED">{f("submitted")}</option>
+                  <option value="APPROVED">{f("approvedState")}</option>
+                  <option value="POSTED">{f("posted")}</option>
+                  <option value="VOIDED">{f("voided")}</option>
+                  <option value="REJECTED">{f("rejectedState")}</option>
                 </select>
               </div>
               <div className="space-y-1 col-span-2">
-                <Label>原因</Label>
+                <Label>{f("reason")}</Label>
                 <Textarea value={form.reason || ""} onChange={(e) => setForm({ ...form, reason: e.target.value })} />
               </div>
             </div>
 
             <div>
               <div className="flex justify-between items-center mb-2">
-                <Label>商品明細</Label>
-                <Button size="sm" onClick={addItem}><Plus className="h-4 w-4 mr-1" />新增</Button>
+                <Label>{m("items")}</Label>
+                <Button size="sm" onClick={addItem}><Plus className="h-4 w-4 mr-1" />{tc("create")}</Button>
               </div>
               <Table>
                 <THead>
                   <TR>
-                    <TH>商品</TH>
-                    <TH>數量</TH>
-                    <TH>單價</TH>
-                    <TH>折扣</TH>
-                    <TH>稅率%</TH>
-                    <TH>小計</TH>
+                    <TH>{f("product")}</TH>
+                    <TH>{tc("quantity")}</TH>
+                    <TH>{tc("unitPrice")}</TH>
+                    <TH>{tc("discount")}</TH>
+                    <TH>{m("taxRatePct")}</TH>
+                    <TH>{tc("subtotal")}</TH>
                     <TH></TH>
                   </TR>
                 </THead>
@@ -168,7 +174,7 @@ function ReturnDialog({ open, onClose, row, onSaved, type }: any) {
                     <TR key={idx}>
                       <TD>
                         <select value={item.productId} onChange={(e) => updateItem(idx, "productId", e.target.value)} className="w-full px-2 py-1 border rounded">
-                          <option value="">請選擇</option>
+                          <option value="">{f("selectPlaceholder")}</option>
                           {products.map((p: any) => <option key={p.id} value={p.id}>{p.sku} - {p.name}</option>)}
                         </select>
                       </TD>
@@ -185,8 +191,8 @@ function ReturnDialog({ open, onClose, row, onSaved, type }: any) {
             </div>
 
             <DialogFooter>
-              <Button variant="outline" onClick={onClose}>取消</Button>
-              <Button onClick={save} disabled={saving}>{saving ? "儲存中..." : "儲存"}</Button>
+              <Button variant="outline" onClick={onClose}>{tc("cancel")}</Button>
+              <Button onClick={save} disabled={saving}>{saving ? tc("saving") : tc("save")}</Button>
             </DialogFooter>
           </div>
         )}
@@ -196,6 +202,11 @@ function ReturnDialog({ open, onClose, row, onSaved, type }: any) {
 }
 
 export default function ReturnsClient() {
+  const m = useTranslations("returns");
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
+  const tt = useTranslations("table");
+  const tPage = useTranslations("pages");
   const [salesReturns, setSalesReturns] = useState<any[]>([]);
   const [purchaseReturns, setPurchaseReturns] = useState<any[]>([]);
   const [salesLoading, setSalesLoading] = useState(true);
@@ -282,8 +293,8 @@ export default function ReturnsClient() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id, action }),
       });
-      if (!res.ok) throw new Error((await res.json()).error || "操作失敗");
-      toast.success("已處理");
+      if (!res.ok) throw new Error((await res.json()).error || f("actionFailed"));
+      toast.success(f("settled"));
       load();
     } catch (e: any) {
       toast.error(e.message);
@@ -367,9 +378,9 @@ export default function ReturnsClient() {
       const endpoint = isSales ? `/api/returns/sales/${row.id}` : `/api/returns/purchases/${row.id}`;
       const payload = { ...(row as any), ...draft };
       const res = await fetch(endpoint, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-      if (!res.ok) throw new Error((await res.json()).error || "儲存失敗");
+      if (!res.ok) throw new Error((await res.json()).error || tc("saveFailed"));
       const saved = await res.json().catch(() => null);
-      toast.success("已儲存");
+      toast.success(tc("saved"));
       setInlineEditing((prev) => { const n = { ...prev }; delete n[row.id]; return n; });
       if (isSales) {
         setSalesReturns((prev) => prev.map((r) => r.id === row.id ? (saved && saved.id ? saved : { ...r, ...draft }) : r));
@@ -393,15 +404,15 @@ export default function ReturnsClient() {
       <div className="flex items-center gap-2 flex-wrap">
         <div className="relative">
           <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="搜尋單號 / 客戶 / 供應商" className="pl-9 w-72" value={q} onChange={(e) => setQ(e.target.value)} />
+          <Input placeholder={m("searchPlaceholder")} className="pl-9 w-72" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
         <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-36" />
         <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-36" />
-        <Button onClick={() => setOpenSales(true)}><Plus className="h-4 w-4 mr-1" />銷售退貨</Button>
-        <Button onClick={() => setOpenPurchase(true)}><Plus className="h-4 w-4 mr-1" />採購退貨</Button>
+        <Button onClick={() => setOpenSales(true)}><Plus className="h-4 w-4 mr-1" />{m("salesReturn")}</Button>
+        <Button onClick={() => setOpenPurchase(true)}><Plus className="h-4 w-4 mr-1" />{m("purchaseReturn")}</Button>
         <Button variant="outline" disabled={pdfBusy} onClick={async () => {
           setPdfBusy(true);
-          try { const { exportPageToPDF } = await import("@/lib/export-pdf"); await exportPageToPDF("退貨管理", "returns"); } finally { setPdfBusy(false); }
+          try { const { exportPageToPDF } = await import("@/lib/export-pdf"); await exportPageToPDF(tPage("returns.title"), "returns"); } finally { setPdfBusy(false); }
         }}>
           {pdfBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
           PDF
@@ -412,14 +423,14 @@ export default function ReturnsClient() {
       <TableHint />
 
       <div>
-            <h3 className="text-lg font-semibold mb-3">銷售退貨</h3>
+            <h3 className="text-lg font-semibold mb-3">{m("salesReturn")}</h3>
             <Table>
-              <THead onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title="表頭按右鍵可新增／刪減自訂欄位">
-                <TR><TH {...colDrag.thProps("number")}>單號</TH><TH {...colDrag.thProps("party")}>客戶</TH><TH {...colDrag.thProps("date")}>日期</TH><TH {...colDrag.thProps("reason")}>原因</TH><TH {...colDrag.thProps("total")}>總計</TH><TH {...colDrag.thProps("status")}>狀態</TH><TH {...colDrag.thProps("updatedBy")}>操作人員</TH>{customCols.columns.map((cc) => <TH key={cc.id} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title="按右鍵管理自訂欄位">{cc.label}</TH>)}<TH className="text-right">操作</TH></TR>
+              <THead onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title={tt("manageCustomColumns")}>
+                <TR><TH {...colDrag.thProps("number")}>{f("docNo")}</TH><TH {...colDrag.thProps("party")}>{f("customer")}</TH><TH {...colDrag.thProps("date")}>{tc("date")}</TH><TH {...colDrag.thProps("reason")}>{f("reason")}</TH><TH {...colDrag.thProps("total")}>{tc("grandTotal")}</TH><TH {...colDrag.thProps("status")}>{tc("status")}</TH><TH {...colDrag.thProps("updatedBy")}>{f("updatedBy")}</TH>{customCols.columns.map((cc) => <TH key={cc.id} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title={tt("rightClickColumns")}>{cc.label}</TH>)}<TH className="text-right">{tc("actions")}</TH></TR>
               </THead>
               <TBody>
                 {salesLoading && salesReturns.length === 0 && <TableSkeletonRows columns={8 + customCols.columns.length} />}
-                {!salesLoading && salesReturns.length === 0 && <TR><TD colSpan={8 + customCols.columns.length} className="text-center text-muted-foreground">尚無資料</TD></TR>}
+                {!salesLoading && salesReturns.length === 0 && <TR><TD colSpan={8 + customCols.columns.length} className="text-center text-muted-foreground">{tc("noData")}</TD></TR>}
                 {salesReturns.map((r, rowIndex) => {
                   const draft = inlineEditing[r.id];
                   const isRowEditing = !!draft;
@@ -449,23 +460,23 @@ export default function ReturnsClient() {
                     <TD className="text-xs text-gray-500">{r.updatedBy || "-"}</TD>
                     {customCols.columns.map((cc, columnIndex) => { const v = customFieldValues.getValues(r.id); return <TD key={cc.id}><CustomFieldGridCell gridId="sales-returns" rowId={r.id} rowIndex={rowIndex} column={cc} columnIndex={columnIndex} rowIds={salesReturns.map((row) => row.id)} columns={customCols.columns} value={v[cc.id] ?? ""} saveValues={customFieldValues.saveValues} onManageColumns={() => customCols.setOpen(true)} /></TD>; })}
                     <TD className="text-right flex items-center justify-end gap-1">
-                      {r.status === "DRAFT" && <Button size="sm" variant="outline" onClick={() => onAct(r.id, "submit", true)}>送出</Button>}
+                      {r.status === "DRAFT" && <Button size="sm" variant="outline" onClick={() => onAct(r.id, "submit", true)}>{tc("submit")}</Button>}
                       {r.status === "SUBMITTED" && (
                         <>
-                          <Button size="sm" variant="outline" onClick={() => onAct(r.id, "approve", true)}>審核</Button>
-                          <Button size="sm" variant="destructive" onClick={() => onAct(r.id, "reject", true)}>駁回</Button>
+                          <Button size="sm" variant="outline" onClick={() => onAct(r.id, "approve", true)}>{tc("approve")}</Button>
+                          <Button size="sm" variant="destructive" onClick={() => onAct(r.id, "reject", true)}>{tc("reject")}</Button>
                         </>
                       )}
-                      {r.status === "APPROVED" && <Button size="sm" onClick={() => onAct(r.id, "post", true)}>過帳</Button>}
-                      {r.status !== "VOIDED" && r.status !== "POSTED" && <Button size="sm" variant="destructive" onClick={() => onAct(r.id, "void", true)}>作廢</Button>}
-                      <Button variant="ghost" size="icon" onClick={() => setEditSalesId(r.id)} title="編輯">
+                      {r.status === "APPROVED" && <Button size="sm" onClick={() => onAct(r.id, "post", true)}>{tc("post")}</Button>}
+                      {r.status !== "VOIDED" && r.status !== "POSTED" && <Button size="sm" variant="destructive" onClick={() => onAct(r.id, "void", true)}>{tc("void")}</Button>}
+                      <Button variant="ghost" size="icon" onClick={() => setEditSalesId(r.id)} title={tc("edit")}>
                         <Pencil className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-700" title="刪除" onClick={async () => {
-                        if (!confirm(`確定刪除 ${r.number}？`)) return;
+                      <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-700" title={tc("delete")} onClick={async () => {
+                        if (!confirm(tt("confirmDeleteNamed", { number: r.number }))) return;
                         const res = await fetch(`/api/returns/sales/${r.id}`, { method: "DELETE" });
-                        if (!res.ok) { const e = await res.json(); toast.error(e.error || "刪除失敗"); return; }
-                        toast.success("已刪除");
+                        if (!res.ok) { const e = await res.json(); toast.error(e.error || tc("deleteFailed")); return; }
+                        toast.success(tc("deleted"));
                         load();
                       }}>
                         <Trash2 className="h-4 w-4" />
@@ -480,14 +491,14 @@ export default function ReturnsClient() {
           </div>
 
           <div>
-            <h3 className="text-lg font-semibold mb-3">採購退貨</h3>
+            <h3 className="text-lg font-semibold mb-3">{m("purchaseReturn")}</h3>
             <Table>
-              <THead onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title="表頭按右鍵可新增／刪減自訂欄位">
-                <TR><TH {...colDrag.thProps("number")}>單號</TH><TH {...colDrag.thProps("party")}>供應商</TH><TH {...colDrag.thProps("date")}>日期</TH><TH {...colDrag.thProps("reason")}>原因</TH><TH {...colDrag.thProps("total")}>總計</TH><TH {...colDrag.thProps("status")}>狀態</TH><TH {...colDrag.thProps("updatedBy")}>操作人員</TH>{customCols.columns.map((cc) => <TH key={cc.id} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title="按右鍵管理自訂欄位">{cc.label}</TH>)}<TH className="text-right">操作</TH></TR>
+              <THead onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title={tt("manageCustomColumns")}>
+                <TR><TH {...colDrag.thProps("number")}>{f("docNo")}</TH><TH {...colDrag.thProps("party")}>{f("supplier")}</TH><TH {...colDrag.thProps("date")}>{tc("date")}</TH><TH {...colDrag.thProps("reason")}>{f("reason")}</TH><TH {...colDrag.thProps("total")}>{tc("grandTotal")}</TH><TH {...colDrag.thProps("status")}>{tc("status")}</TH><TH {...colDrag.thProps("updatedBy")}>{f("updatedBy")}</TH>{customCols.columns.map((cc) => <TH key={cc.id} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title={tt("rightClickColumns")}>{cc.label}</TH>)}<TH className="text-right">{tc("actions")}</TH></TR>
               </THead>
               <TBody>
                 {purchaseLoading && purchaseReturns.length === 0 && <TableSkeletonRows columns={8 + customCols.columns.length} />}
-                {!purchaseLoading && purchaseReturns.length === 0 && <TR><TD colSpan={8 + customCols.columns.length} className="text-center text-muted-foreground">尚無資料</TD></TR>}
+                {!purchaseLoading && purchaseReturns.length === 0 && <TR><TD colSpan={8 + customCols.columns.length} className="text-center text-muted-foreground">{tc("noData")}</TD></TR>}
                 {purchaseReturns.map((r, rowIndex) => {
                   const draft = inlineEditing[r.id];
                   const isRowEditing = !!draft;
@@ -517,23 +528,23 @@ export default function ReturnsClient() {
                     <TD className="text-xs text-gray-500">{r.updatedBy || "-"}</TD>
                     {customCols.columns.map((cc, columnIndex) => { const v = customFieldValues.getValues(r.id); return <TD key={cc.id}><CustomFieldGridCell gridId="purchase-returns" rowId={r.id} rowIndex={rowIndex} column={cc} columnIndex={columnIndex} rowIds={purchaseReturns.map((row) => row.id)} columns={customCols.columns} value={v[cc.id] ?? ""} saveValues={customFieldValues.saveValues} onManageColumns={() => customCols.setOpen(true)} /></TD>; })}
                     <TD className="text-right flex items-center justify-end gap-1">
-                      {r.status === "DRAFT" && <Button size="sm" variant="outline" onClick={() => onAct(r.id, "submit", false)}>送出</Button>}
+                      {r.status === "DRAFT" && <Button size="sm" variant="outline" onClick={() => onAct(r.id, "submit", false)}>{tc("submit")}</Button>}
                       {r.status === "SUBMITTED" && (
                         <>
-                          <Button size="sm" variant="outline" onClick={() => onAct(r.id, "approve", false)}>審核</Button>
-                          <Button size="sm" variant="destructive" onClick={() => onAct(r.id, "reject", false)}>駁回</Button>
+                          <Button size="sm" variant="outline" onClick={() => onAct(r.id, "approve", false)}>{tc("approve")}</Button>
+                          <Button size="sm" variant="destructive" onClick={() => onAct(r.id, "reject", false)}>{tc("reject")}</Button>
                         </>
                       )}
-                      {r.status === "APPROVED" && <Button size="sm" onClick={() => onAct(r.id, "post", false)}>過帳</Button>}
-                      {r.status !== "VOIDED" && r.status !== "POSTED" && <Button size="sm" variant="destructive" onClick={() => onAct(r.id, "void", false)}>作廢</Button>}
-                      <Button variant="ghost" size="icon" onClick={() => setEditPurchaseId(r.id)} title="編輯">
+                      {r.status === "APPROVED" && <Button size="sm" onClick={() => onAct(r.id, "post", false)}>{tc("post")}</Button>}
+                      {r.status !== "VOIDED" && r.status !== "POSTED" && <Button size="sm" variant="destructive" onClick={() => onAct(r.id, "void", false)}>{tc("void")}</Button>}
+                      <Button variant="ghost" size="icon" onClick={() => setEditPurchaseId(r.id)} title={tc("edit")}>
                         <Pencil className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-700" title="刪除" onClick={async () => {
-                        if (!confirm(`確定刪除 ${r.number}？`)) return;
+                      <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-700" title={tc("delete")} onClick={async () => {
+                        if (!confirm(tt("confirmDeleteNamed", { number: r.number }))) return;
                         const res = await fetch(`/api/returns/purchases/${r.id}`, { method: "DELETE" });
-                        if (!res.ok) { const e = await res.json(); toast.error(e.error || "刪除失敗"); return; }
-                        toast.success("已刪除");
+                        if (!res.ok) { const e = await res.json(); toast.error(e.error || tc("deleteFailed")); return; }
+                        toast.success(tc("deleted"));
                         load();
                       }}>
                         <Trash2 className="h-4 w-4" />

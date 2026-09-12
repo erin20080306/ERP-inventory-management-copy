@@ -60,6 +60,14 @@ jobs:
       - name: Type check
         run: npx tsc --noEmit
 
+      # 以下兩支都不需資料庫，放在 build 前先跑，問題可以最快浮現
+      - name: i18n verification
+        run: npm run test:i18n
+
+      # 確認測試資料庫守門與本檔的 DATABASE_URL 沒有脫節
+      - name: Test database guard verification
+        run: npm run test:db-guard
+
       - name: Lint (non-blocking)
         run: npm run lint || true
 

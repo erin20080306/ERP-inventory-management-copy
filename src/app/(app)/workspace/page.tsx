@@ -6,11 +6,13 @@ import { getSession } from "@/lib/api";
 import { hasPermission } from "@/lib/permissions";
 import { getDashboardKpis } from "@/lib/dashboard";
 import { getProductEdition, normalizeBusinessMode } from "@/lib/product-editions";
-import { formatMoney, formatNumber } from "@/lib/utils";
+import { createFormatters } from "@/i18n/format";
+import { getLocale } from "next-intl/server";
 import { prisma } from "@/lib/prisma";
 import { normalizeStoreSlug } from "@/lib/storefront-branding";
 import { medicalSitePath, storefrontPath } from "@/lib/public-site-links";
 import { isMedicalEnabledForRequest } from "@/lib/client-platform";
+import { getTranslations } from "next-intl/server";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +26,9 @@ const TONE_CLASSES: Record<string, string> = {
 };
 
 export default async function WorkspacePage() {
+  const t = await getTranslations("workspace");
+  const tEdition = await getTranslations("editions");
+  const f = createFormatters(await getLocale());
   const session = await getSession();
   if (!session?.user) redirect("/login");
   const mode = normalizeBusinessMode(session.user.businessMode);
@@ -56,45 +61,45 @@ export default async function WorkspacePage() {
   const tenantMedicalSiteHref = medicalSitePath(publicWebsiteKey);
   const cards = [
     ...((mode === "ECOMMERCE" || isPlatformAdmin)
-      ? [{ title: mode === "ECOMMERCE" ? "預覽我的品牌商城" : "預覽內部測試商城", description: "消費者前台與 ERP 共用商品、可售庫存、會員與網路訂單", href: tenantStorefrontHref, icon: Store, tone: "rose" }]
+      ? [{ title: t(mode === "ECOMMERCE" ? "cardStorefrontMine" : "cardStorefrontInternal"), description: t("cardStorefrontDesc"), href: tenantStorefrontHref, icon: Store, tone: "rose" }]
       : []),
     ...((mode === "ECOMMERCE" || isPlatformAdmin) && hasPermission(permissions, "dashboard.view")
-      ? [{ title: "進入 ERP 營運後台", description: "網路訂單、商品、庫存、出貨、應收與會計整合管理", href: "/dashboard", icon: Building2, tone: "indigo" }]
+      ? [{ title: t("cardErp"), description: t("cardErpDesc"), href: "/dashboard", icon: Building2, tone: "indigo" }]
       : []),
     ...((mode === "POS_RETAIL" || isPlatformAdmin) && hasPermission(permissions, "pos.view")
-      ? [{ title: "零售 POS 收銀", description: "掃碼、會員、促銷、多元支付、退換貨與日結", href: "/pos", icon: ScanBarcode, tone: "emerald" }]
+      ? [{ title: t("cardRetail"), description: t("cardRetailDesc"), href: "/pos", icon: ScanBarcode, tone: "emerald" }]
       : []),
     ...((mode === "POS_RESTAURANT" || isPlatformAdmin) && hasPermission(permissions, "restaurant.view")
-      ? [{ title: "餐飲桌位與點餐", description: "圖片點餐、加點、送廚、出餐與桌位結帳", href: "/pos/restaurant", icon: UtensilsCrossed, tone: "orange" }]
+      ? [{ title: t("cardRestaurant"), description: t("cardRestaurantDesc"), href: "/pos/restaurant", icon: UtensilsCrossed, tone: "orange" }]
       : []),
     ...(medicalEnabled && (mode === "POS_MEDICAL" || isPlatformAdmin)
-      ? [{ title: mode === "POS_MEDICAL" ? "預覽我的醫美官網" : "預覽內部醫美官網", description: "專業形象官網、圖片選服務與線上預約", href: tenantMedicalSiteHref, icon: Store, tone: "rose" }]
+      ? [{ title: t(mode === "POS_MEDICAL" ? "cardMedicalSiteMine" : "cardMedicalSiteInternal"), description: t("cardMedicalSiteDesc"), href: tenantMedicalSiteHref, icon: Store, tone: "rose" }]
       : []),
     ...(medicalEnabled && (mode === "POS_MEDICAL" || isPlatformAdmin) && (hasPermission(permissions, "medical.view") || hasPermission(permissions, "pos.view"))
-      ? [{ title: "醫美 POS 與預約排程", description: "預約、套票、會員儲值、同意書、療程紀錄、醫療收據與耗材", href: "/medical", icon: HeartPulse, tone: "rose" }]
+      ? [{ title: t("cardMedical"), description: t("cardMedicalDesc"), href: "/medical", icon: HeartPulse, tone: "rose" }]
       : []),
     ...(hasPermission(permissions, "inventory.view")
-      ? [{ title: "進銷存後台", description: "商品、採購、銷售、庫存、調撥與退貨", href: "/inventory", icon: Package, tone: "indigo" }]
+      ? [{ title: t("cardInventory"), description: t("cardInventoryDesc"), href: "/inventory", icon: Package, tone: "indigo" }]
       : []),
     ...(hasPermission(permissions, "accounting.view") || hasPermission(permissions, "journals.view")
-      ? [{ title: "會計後台", description: "傳票、應收應付、發票、現金銀行與財務報表", href: "/accounting/journals", icon: Calculator, tone: "violet" }]
+      ? [{ title: t("cardAccounting"), description: t("cardAccountingDesc"), href: "/accounting/journals", icon: Calculator, tone: "violet" }]
       : []),
     ...(isPlatformAdmin
-      ? [{ title: "平台管理後台", description: "客戶公司、授權、席次、方案與裝置管理", href: "/admin", icon: Shield, tone: "amber" }]
+      ? [{ title: t("cardAdmin"), description: t("cardAdminDesc"), href: "/admin", icon: Shield, tone: "amber" }]
       : []),
   ];
   const workspaceTitle = isPlatformAdmin
     ? medicalEnabled
-      ? "ERP／電商／零售 POS／餐飲 POS／醫美 POS 完整功能"
-      : "ERP／電商／零售 POS／餐飲 POS 行動工作區"
+      ? t("adminFull")
+      : t("adminNoMedical")
     : !medicalEnabled && mode === "POS_MEDICAL"
-      ? "ERP 行動工作區"
-      : edition.label;
+      ? t("iosMobile")
+      : tEdition(`${edition.mode}.label`);
   const workspaceDescription = !medicalEnabled && mode === "POS_MEDICAL"
-    ? "iOS App 提供商品、庫存、採購、銷售、會計與報表；完整醫美工作區保留於網頁版與桌面版。"
+    ? t("iosMobileDesc")
     : isPlatformAdmin
-      ? "艾琳設計內部驗收帳套，永久免費且不會混入付費客戶資料。"
-      : edition.description;
+      ? t("internalAccountDesc")
+      : tEdition(`${edition.mode}.description`);
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -102,13 +107,13 @@ export default async function WorkspacePage() {
         <div className="flex flex-col justify-between gap-5 md:flex-row md:items-center">
           <div>
             <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs">
-              <Building2 className="h-3.5 w-3.5" />{isPlatformAdmin ? "管理者免費內部帳套" : "已鎖定公司業態"}
+              <Building2 className="h-3.5 w-3.5" />{isPlatformAdmin ? t("internalAccount") : t("lockedMode")}
             </div>
             <h1 className="text-2xl font-black md:text-3xl">{workspaceTitle}</h1>
             <p className="mt-2 text-sm text-slate-300">{workspaceDescription}</p>
           </div>
           <div className="max-w-sm rounded-2xl border border-white/10 bg-white/5 p-4 text-xs leading-6 text-slate-300">
-            畫面依個人角色權限顯示。消費者只使用商城；租戶管理者登入後才可進 ERP。沒有權限的模組同時禁止網址與 API 存取。
+            {t("permissionNote")}
           </div>
         </div>
       </section>
@@ -117,30 +122,30 @@ export default async function WorkspacePage() {
         <section className="overflow-hidden rounded-3xl border border-rose-200 bg-gradient-to-br from-rose-50 via-white to-amber-50 shadow-sm">
           <div className="flex flex-col justify-between gap-4 border-b border-rose-100 p-6 md:flex-row md:items-center">
             <div>
-              <div className="text-xs font-bold uppercase tracking-[.2em] text-rose-600">同一試用租戶・雙視角操作</div>
-              <h2 className="mt-2 text-xl font-black text-slate-900">從消費者結帳，到 ERP 接單與出貨</h2>
+              <div className="text-xs font-bold uppercase tracking-[.2em] text-rose-600">{t("commerceEyebrow")}</div>
+              <h2 className="mt-2 text-xl font-black text-slate-900">{t("commerceHeading")}</h2>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Link href={tenantStorefrontHref} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-3 text-sm font-bold text-white hover:bg-slate-800">進入商店官網 <ArrowUpRight className="h-4 w-4" /></Link>
-              <Link href="/fulfillment" className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-white px-4 py-3 text-sm font-bold text-rose-700 hover:bg-rose-50">ERP 接單與出貨 <ClipboardList className="h-4 w-4" /></Link>
+              <Link href={tenantStorefrontHref} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-3 text-sm font-bold text-white hover:bg-slate-800">{t("openStorefront")} <ArrowUpRight className="h-4 w-4" /></Link>
+              <Link href="/fulfillment" className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-white px-4 py-3 text-sm font-bold text-rose-700 hover:bg-rose-50">{t("erpFulfillment")} <ClipboardList className="h-4 w-4" /></Link>
             </div>
           </div>
           {commerceStats && <div className="grid gap-px border-b border-rose-100 bg-rose-100 sm:grid-cols-2 xl:grid-cols-4">
-            <div className="bg-white/95 p-5"><div className="text-xs font-bold text-slate-500">今日官網營業額</div><div className="mt-2 text-2xl font-black text-slate-950">{formatMoney(commerceStats.todaySales)}</div><div className="mt-1 text-[11px] text-slate-500">僅計算 [WEB] 官網訂單</div></div>
-            <div className="bg-white/95 p-5"><div className="text-xs font-bold text-slate-500">今日官網訂單</div><div className="mt-2 text-2xl font-black text-slate-950">{formatNumber(commerceStats.todayOrders)}</div><div className="mt-1 text-[11px] text-slate-500">以台北營業日統計</div></div>
-            <div className="bg-white/95 p-5"><div className="text-xs font-bold text-slate-500">今日售出件數</div><div className="mt-2 text-2xl font-black text-slate-950">{formatNumber(commerceStats.todayQuantity)}</div><div className="mt-1 text-[11px] text-slate-500">官網訂單商品數量合計</div></div>
-            <div className="bg-white/95 p-5"><div className="text-xs font-bold text-slate-500">開店零用金</div><div className="mt-2 text-xl font-black text-slate-950">不適用</div><div className="mt-1 text-[11px] text-slate-500">線上付款沒有實體錢櫃，不建立零用金傳票</div></div>
+            <div className="bg-white/95 p-5"><div className="text-xs font-bold text-slate-500">{t("webRevenueToday")}</div><div className="mt-2 text-2xl font-black text-slate-950">{f.money(commerceStats.todaySales)}</div><div className="mt-1 text-[11px] text-slate-500">{t("webRevenueHint")}</div></div>
+            <div className="bg-white/95 p-5"><div className="text-xs font-bold text-slate-500">{t("webOrdersToday")}</div><div className="mt-2 text-2xl font-black text-slate-950">{f.number(commerceStats.todayOrders)}</div><div className="mt-1 text-[11px] text-slate-500">{t("webOrdersHint")}</div></div>
+            <div className="bg-white/95 p-5"><div className="text-xs font-bold text-slate-500">{t("webUnitsToday")}</div><div className="mt-2 text-2xl font-black text-slate-950">{f.number(commerceStats.todayQuantity)}</div><div className="mt-1 text-[11px] text-slate-500">{t("webUnitsHint")}</div></div>
+            <div className="bg-white/95 p-5"><div className="text-xs font-bold text-slate-500">{t("openingFloat")}</div><div className="mt-2 text-xl font-black text-slate-950">{t("notApplicable")}</div><div className="mt-1 text-[11px] text-slate-500">{t("openingFloatHint")}</div></div>
           </div>}
           <div className="grid gap-px bg-rose-100 md:grid-cols-3">
-            <div className="bg-white/90 p-5"><div className="flex items-center gap-2 text-sm font-bold text-slate-900"><ShoppingCart className="h-4 w-4 text-rose-600" />1．以王小美體驗結帳</div><p className="mt-2 text-xs leading-5 text-slate-600">王小美是預設體驗顧客，可用來完成商城結帳與 ERP 接單流程；信用卡／行動支付不會真實扣款，正式收款需先串接租戶金流。</p></div>
-            <div className="bg-white/90 p-5"><div className="flex items-center gap-2 text-sm font-bold text-slate-900"><ClipboardList className="h-4 w-4 text-indigo-600" />2．回 ERP 接單</div><p className="mt-2 text-xs leading-5 text-slate-600">在銷售管理看到標示 [WEB] 的新訂單與自動建立／合併的客戶資料。</p></div>
-            <div className="bg-white/90 p-5"><div className="flex items-center gap-2 text-sm font-bold text-slate-900"><PackageCheck className="h-4 w-4 text-emerald-600" />3．核准與出貨</div><p className="mt-2 text-xs leading-5 text-slate-600">待處理訂單會先保留可售量；完成出貨後才扣實體庫存並銜接應收與傳票。</p></div>
+            <div className="bg-white/90 p-5"><div className="flex items-center gap-2 text-sm font-bold text-slate-900"><ShoppingCart className="h-4 w-4 text-rose-600" />{t("step1Title")}</div><p className="mt-2 text-xs leading-5 text-slate-600">{t("step1Body")}</p></div>
+            <div className="bg-white/90 p-5"><div className="flex items-center gap-2 text-sm font-bold text-slate-900"><ClipboardList className="h-4 w-4 text-indigo-600" />{t("step2Title")}</div><p className="mt-2 text-xs leading-5 text-slate-600">{t("step2Body")}</p></div>
+            <div className="bg-white/90 p-5"><div className="flex items-center gap-2 text-sm font-bold text-slate-900"><PackageCheck className="h-4 w-4 text-emerald-600" />{t("step3Title")}</div><p className="mt-2 text-xs leading-5 text-slate-600">{t("step3Body")}</p></div>
           </div>
         </section>
       )}
       <section>
-        <h2 className="text-lg font-bold">選擇工作區</h2>
-        <p className="mt-1 text-sm text-muted-foreground">前台與後台分開操作，但交易資料會在同一家公司帳套同步。</p>
+        <h2 className="text-lg font-bold">{t("chooseWorkspace")}</h2>
+        <p className="mt-1 text-sm text-muted-foreground">{t("chooseWorkspaceHint")}</p>
         <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {cards.map((card) => {
             const Icon = card.icon;
@@ -151,12 +156,12 @@ export default async function WorkspacePage() {
                 </div>
                 <div className="mt-4 font-bold">{card.title}</div>
                 <p className="mt-1 text-sm leading-6 text-muted-foreground">{card.description}</p>
-                <div className="mt-4 text-sm font-semibold text-primary">進入工作區 →</div>
+                <div className="mt-4 text-sm font-semibold text-primary">{t("enterWorkspace")}</div>
               </Link>
             );
           })}
         </div>
-        {cards.length === 0 && <div className="mt-4 rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">此帳號尚未獲得任何工作區權限，請聯絡公司管理員。</div>}
+        {cards.length === 0 && <div className="mt-4 rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">{t("noWorkspace")}</div>}
       </section>
     </div>
   );

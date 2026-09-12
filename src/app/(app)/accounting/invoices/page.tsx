@@ -1,14 +1,16 @@
 import { PageShell } from "@/components/layout/page-shell";
 import { requirePermissionOrForbidden } from "@/components/perm-guard";
 import { InvoiceClient } from "./client";
+import { getTranslations } from "next-intl/server";
 
 export default async function Page() {
+  const t = await getTranslations("pages");
   const g = await requirePermissionOrForbidden("invoices.view");
   if (g.forbidden) return g.element;
   return (
     <PageShell
-      title="發票管理"
-      description="銷項 / 進項發票。可手動新增，或從銷售 / 採購單一鍵開立。"
+      title={t("accountingInvoices.title")}
+      description={t("accountingInvoices.description")}
     >
       <InvoiceClient />
     </PageShell>

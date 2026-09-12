@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState  } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { useCustomColumns, useCustomFieldValues, CustomColumnDialog, CustomColumnButton, CustomFieldGridCell } from "@/components/custom-columns";
 import { readSessionCache, TableSkeletonRows, useDebouncedValue, writeSessionCache } from "@/components/table-helpers";
 import { roundInvoiceAmount } from "@/lib/invoice-totals";
+import { useTranslations } from "next-intl";
 
 type Module = {
   key: string;
@@ -21,65 +22,67 @@ type Module = {
   columns: { key: string; title: string; render?: (r: any) => any; editable?: boolean }[];
 };
 
-const MODULES: Module[] = [
+// 欄位標題需要翻譯，因此設定改由函式在元件內產生（模組層取不到 useTranslations）。
+type Translator = (key: string) => string;
+const buildModules = (f: Translator, tc: Translator, tPage: Translator): Module[] => [
   {
     key: "products", label: "商品管理", endpoint: "/api/products",
     columns: [
       { key: "sku", title: "SKU", editable: true },
-      { key: "name", title: "名稱", editable: true },
-      { key: "spec", title: "規格", editable: true },
-      { key: "costPrice", title: "成本", render: (r) => formatUnitPrice(r.costPrice), editable: true },
-      { key: "salePrice", title: "售價", render: (r) => formatUnitPrice(r.salePrice), editable: true },
-      { key: "createdAt", title: "建立日期", render: (r) => formatDate(r.createdAt) },
+      { key: "name", title: f("name"), editable: true },
+      { key: "spec", title: f("spec"), editable: true },
+      { key: "costPrice", title: f("cost"), render: (r) => formatUnitPrice(r.costPrice), editable: true },
+      { key: "salePrice", title: f("salePrice"), render: (r) => formatUnitPrice(r.salePrice), editable: true },
+      { key: "createdAt", title: f("createdDate"), render: (r) => formatDate(r.createdAt) },
     ],
   },
   {
     key: "customers", label: "客戶管理", endpoint: "/api/customers",
     columns: [
-      { key: "code", title: "編號", editable: true },
-      { key: "companyName", title: "公司名稱", editable: true },
-      { key: "contactName", title: "聯絡人", editable: true },
-      { key: "phone", title: "電話", editable: true },
-      { key: "createdAt", title: "建立日期", render: (r) => formatDate(r.createdAt) },
+      { key: "code", title: f("code"), editable: true },
+      { key: "companyName", title: f("companyName"), editable: true },
+      { key: "contactName", title: f("contact"), editable: true },
+      { key: "phone", title: f("phone"), editable: true },
+      { key: "createdAt", title: f("createdDate"), render: (r) => formatDate(r.createdAt) },
     ],
   },
   {
     key: "suppliers", label: "供應商管理", endpoint: "/api/suppliers",
     columns: [
-      { key: "code", title: "編號", editable: true },
-      { key: "companyName", title: "公司名稱", editable: true },
-      { key: "contactName", title: "聯絡人", editable: true },
-      { key: "phone", title: "電話", editable: true },
-      { key: "createdAt", title: "建立日期", render: (r) => formatDate(r.createdAt) },
+      { key: "code", title: f("code"), editable: true },
+      { key: "companyName", title: f("companyName"), editable: true },
+      { key: "contactName", title: f("contact"), editable: true },
+      { key: "phone", title: f("phone"), editable: true },
+      { key: "createdAt", title: f("createdDate"), render: (r) => formatDate(r.createdAt) },
     ],
   },
   {
     key: "purchases", label: "採購管理", endpoint: "/api/purchases",
     columns: [
-      { key: "number", title: "單號" },
-      { key: "supplier", title: "供應商", render: (r) => r.supplier?.companyName ?? "—" },
-      { key: "total", title: "總計", render: (r) => formatMoney(r.total) },
-      { key: "status", title: "狀態" },
-      { key: "createdAt", title: "日期", render: (r) => formatDate(r.createdAt) },
+      { key: "number", title: f("docNo") },
+      { key: "supplier", title: f("supplier"), render: (r) => r.supplier?.companyName ?? "—" },
+      { key: "total", title: tc("grandTotal"), render: (r) => formatMoney(r.total) },
+      { key: "status", title: tc("status") },
+      { key: "createdAt", title: tc("date"), render: (r) => formatDate(r.createdAt) },
     ],
   },
   {
     key: "sales", label: "銷售管理", endpoint: "/api/sales",
     columns: [
-      { key: "number", title: "單號" },
-      { key: "customer", title: "客戶", render: (r) => r.customer?.companyName ?? "—" },
-      { key: "total", title: "總計", render: (r) => formatMoney(r.total) },
-      { key: "status", title: "狀態" },
-      { key: "createdAt", title: "日期", render: (r) => formatDate(r.createdAt) },
+      { key: "number", title: f("docNo") },
+      { key: "customer", title: f("customer"), render: (r) => r.customer?.companyName ?? "—" },
+      { key: "total", title: tc("grandTotal"), render: (r) => formatMoney(r.total) },
+      { key: "status", title: tc("status") },
+      { key: "createdAt", title: tc("date"), render: (r) => formatDate(r.createdAt) },
     ],
   },
   {
     key: "quotations", label: "報價單", endpoint: "/api/quotations",
     columns: [
-      { key: "number", title: "單號" },
-      { key: "customer", title: "客戶", render: (r) => r.customer?.companyName ?? "—" },
-      { key: "total", title: "總計", render: (r) => formatMoney(r.total) },
-      { key: "status", title: "狀態" },
+      { key: "number", title: f("docNo") },
+      { key: "customer", title: f("customer"), render: (r) => r.customer?.companyName ?? "—" },
+      { key: "total", title: tc("grandTotal"), render: (r) => formatMoney(r.total) },
+      { key: "status", title: tc("status") },
       { key: "quoteDate", title: "報價日期", render: (r) => formatDate(r.quoteDate) },
     ],
   },
@@ -88,96 +91,96 @@ const MODULES: Module[] = [
     columns: [
       { key: "code", title: "科目編號" },
       { key: "name", title: "科目名稱" },
-      { key: "type", title: "類型" },
-      { key: "createdAt", title: "建立日期", render: (r) => formatDate(r.createdAt) },
+      { key: "type", title: f("type") },
+      { key: "createdAt", title: f("createdDate"), render: (r) => formatDate(r.createdAt) },
     ],
   },
   {
     key: "journals", label: "傳票管理", endpoint: "/api/accounting/journals",
     columns: [
       { key: "number", title: "傳票號" },
-      { key: "summary", title: "摘要" },
-      { key: "entryDate", title: "日期", render: (r) => formatDate(r.entryDate) },
-      { key: "status", title: "狀態" },
+      { key: "summary", title: f("summary") },
+      { key: "entryDate", title: tc("date"), render: (r) => formatDate(r.entryDate) },
+      { key: "status", title: tc("status") },
     ],
   },
   {
-    key: "receivables", label: "應收帳款", endpoint: "/api/accounting/receivables",
+    key: "receivables", label: f("receivables"), endpoint: "/api/accounting/receivables",
     columns: [
-      { key: "customer", title: "客戶", render: (r) => r.customer?.companyName ?? "—" },
-      { key: "amount", title: "金額", render: (r) => formatMoney(r.amount) },
-      { key: "paidAmount", title: "已收", render: (r) => formatMoney(r.paidAmount) },
-      { key: "status", title: "狀態" },
-      { key: "createdAt", title: "日期", render: (r) => formatDate(r.createdAt) },
+      { key: "customer", title: f("customer"), render: (r) => r.customer?.companyName ?? "—" },
+      { key: "amount", title: tc("amount"), render: (r) => formatMoney(r.amount) },
+      { key: "paidAmount", title: f("received"), render: (r) => formatMoney(r.paidAmount) },
+      { key: "status", title: tc("status") },
+      { key: "createdAt", title: tc("date"), render: (r) => formatDate(r.createdAt) },
     ],
   },
   {
-    key: "payables", label: "應付帳款", endpoint: "/api/accounting/payables",
+    key: "payables", label: f("payables"), endpoint: "/api/accounting/payables",
     columns: [
-      { key: "supplier", title: "供應商", render: (r) => r.supplier?.companyName ?? "—" },
-      { key: "amount", title: "金額", render: (r) => formatMoney(r.amount) },
+      { key: "supplier", title: f("supplier"), render: (r) => r.supplier?.companyName ?? "—" },
+      { key: "amount", title: tc("amount"), render: (r) => formatMoney(r.amount) },
       { key: "paidAmount", title: "已付", render: (r) => formatMoney(r.paidAmount) },
-      { key: "status", title: "狀態" },
-      { key: "createdAt", title: "日期", render: (r) => formatDate(r.createdAt) },
+      { key: "status", title: tc("status") },
+      { key: "createdAt", title: tc("date"), render: (r) => formatDate(r.createdAt) },
     ],
   },
   {
     key: "notes-receivable", label: "應收票據", endpoint: "/api/accounting/notes-receivable",
     columns: [
-      { key: "noteNumber", title: "票號" },
-      { key: "customer", title: "客戶", render: (r) => r.customer?.companyName ?? "—" },
-      { key: "amount", title: "金額", render: (r) => formatMoney(r.amount) },
-      { key: "dueDate", title: "到期日", render: (r) => formatDate(r.dueDate) },
-      { key: "status", title: "狀態" },
+      { key: "noteNumber", title: f("noteNo") },
+      { key: "customer", title: f("customer"), render: (r) => r.customer?.companyName ?? "—" },
+      { key: "amount", title: tc("amount"), render: (r) => formatMoney(r.amount) },
+      { key: "dueDate", title: f("dueDate"), render: (r) => formatDate(r.dueDate) },
+      { key: "status", title: tc("status") },
     ],
   },
   {
     key: "notes-payable", label: "應付票據", endpoint: "/api/accounting/notes-payable",
     columns: [
-      { key: "noteNumber", title: "票號" },
-      { key: "supplier", title: "供應商", render: (r) => r.supplier?.companyName ?? "—" },
-      { key: "amount", title: "金額", render: (r) => formatMoney(r.amount) },
-      { key: "dueDate", title: "到期日", render: (r) => formatDate(r.dueDate) },
-      { key: "status", title: "狀態" },
+      { key: "noteNumber", title: f("noteNo") },
+      { key: "supplier", title: f("supplier"), render: (r) => r.supplier?.companyName ?? "—" },
+      { key: "amount", title: tc("amount"), render: (r) => formatMoney(r.amount) },
+      { key: "dueDate", title: f("dueDate"), render: (r) => formatDate(r.dueDate) },
+      { key: "status", title: tc("status") },
     ],
   },
   {
     key: "invoices", label: "發票管理", endpoint: "/api/accounting/invoices",
     columns: [
-      { key: "number", title: "發票號碼" },
-      { key: "type", title: "類型" },
+      { key: "number", title: f("invoiceNo") },
+      { key: "type", title: f("type") },
       { key: "totalAmount", title: "含稅金額", render: (r) => formatMoney(roundInvoiceAmount(r.totalAmount)) },
-      { key: "status", title: "狀態" },
-      { key: "invoiceDate", title: "日期", render: (r) => formatDate(r.invoiceDate) },
+      { key: "status", title: tc("status") },
+      { key: "invoiceDate", title: tc("date"), render: (r) => formatDate(r.invoiceDate) },
     ],
   },
   {
     key: "fixed-assets", label: "固定資產", endpoint: "/api/accounting/fixed-assets",
     columns: [
-      { key: "code", title: "編號" },
-      { key: "name", title: "名稱" },
+      { key: "code", title: f("code") },
+      { key: "name", title: f("name") },
       { key: "cost", title: "原值", render: (r) => formatMoney(r.cost) },
-      { key: "status", title: "狀態" },
-      { key: "createdAt", title: "建立日期", render: (r) => formatDate(r.createdAt) },
+      { key: "status", title: tc("status") },
+      { key: "createdAt", title: f("createdDate"), render: (r) => formatDate(r.createdAt) },
     ],
   },
   {
     key: "employees", label: "員工管理", endpoint: "/api/hr/employees",
     columns: [
-      { key: "employeeNo", title: "員工編號" },
-      { key: "name", title: "姓名" },
-      { key: "department", title: "部門", render: (r) => r.department?.name ?? "—" },
-      { key: "status", title: "狀態" },
-      { key: "createdAt", title: "建立日期", render: (r) => formatDate(r.createdAt) },
+      { key: "employeeNo", title: f("employeeNo") },
+      { key: "name", title: f("fullName") },
+      { key: "department", title: f("department"), render: (r) => r.department?.name ?? "—" },
+      { key: "status", title: tc("status") },
+      { key: "createdAt", title: f("createdDate"), render: (r) => formatDate(r.createdAt) },
     ],
   },
   {
     key: "departments", label: "部門管理", endpoint: "/api/hr/departments",
     columns: [
-      { key: "code", title: "編號" },
-      { key: "name", title: "名稱" },
-      { key: "isActive", title: "狀態", render: (r) => r.isActive ? "啟用" : "停用" },
-      { key: "createdAt", title: "建立日期", render: (r) => formatDate(r.createdAt) },
+      { key: "code", title: f("code") },
+      { key: "name", title: f("name") },
+      { key: "isActive", title: tc("status"), render: (r) => r.isActive ? f("active") : f("inactive") },
+      { key: "createdAt", title: f("createdDate"), render: (r) => formatDate(r.createdAt) },
     ],
   },
 ];
@@ -185,6 +188,9 @@ const MODULES: Module[] = [
 const BOM_OVERVIEW_ENDPOINT = "/api/bom/overview";
 
 export function BomClient() {
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
+  const tt = useTranslations("table");
   const [selectedModule, setSelectedModule] = useState<string>("products");
   const [rows, setRows] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
@@ -206,11 +212,13 @@ export function BomClient() {
     setInlineSaving(row.id);
     try {
       const res = await fetch(`${currentModule.endpoint}/${row.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...row, ...draft }) });
-      if (!res.ok) throw new Error((await res.json()).error || "儲存失敗");
-      toast.success("已儲存"); setInlineRow((p) => { const n = { ...p }; delete n[row.id]; return n; }); load();
+      if (!res.ok) throw new Error((await res.json()).error || tc("saveFailed"));
+      toast.success(tc("saved")); setInlineRow((p) => { const n = { ...p }; delete n[row.id]; return n; }); load();
     } catch (e: any) { toast.error(e.message); } finally { setInlineSaving(null); }
   }
 
+  const tPage = useTranslations("pages");
+  const MODULES = useMemo(() => buildModules(f, tc, tPage), [f, tc, tPage]);
   const currentModule = MODULES.find((m) => m.key === selectedModule)!;
   const queryString = useMemo(() => {
     const params = new URLSearchParams({ q: debouncedQ, page: String(page), pageSize: String(pageSize) });
@@ -295,14 +303,14 @@ export function BomClient() {
     const items = await fetchAll();
     const { downloadExcel } = await import("@/lib/excel");
     downloadExcel(`bom-${currentModule.key}`, currentModule.label, items, getExportColumns());
-    toast.success("已匯出 Excel");
+    toast.success(tt("exportedExcel"));
   }
 
   async function exportCSV() {
     const items = await fetchAll();
     const csv = toCSV(items, getExportColumns());
     downloadCSV(`bom-${currentModule.key}-${new Date().toISOString().slice(0, 10)}.csv`, csv);
-    toast.success("已匯出 CSV");
+    toast.success(tt("exportedCsv"));
   }
 
   async function exportPDF() {
@@ -335,7 +343,7 @@ export function BomClient() {
       toast.success(`已讀取 ${data.length} 筆資料（僅預覽，實際匯入請在各模組操作）`);
       console.table(data.slice(0, 5));
     } catch (err: any) {
-      toast.error(err.message || "匯入失敗");
+      toast.error(err.message || tt("importFailed"));
     } finally {
       e.target.value = "";
     }
@@ -364,14 +372,14 @@ export function BomClient() {
       <div className="flex items-center gap-2 flex-wrap">
         <div className="relative">
           <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="搜尋..." className="pl-9 w-64" value={q} onChange={(e) => { setPage(1); setQ(e.target.value); }} />
+          <Input placeholder={tt("searchPlaceholder")} className="pl-9 w-64" value={q} onChange={(e) => { setPage(1); setQ(e.target.value); }} />
         </div>
         <Input type="date" value={fromDate} onChange={(e) => { setPage(1); setFromDate(e.target.value); }} className="w-36" />
         <Input type="date" value={toDate} onChange={(e) => { setPage(1); setToDate(e.target.value); }} className="w-36" />
         <Button variant="outline" onClick={exportCSV}><Download className="h-4 w-4 mr-1" />CSV</Button>
         <Button variant="outline" onClick={exportExcel}><FileDown className="h-4 w-4 mr-1" />Excel</Button>
         <Button variant="outline" onClick={exportPDF}><Printer className="h-4 w-4 mr-1" />PDF</Button>
-        <Button variant="outline" onClick={() => document.getElementById("bom-import")?.click()}><Upload className="h-4 w-4 mr-1" />匯入</Button>
+        <Button variant="outline" onClick={() => document.getElementById("bom-import")?.click()}><Upload className="h-4 w-4 mr-1" />{tc("import")}</Button>
         <input id="bom-import" type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={importFile} />
         <CustomColumnButton onClick={() => customCols.setOpen(true)} />
         <span className="text-sm text-muted-foreground ml-auto">{waitingForData ? "載入中..." : `共 ${displayTotal} 筆`}</span>
@@ -383,13 +391,13 @@ export function BomClient() {
       ) : (
         <div className="overflow-x-auto">
           <Table>
-            <THead onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title="表頭按右鍵可新增／刪減自訂欄位">
+            <THead onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title={tt("manageCustomColumns")}>
               <TR>
                 {currentModule.columns.map((col) => (
                   <TH key={col.key}>{col.title}</TH>
                 ))}
-                {customCols.columns.map((cc) => <TH key={cc.id} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title="按右鍵管理自訂欄位">{cc.label}</TH>)}
-                <TH className="w-20 text-right">操作</TH>
+                {customCols.columns.map((cc) => <TH key={cc.id} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title={tt("rightClickColumns")}>{cc.label}</TH>)}
+                <TH className="w-20 text-right">{tc("actions")}</TH>
               </TR>
             </THead>
             <TBody>
@@ -431,9 +439,9 @@ export function BomClient() {
       {/* 分頁 */}
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-2">
-          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>上一頁</Button>
+          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>{tt("prevPage")}</Button>
           <span className="text-sm">{page} / {totalPages}</span>
-          <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>下一頁</Button>
+          <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>{tt("nextPage")}</Button>
         </div>
       )}
       <CustomColumnDialog module={`bom-${selectedModule}`} columns={customCols.columns} open={customCols.open} onClose={() => customCols.setOpen(false)} onSave={customCols.save} />

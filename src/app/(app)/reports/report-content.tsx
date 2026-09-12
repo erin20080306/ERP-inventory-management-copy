@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { readSessionCache, writeSessionCache } from "@/components/table-helpers";
 import { formatMoney } from "@/lib/utils";
+import { useTranslations } from "next-intl";
 
 type TrialBalanceRow = {
   id: string;
@@ -82,6 +83,7 @@ function ReportContentSkeleton() {
 }
 
 export function ReportContent() {
+  const f = useTranslations("fields");
   const searchParams = useSearchParams();
   const reportUrl = useMemo(() => {
     const params = new URLSearchParams();
@@ -150,7 +152,7 @@ export function ReportContent() {
         <CardHeader><CardTitle>試算表 Trial Balance</CardTitle></CardHeader>
         <CardContent>
           <Table>
-            <THead><TR><TH>科目編號</TH><TH>科目名稱</TH><TH>類型</TH><TH>期初</TH><TH>借方</TH><TH>貸方</TH><TH>結餘</TH></TR></THead>
+            <THead><TR><TH>科目編號</TH><TH>科目名稱</TH><TH>{f("type")}</TH><TH>期初</TH><TH>{f("debit")}</TH><TH>{f("credit")}</TH><TH>結餘</TH></TR></THead>
             <TBody>
               {data.trial.map((a) => (
                 <TR key={a.id}>

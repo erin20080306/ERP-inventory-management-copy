@@ -10,6 +10,7 @@ import { formatMoney } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useCustomColumns, useCustomFieldValues, CustomColumnDialog, CustomColumnButton, CustomFieldGridCell } from "@/components/custom-columns";
 import { readSessionCache, TableSkeletonRows, writeSessionCache } from "@/components/table-helpers";
+import { useTranslations } from "next-intl";
 
 type Product = {
   id: string;
@@ -21,6 +22,9 @@ type Product = {
 };
 
 export function CostManagementClient() {
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
+  const tt = useTranslations("table");
   const [rows, setRows] = useState<Product[]>([]);
   const [drafts, setDrafts] = useState<Record<string, { costPrice?: number; salePrice?: number }>>({});
   const [total, setTotal] = useState(0);
@@ -83,7 +87,7 @@ export function CostManagementClient() {
     try {
       const body: any = { ...row, ...patch };
       const res = await fetch(`/api/products/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-      if (!res.ok) throw new Error((await res.json()).error || "儲存失敗");
+      if (!res.ok) throw new Error((await res.json()).error || tc("saveFailed"));
       toast.success(`${row.sku} 已更新`);
       setDrafts(({ [id]: _, ...rest }) => rest);
       load();
@@ -103,7 +107,7 @@ export function CostManagementClient() {
     }
     setSavingAll(false);
     if (fail === 0) toast.success(`已更新 ${ok} 筆`);
-    else toast.error(`成功 ${ok} / 失敗 ${fail}`);
+    else toast.error(tt("importPartial", { success: ok, failed: fail }));
     load();
   }
 
@@ -128,12 +132,12 @@ export function CostManagementClient() {
         };
         try {
           const res = await fetch(`/api/products/${product.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-          if (!res.ok) errors.push(`第 ${i + 2} 列：${(await res.json()).error || "失敗"}`);
+          if (!res.ok) errors.push(tt("rowError", { row: i + 2, message: (await res.json()).error || f("failed") }));
           else ok++;
-        } catch (err: any) { errors.push(`第 ${i + 2} 列：${err.message}`); }
+        } catch (err: any) { errors.push(tt("rowError", { row: i + 2, message: err.message })); }
       }
       if (errors.length === 0) toast.success(`已更新 ${ok} 筆`);
-      else toast.error(`成功 ${ok} / 失敗 ${errors.length}\n${errors.slice(0, 3).join("\n")}`);
+      else toast.error(`${tt("importPartial", { success: ok, failed: errors.length })}\n${errors.slice(0, 3).join("\n")}`);
       load();
     } catch (err: any) { toast.error(err.message); }
     finally { e.target.value = ""; }
@@ -144,12 +148,12 @@ export function CostManagementClient() {
     const { downloadExcel } = await import("@/lib/excel");
     downloadExcel("product-costs", "商品成本", all.items, [
       { key: "sku", title: "SKU" },
-      { key: "name", title: "商品名稱" },
-      { key: "spec", title: "規格" },
-      { key: "costPrice", title: "成本", get: (r: any) => Number(r.costPrice) },
-      { key: "salePrice", title: "售價", get: (r: any) => Number(r.salePrice) },
+      { key: "name", title: f("productName") },
+      { key: "spec", title: f("spec") },
+      { key: "costPrice", title: f("cost"), get: (r: any) => Number(r.costPrice) },
+      { key: "salePrice", title: f("salePrice"), get: (r: any) => Number(r.salePrice) },
     ]);
-    toast.success("已匯出 Excel");
+    toast.success(tt("exportedExcel"));
   }
 
   const [pdfBusy, setPdfBusy] = useState(false);
@@ -166,7 +170,7 @@ export function CostManagementClient() {
     if (!confirm(`確定刪除商品 ${sku}？`)) return;
     try {
       const res = await fetch(`/api/products/${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error((await res.json()).error || "刪除失敗");
+      if (!res.ok) throw new Error((await res.json()).error || tc("deleteFailed"));
       toast.success(`已刪除 ${sku}`);
       load();
     } catch (e: any) { toast.error(e.message); }
@@ -190,12 +194,12 @@ export function CostManagementClient() {
             {pdfBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}PDF
           </Button>
           <Button variant="outline" onClick={() => window.print()}>
-            <Printer className="h-4 w-4" />列印
+            <Printer className="h-4 w-4" />{tc("print")}
           </Button>
-          <Button variant="outline" onClick={exportExcel}><FileSpreadsheet className="h-4 w-4" />匯出 Excel</Button>
+          <Button variant="outline" onClick={exportExcel}><FileSpreadsheet className="h-4 w-4" />{tt("exportExcel")}</Button>
           <input id="import-costs" type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={importCosts} />
           <Button variant="outline" onClick={() => document.getElementById("import-costs")?.click()}>
-            <Upload className="h-4 w-4" />匯入 Excel
+            <Upload className="h-4 w-4" />{tt("importExcel")}
           </Button>
           {dirtyCount > 0 && (
             <>
@@ -207,7 +211,7 @@ export function CostManagementClient() {
             </>
           )}
           <CustomColumnButton onClick={() => customCols.setOpen(true)} />
-          <Button onClick={() => setShowAdd(true)}><Plus className="h-4 w-4" />新增</Button>
+          <Button onClick={() => setShowAdd(true)}><Plus className="h-4 w-4" />{tc("create")}</Button>
         </div>
       </div>
 
@@ -225,22 +229,22 @@ export function CostManagementClient() {
                 <Input value={newForm.name} onChange={(e) => setNewForm({ ...newForm, name: e.target.value })} placeholder="例: 範例商品 F" />
               </div>
               <div className="space-y-1">
-                <Label>規格</Label>
+                <Label>{f("spec")}</Label>
                 <Input value={newForm.spec} onChange={(e) => setNewForm({ ...newForm, spec: e.target.value })} />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <Label>成本</Label>
+                  <Label>{f("cost")}</Label>
                   <Input type="number" step="0.01" value={newForm.costPrice || ""} onChange={(e) => setNewForm({ ...newForm, costPrice: e.target.value })} />
                 </div>
                 <div className="space-y-1">
-                  <Label>售價</Label>
+                  <Label>{f("salePrice")}</Label>
                   <Input type="number" step="0.01" value={newForm.salePrice || ""} onChange={(e) => setNewForm({ ...newForm, salePrice: e.target.value })} />
                 </div>
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setShowAdd(false)}>取消</Button>
+              <Button variant="outline" onClick={() => setShowAdd(false)}>{tc("cancel")}</Button>
               <Button disabled={addSaving || !newForm.sku || !newForm.name} onClick={async () => {
                 setAddSaving(true);
                 try {
@@ -253,7 +257,7 @@ export function CostManagementClient() {
                 } catch (e: any) { toast.error(e.message); }
                 finally { setAddSaving(false); }
               }}>
-                {addSaving ? "儲存中..." : "儲存"}
+                {addSaving ? "儲存中..." : tc("save")}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -261,13 +265,13 @@ export function CostManagementClient() {
       )}
 
       <Table>
-        <THead onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title="表頭按右鍵可新增／刪減自訂欄位">
+        <THead onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title={tt("manageCustomColumns")}>
           <TR>
-            <TH>SKU</TH><TH>商品名稱</TH><TH>規格</TH>
-            <TH className="w-40">成本</TH><TH className="w-40">售價</TH>
+            <TH>SKU</TH><TH>{f("productName")}</TH><TH>{f("spec")}</TH>
+            <TH className="w-40">{f("cost")}</TH><TH className="w-40">{f("salePrice")}</TH>
             <TH className="w-20 text-right">毛利率</TH>
-            {customCols.columns.map((cc) => <TH key={cc.id} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title="按右鍵管理自訂欄位">{cc.label}</TH>)}
-            <TH className="w-24 text-right">操作</TH>
+            {customCols.columns.map((cc) => <TH key={cc.id} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title={tt("rightClickColumns")}>{cc.label}</TH>)}
+            <TH className="w-24 text-right">{tc("actions")}</TH>
           </TR>
         </THead>
         <TBody>
@@ -321,9 +325,9 @@ export function CostManagementClient() {
       <div className="flex items-center justify-between text-sm text-muted-foreground">
         <div>共 {total} 筆 {dirtyCount > 0 && <span className="text-amber-600 ml-2">({dirtyCount} 筆未儲存)</span>}</div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>上一頁</Button>
+          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>{tt("prevPage")}</Button>
           <span>{page} / {totalPages}</span>
-          <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>下一頁</Button>
+          <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>{tt("nextPage")}</Button>
         </div>
       </div>
       <CustomColumnDialog module="costs" columns={customCols.columns} open={customCols.open} onClose={() => customCols.setOpen(false)} onSave={customCols.save} />

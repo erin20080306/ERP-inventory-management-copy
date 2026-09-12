@@ -8,8 +8,11 @@ import { MobileSidebar } from "./mobile-sidebar";
 import { AIAssistantLauncher } from "@/components/ai-assistant-launcher";
 import { ErpKeyboardNavigator } from "@/components/erp-keyboard-navigator";
 import { tenantStorefrontPath } from "@/lib/storefront-access";
+import { useTranslations } from "next-intl";
+import { LocaleSwitcher } from "@/components/locale-switcher";
 
 export function Header({ showDownloads = false, medicalEnabled = true }: { showDownloads?: boolean; medicalEnabled?: boolean }) {
+  const t = useTranslations("header");
   const { data } = useSession();
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
@@ -21,42 +24,43 @@ export function Header({ showDownloads = false, medicalEnabled = true }: { showD
       <MobileSidebar medicalEnabled={medicalEnabled} />
       <div className="flex-1" />
       {mounted && (
-        <Button variant="ghost" size="icon" onClick={() => setTheme(theme === "dark" ? "light" : "dark")} aria-label="切換主題">
+        <Button variant="ghost" size="icon" onClick={() => setTheme(theme === "dark" ? "light" : "dark")} aria-label={t("toggleTheme")}>
           {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
         </Button>
       )}
+      <LocaleSwitcher />
       <AIAssistantLauncher />
       <ErpKeyboardNavigator />
       <div className="flex items-center gap-2 text-sm">
         <UserCircle2 className="h-5 w-5 text-muted-foreground" />
         <div className="hidden sm:flex flex-col">
-          <span className="font-medium leading-tight">{data?.user?.name ?? "未登入"}</span>
+          <span className="font-medium leading-tight">{data?.user?.name ?? t("notLoggedIn")}</span>
           <span className="text-[11px] text-muted-foreground leading-tight">
-            {data?.user?.isSuperAdmin ? "管理者免費內部帳套" : data?.user?.roles?.join(" / ") || "—"}
+            {data?.user?.isSuperAdmin ? t("internalAccount") : data?.user?.roles?.join(" / ") || "—"}
           </span>
         </div>
       </div>
       {(data?.user as any)?.isSuperAdmin && (
         <Button variant="outline" size="sm" onClick={() => window.location.href = "/admin"}>
           <Shield className="h-4 w-4" />
-          後台
+          {t("adminConsole")}
         </Button>
       )}
       {storefrontHref && (
-        <Button variant="outline" size="sm" onClick={() => window.location.href = storefrontHref} aria-label="進入商店官網">
+        <Button variant="outline" size="sm" onClick={() => window.location.href = storefrontHref} aria-label={t("openStorefront")}>
           <Store className="h-4 w-4" />
-          <span className="hidden xl:inline">進入商店官網</span>
+          <span className="hidden xl:inline">{t("openStorefront")}</span>
         </Button>
       )}
       {showDownloads && (
         <Button variant="outline" size="sm" onClick={() => window.location.href = "/downloads"}>
           <Download className="h-4 w-4" />
-          <span className="hidden lg:inline">桌面版</span>
+          <span className="hidden lg:inline">{t("desktopApp")}</span>
         </Button>
       )}
       <Button variant="outline" size="sm" onClick={() => signOut({ callbackUrl: "/login" })}>
         <LogOut className="h-4 w-4" />
-        登出
+        {t("signOut")}
       </Button>
     </header>
   );

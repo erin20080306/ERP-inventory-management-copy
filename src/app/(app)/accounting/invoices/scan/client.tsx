@@ -6,10 +6,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Camera, QrCode, FileImage, CheckCircle2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { parseTaiwanInvoiceQR, type ParsedInvoiceQR } from "@/lib/tw-invoice-qr";
+import { useTranslations } from "next-intl";
 
 type Mode = "qr" | "photo" | null;
 
 export function InvoiceScanClient() {
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
   const [mode, setMode] = useState<Mode>(null);
   const [parsed, setParsed] = useState<ParsedInvoiceQR | null>(null);
   const [photo, setPhoto] = useState<string | null>(null);
@@ -72,7 +75,7 @@ export function InvoiceScanClient() {
       // 跳轉到發票管理頁
       window.location.href = "/accounting/invoices?draft=1";
     } catch (e: any) {
-      toast.error(e.message || "儲存失敗");
+      toast.error(e.message || tc("saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -130,7 +133,7 @@ export function InvoiceScanClient() {
           <CardContent className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>類型</Label>
+                <Label>{f("type")}</Label>
                 <select
                   className="w-full h-9 rounded-md border bg-background px-3 text-sm"
                   value={form.type}
@@ -145,7 +148,7 @@ export function InvoiceScanClient() {
                 <Input type="date" value={form.invoiceDate} onChange={(e) => setForm({ ...form, invoiceDate: e.target.value })} />
               </div>
               <div>
-                <Label>發票號碼</Label>
+                <Label>{f("invoiceNo")}</Label>
                 <Input value={form.number} onChange={(e) => setForm({ ...form, number: e.target.value })} placeholder="AB12345678" />
               </div>
               <div>
@@ -165,7 +168,7 @@ export function InvoiceScanClient() {
                 <Input type="number" value={form.amountExTax} onChange={(e) => setForm({ ...form, amountExTax: e.target.value })} />
               </div>
               <div>
-                <Label>稅額</Label>
+                <Label>{tc("tax")}</Label>
                 <Input type="number" value={form.taxAmount} onChange={(e) => setForm({ ...form, taxAmount: e.target.value })} />
               </div>
               <div className="col-span-2">
@@ -173,7 +176,7 @@ export function InvoiceScanClient() {
                 <Input type="number" value={form.totalAmount} onChange={(e) => setForm({ ...form, totalAmount: e.target.value })} />
               </div>
               <div className="col-span-2">
-                <Label>備註</Label>
+                <Label>{tc("remark")}</Label>
                 <Input value={form.remark} onChange={(e) => setForm({ ...form, remark: e.target.value })} />
               </div>
             </div>

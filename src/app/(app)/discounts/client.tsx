@@ -9,8 +9,11 @@ import { Plus, Loader2, Trash2, Search, Download, FileDown, Printer } from "luci
 import { formatDate, formatMoney } from "@/lib/utils";
 import { downloadCSV, toCSV } from "@/lib/csv";
 import { ConvertToJournalButton } from "@/components/convert-to-journal-button";
+import { useTranslations } from "next-intl";
 
 function DiscountDialog({ open, onClose, onSaved }: any) {
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
   const [form, setForm] = useState<any>({});
   const [customers, setCustomers] = useState<any[]>([]);
   const [suppliers, setSuppliers] = useState<any[]>([]);
@@ -44,8 +47,8 @@ function DiscountDialog({ open, onClose, onSaved }: any) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
-      if (!res.ok) throw new Error((await res.json()).error || "儲存失敗");
-      toast.success("已儲存");
+      if (!res.ok) throw new Error((await res.json()).error || tc("saveFailed"));
+      toast.success(tc("saved"));
       onSaved();
       onClose();
     } catch (e: any) {
@@ -68,7 +71,7 @@ function DiscountDialog({ open, onClose, onSaved }: any) {
             <div className="space-y-1">
               <Label>折讓類型 *</Label>
               <select value={form.type || ""} onChange={(e) => setForm({ ...form, type: e.target.value })} className="w-full px-3 py-2 border rounded">
-                <option value="">請選擇</option>
+                <option value="">{f("selectPlaceholder")}</option>
                 <option value="SALES">銷售折讓</option>
                 <option value="PURCHASE">進貨折讓</option>
               </select>
@@ -77,7 +80,7 @@ function DiscountDialog({ open, onClose, onSaved }: any) {
               <div className="space-y-1">
                 <Label>客戶 *</Label>
                 <select value={form.customerId || ""} onChange={(e) => setForm({ ...form, customerId: e.target.value })} className="w-full px-3 py-2 border rounded">
-                  <option value="">請選擇</option>
+                  <option value="">{f("selectPlaceholder")}</option>
                   {customers.map((c: any) => <option key={c.id} value={c.id}>{c.companyName}</option>)}
                 </select>
               </div>
@@ -85,7 +88,7 @@ function DiscountDialog({ open, onClose, onSaved }: any) {
               <div className="space-y-1">
                 <Label>供應商 *</Label>
                 <select value={form.supplierId || ""} onChange={(e) => setForm({ ...form, supplierId: e.target.value })} className="w-full px-3 py-2 border rounded">
-                  <option value="">請選擇</option>
+                  <option value="">{f("selectPlaceholder")}</option>
                   {suppliers.map((s: any) => <option key={s.id} value={s.id}>{s.companyName}</option>)}
                 </select>
               </div>
@@ -99,12 +102,12 @@ function DiscountDialog({ open, onClose, onSaved }: any) {
               <Input value={form.relNumber || ""} onChange={(e) => setForm({ ...form, relNumber: e.target.value })} placeholder="關聯的銷售/採購單號" />
             </div>
             <div className="space-y-1">
-              <Label>原因</Label>
+              <Label>{f("reason")}</Label>
               <Textarea value={form.reason || ""} onChange={(e) => setForm({ ...form, reason: e.target.value })} />
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={onClose}>取消</Button>
-              <Button onClick={save} disabled={saving}>{saving ? "儲存中..." : "儲存"}</Button>
+              <Button variant="outline" onClick={onClose}>{tc("cancel")}</Button>
+              <Button onClick={save} disabled={saving}>{saving ? tc("saving") : tc("save")}</Button>
             </DialogFooter>
           </div>
         )}
@@ -114,6 +117,8 @@ function DiscountDialog({ open, onClose, onSaved }: any) {
 }
 
 export default function DiscountClient() {
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
   const [items, setItems] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -169,10 +174,10 @@ export default function DiscountClient() {
       ) : (
         <Table>
           <THead>
-            <TR><TH>單號</TH><TH>類型</TH><TH>客戶/供應商</TH><TH>原單號</TH><TH>折讓金額</TH><TH>原因</TH><TH>日期</TH><TH className="text-right">操作</TH></TR>
+            <TR><TH>{f("docNo")}</TH><TH>{f("type")}</TH><TH>客戶/供應商</TH><TH>原單號</TH><TH>折讓金額</TH><TH>{f("reason")}</TH><TH>{tc("date")}</TH><TH className="text-right">{tc("actions")}</TH></TR>
           </THead>
           <TBody>
-            {items.length === 0 && <TR><TD colSpan={8} className="text-center text-muted-foreground">尚無資料</TD></TR>}
+            {items.length === 0 && <TR><TD colSpan={8} className="text-center text-muted-foreground">{tc("noData")}</TD></TR>}
             {items.map((item) => (
               <TR key={item.id}>
                 <TD className="font-mono text-xs">{item.number}</TD>
