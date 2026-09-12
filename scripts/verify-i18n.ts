@@ -16,6 +16,7 @@ import {
 import { createFormatters, currencyFractionDigits } from "../src/i18n/format";
 import { ACCOUNT_NAME_EN, accountDisplayName } from "../src/lib/account-names-en";
 import { STANDARD_ACCOUNTS } from "../prisma/standard-accounts";
+import { renderZh } from "./i18n-source-render";
 
 const root = path.resolve(__dirname, "..");
 
@@ -205,5 +206,58 @@ assert.equal(accountDisplayName("zh-TW", "1101", "庫存現金"), "庫存現金"
 assert.equal(accountDisplayName("en", "1101", "庫存現金"), "Cash on Hand");
 assert.equal(accountDisplayName("en", "9999", "自訂科目"), "自訂科目");
 assert.equal(accountDisplayName("en", null, "自訂科目"), "自訂科目");
+
+// === 7. 驗證腳本不得對「已翻譯的畫面原始碼」做失效的中文斷言 ===
+// 這類回歸只會在合併後的 release-desktop workflow（跑 test:pos 等整合測試）浮現，
+// ci.yml 不跑那些步驟。這裡在 PR 階段就攔下：任何 assert.match(檔案內容, /中文/)
+// 若在原始碼與「翻譯還原後」都找不到該中文，代表字串已搬進字典但斷言沒跟上。
+const sourceAssertionProblems: string[] = [];
+const rawSourceCache = new Map<string, string>();
+const renderedSourceCache = new Map<string, string>();
+function loadSource(relative: string): { raw: string; rendered: string } | null {
+  const full = path.join(root, relative);
+  if (!rawSourceCache.has(relative)) {
+    try {
+      const raw = readFileSync(full, "utf8");
+      rawSourceCache.set(relative, raw);
+      renderedSourceCache.set(relative, renderZh(raw));
+    } catch {
+      rawSourceCache.set(relative, "");
+      renderedSourceCache.set(relative, "");
+    }
+  }
+  const raw = rawSourceCache.get(relative)!;
+  if (!raw) return null;
+  return { raw, rendered: renderedSourceCache.get(relative)! };
+}
+for (const file of readdirSync(path.join(root, "scripts")).filter((f) => /^verify-.*\.ts$/.test(f))) {
+  const scriptText = readFileSync(path.join(root, "scripts", file), "utf8");
+  // 記錄每個來源變數對應的檔案，以及它是否用 renderZh 包住（決定比對 raw 或 rendered）
+  const varInfo = new Map<string, { file: string; wrapped: boolean }>();
+  for (const match of scriptText.matchAll(/const (\w+)\s*=\s*(renderZh\()?readFileSync\("([^"]+)"/g)) {
+    varInfo.set(match[1], { file: match[3], wrapped: Boolean(match[2]) });
+  }
+  for (const match of scriptText.matchAll(/assert\.match\((\w+),\s*\/((?:[^/\\]|\\.)*[一-鿿](?:[^/\\]|\\.)*)\//g)) {
+    const [, variable, pattern] = match;
+    const info = varInfo.get(variable);
+    if (!info) continue;
+    const loaded = loadSource(info.file);
+    if (!loaded) continue;
+    const needle = pattern.replace(/\\(.)/g, "$1");
+    // 完全比照測試執行時的語意：有包 renderZh 就比對還原後內容，否則比對原始碼
+    const haystack = info.wrapped ? loaded.rendered : loaded.raw;
+    if (haystack.includes(needle)) continue;
+    const line = scriptText.slice(0, match.index).split("\n").length;
+    const hint = loaded.rendered.includes(needle)
+      ? "字串已搬進字典：請把該來源改成 renderZh(readFileSync(...))"
+      : "字串在原始碼與字典都找不到：請改寫斷言";
+    sourceAssertionProblems.push(`scripts/${file}:${line} 斷言 /${pattern.slice(0, 40)}/ 對 ${info.file} 會失敗（${hint}）`);
+  }
+}
+assert.deepEqual(
+  sourceAssertionProblems,
+  [],
+  `驗證腳本有失效的中文原始碼斷言：\n${sourceAssertionProblems.join("\n")}`,
+);
 
 console.log(`✅ i18n 驗證通過：${Object.keys(zh).length} 個翻譯鍵、${LOCALES.length} 種語言、${STANDARD_ACCOUNTS.length} 個標準科目`);
