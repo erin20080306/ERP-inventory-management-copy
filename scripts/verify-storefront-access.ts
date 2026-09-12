@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { renderZh } from "./i18n-source-render";
 import {
   canManageTenantStorefront,
   canManageTenantMedicalSite,
@@ -159,13 +160,13 @@ for (const [sku, imageUrl] of Object.entries(ERP_DEMO_IMAGE_BY_SKU)) {
 
 const commerceDashboard = readFileSync("src/app/(app)/dashboard/page.tsx", "utf8");
 const commerceWorkspace = readFileSync("src/app/(app)/workspace/page.tsx", "utf8");
-const commerceFulfillment = readFileSync("src/app/(app)/fulfillment/page.tsx", "utf8");
+const commerceFulfillment = renderZh(readFileSync("src/app/(app)/fulfillment/page.tsx", "utf8"));
 const commerceStoreApi = readFileSync("src/app/api/store/[tenant]/route.ts", "utf8");
 const storefrontTrackingApi = readFileSync("src/app/api/store/[tenant]/orders/route.ts", "utf8");
 const salesApi = readFileSync("src/app/api/sales/route.ts", "utf8");
 const commerceStorePage = readFileSync("src/app/store/[tenant]/[[...view]]/page.tsx", "utf8");
 const commerceStorefront = readFileSync("src/app/store/[tenant]/[[...view]]/storefront.tsx", "utf8");
-const orderClient = readFileSync("src/components/order-client.tsx", "utf8");
+const orderClient = renderZh(readFileSync("src/components/order-client.tsx", "utf8"));
 const sidebarNav = readFileSync("src/components/layout/sidebar-nav.tsx", "utf8");
 const permissionsSource = readFileSync("src/lib/permissions.ts", "utf8");
 const commerceStorefrontStyles = readFileSync("src/app/store/[tenant]/[[...view]]/storefront.module.css", "utf8");
@@ -179,7 +180,7 @@ const localMemberSync = readFileSync("src/lib/storefront-member-sync.ts", "utf8"
 const customerApi = readFileSync("src/app/api/customers/route.ts", "utf8");
 const crudTable = readFileSync("src/components/crud-table.tsx", "utf8");
 const prismaSchema = readFileSync("prisma/schema.prisma", "utf8");
-const commerceWorkspaceSource = readFileSync("src/app/(app)/workspace/page.tsx", "utf8");
+const commerceWorkspaceSource = renderZh(readFileSync("src/app/(app)/workspace/page.tsx", "utf8"));
 const settingsClient = readFileSync("src/app/(app)/settings/client.tsx", "utf8");
 const productApi = readFileSync("src/app/api/products/route.ts", "utf8");
 const productSeed = readFileSync("src/lib/seed-operational-baseline.ts", "utf8");
@@ -190,7 +191,7 @@ const productCatalogRepairMigration = readFileSync("prisma/migrations/2026072404
 const fulfillmentRoleMigration = readFileSync("prisma/migrations/20260724150000_ecommerce_fulfillment_role/migration.sql", "utf8");
 const tenantBaseline = readFileSync("src/lib/tenant-baseline.ts", "utf8");
 const loginPage = readFileSync("src/app/login/page.tsx", "utf8");
-const loginClient = readFileSync("src/app/login/client.tsx", "utf8");
+const loginClient = renderZh(readFileSync("src/app/login/client.tsx", "utf8"));
 assert.doesNotMatch(commerceDashboard, /商城已綁定公司代碼/);
 assert.doesNotMatch(commerceWorkspace, /商城與後台共用公司代碼/);
 assert.match(commerceStoreApi, /businessMode: "ECOMMERCE"/);
@@ -230,7 +231,7 @@ assert.match(commerceStorefront, /租戶管理者預覽/);
 assert.match(commerceStorePage, /managerErpHref = session\?\.user\?\.isSuperAdmin \? "\/workspace" : "\/dashboard"/);
 assert.match(commerceWorkspace, /href=\{tenantStorefrontHref\}/);
 assert.match(commerceDashboard, /href=\{storefrontHref\}/);
-assert.match(commerceFulfillment, /title="電商接單與出貨"/);
+assert.match(commerceFulfillment, /title={電商接單與出貨}/);
 assert.match(commerceFulfillment, /channel="WEB"/);
 assert.match(commerceFulfillment, /"SUBMITTED", "APPROVED", "PARTIALLY_SHIPPED"/);
 assert.match(salesApi, /channel === "WEB"/);
@@ -246,7 +247,7 @@ assert.match(storefrontTrackingApi, /shipments:/);
 assert.doesNotMatch(storefrontTrackingApi, /customer:/);
 assert.match(commerceStorefront, /無法同步訂單出貨狀態/);
 assert.match(commerceStorefront, /出貨單 \{order\.shipmentNumber\}/);
-assert.match(sidebarNav, /title: "接單與出貨", href: "\/fulfillment"/);
+assert.match(sidebarNav, /key: "fulfillment", href: "\/fulfillment"/);
 assert.match(permissionsSource, /p\.module === "sales" && \["view", "post"\]\.includes\(p\.action\)/);
 assert.match(fulfillmentRoleMigration, /'sales\.view', 'sales\.post'/);
 assert.doesNotMatch(fulfillmentRoleMigration, /sales\.approve/);

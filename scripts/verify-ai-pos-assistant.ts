@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { renderZh } from "./i18n-source-render";
 import { readFileSync } from "node:fs";
 import { getAssistantPermissionCode } from "../src/lib/ai-assistant";
 import { buildPosOperationsReport, isPosAssistantQuestion, parsePosAssistantPeriod } from "../src/lib/ai-assistant-pos";
@@ -37,7 +38,7 @@ assert.equal(yesterday.to.toISOString(), "2026-07-23T15:59:59.999Z");
 
 const posAssistant = readFileSync("src/lib/ai-assistant-pos.ts", "utf8");
 const assistantUi = readFileSync("src/components/ai-assistant.tsx", "utf8");
-const restaurantUi = readFileSync("src/app/(app)/pos/restaurant/restaurant-workspace.tsx", "utf8");
+const restaurantUi = renderZh(readFileSync("src/app/(app)/pos/restaurant/restaurant-workspace.tsx", "utf8"));
 const restaurantApi = readFileSync("src/app/api/pos/restaurant/route.ts", "utf8");
 
 assert.match(posAssistant, /開班人員/);
