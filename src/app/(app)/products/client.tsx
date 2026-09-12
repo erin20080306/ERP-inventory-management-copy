@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { formatMoney, formatNumber, formatUnitPrice } from "@/lib/utils";
 import { code128BSvg } from "@/lib/code128";
 import { Barcode, Printer } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 type Product = {
   id: string;
@@ -40,6 +41,11 @@ const LABEL_SIZES = {
 type LabelSize = keyof typeof LABEL_SIZES;
 
 function escapeHtml(value: unknown) {
+  const m = useTranslations("products");
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
+  const tt = useTranslations("table");
+  const tPage = useTranslations("pages");
   return String(value ?? "")
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
@@ -49,6 +55,11 @@ function escapeHtml(value: unknown) {
 }
 
 function BarcodePreview({ value }: { value: string }) {
+  const m = useTranslations("products");
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
+  const tt = useTranslations("table");
+  const tPage = useTranslations("pages");
   try {
     return (
       <div
@@ -57,11 +68,16 @@ function BarcodePreview({ value }: { value: string }) {
       />
     );
   } catch (error) {
-    return <div className="py-5 text-center text-sm text-red-600">{error instanceof Error ? error.message : "無法產生條碼"}</div>;
+    return <div className="py-5 text-center text-sm text-red-600">{error instanceof Error ? error.message : m("barcodeFailed")}</div>;
   }
 }
 
 function ProductDialog({ open, onClose, row, onSaved, isCommerce = false }: any) {
+  const m = useTranslations("products");
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
+  const tt = useTranslations("table");
+  const tPage = useTranslations("pages");
   const [form, setForm] = useState<any>({});
   const [saving, setSaving] = useState(false);
   const [autofillHint, setAutofillHint] = useState<string | null>(null);
@@ -103,7 +119,7 @@ function ProductDialog({ open, onClose, row, onSaved, isCommerce = false }: any)
             salePrice: f.salePrice || Number(exact.salePrice),
             barcode: f.barcode || exact.barcode,
           }));
-          setAutofillHint(`已自動帶入：${exact.name} 成本 ${exact.costPrice} / 售價 ${exact.salePrice}`);
+          setAutofillHint(m("autofillHint", { name: exact.name, cost: exact.costPrice, price: exact.salePrice }));
         } else {
           setAutofillHint(null);
         }
@@ -120,8 +136,8 @@ function ProductDialog({ open, onClose, row, onSaved, isCommerce = false }: any)
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
-      if (!res.ok) throw new Error((await res.json()).error || "儲存失敗");
-      toast.success("已儲存");
+      if (!res.ok) throw new Error((await res.json()).error || tc("saveFailed"));
+      toast.success(tc("saved"));
       onSaved();
       onClose();
     } catch (e: any) {
@@ -145,13 +161,13 @@ function ProductDialog({ open, onClose, row, onSaved, isCommerce = false }: any)
         body: formData,
       });
 
-      if (!res.ok) throw new Error((await res.json()).error || "上傳失敗");
+      if (!res.ok) throw new Error((await res.json()).error || m("uploadFailed"));
 
       const data = await res.json();
       setForm({ ...form, imageUrl: data.url });
-      toast.success("圖片上傳成功");
+      toast.success(m("uploadSuccess"));
     } catch (e: any) {
-      toast.error(e.message || "上傳失敗");
+      toast.error(e.message || m("uploadFailed"));
     } finally {
       setUploading(false);
     }
@@ -168,7 +184,7 @@ function ProductDialog({ open, onClose, row, onSaved, isCommerce = false }: any)
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-xl">
         <DialogHeader>
-          <DialogTitle>{row ? "編輯商品" : "新增商品"}</DialogTitle>
+          <DialogTitle>{row ? m("editProduct") : m("createProduct")}</DialogTitle>
         </DialogHeader>
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
@@ -177,7 +193,7 @@ function ProductDialog({ open, onClose, row, onSaved, isCommerce = false }: any)
             {autofillHint && <p className="text-xs text-emerald-600">{autofillHint}</p>}
           </div>
           <div className="space-y-1">
-            <Label>條碼</Label>
+            <Label>{m("barcodeShort")}</Label>
             <div className="flex gap-2">
               <Input value={form.barcode ?? ""} onChange={(e) => setForm({ ...form, barcode: e.target.value })} />
               <Button
@@ -187,37 +203,37 @@ function ProductDialog({ open, onClose, row, onSaved, isCommerce = false }: any)
                 disabled={!String(form.sku ?? "").trim()}
                 onClick={() => setForm({ ...form, barcode: String(form.sku ?? "").trim() })}
               >
-                使用 SKU
+                {m("useSku")}
               </Button>
             </div>
-            <p className="text-xs text-muted-foreground">可輸入既有商品條碼；沒有條碼時可直接使用 SKU，POS 掃描同樣可辨識。</p>
+            <p className="text-xs text-muted-foreground">{m("barcodeHint")}</p>
           </div>
           <div className="space-y-1 col-span-2">
-            <Label>商品名稱 *</Label>
+            <Label>{f("productName")} *</Label>
             <Input value={form.name ?? ""} onChange={(e) => setForm({ ...form, name: e.target.value })} />
           </div>
           <div className="space-y-1 col-span-2">
-            <Label>規格</Label>
+            <Label>{f("spec")}</Label>
             <Input value={form.spec ?? ""} onChange={(e) => setForm({ ...form, spec: e.target.value })} />
           </div>
           <div className="space-y-1">
-            <Label>成本價</Label>
+            <Label>{m("costPrice")}</Label>
             <Input type="number" step="0.0001" value={form.costPrice ?? 0} onChange={(e) => setForm({ ...form, costPrice: e.target.value })} />
           </div>
           <div className="space-y-1">
-            <Label>售價</Label>
+            <Label>{f("salePrice")}</Label>
             <Input type="number" step="0.0001" value={form.salePrice ?? 0} onChange={(e) => setForm({ ...form, salePrice: e.target.value })} />
           </div>
           <div className="space-y-1">
-            <Label>安全庫存</Label>
+            <Label>{f("safetyStock")}</Label>
             <Input type="number" step="1" value={form.safetyStock ?? 0} onChange={(e) => setForm({ ...form, safetyStock: e.target.value })} />
           </div>
           <div className="space-y-1 col-span-2">
-            <Label>商品圖片</Label>
+            <Label>{m("productImage")}</Label>
             <div className="flex items-start gap-3">
               {form.imageUrl ? (
                 <div className="relative w-24 h-24 rounded-lg overflow-hidden border border-border">
-                  <img src={form.imageUrl} alt="商品圖片" className="w-full h-full object-cover" />
+                  <img src={form.imageUrl} alt={m("productImage")} className="w-full h-full object-cover" />
                   <button
                     type="button"
                     onClick={handleRemoveImage}
@@ -228,7 +244,7 @@ function ProductDialog({ open, onClose, row, onSaved, isCommerce = false }: any)
                 </div>
               ) : (
                 <div className="w-24 h-24 rounded-lg border-2 border-dashed border-border flex items-center justify-center bg-muted/20">
-                  <span className="text-xs text-muted-foreground">無圖片</span>
+                  <span className="text-xs text-muted-foreground">{m("noImage")}</span>
                 </div>
               )}
               <div className="flex-1 space-y-2">
@@ -246,14 +262,14 @@ function ProductDialog({ open, onClose, row, onSaved, isCommerce = false }: any)
                   onClick={() => fileInputRef.current?.click()}
                   disabled={uploading}
                 >
-                  {uploading ? "上傳中..." : form.imageUrl ? "更換圖片" : "上傳圖片"}
+                  {uploading ? m("uploading") : form.imageUrl ? m("replaceImage") : m("uploadImage")}
                 </Button>
-                <p className="text-xs text-muted-foreground">支援 JPG、PNG、WebP、GIF，最大 5MB；儲存後餐飲點餐與零售商品同步更新。</p>
+                <p className="text-xs text-muted-foreground">{m("imageHint")}</p>
               </div>
             </div>
           </div>
           <div className="space-y-1 col-span-2">
-            <Label>備註</Label>
+            <Label>{tc("remark")}</Label>
             <Input value={form.remark ?? ""} onChange={(e) => setForm({ ...form, remark: e.target.value })} />
           </div>
           <label className="flex items-center gap-2 text-sm col-span-2">
@@ -262,7 +278,7 @@ function ProductDialog({ open, onClose, row, onSaved, isCommerce = false }: any)
               checked={!!form.isActive}
               onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
             />
-            啟用（ERP／POS 可用）
+            {m("activeErpPos")}
           </label>
           {isCommerce && (
             <label className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm col-span-2">
@@ -272,16 +288,16 @@ function ProductDialog({ open, onClose, row, onSaved, isCommerce = false }: any)
                 onChange={(e) => setForm({ ...form, isPublished: e.target.checked })}
                 className="mt-0.5"
               />
-              <span><b className="block text-rose-800">一般消費者官網上架</b><small className="mt-1 block text-rose-600">取消後只會從官網下架，不影響 ERP 庫存、採購或歷史訂單。</small></span>
+              <span><b className="block text-rose-800">{m("publishToSite")}</b><small className="mt-1 block text-rose-600">{m("unpublishNote")}</small></span>
             </label>
           )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
-            取消
+            {tc("cancel")}
           </Button>
           <Button onClick={save} disabled={saving}>
-            {saving ? "儲存中..." : "儲存"}
+            {saving ? tc("saving") : tc("save")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -290,6 +306,11 @@ function ProductDialog({ open, onClose, row, onSaved, isCommerce = false }: any)
 }
 
 export function ProductClient({ isCommerce = false }: { isCommerce?: boolean }) {
+  const m = useTranslations("products");
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
+  const tt = useTranslations("table");
+  const tPage = useTranslations("pages");
   const [publicationRevision, setPublicationRevision] = useState(0);
   const [enlargedImage, setEnlargedImage] = useState<string | null>(null);
   const [barcodeProduct, setBarcodeProduct] = useState<Product | null>(null);
@@ -308,7 +329,7 @@ export function ProductClient({ isCommerce = false }: { isCommerce?: boolean }) 
     try {
       barcodeSvg = code128BSvg(barcodeValue, { height: 64 });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "無法產生條碼");
+      toast.error(error instanceof Error ? error.message : m("barcodeFailed"));
       return;
     }
 
@@ -318,6 +339,7 @@ export function ProductClient({ isCommerce = false }: { isCommerce?: boolean }) 
     const spec = escapeHtml(barcodeProduct.spec || "");
     const price = escapeHtml(formatUnitPrice(barcodeProduct.salePrice));
     const code = escapeHtml(barcodeValue);
+    const labelDocTitle = escapeHtml(m("labelDocTitle", { name: barcodeProduct.name }));
     const labels = Array.from({ length: quantity }, () => `
       <section class="label">
         <div class="name">${name}</div>
@@ -329,7 +351,7 @@ export function ProductClient({ isCommerce = false }: { isCommerce?: boolean }) 
 
     const popup = window.open("", "_blank", "width=760,height=900");
     if (!popup) {
-      toast.error("瀏覽器阻擋列印視窗，請允許此 ERP 開啟彈出式視窗");
+      toast.error(m("printBlocked"));
       return;
     }
     popup.document.open();
@@ -337,7 +359,7 @@ export function ProductClient({ isCommerce = false }: { isCommerce?: boolean }) 
       <html lang="zh-Hant">
         <head>
           <meta charset="utf-8" />
-          <title>${name} 條碼標籤</title>
+          <title>${labelDocTitle}</title>
           <style>
             @page { size: ${size.width}mm ${size.height}mm; margin: 0; }
             * { box-sizing: border-box; }
@@ -368,7 +390,7 @@ export function ProductClient({ isCommerce = false }: { isCommerce?: boolean }) 
         endpoint="/api/products"
         moduleKey="products"
         serverExcelExport="/api/products/export"
-        searchPlaceholder="搜尋 SKU / 商品名稱 / 條碼"
+        searchPlaceholder={m("searchPlaceholder")}
         enableDateFilter={true}
         inlineEdit={false}
         enableEnterToCreate={true}
@@ -376,7 +398,7 @@ export function ProductClient({ isCommerce = false }: { isCommerce?: boolean }) 
         columns={[
           {
             key: "imageUrl",
-            title: "圖片",
+            title: f("image"),
             isImage: true,
             render: (r) => r.imageUrl ? (
               <img
@@ -389,21 +411,21 @@ export function ProductClient({ isCommerce = false }: { isCommerce?: boolean }) 
                 }}
               />
             ) : (
-              <div className="w-12 h-12 rounded bg-muted/20 flex items-center justify-center text-xs text-muted-foreground">無</div>
+              <div className="w-12 h-12 rounded bg-muted/20 flex items-center justify-center text-xs text-muted-foreground">{m("none")}</div>
             )
           },
           { key: "sku", title: "SKU", render: (r) => <span className="font-mono text-xs">{r.sku}</span>, editable: { type: "text" }, csv: (r) => r.sku },
-          { key: "name", title: "商品名稱", editable: { type: "text" }, csv: (r) => r.name },
-          { key: "spec", title: "規格", editable: { type: "text" }, csv: (r) => r.spec ?? "" },
+          { key: "name", title: f("productName"), editable: { type: "text" }, csv: (r) => r.name },
+          { key: "spec", title: f("spec"), editable: { type: "text" }, csv: (r) => r.spec ?? "" },
           {
             key: "barcode",
-            title: "條碼／標籤",
+            title: m("barcodeLabelCol"),
             csv: (r) => r.barcode ?? "",
             render: (r) => (
               <div className="flex min-w-[190px] items-center justify-between gap-2">
                 <div className="min-w-0">
                   <div className="truncate font-mono text-xs">{r.barcode || r.sku}</div>
-                  <div className="text-[10px] text-muted-foreground">{r.barcode ? "商品條碼" : "未填條碼，使用 SKU"}</div>
+                  <div className="text-[10px] text-muted-foreground">{r.barcode ? m("barcode") : m("noBarcodeUsesSku")}</div>
                 </div>
                 <Button
                   type="button"
@@ -414,17 +436,17 @@ export function ProductClient({ isCommerce = false }: { isCommerce?: boolean }) 
                     openBarcodePrinter(r);
                   }}
                 >
-                  <Printer className="h-3.5 w-3.5" />列印
+                  <Printer className="h-3.5 w-3.5" />{tc("print")}
                 </Button>
               </div>
             ),
           },
-          { key: "costPrice", title: "成本", render: (r) => formatUnitPrice(r.costPrice), editable: { type: "number" }, csv: (r) => Number(r.costPrice) },
-          { key: "salePrice", title: "售價", render: (r) => formatUnitPrice(r.salePrice), editable: { type: "number" }, csv: (r) => Number(r.salePrice) },
-          { key: "safetyStock", title: "安全庫存", render: (r) => formatNumber(Number(r.safetyStock)), editable: { type: "number" }, csv: (r) => Number(r.safetyStock) },
+          { key: "costPrice", title: f("cost"), render: (r) => formatUnitPrice(r.costPrice), editable: { type: "number" }, csv: (r) => Number(r.costPrice) },
+          { key: "salePrice", title: f("salePrice"), render: (r) => formatUnitPrice(r.salePrice), editable: { type: "number" }, csv: (r) => Number(r.salePrice) },
+          { key: "safetyStock", title: f("safetyStock"), render: (r) => formatNumber(Number(r.safetyStock)), editable: { type: "number" }, csv: (r) => Number(r.safetyStock) },
           {
             key: "stockTotal",
-            title: "實體庫存",
+            title: m("physicalStock"),
             render: (r) => {
               const stock = Number(r.stockTotal ?? 0);
               return <span>{formatNumber(stock)}</span>;
@@ -432,11 +454,11 @@ export function ProductClient({ isCommerce = false }: { isCommerce?: boolean }) 
           },
           ...(isCommerce ? [{
             key: "reservedTotal",
-            title: "商城保留",
+            title: m("webReserved"),
             render: (r: Product) => <span className={Number(r.reservedTotal ?? 0) > 0 ? "font-medium text-amber-600" : "text-muted-foreground"}>{formatNumber(Number(r.reservedTotal ?? 0))}</span>,
           }, {
             key: "availableStock",
-            title: "可售量",
+            title: m("available"),
             render: (r: Product) => {
               const available = Number(r.availableStock ?? r.stockTotal ?? 0);
               return <span className={available < Number(r.safetyStock) ? "font-medium text-red-600" : "font-medium text-emerald-600"}>{formatNumber(available)}</span>;
@@ -444,26 +466,26 @@ export function ProductClient({ isCommerce = false }: { isCommerce?: boolean }) 
           }] : []),
           {
             key: "soldTotal",
-            title: "已售出",
+            title: m("sold"),
             render: (r) => <span className="text-blue-600">{formatNumber(Number(r.soldTotal ?? 0))}</span>,
           },
           {
             key: "alert",
-            title: "庫存警示",
+            title: m("stockAlert"),
             render: (r) => {
               const stock = Number(r.stockTotal ?? 0);
               const available = Number(r.availableStock ?? stock);
               const safe = Number(r.safetyStock);
-              if (available <= 0) return <Badge variant="danger">缺貨</Badge>;
-              if (available < safe) return <Badge variant="warning">低庫存</Badge>;
-              if (Number(r.reservedTotal ?? 0) > 0) return <Badge variant="info">商城保留中</Badge>;
-              return <Badge variant="success">正常</Badge>;
+              if (available <= 0) return <Badge variant="danger">{m("outOfStock")}</Badge>;
+              if (available < safe) return <Badge variant="warning">{m("lowStock")}</Badge>;
+              if (Number(r.reservedTotal ?? 0) > 0) return <Badge variant="info">{m("webReservedBadge")}</Badge>;
+              return <Badge variant="success">{m("normal")}</Badge>;
             },
           },
-          { key: "isActive", title: "狀態", render: (r) => (r.isActive ? <Badge variant="success">啟用</Badge> : <Badge variant="danger">停用</Badge>) },
+          { key: "isActive", title: tc("status"), render: (r) => (r.isActive ? <Badge variant="success">{f("active")}</Badge> : <Badge variant="danger">{f("inactive")}</Badge>) },
           ...(isCommerce ? [{
             key: "isPublished",
-            title: "一般消費者官網",
+            title: m("publicSite"),
             render: (r: Product) => (
               <button
                 type="button"
@@ -475,22 +497,25 @@ export function ProductClient({ isCommerce = false }: { isCommerce?: boolean }) 
                     body: JSON.stringify({ isPublished: !r.isPublished }),
                   });
                   const result = await response.json();
-                  if (!response.ok) return toast.error(result.error || "官網上架狀態更新失敗");
-                  toast.success(r.isPublished ? "商品已從官網下架" : "商品已上架至官網");
+                  if (!response.ok) return toast.error(result.error || m("publishFailed"));
+                  toast.success(r.isPublished ? m("unpublishSuccess") : m("publishSuccess"));
                   setPublicationRevision((value) => value + 1);
                 }}
                 className={r.isPublished ? "rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100" : "rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-500 transition hover:bg-slate-100"}
               >
-                {r.isPublished ? "官網上架中" : "官網已下架"}
+                {r.isPublished ? m("published") : m("unpublished")}
               </button>
             ),
           }] : []),
-          { key: "updatedBy", title: "操作人員", render: (r) => <span className="text-xs text-gray-500">{r.updatedBy || "-"}</span> },
+          { key: "updatedBy", title: f("updatedBy"), render: (r) => <span className="text-xs text-gray-500">{r.updatedBy || "-"}</span> },
         ]}
         FormDialog={(props: any) => <ProductDialog {...props} isCommerce={isCommerce} />}
-        pdfTitle="商品管理"
-        exportName="商品管理"
+        pdfTitle={tPage("products.title")}
+        exportName="products"
+        // 匯入範本的欄位名是既有客戶檔案的格式契約，必須維持中文，
+        // 否則英文模式產生的範本會對不到下面 importMap 讀取的中文鍵。
         templateHeaders={["SKU", "商品名稱", "規格", "條碼", "單位", "成本", "售價", "庫存", "安全庫存", "圖片URL"]}
+        // 讀取的欄位名同樣是格式契約，一律用中文字面值，不可走翻譯。
         importMap={(r) => ({
           sku: String(r["SKU"] ?? r.sku ?? "").trim(),
           name: String(r["商品名稱"] ?? r.name ?? "").trim(),
@@ -508,7 +533,7 @@ export function ProductClient({ isCommerce = false }: { isCommerce?: boolean }) 
       <Dialog open={!!barcodeProduct} onOpenChange={(next) => !next && setBarcodeProduct(null)}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><Barcode className="h-5 w-5" />列印商品條碼標籤</DialogTitle>
+            <DialogTitle className="flex items-center gap-2"><Barcode className="h-5 w-5" />{m("printBarcodeLabels")}</DialogTitle>
           </DialogHeader>
           {barcodeProduct && (
             <div className="space-y-4">
@@ -523,7 +548,7 @@ export function ProductClient({ isCommerce = false }: { isCommerce?: boolean }) 
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <Label>標籤尺寸</Label>
+                  <Label>{m("labelSize")}</Label>
                   <select
                     value={labelSize}
                     onChange={(event) => setLabelSize(event.target.value as LabelSize)}
@@ -533,18 +558,18 @@ export function ProductClient({ isCommerce = false }: { isCommerce?: boolean }) 
                   </select>
                 </div>
                 <div className="space-y-1">
-                  <Label>列印張數</Label>
+                  <Label>{m("labelCount")}</Label>
                   <Input type="number" min="1" max="200" value={labelQuantity} onChange={(event) => setLabelQuantity(event.target.value)} />
                 </div>
               </div>
               <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
-                條碼採 Code 128 格式，內容使用商品「條碼」欄位；若未填條碼會自動使用 SKU。列印後可直接由 POS 的 F2 掃碼欄位讀取。
+                {m("barcodeNote")}
               </div>
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setBarcodeProduct(null)}>取消</Button>
-            <Button onClick={printBarcodeLabels}><Printer className="h-4 w-4" />開啟列印</Button>
+            <Button variant="outline" onClick={() => setBarcodeProduct(null)}>{tc("cancel")}</Button>
+            <Button onClick={printBarcodeLabels}><Printer className="h-4 w-4" />{m("openPrint")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -553,15 +578,15 @@ export function ProductClient({ isCommerce = false }: { isCommerce?: boolean }) 
       <Dialog open={!!enlargedImage} onOpenChange={() => setEnlargedImage(null)}>
         <DialogContent className="max-w-4xl">
           <DialogHeader>
-            <DialogTitle>商品圖片</DialogTitle>
+            <DialogTitle>{m("productImage")}</DialogTitle>
           </DialogHeader>
           {enlargedImage && (
             <div className="flex items-center justify-center">
-              <img src={enlargedImage} alt="放大圖片" className="max-w-full max-h-[70vh] object-contain" />
+              <img src={enlargedImage} alt={m("enlargedImage")} className="max-w-full max-h-[70vh] object-contain" />
             </div>
           )}
           <DialogFooter>
-            <Button onClick={() => setEnlargedImage(null)}>關閉</Button>
+            <Button onClick={() => setEnlargedImage(null)}>{tc("close")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

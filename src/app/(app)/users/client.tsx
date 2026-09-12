@@ -8,8 +8,19 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { formatDateTime } from "@/lib/utils";
 import { useSession } from "next-auth/react";
+import { useTranslations } from "next-intl";
+import { useRoleLabel } from "@/i18n/labels";
+import { DEFAULT_ROLES } from "@/lib/permissions";
+
+// 與資料庫比對用的原始角色名稱，不可翻譯；顯示才走 useRoleLabel()。
+const SYSTEM_ADMIN_ROLE_NAME = DEFAULT_ROLES.SUPER_ADMIN.name;
 
 function UserDialog({ open, onClose, row, onSaved }: any) {
+  const m = useTranslations("users");
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
+  const tt = useTranslations("table");
+  const roleLabel = useRoleLabel();
   const [form, setForm] = useState<any>({});
   const [allRoles, setAllRoles] = useState<any[]>([]);
   useEffect(() => {
@@ -29,8 +40,8 @@ function UserDialog({ open, onClose, row, onSaved }: any) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
-      if (!res.ok) throw new Error((await res.json()).error || "儲存失敗");
-      toast.success("已儲存");
+      if (!res.ok) throw new Error((await res.json()).error || tc("saveFailed"));
+      toast.success(tc("saved"));
       onSaved();
       onClose();
     } catch (e: any) { toast.error(e.message); }
@@ -45,28 +56,28 @@ function UserDialog({ open, onClose, row, onSaved }: any) {
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-xl">
-        <DialogHeader><DialogTitle>{row ? "編輯使用者" : "新增使用者"}</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{row ? m("edit") : m("create")}</DialogTitle></DialogHeader>
         <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1"><Label>帳號 *</Label><Input disabled={!!row} value={form.username ?? ""} onChange={(e) => setForm({ ...form, username: e.target.value })} /></div>
-          <div className="space-y-1"><Label>姓名 *</Label><Input value={form.name ?? ""} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
+          <div className="space-y-1"><Label>{m("account")} *</Label><Input disabled={!!row} value={form.username ?? ""} onChange={(e) => setForm({ ...form, username: e.target.value })} /></div>
+          <div className="space-y-1"><Label>{f("fullName")} *</Label><Input value={form.name ?? ""} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
           <div className="space-y-1 col-span-2"><Label>Email</Label><Input value={form.email ?? ""} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
           <div className="space-y-1 col-span-2">
-            <Label>{row ? "新密碼（留空不變更）" : "密碼 *"}</Label>
+            <Label>{row ? m("newPassword") : `${m("password")} *`}</Label>
             <Input type="password" value={form.password ?? ""} onChange={(e) => setForm({ ...form, password: e.target.value })} />
           </div>
           <div className="col-span-2 space-y-1">
-            <Label>角色</Label>
+            <Label>{m("role")}</Label>
             <div className="border rounded-md p-3 grid grid-cols-2 gap-2">
               {allRoles.map((r) => (
                 <label key={r.id} className="flex items-center gap-2 text-sm">
                   <input
                     type="checkbox"
                     checked={(form.roleIds ?? []).includes(r.id)}
-                    disabled={r.tenantId === null && r.name === "系統管理員"}
+                    disabled={r.tenantId === null && r.name === SYSTEM_ADMIN_ROLE_NAME}
                     onChange={() => toggleRole(r.id)}
                   />
-                  {r.name}
-                  {r.tenantId === null && r.name === "系統管理員" && <Badge variant="outline">擁有人專用</Badge>}
+                  {roleLabel(r.name)}
+                  {r.tenantId === null && r.name === SYSTEM_ADMIN_ROLE_NAME && <Badge variant="outline">{m("ownerOnly")}</Badge>}
                 </label>
               ))}
             </div>
@@ -78,40 +89,45 @@ function UserDialog({ open, onClose, row, onSaved }: any) {
               disabled={!!row?.isTenantOwner}
               onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
             />
-            啟用
-            {row?.isTenantOwner && <span className="text-xs text-muted-foreground">租戶擁有人不可停用</span>}
+            {f("active")}
+            {row?.isTenantOwner && <span className="text-xs text-muted-foreground">{m("tenantOwnerLocked")}</span>}
           </label>
         </div>
-        <DialogFooter><Button variant="outline" onClick={onClose}>取消</Button><Button onClick={save}>儲存</Button></DialogFooter>
+        <DialogFooter><Button variant="outline" onClick={onClose}>{tc("cancel")}</Button><Button onClick={save}>{tc("save")}</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   );
 }
 
 export function UserClient() {
+  const m = useTranslations("users");
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
+  const tt = useTranslations("table");
+  const roleLabel = useRoleLabel();
   const { data: session } = useSession();
   const isTenantOwner = Boolean(session?.user?.isTenantOwner && !session.user.isSuperAdmin);
   return (
     <CrudTable
       endpoint="/api/users"
-      searchPlaceholder="搜尋 帳號 / 姓名 / Email"
+      searchPlaceholder={m("searchPlaceholder")}
       FormDialog={UserDialog}
       canCreate={isTenantOwner}
       canEdit={isTenantOwner}
       canDelete={isTenantOwner}
       canDeleteRow={(row: any) => !row.isTenantOwner}
       columns={[
-        { key: "username", title: "帳號", render: (r: any) => <span className="font-mono text-xs">{r.username}</span> },
-        { key: "name", title: "姓名" },
+        { key: "username", title: m("account"), render: (r: any) => <span className="font-mono text-xs">{r.username}</span> },
+        { key: "name", title: f("fullName") },
         { key: "email", title: "Email" },
-        { key: "roles", title: "角色", render: (r: any) => (
+        { key: "roles", title: m("role"), render: (r: any) => (
           <div className="flex flex-wrap gap-1">
-            {r.isTenantOwner && <Badge variant="success">租戶擁有人</Badge>}
+            {r.isTenantOwner && <Badge variant="success">{m("tenantOwner")}</Badge>}
             {(r.roles ?? []).map((ro: any) => <Badge key={ro.id} variant="info">{ro.name}</Badge>)}
           </div>
         )},
-        { key: "lastLoginAt", title: "上次登入", render: (r: any) => r.lastLoginAt ? formatDateTime(r.lastLoginAt) : "—" },
-        { key: "isActive", title: "狀態", render: (r: any) => (r.isActive ? <Badge variant="success">啟用</Badge> : <Badge variant="danger">停用</Badge>) },
+        { key: "lastLoginAt", title: m("lastLogin"), render: (r: any) => r.lastLoginAt ? formatDateTime(r.lastLoginAt) : "—" },
+        { key: "isActive", title: tc("status"), render: (r: any) => (r.isActive ? <Badge variant="success">{f("active")}</Badge> : <Badge variant="danger">{f("inactive")}</Badge>) },
       ]}
     />
   );

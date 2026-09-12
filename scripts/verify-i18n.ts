@@ -98,6 +98,33 @@ for (const file of walk(path.join(root, "src"))) {
 }
 assert.deepEqual(unresolved, [], `找不到對應翻譯的鍵：\n${unresolved.join("\n")}`);
 
+// === 2b. 匯入欄位名不得走翻譯 ===
+// Excel／CSV 匯入的欄位名是既有客戶檔案的格式契約。
+// 若被翻成英文，英文模式產生的範本就會對不到 importMap 讀取的鍵，匯入直接失效。
+const translatedImportKeys: string[] = [];
+for (const file of walk(path.join(root, "src"))) {
+  const source = readFileSync(file, "utf8");
+  const relative = path.relative(root, file);
+
+  // r[t("...")] 這種讀取匯入欄位的寫法一律不允許
+  for (const match of source.matchAll(/\br\[\s*\w+\(\s*"/g)) {
+    const line = source.slice(0, match.index).split("\n").length;
+    translatedImportKeys.push(`${relative}:${line} 匯入欄位名用了翻譯函式`);
+  }
+
+  // templateHeaders 陣列裡也不可以出現翻譯呼叫
+  for (const match of source.matchAll(/templateHeaders=\{\[([^\]]*)\]/g)) {
+    if (!/\w+\(\s*"/.test(match[1])) continue;
+    const line = source.slice(0, match.index).split("\n").length;
+    translatedImportKeys.push(`${relative}:${line} templateHeaders 用了翻譯函式`);
+  }
+}
+assert.deepEqual(
+  translatedImportKeys,
+  [],
+  `匯入欄位名必須是中文字面值，不可翻譯：\n${translatedImportKeys.join("\n")}`,
+);
+
 // === 3. 語言判斷 ===
 assert.equal(normalizeLocale("en-GB"), "en");
 assert.equal(normalizeLocale("zh-Hant"), "zh-TW");

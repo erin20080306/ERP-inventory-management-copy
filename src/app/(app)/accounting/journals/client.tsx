@@ -12,13 +12,27 @@ import { formatDate, formatMoney } from "@/lib/utils";
 import { downloadCSV, toCSV } from "@/lib/csv";
 import { useCustomColumns, useCustomFieldValues, CustomColumnDialog, CustomColumnButton, CustomFieldGridCell } from "@/components/custom-columns";
 import { readSessionCache, TableHint, TableSkeletonRows, useColumnDrag, useDebouncedValue, writeSessionCache } from "@/components/table-helpers";
+import { useTranslations } from "next-intl";
+import { useFormatters } from "@/i18n/use-formatters";
 
 function currentMonthEnd() {
+  const m = useTranslations("journals");
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
+  const tt = useTranslations("table");
+  const { dateTime } = useFormatters();
+  const tPage = useTranslations("pages");
   const now = new Date();
   return new Date(now.getFullYear(), now.getMonth() + 1, 0).toLocaleDateString("sv-SE");
 }
 
 export function JournalClient() {
+  const m = useTranslations("journals");
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
+  const tt = useTranslations("table");
+  const { dateTime } = useFormatters();
+  const tPage = useTranslations("pages");
   const [rows, setRows] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -58,7 +72,7 @@ export function JournalClient() {
           sessionStorage.removeItem("journal_draft");
           // 清掉 URL 參數
           window.history.replaceState({}, "", "/accounting/journals");
-        } catch { toast.error("無法讀取轉入的傳票草稿"); }
+        } catch { toast.error(m("draftLoadFailed")); }
       }
     }
   }, []);
@@ -176,9 +190,9 @@ export function JournalClient() {
     try {
       const payload = { summary: draft.summary ?? row.summary, entryDate: draft.date ?? row.entryDate, lines: row.lines };
       const res = await fetch(`/api/accounting/journals/${row.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-      if (!res.ok) throw new Error((await res.json()).error || "儲存失敗");
+      if (!res.ok) throw new Error((await res.json()).error || tc("saveFailed"));
       const saved = await res.json().catch(() => null);
-      toast.success("已儲存");
+      toast.success(tc("saved"));
       setInlineEditing((prev) => { const n = { ...prev }; delete n[row.id]; return n; });
       setRows((prev) => prev.map((r) => r.id === row.id ? (saved && saved.id ? saved : { ...r, ...draft }) : r));
     } catch (e: any) {
@@ -199,8 +213,8 @@ export function JournalClient() {
         body: action === "delete" ? undefined : JSON.stringify({ action, ...extra }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "操作失敗");
-      toast.success(data.message || "已處理");
+      if (!res.ok) throw new Error(data.error || f("actionFailed"));
+      toast.success(data.message || f("settled"));
       load();
       setView(null);
     } catch (e: any) {
@@ -211,7 +225,7 @@ export function JournalClient() {
   async function loadPeriods() {
     const res = await fetch("/api/accounting/closing");
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "讀取關帳資料失敗");
+    if (!res.ok) throw new Error(data.error || m("closeDataLoadFailed"));
     setPeriods(data.items ?? []);
   }
 
@@ -221,7 +235,7 @@ export function JournalClient() {
   }
 
   async function closePeriod() {
-    if (!periodEnd) return toast.error("請選擇月底日期");
+    if (!periodEnd) return toast.error(m("monthEndRequired"));
     setPeriodBusy(true);
     try {
       const res = await fetch("/api/accounting/closing", {
@@ -230,8 +244,8 @@ export function JournalClient() {
         body: JSON.stringify({ action: "CLOSE", periodEnd, isYearEnd }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "關帳失敗");
-      toast.success(data.closingJournal ? `關帳完成，結轉傳票 ${data.closingJournal.number}` : "關帳完成，本期無損益活動");
+      if (!res.ok) throw new Error(data.error || m("closeFailed"));
+      toast.success(data.closingJournal ? m("closeDoneWithEntry", { number: data.closingJournal.number }) : m("closeNoActivity"));
       await Promise.all([load(), loadPeriods()]);
     } catch (error: any) {
       toast.error(error.message);
@@ -241,7 +255,7 @@ export function JournalClient() {
   }
 
   async function reopenPeriod() {
-    if (!reopenTarget || reopenReason.trim().length < 2) return toast.error("請輸入至少 2 個字的重開原因");
+    if (!reopenTarget || reopenReason.trim().length < 2) return toast.error(m("reopenReasonRequired"));
     setPeriodBusy(true);
     try {
       const res = await fetch("/api/accounting/closing", {
@@ -250,8 +264,8 @@ export function JournalClient() {
         body: JSON.stringify({ action: "REOPEN", periodEnd: reopenTarget.endDate.slice(0, 10), reason: reopenReason }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "重開失敗");
-      toast.success(data.reversalJournal ? `期間已重開，沖銷傳票 ${data.reversalJournal.number}` : "期間已重開");
+      if (!res.ok) throw new Error(data.error || m("reopenFailed"));
+      toast.success(data.reversalJournal ? m("reopenedWithEntry", { number: data.reversalJournal.number }) : m("periodReopened"));
       setReopenTarget(null);
       setReopenReason("");
       await Promise.all([load(), loadPeriods()]);
@@ -269,7 +283,7 @@ export function JournalClient() {
         <div className="flex items-center gap-2 flex-wrap">
           <div className="relative">
             <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="搜尋傳票編號 / 摘要" className="pl-9 w-72" value={q} onChange={(e) => { setPage(1); setQ(e.target.value); }} />
+            <Input placeholder={m("searchPlaceholder")} className="pl-9 w-72" value={q} onChange={(e) => { setPage(1); setQ(e.target.value); }} />
           </div>
           <Input type="date" value={fromDate} onChange={(e) => { setPage(1); setFromDate(e.target.value); }} className="w-36" />
           <Input type="date" value={toDate} onChange={(e) => { setPage(1); setToDate(e.target.value); }} className="w-36" />
@@ -290,17 +304,17 @@ export function JournalClient() {
                 });
               });
               const csv = toCSV(flat, [
-                { key: "number", title: "傳票編號" },
-                { key: "date", title: "日期" },
-                { key: "summary", title: "摘要" },
-                { key: "account", title: "科目" },
-                { key: "debit", title: "借方" },
-                { key: "credit", title: "貸方" },
-                { key: "memo", title: "分錄摘要" },
-                { key: "status", title: "狀態" },
+                { key: "number", title: m("number") },
+                { key: "date", title: tc("date") },
+                { key: "summary", title: f("summary") },
+                { key: "account", title: f("account") },
+                { key: "debit", title: f("debit") },
+                { key: "credit", title: f("credit") },
+                { key: "memo", title: m("lineSummary") },
+                { key: "status", title: tc("status") },
               ]);
               downloadCSV(`journals-${new Date().toISOString().slice(0, 10)}.csv`, csv);
-              toast.success("已匯出 CSV");
+              toast.success(tt("exportedCsv"));
             }}
           ><Download className="h-4 w-4" />CSV</Button>
           <Button variant="outline" onClick={async () => {
@@ -312,36 +326,36 @@ export function JournalClient() {
               account: `${l.account.code} ${l.account.name}`, debit: Number(l.debit), credit: Number(l.credit), memo: l.memo ?? "",
             })));
             const { downloadExcel } = await import("@/lib/excel");
-            downloadExcel("journals", "傳票管理", flat, [
-              { key: "number", title: "傳票編號" },
-              { key: "date", title: "日期" },
-              { key: "summary", title: "摘要" },
-              { key: "account", title: "科目" },
-              { key: "debit", title: "借方" },
-              { key: "credit", title: "貸方" },
-              { key: "memo", title: "分錄摘要" },
-              { key: "status", title: "狀態" },
+            downloadExcel("journals", tPage("accountingJournals.title"), flat, [
+              { key: "number", title: m("number") },
+              { key: "date", title: tc("date") },
+              { key: "summary", title: f("summary") },
+              { key: "account", title: f("account") },
+              { key: "debit", title: f("debit") },
+              { key: "credit", title: f("credit") },
+              { key: "memo", title: m("lineSummary") },
+              { key: "status", title: tc("status") },
             ]);
-            toast.success("已匯出 Excel");
+            toast.success(tt("exportedExcel"));
           }}><FileDown className="h-4 w-4" />Excel</Button>
           <Button variant="outline" disabled={pdfBusy} onClick={async () => {
             setPdfBusy(true);
-            try { const { exportPageToPDF } = await import("@/lib/export-pdf"); await exportPageToPDF("傳票管理", "journals"); } finally { setPdfBusy(false); }
+            try { const { exportPageToPDF } = await import("@/lib/export-pdf"); await exportPageToPDF(tPage("accountingJournals.title"), "journals"); } finally { setPdfBusy(false); }
           }}>
             {pdfBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
             PDF
           </Button>
-          <Button variant="outline" onClick={openPeriodManager}><LockKeyhole className="h-4 w-4" />期間關帳</Button>
-          <Button onClick={() => setOpenNew(true)}><Plus className="h-4 w-4" />新增傳票</Button>
+          <Button variant="outline" onClick={openPeriodManager}><LockKeyhole className="h-4 w-4" />{m("periodClosed")}</Button>
+          <Button onClick={() => setOpenNew(true)}><Plus className="h-4 w-4" />{m("create")}</Button>
           <CustomColumnButton onClick={() => customCols.setOpen(true)} />
         </div>
       </div>
 
       <TableHint />
       <Table>
-        <THead onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title="表頭按右鍵可新增／刪減自訂欄位">
+        <THead onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title={tt("manageCustomColumns")}>
           <TR>
-            <TH {...colDrag.thProps("number")}>編號</TH><TH {...colDrag.thProps("date")}>日期</TH><TH {...colDrag.thProps("summary")}>摘要</TH><TH {...colDrag.thProps("debit")}>借方</TH><TH {...colDrag.thProps("credit")}>貸方</TH><TH {...colDrag.thProps("status")}>狀態</TH><TH {...colDrag.thProps("updatedBy")}>操作人員</TH>{customCols.columns.map((cc) => <TH key={cc.id} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title="按右鍵管理自訂欄位">{cc.label}</TH>)}<TH className="w-20 text-right">操作</TH>
+            <TH {...colDrag.thProps("number")}>{f("code")}</TH><TH {...colDrag.thProps("date")}>{tc("date")}</TH><TH {...colDrag.thProps("summary")}>{f("summary")}</TH><TH {...colDrag.thProps("debit")}>{f("debit")}</TH><TH {...colDrag.thProps("credit")}>{f("credit")}</TH><TH {...colDrag.thProps("status")}>{tc("status")}</TH><TH {...colDrag.thProps("updatedBy")}>{f("updatedBy")}</TH>{customCols.columns.map((cc) => <TH key={cc.id} onContextMenu={(event) => { event.preventDefault(); customCols.setOpen(true); }} title={tt("rightClickColumns")}>{cc.label}</TH>)}<TH className="w-20 text-right">{tc("actions")}</TH>
           </TR>
         </THead>
         <TBody>
@@ -392,13 +406,13 @@ export function JournalClient() {
                 </TD>
                 <TD>{formatMoney(debit)}</TD>
                 <TD>{formatMoney(credit)}</TD>
-                <TD><div className="flex items-center gap-1"><StatusBadge status={r.status} />{r.reversal && <span className="text-xs text-amber-700">已沖銷</span>}{r.reversalOf && <span className="text-xs text-blue-700">反向傳票</span>}</div></TD>
+                <TD><div className="flex items-center gap-1"><StatusBadge status={r.status} />{r.reversal && <span className="text-xs text-amber-700">{m("reversed")}</span>}{r.reversalOf && <span className="text-xs text-blue-700">{m("reversalEntry")}</span>}</div></TD>
                 <TD className="text-xs text-gray-500">{r.updatedBy || "-"}</TD>
                 {customCols.columns.map((cc, columnIndex) => { const v = customFieldValues.getValues(r.id); return <TD key={cc.id}><CustomFieldGridCell gridId="journals" rowId={r.id} rowIndex={rowIndex} column={cc} columnIndex={columnIndex} rowIds={rows.map((row) => row.id)} columns={customCols.columns} value={v[cc.id] ?? ""} saveValues={customFieldValues.saveValues} onManageColumns={() => customCols.setOpen(true)} /></TD>; })}
                 <TD className="text-right flex items-center justify-end gap-0">
-                  <Button variant="ghost" size="icon" onClick={() => setView(r)} title="查看"><Eye className="h-4 w-4" /></Button>
-                  {["DRAFT", "REJECTED"].includes(r.status) && <Button variant="ghost" size="icon" onClick={() => setEditId(r.id)} title="編輯"><Pencil className="h-4 w-4" /></Button>}
-                  {["DRAFT", "REJECTED"].includes(r.status) && <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-700" title="刪除" onClick={() => { if (confirm(`確定刪除尚未送審的傳票 ${r.number}？`)) act(r.id, "delete"); }}><Trash2 className="h-4 w-4" /></Button>}
+                  <Button variant="ghost" size="icon" onClick={() => setView(r)} title={m("view")}><Eye className="h-4 w-4" /></Button>
+                  {["DRAFT", "REJECTED"].includes(r.status) && <Button variant="ghost" size="icon" onClick={() => setEditId(r.id)} title={tc("edit")}><Pencil className="h-4 w-4" /></Button>}
+                  {["DRAFT", "REJECTED"].includes(r.status) && <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-700" title={tc("delete")} onClick={() => { if (confirm(m("confirmDeleteDraft", { number: r.number }))) act(r.id, "delete"); }}><Trash2 className="h-4 w-4" /></Button>}
                 </TD>
               </TR>
             );
@@ -406,11 +420,11 @@ export function JournalClient() {
         </TBody>
       </Table>
       <div className="flex items-center justify-between text-sm text-muted-foreground">
-        <div>共 {total} 筆</div>
+        <div>{tt("totalRows", { total })}</div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>上一頁</Button>
+          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>{tt("prevPage")}</Button>
           <span>{page} / {totalPages}</span>
-          <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>下一頁</Button>
+          <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>{tt("nextPage")}</Button>
         </div>
       </div>
       <CreateJournalDialog open={openNew} onClose={() => { setOpenNew(false); setPrefillDraft(null); }} onCreated={(newJournal) => { setOpenNew(false); setPrefillDraft(null); if (newJournal) { setRows((prev) => [newJournal, ...prev]); setTotal((prev) => prev + 1); } else { load(); } }} prefillDraft={prefillDraft} />
@@ -418,31 +432,31 @@ export function JournalClient() {
       {editId && <EditJournalDialog id={editId} onClose={() => setEditId(null)} onSaved={(updated) => { setEditId(null); if (updated) { setRows((prev) => prev.map((r) => r.id === updated.id ? updated : r)); } else { load(); } }} />}
       <Dialog open={periodOpen} onOpenChange={(open) => { if (!open) { setPeriodOpen(false); setReopenTarget(null); setReopenReason(""); } }}>
         <DialogContent className="max-w-3xl">
-          <DialogHeader><DialogTitle>會計期間關帳</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{m("periodClose")}</DialogTitle></DialogHeader>
           <div className="rounded-md border bg-amber-50 p-3 text-sm text-amber-900">
-            關帳前，本期傳票必須全部完成過帳。關帳後禁止新增、修改與過帳；如需調整，必須留下原因並重開，系統會自動建立結帳傳票的反向傳票。
+            {m("closeWarning")}
           </div>
           <div className="grid gap-3 rounded-md border p-3 sm:grid-cols-[180px_1fr_auto] sm:items-end">
-            <div className="space-y-1"><Label>結帳月底</Label><Input type="date" value={periodEnd} onChange={(event) => setPeriodEnd(event.target.value)} /></div>
+            <div className="space-y-1"><Label>{m("monthEnd")}</Label><Input type="date" value={periodEnd} onChange={(event) => setPeriodEnd(event.target.value)} /></div>
             <label className="flex h-10 items-center gap-2 text-sm">
               <input type="checkbox" checked={isYearEnd} onChange={(event) => setIsYearEnd(event.target.checked)} />
-              年結（僅限 12 月，轉入累積盈虧）
+              {m("yearCloseNote")}
             </label>
-            <Button onClick={closePeriod} disabled={periodBusy}>{periodBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <LockKeyhole className="h-4 w-4" />}執行關帳</Button>
+            <Button onClick={closePeriod} disabled={periodBusy}>{periodBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <LockKeyhole className="h-4 w-4" />}{m("runClose")}</Button>
           </div>
 
           <div className="max-h-72 overflow-auto rounded-md border">
             <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-muted"><tr><th className="p-2 text-left">期間</th><th className="p-2 text-left">類型</th><th className="p-2 text-left">狀態</th><th className="p-2 text-left">結轉傳票</th><th className="p-2 text-right">操作</th></tr></thead>
+              <thead className="sticky top-0 bg-muted"><tr><th className="p-2 text-left">{m("period")}</th><th className="p-2 text-left">{f("type")}</th><th className="p-2 text-left">{tc("status")}</th><th className="p-2 text-left">{m("carryForward")}</th><th className="p-2 text-right">{tc("actions")}</th></tr></thead>
               <tbody>
-                {periods.length === 0 && <tr><td className="p-4 text-center text-muted-foreground" colSpan={5}>尚無關帳紀錄</td></tr>}
+                {periods.length === 0 && <tr><td className="p-4 text-center text-muted-foreground" colSpan={5}>{m("noCloseRecords")}</td></tr>}
                 {periods.map((record) => (
                   <tr key={record.id} className="border-t">
-                    <td className="p-2">{record.year} 年 {record.month} 月</td>
-                    <td className="p-2">{record.closeType === "YEAR_END" ? "年結" : "月結"}</td>
-                    <td className="p-2">{record.status === "CLOSED" ? <span className="text-red-700">已關帳</span> : <span className="text-emerald-700">已重開</span>}</td>
-                    <td className="p-2 font-mono text-xs">{record.closingJournal?.number ?? "無結轉"}{record.closingJournal?.reversal ? ` / 沖銷 ${record.closingJournal.reversal.number}` : ""}</td>
-                    <td className="p-2 text-right">{record.status === "CLOSED" && <Button size="sm" variant="outline" onClick={() => { setReopenTarget(record); setReopenReason(""); }}><RotateCcw className="h-4 w-4" />重開</Button>}</td>
+                    <td className="p-2">{m("periodLabel", { year: record.year, month: record.month })}</td>
+                    <td className="p-2">{record.closeType === "YEAR_END" ? m("yearClose") : m("monthClose")}</td>
+                    <td className="p-2">{record.status === "CLOSED" ? <span className="text-red-700">{m("closed")}</span> : <span className="text-emerald-700">{m("reopened")}</span>}</td>
+                    <td className="p-2 font-mono text-xs">{record.closingJournal?.number ?? m("noCarryForward")}{record.closingJournal?.reversal ? m("reversedBy", { number: record.closingJournal.reversal.number }) : ""}</td>
+                    <td className="p-2 text-right">{record.status === "CLOSED" && <Button size="sm" variant="outline" onClick={() => { setReopenTarget(record); setReopenReason(""); }}><RotateCcw className="h-4 w-4" />{m("reopen")}</Button>}</td>
                   </tr>
                 ))}
               </tbody>
@@ -450,14 +464,14 @@ export function JournalClient() {
           </div>
 
           {reopenTarget && <div className="space-y-2 rounded-md border border-red-200 bg-red-50 p-3">
-            <Label>重開 {reopenTarget.year} 年 {reopenTarget.month} 月的原因</Label>
-            <Textarea value={reopenReason} onChange={(event) => setReopenReason(event.target.value)} placeholder="例：補登 7 月漏列的供應商發票" />
+            <Label>{m("reopenReasonLabel", { year: reopenTarget.year, month: reopenTarget.month })}</Label>
+            <Textarea value={reopenReason} onChange={(event) => setReopenReason(event.target.value)} placeholder={m("reverseReasonExample")} />
             <div className="flex justify-end gap-2">
-              <Button variant="ghost" onClick={() => { setReopenTarget(null); setReopenReason(""); }}>取消</Button>
-              <Button variant="destructive" onClick={reopenPeriod} disabled={periodBusy || reopenReason.trim().length < 2}>{periodBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}確認重開並沖銷</Button>
+              <Button variant="ghost" onClick={() => { setReopenTarget(null); setReopenReason(""); }}>{tc("cancel")}</Button>
+              <Button variant="destructive" onClick={reopenPeriod} disabled={periodBusy || reopenReason.trim().length < 2}>{periodBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}{m("confirmReopen")}</Button>
             </div>
           </div>}
-          <DialogFooter><Button variant="outline" onClick={() => setPeriodOpen(false)}>關閉</Button></DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={() => setPeriodOpen(false)}>{tc("close")}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
       <CustomColumnDialog module="journals" columns={customCols.columns} open={customCols.open} onClose={() => customCols.setOpen(false)} onSave={customCols.save} />
@@ -466,6 +480,12 @@ export function JournalClient() {
 }
 
 function CreateJournalDialog({ open, onClose, onCreated, prefillDraft }: { open: boolean; onClose: () => void; onCreated: (newJournal: any | null) => void; prefillDraft: any }) {
+  const m = useTranslations("journals");
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
+  const tt = useTranslations("table");
+  const { dateTime } = useFormatters();
+  const tPage = useTranslations("pages");
   const [accounts, setAccounts] = useState<any[]>([]);
   const [summary, setSummary] = useState("");
   const [entryDate, setEntryDate] = useState(new Date().toISOString().slice(0, 10));
@@ -494,8 +514,8 @@ function CreateJournalDialog({ open, onClose, onCreated, prefillDraft }: { open:
   function remove(idx: number) { setLines(lines.filter((_, i) => i !== idx)); }
 
   async function save() {
-    if (!balanced) return toast.error("借貸必須平衡且金額不可為 0");
-    if (lines.some((l) => !l.accountId)) return toast.error("請選擇科目");
+    if (!balanced) return toast.error(m("mustBalance"));
+    if (lines.some((l) => !l.accountId)) return toast.error(m("accountRequired"));
     setSaving(true);
     try {
       const res = await fetch("/api/accounting/journals", {
@@ -503,9 +523,9 @@ function CreateJournalDialog({ open, onClose, onCreated, prefillDraft }: { open:
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ summary, entryDate, lines }),
       });
-      if (!res.ok) throw new Error((await res.json()).error || "儲存失敗");
+      if (!res.ok) throw new Error((await res.json()).error || tc("saveFailed"));
       const data = await res.json();
-      toast.success("已建立");
+      toast.success(m("created"));
       onCreated(data);
     } catch (e: any) { toast.error(e.message); } finally { setSaving(false); }
   }
@@ -513,20 +533,20 @@ function CreateJournalDialog({ open, onClose, onCreated, prefillDraft }: { open:
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-3xl">
-        <DialogHeader><DialogTitle>新增傳票</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{m("create")}</DialogTitle></DialogHeader>
         <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1"><Label>傳票日期</Label><Input type="date" value={entryDate} onChange={(e) => setEntryDate(e.target.value)} /></div>
-          <div className="space-y-1 col-span-2"><Label>摘要</Label><Input value={summary} onChange={(e) => setSummary(e.target.value)} placeholder="例: 現銷商品" /></div>
+          <div className="space-y-1"><Label>{m("entryDate")}</Label><Input type="date" value={entryDate} onChange={(e) => setEntryDate(e.target.value)} /></div>
+          <div className="space-y-1 col-span-2"><Label>{f("summary")}</Label><Input value={summary} onChange={(e) => setSummary(e.target.value)} placeholder={m("summaryExample")} /></div>
         </div>
         <div className="border rounded-md overflow-hidden">
           <table className="w-full text-sm">
-            <thead className="bg-muted/50 text-xs text-muted-foreground"><tr><th className="p-2 text-left">科目</th><th className="p-2 w-32">借方</th><th className="p-2 w-32">貸方</th><th className="p-2 text-left">摘要</th><th className="p-2 w-10"></th></tr></thead>
+            <thead className="bg-muted/50 text-xs text-muted-foreground"><tr><th className="p-2 text-left">{f("account")}</th><th className="p-2 w-32">{f("debit")}</th><th className="p-2 w-32">{f("credit")}</th><th className="p-2 text-left">{f("summary")}</th><th className="p-2 w-10"></th></tr></thead>
             <tbody>
               {lines.map((l, i) => (
                 <tr key={i} className="border-t">
                   <td className="p-2">
                     <select className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm" value={l.accountId} onChange={(e) => update(i, { accountId: e.target.value })}>
-                      <option value="">選擇科目</option>
+                      <option value="">{m("selectAccount")}</option>
                       {accounts.map((a) => <option key={a.id} value={a.id}>{a.code} {a.name}</option>)}
                     </select>
                   </td>
@@ -538,20 +558,26 @@ function CreateJournalDialog({ open, onClose, onCreated, prefillDraft }: { open:
               ))}
             </tbody>
           </table>
-          <div className="p-2"><Button variant="outline" size="sm" onClick={add}><Plus className="h-4 w-4" />新增分錄</Button></div>
+          <div className="p-2"><Button variant="outline" size="sm" onClick={add}><Plus className="h-4 w-4" />{m("addLine")}</Button></div>
         </div>
         <div className="grid grid-cols-3 gap-3 text-sm">
-          <div><div className="text-muted-foreground">借方合計</div><div className="font-medium">{formatMoney(totalDebit)}</div></div>
-          <div><div className="text-muted-foreground">貸方合計</div><div className="font-medium">{formatMoney(totalCredit)}</div></div>
-          <div><div className="text-muted-foreground">狀態</div><div className={balanced ? "text-emerald-600 font-medium" : "text-red-600 font-medium"}>{balanced ? "已平衡" : "未平衡"}</div></div>
+          <div><div className="text-muted-foreground">{m("debitTotal")}</div><div className="font-medium">{formatMoney(totalDebit)}</div></div>
+          <div><div className="text-muted-foreground">{m("creditTotal")}</div><div className="font-medium">{formatMoney(totalCredit)}</div></div>
+          <div><div className="text-muted-foreground">{tc("status")}</div><div className={balanced ? "text-emerald-600 font-medium" : "text-red-600 font-medium"}>{balanced ? m("balanced") : m("unbalanced")}</div></div>
         </div>
-        <DialogFooter><Button variant="outline" onClick={onClose}>取消</Button><Button onClick={save} disabled={!balanced || saving}>{saving ? "儲存中..." : "儲存"}</Button></DialogFooter>
+        <DialogFooter><Button variant="outline" onClick={onClose}>{tc("cancel")}</Button><Button onClick={save} disabled={!balanced || saving}>{saving ? tc("saving") : tc("save")}</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   );
 }
 
 function ViewJournalDialog({ entry, onClose, onAct, onEdit }: any) {
+  const m = useTranslations("journals");
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
+  const tt = useTranslations("table");
+  const { dateTime } = useFormatters();
+  const tPage = useTranslations("pages");
   const totalDebit = entry.lines.reduce((s: number, l: any) => s + Number(l.debit), 0);
   const totalCredit = entry.lines.reduce((s: number, l: any) => s + Number(l.credit), 0);
   const [showReverse, setShowReverse] = useState(false);
@@ -560,47 +586,47 @@ function ViewJournalDialog({ entry, onClose, onAct, onEdit }: any) {
   return (
     <Dialog open onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-3xl">
-        <DialogHeader><DialogTitle>傳票 {entry.number} <StatusBadge status={entry.status} />{entry.reversal && <span className="ml-2 text-sm font-normal text-amber-700">已由 {entry.reversal.number} 沖銷</span>}{entry.reversalOf && <span className="ml-2 text-sm font-normal text-blue-700">沖銷 {entry.reversalOf.number}</span>}</DialogTitle></DialogHeader>
-        <div className="text-sm">日期：{formatDate(entry.entryDate)} / 摘要：{entry.summary || "—"}</div>
+        <DialogHeader><DialogTitle>{m("entryTitle", { number: entry.number })} <StatusBadge status={entry.status} />{entry.reversal && <span className="ml-2 text-sm font-normal text-amber-700">{m("reversedByEntry", { number: entry.reversal.number })}</span>}{entry.reversalOf && <span className="ml-2 text-sm font-normal text-blue-700">沖銷 {entry.reversalOf.number}</span>}</DialogTitle></DialogHeader>
+        <div className="text-sm">{m("dateSummary", { date: formatDate(entry.entryDate), summary: entry.summary || "—" })}</div>
         <div className="grid grid-cols-2 gap-2 rounded-md bg-muted/40 p-2 text-xs text-muted-foreground sm:grid-cols-4">
-          <div>製單：{entry.createdBy?.name || entry.createdBy?.username || entry.updatedBy || "—"}</div>
-          <div>送審：{entry.submittedAt ? new Date(entry.submittedAt).toLocaleString("zh-TW") : "—"}</div>
-          <div>核准：{entry.approvedAt ? new Date(entry.approvedAt).toLocaleString("zh-TW") : "—"}</div>
-          <div>過帳：{entry.postedAt ? new Date(entry.postedAt).toLocaleString("zh-TW") : "—"}</div>
+          <div>{m("preparedBy", { name: entry.createdBy?.name || entry.createdBy?.username || entry.updatedBy || "—" })}</div>
+          <div>{m("submittedAt", { time: entry.submittedAt ? dateTime(entry.submittedAt) : "—" })}</div>
+          <div>{m("approvedAt", { time: entry.approvedAt ? dateTime(entry.approvedAt) : "—" })}</div>
+          <div>{m("postedAt", { time: entry.postedAt ? dateTime(entry.postedAt) : "—" })}</div>
         </div>
         <table className="w-full text-sm border rounded-md">
-          <thead className="bg-muted/50 text-xs text-muted-foreground"><tr><th className="p-2 text-left">科目</th><th className="p-2 text-right">借方</th><th className="p-2 text-right">貸方</th><th className="p-2 text-left">摘要</th></tr></thead>
+          <thead className="bg-muted/50 text-xs text-muted-foreground"><tr><th className="p-2 text-left">{f("account")}</th><th className="p-2 text-right">{f("debit")}</th><th className="p-2 text-right">{f("credit")}</th><th className="p-2 text-left">{f("summary")}</th></tr></thead>
           <tbody>
             {entry.lines.map((l: any) => (
               <tr key={l.id} className="border-t"><td className="p-2">{l.account.code} {l.account.name}</td><td className="p-2 text-right">{Number(l.debit) > 0 ? formatMoney(l.debit) : "—"}</td><td className="p-2 text-right">{Number(l.credit) > 0 ? formatMoney(l.credit) : "—"}</td><td className="p-2">{l.memo ?? "—"}</td></tr>
             ))}
-            <tr className="border-t font-medium bg-muted/30"><td className="p-2">合計</td><td className="p-2 text-right">{formatMoney(totalDebit)}</td><td className="p-2 text-right">{formatMoney(totalCredit)}</td><td></td></tr>
+            <tr className="border-t font-medium bg-muted/30"><td className="p-2">{tc("total")}</td><td className="p-2 text-right">{formatMoney(totalDebit)}</td><td className="p-2 text-right">{formatMoney(totalCredit)}</td><td></td></tr>
           </tbody>
         </table>
         {showReverse && <div className="grid gap-3 rounded-md border border-amber-200 bg-amber-50 p-3 sm:grid-cols-[160px_1fr]">
-          <div className="space-y-1"><Label>沖銷日期</Label><Input type="date" value={reversalDate} onChange={(event) => setReversalDate(event.target.value)} /></div>
-          <div className="space-y-1"><Label>沖銷原因</Label><Textarea value={reverseReason} onChange={(event) => setReverseReason(event.target.value)} placeholder="例：原傳票科目誤植，改由正確傳票重登" /></div>
+          <div className="space-y-1"><Label>{m("reverseDate")}</Label><Input type="date" value={reversalDate} onChange={(event) => setReversalDate(event.target.value)} /></div>
+          <div className="space-y-1"><Label>{m("reverseReason")}</Label><Textarea value={reverseReason} onChange={(event) => setReverseReason(event.target.value)} placeholder={m("reverseReasonPlaceholder")} /></div>
           <div className="flex justify-end gap-2 sm:col-span-2">
-            <Button variant="ghost" onClick={() => setShowReverse(false)}>取消</Button>
-            <Button variant="destructive" disabled={reverseReason.trim().length < 2 || !reversalDate} onClick={() => onAct(entry.id, "reverse", { reason: reverseReason, reversalDate })}>建立反向傳票</Button>
+            <Button variant="ghost" onClick={() => setShowReverse(false)}>{tc("cancel")}</Button>
+            <Button variant="destructive" disabled={reverseReason.trim().length < 2 || !reversalDate} onClick={() => onAct(entry.id, "reverse", { reason: reverseReason, reversalDate })}>{m("createReversal")}</Button>
           </div>
         </div>}
         <DialogFooter className="gap-2 flex-wrap">
           <Button variant="outline" onClick={() => window.open(`/print/journal/${entry.id}`, "_blank")}>
-            <Printer className="h-4 w-4" />列印
+            <Printer className="h-4 w-4" />{tc("print")}
           </Button>
-          {["DRAFT", "REJECTED"].includes(entry.status) && <Button variant="outline" onClick={() => onEdit(entry.id)}><Pencil className="h-4 w-4" />修改</Button>}
-          {["DRAFT", "REJECTED"].includes(entry.status) && <Button variant="outline" onClick={() => onAct(entry.id, "submit")}>送審</Button>}
+          {["DRAFT", "REJECTED"].includes(entry.status) && <Button variant="outline" onClick={() => onEdit(entry.id)}><Pencil className="h-4 w-4" />{m("editTitle")}</Button>}
+          {["DRAFT", "REJECTED"].includes(entry.status) && <Button variant="outline" onClick={() => onAct(entry.id, "submit")}>{m("submitForReview")}</Button>}
           {entry.status === "SUBMITTED" && (
             <>
-              <Button variant="outline" onClick={() => onAct(entry.id, "approve")}>審核</Button>
-              <Button variant="destructive" onClick={() => onAct(entry.id, "reject")}>駁回</Button>
+              <Button variant="outline" onClick={() => onAct(entry.id, "approve")}>{tc("approve")}</Button>
+              <Button variant="destructive" onClick={() => onAct(entry.id, "reject")}>{tc("reject")}</Button>
             </>
           )}
-          {entry.status === "APPROVED" && <Button onClick={() => onAct(entry.id, "post")}>過帳</Button>}
-          {entry.status === "POSTED" && !entry.reversal && !entry.reversedAt && !entry.reversalOf && <Button variant="destructive" onClick={() => setShowReverse(true)}><RotateCcw className="h-4 w-4" />沖銷</Button>}
-          {["DRAFT", "REJECTED"].includes(entry.status) && <Button variant="destructive" onClick={() => onAct(entry.id, "delete")}>刪除</Button>}
-          <Button variant="ghost" onClick={onClose}>關閉</Button>
+          {entry.status === "APPROVED" && <Button onClick={() => onAct(entry.id, "post")}>{tc("post")}</Button>}
+          {entry.status === "POSTED" && !entry.reversal && !entry.reversedAt && !entry.reversalOf && <Button variant="destructive" onClick={() => setShowReverse(true)}><RotateCcw className="h-4 w-4" />{m("reverse")}</Button>}
+          {["DRAFT", "REJECTED"].includes(entry.status) && <Button variant="destructive" onClick={() => onAct(entry.id, "delete")}>{tc("delete")}</Button>}
+          <Button variant="ghost" onClick={onClose}>{tc("close")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -608,6 +634,12 @@ function ViewJournalDialog({ entry, onClose, onAct, onEdit }: any) {
 }
 
 function EditJournalDialog({ id, onClose, onSaved }: { id: string; onClose: () => void; onSaved: (updated?: any) => void }) {
+  const m = useTranslations("journals");
+  const f = useTranslations("fields");
+  const tc = useTranslations("common");
+  const tt = useTranslations("table");
+  const { dateTime } = useFormatters();
+  const tPage = useTranslations("pages");
   const [accounts, setAccounts] = useState<any[]>([]);
   const [summary, setSummary] = useState("");
   const [entryDate, setEntryDate] = useState("");
@@ -644,8 +676,8 @@ function EditJournalDialog({ id, onClose, onSaved }: { id: string; onClose: () =
   function remove(idx: number) { setLines(lines.filter((_, i) => i !== idx)); }
 
   async function save() {
-    if (!balanced) return toast.error("借貸必須平衡且金額不可為 0");
-    if (lines.some((l) => !l.accountId)) return toast.error("請選擇科目");
+    if (!balanced) return toast.error(m("mustBalance"));
+    if (lines.some((l) => !l.accountId)) return toast.error(m("accountRequired"));
     setSaving(true);
     try {
       const res = await fetch(`/api/accounting/journals/${id}`, {
@@ -653,9 +685,9 @@ function EditJournalDialog({ id, onClose, onSaved }: { id: string; onClose: () =
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ summary, entryDate, lines }),
       });
-      if (!res.ok) throw new Error((await res.json()).error || "儲存失敗");
+      if (!res.ok) throw new Error((await res.json()).error || tc("saveFailed"));
       const saved = await res.json();
-      toast.success("已更新");
+      toast.success(f("updated"));
       onSaved(saved);
     } catch (e: any) { toast.error(e.message); } finally { setSaving(false); }
   }
@@ -665,20 +697,20 @@ function EditJournalDialog({ id, onClose, onSaved }: { id: string; onClose: () =
   return (
     <Dialog open onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-3xl">
-        <DialogHeader><DialogTitle>修改傳票</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{m("edit")}</DialogTitle></DialogHeader>
         <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1"><Label>傳票日期</Label><Input type="date" value={entryDate} onChange={(e) => setEntryDate(e.target.value)} /></div>
-          <div className="space-y-1 col-span-2"><Label>摘要</Label><Input value={summary} onChange={(e) => setSummary(e.target.value)} placeholder="例: 現銷商品" /></div>
+          <div className="space-y-1"><Label>{m("entryDate")}</Label><Input type="date" value={entryDate} onChange={(e) => setEntryDate(e.target.value)} /></div>
+          <div className="space-y-1 col-span-2"><Label>{f("summary")}</Label><Input value={summary} onChange={(e) => setSummary(e.target.value)} placeholder={m("summaryExample")} /></div>
         </div>
         <div className="border rounded-md overflow-hidden">
           <table className="w-full text-sm">
-            <thead className="bg-muted/50 text-xs text-muted-foreground"><tr><th className="p-2 text-left">科目</th><th className="p-2 w-32">借方</th><th className="p-2 w-32">貸方</th><th className="p-2 text-left">摘要</th><th className="p-2 w-10"></th></tr></thead>
+            <thead className="bg-muted/50 text-xs text-muted-foreground"><tr><th className="p-2 text-left">{f("account")}</th><th className="p-2 w-32">{f("debit")}</th><th className="p-2 w-32">{f("credit")}</th><th className="p-2 text-left">{f("summary")}</th><th className="p-2 w-10"></th></tr></thead>
             <tbody>
               {lines.map((l, i) => (
                 <tr key={i} className="border-t">
                   <td className="p-2">
                     <select className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm" value={l.accountId} onChange={(e) => update(i, { accountId: e.target.value })}>
-                      <option value="">選擇科目</option>
+                      <option value="">{m("selectAccount")}</option>
                       {accounts.map((a) => <option key={a.id} value={a.id}>{a.code} {a.name}</option>)}
                     </select>
                   </td>
@@ -690,14 +722,14 @@ function EditJournalDialog({ id, onClose, onSaved }: { id: string; onClose: () =
               ))}
             </tbody>
           </table>
-          <div className="p-2"><Button variant="outline" size="sm" onClick={add}><Plus className="h-4 w-4" />新增分錄</Button></div>
+          <div className="p-2"><Button variant="outline" size="sm" onClick={add}><Plus className="h-4 w-4" />{m("addLine")}</Button></div>
         </div>
         <div className="grid grid-cols-3 gap-3 text-sm">
-          <div><div className="text-muted-foreground">借方合計</div><div className="font-medium">{formatMoney(totalDebit)}</div></div>
-          <div><div className="text-muted-foreground">貸方合計</div><div className="font-medium">{formatMoney(totalCredit)}</div></div>
-          <div><div className="text-muted-foreground">狀態</div><div className={balanced ? "text-emerald-600 font-medium" : "text-red-600 font-medium"}>{balanced ? "已平衡" : "未平衡"}</div></div>
+          <div><div className="text-muted-foreground">{m("debitTotal")}</div><div className="font-medium">{formatMoney(totalDebit)}</div></div>
+          <div><div className="text-muted-foreground">{m("creditTotal")}</div><div className="font-medium">{formatMoney(totalCredit)}</div></div>
+          <div><div className="text-muted-foreground">{tc("status")}</div><div className={balanced ? "text-emerald-600 font-medium" : "text-red-600 font-medium"}>{balanced ? m("balanced") : m("unbalanced")}</div></div>
         </div>
-        <DialogFooter><Button variant="outline" onClick={onClose}>取消</Button><Button onClick={save} disabled={!balanced || saving}>{saving ? "儲存中..." : "儲存修改"}</Button></DialogFooter>
+        <DialogFooter><Button variant="outline" onClick={onClose}>{tc("cancel")}</Button><Button onClick={save} disabled={!balanced || saving}>{saving ? tc("saving") : "儲存修改"}</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   );

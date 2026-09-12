@@ -239,22 +239,23 @@ export function NotesClient({ kind }: { kind: "receivable" | "payable" }) {
       let success = 0; const errors: string[] = [];
       for (let i = 0; i < rows.length; i++) {
         const r = rows[i] as any;
-        const partyName = String(r[partyLabel] ?? r[f("companyName")] ?? "").trim();
+        // 匯入讀取的欄位名是既有客戶檔案的格式契約，一律用中文字面值，不可走翻譯。
+        const partyName = String(r[partyLabel] ?? r["公司名稱"] ?? "").trim();
         const partyId = byName.get(partyName);
         if (!partyId) { errors.push(n("partyNotFound", { row: i + 2, party: partyLabel, name: partyName })); continue; }
-        const noteTypeRaw = String(r[f("category")] ?? f("cheque")).trim();
+        const noteTypeRaw = String(r["種類"] ?? "支票").trim();
         const noteTypeMap: Record<string, string> = { 支票: "CHECK", 本票: "PROMISSORY", 匯票: "DRAFT", 其他: "OTHER" };
         const payload: any = {
-          noteNumber: String(r[f("noteNo")] ?? "").trim(),
+          noteNumber: String(r["票號"] ?? "").trim(),
           noteType: noteTypeMap[noteTypeRaw] ?? "CHECK",
-          amount: Number(r[tc("amount")] ?? 0),
-          issueDate: r[n("issueDate")] || undefined,
-          dueDate: r[f("dueDate")] || undefined,
-          remark: r[tc("remark")] ?? undefined,
+          amount: Number(r["金額"] ?? 0),
+          issueDate: r["票面日期"] || undefined,
+          dueDate: r["到期日"] || undefined,
+          remark: r["備註"] ?? undefined,
         };
         if (kind === "receivable") {
           payload.customerId = partyId;
-          payload.bankName = r[n("payingBank")] ?? undefined;
+          payload.bankName = r["付款銀行"] ?? undefined;
         } else {
           payload.supplierId = partyId;
         }
